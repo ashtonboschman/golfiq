@@ -76,7 +76,7 @@ async function buildCourseResponse(
     female: [],
   };
 
-  course.tees.forEach((tee: typeof course.tees[number]) => {
+  course.tees.forEach(tee => {
     const teeData: TeeResponse = {
       id: Number(tee.id),
       tee_name: tee.teeName,
@@ -94,7 +94,7 @@ async function buildCourseResponse(
       back_course_rating: tee.backCourseRating ? Number(tee.backCourseRating) : null,
       back_slope_rating: tee.backSlopeRating,
       back_bogey_rating: tee.backBogeyRating ? Number(tee.backBogeyRating) : null,
-      holes: tee.holes.map((h: typeof tee.holes[number]) => ({
+      holes: tee.holes.map(h => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
         par: h.par,

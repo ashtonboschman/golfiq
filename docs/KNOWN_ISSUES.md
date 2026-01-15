@@ -5,6 +5,7 @@
 ---
 
 ## 🐛 Active Bugs
+- go through all of backend api and make sure type any is not used. Vercel deployment is giving errors.
 - flashing edit screen when navigating to the stats page (we can look at this later)
 - Search results on courses/search api for users did not inherit styles
 - Success message way too quick on courses/search page after adding a course
