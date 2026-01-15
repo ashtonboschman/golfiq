@@ -76,7 +76,7 @@ async function buildCourseResponse(
     female: [],
   };
 
-  course.tees.forEach(tee => {
+  course.tees.forEach((tee: typeof course.tees[number]) => {
     const teeData: TeeResponse = {
       id: Number(tee.id),
       tee_name: tee.teeName,
