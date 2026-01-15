@@ -50,7 +50,7 @@ async function buildCourseResponse(courseId: bigint | string) {
   // Group tees by gender
   const tees: { male: TeeData[]; female: TeeData[] } = { male: [], female: [] };
 
-  course.tees.forEach(tee => {
+  course.tees.forEach((tee: typeof course.tees[number]) => {
     const teeData = {
       id: Number(tee.id),
       tee_name: tee.teeName,
@@ -68,7 +68,7 @@ async function buildCourseResponse(courseId: bigint | string) {
       back_course_rating: tee.backCourseRating ? Number(tee.backCourseRating) : null,
       back_slope_rating: tee.backSlopeRating,
       back_bogey_rating: tee.backBogeyRating ? Number(tee.backBogeyRating) : null,
-      holes: tee.holes.map(h => ({
+      holes: tee.holes.map((h: typeof tee.holes[number]) => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
         par: h.par,
