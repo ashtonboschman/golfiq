@@ -2996,6 +2996,7 @@ input[type="datetime-local"] {
 .stats-table thead tr {
   background-color: var(--color-secondary-surface);
   border-bottom: 2px solid var(--color-border);
+  font-size: 0.7rem;
 }
 
 .stats-table th {
@@ -3006,21 +3007,15 @@ input[type="datetime-local"] {
 }
 
 .stats-table tbody tr {
-  border-bottom: 1px solid var(--color-border);
-}
-
-.stats-table tbody tr:nth-child(even) {
   background-color: var(--color-secondary-surface);
-}
-
-.stats-table tbody tr:nth-child(odd) {
-  background-color: var(--color-tertiary-surface);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .stats-table td {
   padding: var(--padding);
   text-align: center;
   color: var(--color-secondary-text);
+  font-size: 0.7rem;
 }
 
 .stats-table td.hole-number {
@@ -3029,7 +3024,6 @@ input[type="datetime-local"] {
 
 .stats-table td.score {
   font-weight: bold;
-  font-size: 1rem;
 }
 
 .stats-table td.score-to-par {

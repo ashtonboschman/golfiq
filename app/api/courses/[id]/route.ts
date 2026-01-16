@@ -119,7 +119,7 @@ async function buildCourseResponse(
       })),
     };
 
-    tees[tee.gender].push(teeData);
+    tees[tee.gender as 'male' | 'female'].push(teeData);
   }
 
   return {

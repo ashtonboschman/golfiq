@@ -193,7 +193,7 @@ export default function CourseDetailsPage() {
 
       <div className="card tee-select-card">
         <label htmlFor="tee-select">
-          <strong >Select Tee:</strong>
+          <strong >Select Tee</strong>
         </label>
 
         {allTees.length > 0 ? (
@@ -224,10 +224,10 @@ export default function CourseDetailsPage() {
       {selectedTee && (
         <div className="card course-scorecard-meta">
           <span>
-            <strong className='form-label'>Rating:</strong> {selectedTee.course_rating}
+            <strong className='form-label'>Rating</strong> {selectedTee.course_rating}
           </span>
           <span>
-            <strong className='form-label'>Slope:</strong> {selectedTee.slope_rating}
+            <strong className='form-label'>Slope</strong> {selectedTee.slope_rating}
           </span>
         </div>
       )}

@@ -248,15 +248,15 @@ export default function RoundStatsPage() {
                     Par {item.par}s ({item.holes} holes)
                   </div>
                   <div className="stats-par-row">
-                    <span className="stats-par-label">Average:</span>
+                    <span className="stats-par-label">Average</span>
                     <span className="stats-par-value">{item.average_score}</span>
                   </div>
                   <div className="stats-par-row">
-                    <span className="stats-par-label">Total Strokes:</span>
+                    <span className="stats-par-label">Total Strokes</span>
                     <span className="stats-par-value">{item.total_score}</span>
                   </div>
                   <div className="stats-par-row">
-                    <span className="stats-par-label">vs Par:</span>
+                    <span className="stats-par-label">vs Par</span>
                     <span className={`stats-par-value ${item.score_to_par > 0 ? 'over-par' : item.score_to_par < 0 ? 'under-par' : ''}`}>
                       {item.score_to_par > 0 ? '+' : ''}{item.score_to_par}
                     </span>
@@ -277,9 +277,9 @@ export default function RoundStatsPage() {
               <table className="stats-table">
                 <thead>
                   <tr>
-                    <th>Hole</th>
+                    <th>#</th>
                     <th>Par</th>
-                    <th>Yards</th>
+                    <th>Yrds</th>
                     <th>Score</th>
                     <th>+/-</th>
                     {stats.advanced_stats && (
@@ -287,7 +287,7 @@ export default function RoundStatsPage() {
                         <th>FIR</th>
                         <th>GIR</th>
                         <th>Putts</th>
-                        <th>Penalties</th>
+                        <th>Pen</th>
                       </>
                     )}
                   </tr>
@@ -311,10 +311,10 @@ export default function RoundStatsPage() {
                       {stats.advanced_stats && (
                         <>
                           <td>
-                            {hole.fir_hit !== null ? (hole.fir_hit === 1 ? <Check color='#2bb673'/> : <X color='#e74c3c'/>) : '-'}
+                            {hole.fir_hit !== null ? (hole.fir_hit === 1 ? <Check size='15' color='#2bb673'/> : <X size='15' color='#e74c3c'/>) : '-'}
                           </td>
                           <td>
-                            {hole.gir_hit !== null ? (hole.gir_hit === 1 ? <Check color='#2bb673'/> : <X color='#e74c3c'/>) : '-'}
+                            {hole.gir_hit !== null ? (hole.gir_hit === 1 ? <Check size='15' color='#2bb673'/> : <X size='15' color='#e74c3c'/>) : '-'}
                           </td>
                           <td>
                             {hole.putts ?? '-'}
