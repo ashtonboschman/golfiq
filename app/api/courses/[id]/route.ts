@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
-import { Hole } from '@prisma/client';
+import type { Hole } from '@prisma/client';
 
 type HoleResponse = {
   id: number;
