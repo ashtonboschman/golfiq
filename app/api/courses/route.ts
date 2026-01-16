@@ -2,10 +2,18 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 
+type HoleData = {
+  id: number;
+  hole_number: number;
+  par: number;
+  yardage: number | null;
+  handicap: number | null;
+};
+
 type TeeData = {
   id: number;
   tee_name: string;
-  gender: string;
+  gender: 'male' | 'female';
   course_rating: number | null;
   slope_rating: number | null;
   bogey_rating: number | null;
@@ -19,11 +27,31 @@ type TeeData = {
   back_course_rating: number | null;
   back_slope_rating: number | null;
   back_bogey_rating: number | null;
+  holes: HoleData[];
+};
+
+type TeeFromDB = {
+  id: bigint;
+  teeName: string;
+  gender: 'male' | 'female';
+  courseRating: string | null;
+  slopeRating: number | null;
+  bogeyRating: string | null;
+  totalYards: number | null;
+  totalMeters: number | null;
+  numberOfHoles: number | null;
+  parTotal: number | null;
+  frontCourseRating: string | null;
+  frontSlopeRating: number | null;
+  frontBogeyRating: string | null;
+  backCourseRating: string | null;
+  backSlopeRating: number | null;
+  backBogeyRating: string | null;
   holes: Array<{
-    id: number;
-    hole_number: number;
+    id: bigint;
+    holeNumber: number;
     par: number;
-    yardage: number;
+    yardage: number | null;
     handicap: number | null;
   }>;
 };
@@ -50,38 +78,37 @@ async function buildCourseResponse(courseId: bigint | string) {
   // Group tees by gender
   const tees: { male: TeeData[]; female: TeeData[] } = { male: [], female: [] };
 
-  course.tees.forEach(tee => {
-    const teeData = {
+  course.tees.forEach((tee) => {
+
+    const gender = tee.gender === 'male' || tee.gender === 'female' ? tee.gender : 'male';
+
+    const teeData: TeeData = {
       id: Number(tee.id),
       tee_name: tee.teeName,
-      gender: tee.gender,
+      gender,
       course_rating: tee.courseRating ? Number(tee.courseRating) : null,
-      slope_rating: tee.slopeRating,
+      slope_rating: tee.slopeRating ?? null,
       bogey_rating: tee.bogeyRating ? Number(tee.bogeyRating) : null,
-      total_yards: tee.totalYards,
-      total_meters: tee.totalMeters,
-      number_of_holes: tee.numberOfHoles,
-      par_total: tee.parTotal,
+      total_yards: tee.totalYards ?? null,
+      total_meters: tee.totalMeters ?? null,
+      number_of_holes: tee.numberOfHoles ?? null,
+      par_total: tee.parTotal ?? null,
       front_course_rating: tee.frontCourseRating ? Number(tee.frontCourseRating) : null,
-      front_slope_rating: tee.frontSlopeRating,
+      front_slope_rating: tee.frontSlopeRating ?? null,
       front_bogey_rating: tee.frontBogeyRating ? Number(tee.frontBogeyRating) : null,
       back_course_rating: tee.backCourseRating ? Number(tee.backCourseRating) : null,
-      back_slope_rating: tee.backSlopeRating,
+      back_slope_rating: tee.backSlopeRating ?? null,
       back_bogey_rating: tee.backBogeyRating ? Number(tee.backBogeyRating) : null,
-      holes: tee.holes.map(h => ({
+      holes: tee.holes.map((h) => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
         par: h.par,
-        yardage: h.yardage,
-        handicap: h.handicap,
+        yardage: h.yardage ?? null,
+        handicap: h.handicap ?? null,
       })),
     };
 
-    if (tee.gender === 'male') {
-      tees.male.push(teeData);
-    } else if (tee.gender === 'female') {
-      tees.female.push(teeData);
-    }
+    tees[gender].push(teeData);
   });
 
   return {

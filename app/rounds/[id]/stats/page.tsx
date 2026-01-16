@@ -278,14 +278,12 @@ export default function RoundStatsPage() {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Par</th>
-                    <th>Yrds</th>
+                    <th>Par | Yrd</th>
                     <th>Score</th>
                     <th>+/-</th>
                     {stats.advanced_stats && (
                       <>
-                        <th>FIR</th>
-                        <th>GIR</th>
+                        <th>F | G</th>
                         <th>Putts</th>
                         <th>Pen</th>
                       </>
@@ -298,10 +296,7 @@ export default function RoundStatsPage() {
                       <td className="hole-number">
                         {hole.hole_number}
                       </td>
-                      <td>{hole.par}</td>
-                      <td>
-                        {hole.yardage}
-                      </td>
+                      <td>{hole.par} | {hole.yardage}</td>
                       <td className="score">
                         {hole.score}
                       </td>
@@ -310,11 +305,24 @@ export default function RoundStatsPage() {
                       </td>
                       {stats.advanced_stats && (
                         <>
-                          <td>
-                            {hole.fir_hit !== null ? (hole.fir_hit === 1 ? <Check size='15' color='#2bb673'/> : <X size='15' color='#e74c3c'/>) : '-'}
-                          </td>
-                          <td>
-                            {hole.gir_hit !== null ? (hole.gir_hit === 1 ? <Check size='15' color='#2bb673'/> : <X size='15' color='#e74c3c'/>) : '-'}
+                          <td className="fg-cell">
+                            <span className="fg-left">
+                              {hole.fir_hit !== null
+                                ? hole.fir_hit === 1
+                                  ? <Check size={16} color="#2bb673" />
+                                  : <X size={16} color="#e74c3c" />
+                                : '-'}
+                            </span>
+
+                            <span className="fg-separator">|</span>
+
+                            <span className="fg-right">
+                              {hole.gir_hit !== null
+                                ? hole.gir_hit === 1
+                                  ? <Check size={16} color="#2bb673" />
+                                  : <X size={16} color="#e74c3c" />
+                                : '-'}
+                            </span>
                           </td>
                           <td>
                             {hole.putts ?? '-'}

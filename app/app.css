@@ -2991,18 +2991,20 @@ input[type="datetime-local"] {
   background-color: var(--color-secondary-surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .stats-table thead tr {
   background-color: var(--color-secondary-surface);
   border-bottom: 2px solid var(--color-border);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .stats-table th {
   padding: var(--padding);
   text-align: center;
   font-weight: bold;
+  vertical-align: middle;
   color: var(--color-primary-text);
 }
 
@@ -3014,20 +3016,37 @@ input[type="datetime-local"] {
 .stats-table td {
   padding: var(--padding);
   text-align: center;
+  vertical-align: middle;
   color: var(--color-secondary-text);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
+
 
 .stats-table td.hole-number {
   font-weight: bold;
 }
 
-.stats-table td.score {
-  font-weight: bold;
+.fg-cell {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--gap-small);
 }
 
-.stats-table td.score-to-par {
-  font-weight: bold;
+.fg-left,
+.fg-right {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.fg-separator {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--color-secondary-text);
 }
 
 .stats-table td.score-to-par.over-par {
