@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { SubscriptionTier, SubscriptionStatus } from '@prisma/client';
 import { isPremium, isLifetime } from '@/lib/subscription';
 
 export interface SubscriptionData {
-  tier: SubscriptionTier;
-  status: SubscriptionStatus;
+  tier: any;
+  status: any;
   endDate: Date | null;
   trialEndDate: Date | null;
   loading: boolean;
