@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const friendIds = friendships.map(f =>
+      const friendIds = friendships.map((f: any) =>
         f.userId === userId ? f.friendId : f.userId
       );
 
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         ],
       });
 
-      const allUsers = allStats.map(s => ({
+      const allUsers = allStats.map((s: any) => ({
         user_id: Number(s.userId),
         handicap: s.handicap ? Number(s.handicap) : null,
         average_score: s.averageToPar ? Number(s.averageToPar) : null,
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
       }));
 
       // Find user's rank
-      const userIndex = allUsers.findIndex(u => BigInt(u.user_id) === userId);
+      const userIndex = allUsers.findIndex((u: any) => BigInt(u.user_id) === userId);
 
       // Get top 100 + user context
       const top100 = allUsers.slice(0, 100);
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
         const userContext = allUsers.slice(contextStart, contextEnd);
 
         // Merge top 100 with user context, remove duplicates
-        const seen = new Set(top100.map(u => u.user_id));
+        const seen = new Set(top100.map((u: any) => u.user_id));
         const unique = [...top100];
 
         for (const u of userContext) {
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
       skip,
     });
 
-    const users = stats.map(s => ({
+    const users = stats.map((s: any) => ({
       user_id: Number(s.userId),
       handicap: s.handicap ? Number(s.handicap) : null,
       average_score: s.averageToPar ? Number(s.averageToPar) : null,

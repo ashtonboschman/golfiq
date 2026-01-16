@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdDate: 'desc' },
     });
 
-    const results = requests.map(req => ({
+    const results = requests.map((req: any) => ({
       id: Number(req.id),
       created_date: req.createdDate,
       user_id: Number(req.recipient.id),

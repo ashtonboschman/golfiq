@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Map to get the other user in the friendship
-    const results = friends.map(f => {
+    const results = friends.map((f: any) => {
       const otherUser = f.userId === userId ? f.friend : f.user;
       return {
         id: Number(otherUser.id),

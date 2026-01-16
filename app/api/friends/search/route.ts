@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     // Check friendship/request status for each user
     const results = await Promise.all(
-      users.map(async user => {
+      users.map(async (user: any) => {
         // Check if friends
         const friendship = await prisma.friend.findFirst({
           where: {

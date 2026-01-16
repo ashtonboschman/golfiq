@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Format response to match original API structure
-    const formattedTees = tees.map(tee => ({
+    const formattedTees = tees.map((tee: any) => ({
       id: Number(tee.id),
       course_id: Number(tee.courseId),
       gender: tee.gender,
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       back_course_rating: tee.backCourseRating ? Number(tee.backCourseRating) : null,
       back_slope_rating: tee.backSlopeRating,
       back_bogey_rating: tee.backBogeyRating ? Number(tee.backBogeyRating) : null,
-      holes: tee.holes.map(h => ({
+      holes: tee.holes.map((h: any) => ({
         id: Number(h.id),
         tee_id: Number(h.teeId),
         hole_number: h.holeNumber,

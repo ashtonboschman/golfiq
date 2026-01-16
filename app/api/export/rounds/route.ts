@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform data for export
-    const exportData = rounds.map(round => ({
+    const exportData = rounds.map((round: any) => ({
       id: Number(round.id),
       date: round.date.toISOString().split('T')[0],
       course_name: round.course.courseName,
@@ -108,8 +108,8 @@ export async function GET(request: NextRequest) {
     const headers = Object.keys(exportData[0]);
     const csvRows = [
       headers.join(','),
-      ...exportData.map(row =>
-        headers.map(header => {
+      ...exportData.map((row: any) =>
+        headers.map((header: any) => {
           const value = row[header as keyof typeof row];
           // Escape quotes and wrap in quotes if contains comma or quote
           const stringValue = value === null ? '' : String(value);

@@ -17,7 +17,7 @@ export async function GET(
     });
 
     // Format response
-    const formattedHoles = holes.map(h => ({
+    const formattedHoles = holes.map((h: any) => ({
       id: Number(h.id),
       tee_id: Number(h.teeId),
       hole_number: h.holeNumber,

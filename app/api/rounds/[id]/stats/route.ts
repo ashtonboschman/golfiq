@@ -65,7 +65,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     };
 
     // Hole-by-hole details (only for display purposes - totals come from Round table)
-    const holeDetails = round.roundHoles.map((rh) => {
+    const holeDetails = round.roundHoles.map((rh: any) => {
       const hole = rh.hole;
       const scoreDiff = rh.score - hole.par;
       const scoreDiffFormatted = scoreDiff > 0 ? `+${scoreDiff}` : scoreDiff.toString();

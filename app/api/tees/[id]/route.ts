@@ -44,7 +44,7 @@ export async function GET(
       back_course_rating: tee.backCourseRating ? Number(tee.backCourseRating) : null,
       back_slope_rating: tee.backSlopeRating,
       back_bogey_rating: tee.backBogeyRating ? Number(tee.backBogeyRating) : null,
-      holes: tee.holes.map(h => ({
+      holes: tee.holes.map((h: any) => ({
         id: Number(h.id),
         tee_id: Number(h.teeId),
         hole_number: h.holeNumber,

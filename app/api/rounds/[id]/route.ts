@@ -123,7 +123,7 @@ export async function GET(
         orderBy: { holeId: 'asc' },
       });
 
-      response.round_holes = holes.map(h => ({
+      response.round_holes = holes.map((h: any) => ({
         hole_id: Number(h.holeId),
         score: h.score,
         fir_hit: h.firHit,
@@ -274,7 +274,7 @@ export async function PUT(
       // Create new holes
       if (data.round_holes.length) {
         await prisma.roundHole.createMany({
-          data: data.round_holes.map(h => ({
+          data: data.round_holes.map((h: any) => ({
             roundId,
             holeId: BigInt(h.hole_id),
             score: h.score ?? 0,
@@ -393,7 +393,7 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 
   if (advancedStats) {
     const sumField = (field: keyof typeof holes[0]) => {
-      const values = holes.map(h => h[field]).filter((v): v is number => v !== null);
+      const values = holes.map((h: any) => h[field]).filter((v): v is number => v !== null);
       return values.length ? values.reduce((a, b) => a + b, 0) : null;
     };
 
