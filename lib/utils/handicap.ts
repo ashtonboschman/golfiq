@@ -3,6 +3,7 @@
 type Round = {
   holes: number;
   score: number;
+  to_par: number;
   rating: number;
   slope: number;
   fir_hit?: number | null;
