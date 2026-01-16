@@ -3,7 +3,6 @@ import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
 
 // Helper to format round data
 type RoundWithRelations = {
@@ -87,7 +86,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Build where clause with search filter
-    const where: Prisma.RoundWhereInput = { userId };
+    const where: any = { userId };
     if (search) {
       where.OR = [
         {
