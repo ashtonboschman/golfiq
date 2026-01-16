@@ -34,19 +34,19 @@ type TeeFromDB = {
   id: bigint;
   teeName: string;
   gender: 'male' | 'female';
-  courseRating: string | null;
+  courseRating: string | number | null;
   slopeRating: number | null;
-  bogeyRating: string | null;
+  bogeyRating: string | number | null;
   totalYards: number | null;
   totalMeters: number | null;
   numberOfHoles: number | null;
   parTotal: number | null;
-  frontCourseRating: string | null;
+  frontCourseRating: string | number | null;
   frontSlopeRating: number | null;
-  frontBogeyRating: string | null;
-  backCourseRating: string | null;
+  frontBogeyRating: string | number | null;
+  backCourseRating: string | number | null;
   backSlopeRating: number | null;
-  backBogeyRating: string | null;
+  backBogeyRating: string | number | null;
   holes: Array<{
     id: bigint;
     holeNumber: number;
@@ -78,7 +78,7 @@ async function buildCourseResponse(courseId: bigint | string) {
   // Group tees by gender
   const tees: { male: TeeData[]; female: TeeData[] } = { male: [], female: [] };
 
-  course.tees.forEach((tee) => {
+  (course.tees as any).forEach((tee: TeeFromDB) => {
 
     const gender = tee.gender === 'male' || tee.gender === 'female' ? tee.gender : 'male';
 
@@ -86,19 +86,19 @@ async function buildCourseResponse(courseId: bigint | string) {
       id: Number(tee.id),
       tee_name: tee.teeName,
       gender,
-      course_rating: tee.courseRating ? Number(tee.courseRating) : null,
+      course_rating: tee.courseRating != null ? Number(tee.courseRating) : null,
       slope_rating: tee.slopeRating ?? null,
-      bogey_rating: tee.bogeyRating ? Number(tee.bogeyRating) : null,
+      bogey_rating: tee.bogeyRating != null ? Number(tee.bogeyRating) : null,
       total_yards: tee.totalYards ?? null,
       total_meters: tee.totalMeters ?? null,
       number_of_holes: tee.numberOfHoles ?? null,
       par_total: tee.parTotal ?? null,
-      front_course_rating: tee.frontCourseRating ? Number(tee.frontCourseRating) : null,
+      front_course_rating: tee.frontCourseRating != null ? Number(tee.frontCourseRating) : null,
       front_slope_rating: tee.frontSlopeRating ?? null,
-      front_bogey_rating: tee.frontBogeyRating ? Number(tee.frontBogeyRating) : null,
-      back_course_rating: tee.backCourseRating ? Number(tee.backCourseRating) : null,
+      front_bogey_rating: tee.frontBogeyRating != null ? Number(tee.frontBogeyRating) : null,
+      back_course_rating: tee.backCourseRating != null ? Number(tee.backCourseRating) : null,
       back_slope_rating: tee.backSlopeRating ?? null,
-      back_bogey_rating: tee.backBogeyRating ? Number(tee.backBogeyRating) : null,
+      back_bogey_rating: tee.backBogeyRating != null ? Number(tee.backBogeyRating) : null,
       holes: tee.holes.map((h) => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
