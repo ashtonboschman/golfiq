@@ -99,7 +99,7 @@ async function buildCourseResponse(courseId: bigint | string) {
       back_course_rating: tee.backCourseRating != null ? Number(tee.backCourseRating) : null,
       back_slope_rating: tee.backSlopeRating ?? null,
       back_bogey_rating: tee.backBogeyRating != null ? Number(tee.backBogeyRating) : null,
-      holes: tee.holes.map((h) => ({
+      holes: tee.holes.map((h: any) => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
         par: h.par,
@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
       // Add distance to each course response
       const coursesWithDistance = courseResponses
         .filter((c: any) => c !== null)
-        .map((course, index) => ({
+        .map((course: any, index: any) => ({
           ...course,
           distance: courses[index]?.distance ? Number(courses[index].distance) : undefined,
         }));
@@ -309,7 +309,7 @@ function toTitleCase(str: string | null | undefined): string | null {
   return str
     .toLowerCase()
     .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word: any) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
@@ -319,7 +319,7 @@ function toTitleCase(str: string | null | undefined): string | null {
 function extractStreetAddress(fullAddress: string | null | undefined): string | null {
   if (!fullAddress) return null;
 
-  const parts = fullAddress.split(',').map(part => part.trim());
+  const parts = fullAddress.split(',').map((part: any) => part.trim());
 
   if (parts.length < 4) {
     // If there aren't 4 parts (address, city, state+zip, country), return the whole thing

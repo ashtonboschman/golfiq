@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
     let roundsToAnalyze = rounds;
     if (!isPremium) {
       // Sort by date descending (most recent first), then take last 20
-      const sortedRounds = [...rounds].sort((a, b) => b.date.getTime() - a.date.getTime());
+      const sortedRounds = [...rounds].sort((a: any, b: any) => b.date.getTime() - a.date.getTime());
       roundsToAnalyze = sortedRounds.slice(0, 20);
     }
 
@@ -282,14 +282,14 @@ export async function GET(request: NextRequest) {
     const totalRounds = modeRounds.length;
     const bestScore = totalRounds ? Math.min(...modeRounds.map((r: any) => r.score)) : null;
     const worstScore = totalRounds ? Math.max(...modeRounds.map((r: any) => r.score)) : null;
-    const averageScore = totalRounds ? modeRounds.reduce((s, r) => s + r.score, 0) / totalRounds : null;
+    const averageScore = totalRounds ? modeRounds.reduce((s: any, r: any) => s + r.score, 0) / totalRounds : null;
 
     // Calculate toPar stats (only for rounds with to_par values)
     const roundsWithToPar = (modeRounds as any[]).filter((r: any) => r.to_par !== null && r.to_par !== undefined);
     const bestToPar = roundsWithToPar.length ? Math.min(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
     const worstToPar = roundsWithToPar.length ? Math.max(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
     const averageToPar = roundsWithToPar.length
-      ? roundsWithToPar.reduce((s, r) => s + r.to_par!, 0) / roundsWithToPar.length
+      ? roundsWithToPar.reduce((s: any, r: any) => s + r.to_par!, 0) / roundsWithToPar.length
       : null;
 
     const firRounds = modeRounds.filter((r: any) => r.fir_hit != null && r.fir_total != null);
@@ -298,21 +298,21 @@ export async function GET(request: NextRequest) {
     const penaltiesRounds = modeRounds.filter((r: any) => r.penalties != null);
 
     const fir_avg = firRounds.length
-      ? (firRounds.reduce((sum, r) => sum + (r.fir_hit || 0), 0) /
-          firRounds.reduce((sum, r) => sum + r.fir_total, 0)) * 100
+      ? (firRounds.reduce((sum: any, r: any) => sum + (r.fir_hit || 0), 0) /
+          firRounds.reduce((sum: any, r: any) => sum + r.fir_total, 0)) * 100
       : null;
 
     const gir_avg = girRounds.length
-      ? (girRounds.reduce((sum, r) => sum + (r.gir_hit || 0), 0) /
-          girRounds.reduce((sum, r) => sum + r.gir_total, 0)) * 100
+      ? (girRounds.reduce((sum: any, r: any) => sum + (r.gir_hit || 0), 0) /
+          girRounds.reduce((sum: any, r: any) => sum + r.gir_total, 0)) * 100
       : null;
 
     const avg_putts = puttsRounds.length
-      ? puttsRounds.reduce((sum, r) => sum + (r.putts || 0), 0) / puttsRounds.length
+      ? puttsRounds.reduce((sum: any, r: any) => sum + (r.putts || 0), 0) / puttsRounds.length
       : null;
 
     const avg_penalties = penaltiesRounds.length
-      ? penaltiesRounds.reduce((sum, r) => sum + (r.penalties || 0), 0) / penaltiesRounds.length
+      ? penaltiesRounds.reduce((sum: any, r: any) => sum + (r.penalties || 0), 0) / penaltiesRounds.length
       : null;
 
     return successResponse({

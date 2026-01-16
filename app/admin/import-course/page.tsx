@@ -229,8 +229,8 @@ export default function ImportCoursePage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            onChange={(e: any) => setSearchQuery(e.target.value)}
+            onKeyPress={(e: any) => e.key === 'Enter' && handleSearch()}
             placeholder="Enter course name or city (e.g., 'Macgregor' or 'Cary')"
             className="form-input"
             disabled={searchLoading}
@@ -250,7 +250,7 @@ export default function ImportCoursePage() {
           <div>
             <h3>Search Results ({searchResults.length})</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {searchResults.map((course) => (
+              {searchResults.map((course: any) => (
                 <div
                   key={course.id}
                   className="card"
@@ -262,8 +262,8 @@ export default function ImportCoursePage() {
                     transition: 'background-color 0.2s',
                   }}
                   onClick={() => handleSelectCourse(course)}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2A313D')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#1E242F')}
+                  onMouseEnter={(e: any) => (e.currentTarget.style.backgroundColor = '#2A313D')}
+                  onMouseLeave={(e: any) => (e.currentTarget.style.backgroundColor = '#1E242F')}
                 >
                   <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color:'#EDEFF2' }}>{course.course_name}</div>
                   <div style={{ color: '#9AA3B2', fontSize: '0.9rem' }}>{course.club_name}</div>
@@ -302,7 +302,7 @@ export default function ImportCoursePage() {
 
         {showManualEntry && (
           <ManualCourseForm
-            onCourseCreated={(courseData) => {
+            onCourseCreated={(courseData: any) => {
               setJsonInput(JSON.stringify(courseData, null, 2));
               setPreview(courseData);
 
@@ -337,7 +337,7 @@ export default function ImportCoursePage() {
         <label className="form-label">JSON Response:</label>
         <textarea
           value={jsonInput}
-          onChange={(e) => setJsonInput(e.target.value)}
+          onChange={(e: any) => setJsonInput(e.target.value)}
           placeholder='Paste GolfCourseAPI.com JSON here...'
           rows={15}
           className="form-input"

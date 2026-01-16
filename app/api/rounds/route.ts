@@ -141,11 +141,11 @@ export async function GET(request: NextRequest) {
 
 // CREATE round
 const createRoundSchema = z.object({
-  course_id: z.union([z.string(), z.number()]).refine((val) => {
+  course_id: z.union([z.string(), z.number()]).refine((val: any) => {
     const num = typeof val === 'string' ? Number(val) : val;
     return !isNaN(num) && num > 0;
   }, { message: 'course_id must be a valid positive number' }),
-  tee_id: z.union([z.string(), z.number()]).refine((val) => {
+  tee_id: z.union([z.string(), z.number()]).refine((val: any) => {
     const num = typeof val === 'string' ? Number(val) : val;
     return !isNaN(num) && num > 0;
   }, { message: 'tee_id must be a valid positive number' }),
@@ -156,8 +156,8 @@ const createRoundSchema = z.object({
   putts: z.number().nullable().optional(),
   penalties: z.number().nullable().optional(),
   notes: z.string().optional().default(''),
-  hole_by_hole: z.union([z.boolean(), z.number()]).transform((val) => typeof val === 'number' ? val === 1 : val).optional().default(false),
-  advanced_stats: z.union([z.boolean(), z.number()]).transform((val) => typeof val === 'number' ? val === 1 : val).optional().default(false),
+  hole_by_hole: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
+  advanced_stats: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
   round_holes: z.array(z.object({
     hole_id: z.union([z.string(), z.number()]),
     score: z.number().nullable(),
@@ -284,7 +284,7 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 
   if (!holes.length) return;
 
-  const totalScore = holes.reduce((sum, h) => sum + h.score, 0);
+  const totalScore = holes.reduce((sum: any, h: any) => sum + h.score, 0);
 
   // Get round's tee to calculate toPar
   const round = await prisma.round.findUnique({
@@ -318,7 +318,7 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
   if (advancedStats) {
     const sumField = (field: keyof typeof holes[0]) => {
       const values = holes.map((h: any) => h[field]).filter((v): v is number => v !== null);
-      return values.length ? values.reduce((a, b) => a + b, 0) : null;
+      return values.length ? values.reduce((a: any, b: any) => a + b, 0) : null;
     };
 
     totals.firHit = sumField('firHit');
