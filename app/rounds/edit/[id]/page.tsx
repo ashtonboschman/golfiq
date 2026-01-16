@@ -513,24 +513,24 @@ export default function EditRoundPage() {
             <div className="hole-header">Totals</div>
             <div className="hole-card-grid">
               <div className="hole-field">
-                <strong>Par:</strong> {show(totals.par)}
+                <strong>Par</strong> {show(totals.par)}
               </div>
               <div className="hole-field">
-                <strong>Score:</strong> {show(totals.score)}
+                <strong>Score</strong> {show(totals.score)}
               </div>
               {hasAdvanced && (
                 <>
                   <div className="hole-field">
-                    <strong>FIR:</strong> {show(totals.fir_hit)}
+                    <strong>FIR</strong> {show(totals.fir_hit)}
                   </div>
                   <div className="hole-field">
-                    <strong>Putts:</strong> {show(totals.putts)}
+                    <strong>Putts</strong> {show(totals.putts)}
                   </div>
                   <div className="hole-field">
-                    <strong>GIR:</strong> {show(totals.gir_hit)}
+                    <strong>GIR</strong> {show(totals.gir_hit)}
                   </div>
                   <div className="hole-field">
-                    <strong>Penalties:</strong> {show(totals.penalties)}
+                    <strong>Penalties</strong> {show(totals.penalties)}
                   </div>
                 </>
               )}

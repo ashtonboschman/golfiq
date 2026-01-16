@@ -16,7 +16,7 @@
 - Upgrade modal did not popup after 3 rounds
 - Limit max input value fir (0 - # of non-par3 holes) and gir (0 - # of holes) on quick mode advanced stats
 - Add/edit rounds page should show both Quick and HBH buttons side by side like leaderboard (with same active highlighting)
-- Stats don’t show on friend card when accepting request until after refresh
+- Stats don’t show on friend card when accepting request until after refresh. Also make sure if user hcp is null we display '-' and not 0. That could be misleading.
 - Forgot password page return to login button too long and not completely theme matching (using link maybe we use button like everything else in the app? Lets check all files for links and make them buttons to match the app I think.)
 - Back to login button maybe on reset password page
 - Verify email page button and vertical spacing (lets make sure all login/register/verify-email/forgot-password/reset-password are styled the exact same so it all is uniform)
@@ -24,7 +24,6 @@
 - Round stats number coloring needs work (logic for green and red) I think less than 0 = green, 1 - 18 = color-primary-text, and more than 18 = red.
 - Cancel from add / edit round needs confirmation to avoid accidental data deletion
 - Update course search results from rounds/add and edit to include location string so we can differentiate between same named courses. 
-- Confirm courses search alphabetically when users don’t allow location (I think this is the best way to handle it since we can't assume location)
 - Make sure hbh table on rounds stats does not horizontally scroll on mobile devices
 - Look into buttons for score/putts/penalties input. Not sure what we should do for this.
 - Look into competitor exporting to see if we can import easily

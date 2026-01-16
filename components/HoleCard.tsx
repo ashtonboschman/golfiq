@@ -50,7 +50,7 @@ const HoleCard = memo(({
       {/* Always render base row */}
       <div className="hole-card-grid">
         <div className="hole-field">
-          <label className="form-label">Par:</label>
+          <label className="form-label">Par</label>
           <input
             className="hole-card-input"
             type="text"
@@ -62,7 +62,7 @@ const HoleCard = memo(({
         </div>
 
         <div className="hole-field">
-          <label className="form-label">Score:</label>
+          <label className="form-label">Score</label>
           <input
             className="hole-card-input"
             type="text"
@@ -81,7 +81,7 @@ const HoleCard = memo(({
         <>
           <div className="hole-card-grid">
             <div className="hole-field">
-              <label className="form-label">FIR:</label>
+              <label className="form-label">FIR</label>
               <BinaryNullToggle
                 value={fir_hit}
                 onChange={(val) => onChange(hole, 'fir_hit', val)}
@@ -90,7 +90,7 @@ const HoleCard = memo(({
             </div>
 
             <div className="hole-field">
-              <label className="form-label">Putts:</label>
+              <label className="form-label">Putts</label>
               <input
                 className="hole-card-input"
                 type="text"
@@ -106,7 +106,7 @@ const HoleCard = memo(({
 
           <div className="hole-card-grid">
             <div className="hole-field">
-              <label className="form-label">GIR:</label>
+              <label className="form-label">GIR</label>
               <BinaryNullToggle
                 value={gir_hit}
                 onChange={(val) => onChange(hole, 'gir_hit', val)}
@@ -114,7 +114,7 @@ const HoleCard = memo(({
             </div>
 
             <div className="hole-field">
-              <label className="form-label">Penalties:</label>
+              <label className="form-label">Penalties</label>
               <input
                 className="hole-card-input"
                 type="text"

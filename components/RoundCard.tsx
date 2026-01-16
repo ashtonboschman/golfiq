@@ -103,39 +103,39 @@ export default function RoundCard({
           <span className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</span>
         </div>
         <div className="roundcard-info-row">
-          <strong>To Par:</strong> {formatToPar(round.score, par)}
+          <strong>To Par</strong> {formatToPar(round.score, par)}
         </div>
         <div className="roundcard-info-row">
-          <strong>Score:</strong> {formatValue(round.score)}
+          <strong>Score</strong> {formatValue(round.score)}
         </div>
         <div className="roundcard-info-row">
-          <strong>Par:</strong> {formatValue(par)}
+          <strong>Par</strong> {formatValue(par)}
         </div>
         {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>FIR:</strong> {formatValue(round.fir_hit)}
+            <strong>FIR</strong> {formatValue(round.fir_hit)}
           </div>
         )}
         {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>GIR:</strong> {formatValue(round.gir_hit)}
+            <strong>GIR</strong> {formatValue(round.gir_hit)}
           </div>
         )}
         {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>Putts:</strong> {formatValue(round.putts)}
+            <strong>Putts</strong> {formatValue(round.putts)}
           </div>
         )}
         {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>Pen:</strong> {formatValue(round.penalties)}
+            <strong>Pen</strong> {formatValue(round.penalties)}
           </div>
         )}
       </div>
 
       {round.notes && (
         <div className="roundcard-notes">
-          <strong>Notes:</strong> {round.notes}
+          <strong>Notes</strong> {round.notes}
         </div>
       )}
     </Link>

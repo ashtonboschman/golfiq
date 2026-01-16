@@ -34,8 +34,8 @@ type CourseResponse = {
   id: number;
   club_name: string;
   course_name: string;
-  created_date: Date;
-  updated_date: Date;
+  created_date: string;
+  updated_date: string;
   location: {
     state: string;
     country: string;
@@ -50,7 +50,6 @@ type CourseResponse = {
   };
 };
 
-// Helper to build full course response
 async function buildCourseResponse(
   courseId: bigint
 ): Promise<CourseResponse | null> {
@@ -71,12 +70,13 @@ async function buildCourseResponse(
 
   if (!course) return null;
 
-  const tees: { male: TeeResponse[]; female: TeeResponse[] } = {
-    male: [],
-    female: [],
-  };
+  const tees: CourseResponse['tees'] = { male: [], female: [] };
 
-  course.tees.forEach(tee => {
+  for (const tee of course.tees) {
+    if (tee.gender !== 'male' && tee.gender !== 'female') {
+      continue;
+    }
+
     const teeData: TeeResponse = {
       id: Number(tee.id),
       tee_name: tee.teeName,
@@ -88,12 +88,20 @@ async function buildCourseResponse(
       total_meters: tee.totalMeters,
       number_of_holes: tee.numberOfHoles,
       par_total: tee.parTotal,
-      front_course_rating: tee.frontCourseRating ? Number(tee.frontCourseRating) : null,
+      front_course_rating: tee.frontCourseRating
+        ? Number(tee.frontCourseRating)
+        : null,
       front_slope_rating: tee.frontSlopeRating,
-      front_bogey_rating: tee.frontBogeyRating ? Number(tee.frontBogeyRating) : null,
-      back_course_rating: tee.backCourseRating ? Number(tee.backCourseRating) : null,
+      front_bogey_rating: tee.frontBogeyRating
+        ? Number(tee.frontBogeyRating)
+        : null,
+      back_course_rating: tee.backCourseRating
+        ? Number(tee.backCourseRating)
+        : null,
       back_slope_rating: tee.backSlopeRating,
-      back_bogey_rating: tee.backBogeyRating ? Number(tee.backBogeyRating) : null,
+      back_bogey_rating: tee.backBogeyRating
+        ? Number(tee.backBogeyRating)
+        : null,
       holes: tee.holes.map(h => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
@@ -103,43 +111,40 @@ async function buildCourseResponse(
       })),
     };
 
-    if (tee.gender === 'male') {
-      tees.male.push(teeData);
-    } else {
-      tees.female.push(teeData);
-    }
-  });
+    tees[tee.gender].push(teeData);
+  }
 
   return {
     id: Number(course.id),
     club_name: course.clubName,
     course_name: course.courseName,
-    created_date: course.createdDate,
-    updated_date: course.updatedDate,
+    created_date: course.createdDate.toISOString(),
+    updated_date: course.updatedDate.toISOString(),
     location: {
-      state: course.location?.state || 'Unknown',
-      country: course.location?.country || 'Unknown',
-      address: course.location?.address || null,
-      city: course.location?.city || null,
-      latitude: course.location?.latitude ? Number(course.location.latitude) : null,
-      longitude: course.location?.longitude ? Number(course.location.longitude) : null,
+      state: course.location?.state ?? 'Unknown',
+      country: course.location?.country ?? 'Unknown',
+      address: course.location?.address ?? null,
+      city: course.location?.city ?? null,
+      latitude: course.location?.latitude
+        ? Number(course.location.latitude)
+        : null,
+      longitude: course.location?.longitude
+        ? Number(course.location.longitude)
+        : null,
     },
     tees,
   };
 }
 
-// GET single course
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<Response> {
   try {
     await requireAuth(request);
 
-    const resolvedParams = await params;
+    const { id } = await context.params;
 
-    const id = resolvedParams?.id;
-    
     if (!id) {
       return errorResponse('Missing course id', 400);
     }

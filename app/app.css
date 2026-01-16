@@ -930,6 +930,12 @@ select option {
   margin: 0;
 }
 
+.course-club {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-secondary-text);
+}
+
 .course-location {
   margin: 0;
   font-size: 0.9rem;
