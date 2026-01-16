@@ -54,7 +54,7 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
   const roundsWithHoles = rounds.map(r => ({
     holes: r.tee.numberOfHoles ?? 18,
     score: r.score,
-    toPar: r.toPar,
+    to_Par: r.toPar,
     rating: r.tee.courseRating ? Number(r.tee.courseRating) : 72,
     slope: r.tee.slopeRating ?? 113,
     par: r.tee.parTotal ?? 72,
@@ -70,16 +70,16 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
   const combinedRounds = normalizeRoundsByMode(roundsWithHoles, 'combined');
 
   const totalRounds = combinedRounds.length;
-  const sumScore = combinedRounds.reduce((sum, r) => sum + r.score, 0);
-  const bestScore = Math.min(...combinedRounds.map(r => r.score));
+  const sumScore = combinedRounds.reduce((sum: any, r: any) => sum + r.score, 0);
+  const bestScore = Math.min(...combinedRounds.map((r: any) => r.score));
 
   // Calculate toPar stats (only for rounds with toPar values)
-  const roundsWithToPar = combinedRounds.filter(r => r.toPar !== null && r.toPar !== undefined);
+  const roundsWithToPar = combinedRounds.filter((r: any) => r.toPar !== null && r.toPar !== undefined);
   const averageToPar = roundsWithToPar.length > 0
-    ? roundsWithToPar.reduce((sum, r) => sum + r.toPar!, 0) / roundsWithToPar.length
+    ? roundsWithToPar.reduce((sum: any, r: any) => sum + r.toPar!, 0) / roundsWithToPar.length
     : null;
   const bestToPar = roundsWithToPar.length > 0
-    ? Math.min(...roundsWithToPar.map(r => r.toPar!))
+    ? Math.min(...roundsWithToPar.map((r: any) => r.toPar!))
     : null;
 
   // Handicap calculation
