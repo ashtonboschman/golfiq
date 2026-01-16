@@ -7,6 +7,7 @@ interface RoundCardProps {
     club_name?: string;
     course_name?: string;
     city?: string;
+    state?: string;
     tee_name?: string;
     date: string;
     score: number | null;
@@ -69,11 +70,11 @@ export default function RoundCard({
     <Link href={`/rounds/${round.id}/stats`} className="card clickable" style={{ textDecoration: 'none', color: 'inherit' }}>
       {/* Header */}
       <div className="roundcard-header">
+        
         <div className="roundcard-header-text">
           <h3 className="roundcard-course-name">{round.club_name == round.course_name ? round.course_name : round.club_name + ' - ' + round.course_name || '-'}</h3>
-          <h5 className="roundcard-city"><MapPin size='14'/> {round.city || '-'}</h5>
           <div className="roundcard-header-info">
-            <span className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</span>
+            <h5 className="roundcard-city"><MapPin size='14'/> {round.city + ', ' + round.state || '-'}</h5>
             <span className="round-date">{formatDate(round.date)}</span>
           </div>
         </div>
@@ -97,7 +98,10 @@ export default function RoundCard({
       </div>
 
       {/* Info Grid */}
-      <div className="grid grid-3">
+      <div className="grid grid-4">
+        <div className="roundcard-info-row">
+          <span className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</span>
+        </div>
         <div className="roundcard-info-row">
           <strong>To Par:</strong> {formatToPar(round.score, par)}
         </div>
@@ -124,7 +128,7 @@ export default function RoundCard({
         )}
         {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>Penalties:</strong> {formatValue(round.penalties)}
+            <strong>Pen:</strong> {formatValue(round.penalties)}
           </div>
         )}
       </div>

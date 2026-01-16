@@ -20,6 +20,7 @@ interface Round {
   club_name: string;
   course_name: string;
   city: string;
+  state: string;
   tee_id: number | null;
   tee_name: string;
   notes: string | null;
@@ -89,6 +90,7 @@ export default function RoundsPage() {
         club_name: r.course?.club_name ?? '-',
         course_name: r.course?.course_name ?? '-',
         city: r.location?.city ?? '-',
+        state: r.location?.state ?? '-',
         tee_id: r.tee?.id ?? null,
         tee_name: r.tee?.tee_name ?? '-',
         notes: r.notes ?? null,

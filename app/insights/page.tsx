@@ -32,9 +32,7 @@ export default function InsightsPage() {
         </p>
       </div>    
       <PremiumGate featureName="Golf IQ Insights">
-        <div>
-          
-        </div>
+        <></>
       </PremiumGate>
       <div className="ai-coach-content">
         <div className="coach-card">

@@ -335,6 +335,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     course_name: r.course?.course_name ?? '-',
     club_name: r.course?.club_name ?? '-',
     city: r.course?.city ?? '-',
+    state: r.course?.state ?? '-',
     tee_id: r.tee?.tee_id ?? null,
     tee_name: r.tee?.tee_name ?? '-',
   }));

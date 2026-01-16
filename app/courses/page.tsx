@@ -203,7 +203,7 @@ export default function CoursesPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-1" style={{ gap: 16 }}>
+        <div className="grid grid-1">
           {courses.map((course, index) => {
             const isLast = index === courses.length - 1;
             return (

@@ -905,19 +905,34 @@ select option {
    Course Scorecard / Details
 =========================== */
 .course-card {
+  display: flex;
+  flex-direction: column;
   gap: var(--gap);
+}
+
+.course-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--gap);
+}
+
+.course-card-bottom {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: space-between;
+  gap: var(--gap-small);
 }
 
 .course-name {
   font-size: 1.2rem;
   margin: 0;
-  line-height: 1.2;
 }
 
-.course-club,
 .course-location {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: var(--color-secondary-text);
 }
 
@@ -938,12 +953,14 @@ select option {
   border-radius: 999px;
   margin-top: 0;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .course-distance {
   margin: 0;
   margin-top: 0;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--color-secondary-text);
 }
 
@@ -1165,11 +1182,6 @@ select option {
 /* ===========================
    RoundCard Specific
 =========================== */
-.round-date {
-  color: var(--color-secondary-text);
-  font-size: 0.9rem;
-}
-
 .roundcard-header {
   display: flex;
   position: relative;
@@ -1191,18 +1203,22 @@ select option {
   margin: 0;
 }
 
-.roundcard-city {
-  font-size: 1rem;
-  margin: 0;
+.roundcard-header-info {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--gap);
   color: var(--color-secondary-text);
 }
 
-.roundcard-header-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap);
-  font-size: 0.75rem;
-  color: var(--color-secondary-text);
+.roundcard-city {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.round-date {
+  font-size: 0.8rem;
+  margin: 0;
 }
 
 .roundcard-button-group {
@@ -1221,7 +1237,7 @@ select option {
 .roundcard-info-row {
   color: var(--color-secondary-text);
   font-size: 1rem;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .roundcard-subtitle {
@@ -1275,7 +1291,6 @@ select option {
 }
 
 .tee-white {
-  border: 1px solid var(--color-border);
   background-color: var(--color-white-text);
   color: var(--color-black);
 }
