@@ -393,7 +393,7 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 
   if (advancedStats) {
     const sumField = (field: keyof typeof holes[0]) => {
-      const values = holes.map((h: any) => h[field]).filter((v): v is number => v !== null);
+      const values = holes.map((h: any) => h[field]).filter((v: any): v is number => v !== null);
       return values.length ? values.reduce((a: any, b: any) => a + b, 0) : null;
     };
 
