@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
-import type { Hole } from '@prisma/client';
 
 type HoleResponse = {
   id: number;
@@ -103,12 +102,12 @@ async function buildCourseResponse(
       back_bogey_rating: tee.backBogeyRating
         ? Number(tee.backBogeyRating)
         : null,
-      holes: tee.holes.map((h: Hole) => ({
+      holes: tee.holes.map(h => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
         par: h.par,
-        yardage: h.yardage,
-        handicap: h.handicap,
+        yardage: h.yardage ?? null,
+        handicap: h.handicap ?? null,
       })),
     };
 
