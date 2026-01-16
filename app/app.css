@@ -179,6 +179,29 @@
   --color-footer-icon: var(--color-primary-text);
 }
 
+.theme-floral {
+  /* Backgrounds */
+  --color-primary-bg: #FBF7FA;          /* very light lavender-pink */
+  --color-primary-surface: #FFFFFF;     /* main cards stay white */
+  --color-secondary-surface: #F5EDF5;   /* soft pastel lilac for secondary surfaces */
+
+  /* Text */
+  --color-primary-text: #3B323D;        /* soft dark purple-gray for readability */
+  --color-secondary-text: #8A7485;      /* muted pinkish-purple */
+
+  /* Accents */
+  --color-accent: #D79BCF;              /* pastel pinkish-purple */
+  --color-accent-hover: #C882B9;        /* slightly darker for hover */
+  --color-accent-highlight: #EAC7E1;    /* very soft pink-lavender highlight */
+
+  /* Borders / lines */
+  --color-border: #E7DDE6;              /* subtle pink-lavender border */
+
+  /* Icons / footer */
+  --color-footer-icon: #3B323D;         /* matches primary text */
+}
+
+
 
 .theme-sunset {
   --color-primary-bg: #FFF3E6;
