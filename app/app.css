@@ -170,38 +170,14 @@
   --color-primary-bg: #F6F4F5;
   --color-primary-surface: #FFFFFF;
   --color-secondary-surface: #EEE9EC;
-  --color-primary-text: #1B1A1D;
-  --color-secondary-text: #6F6A70;
-  --color-accent: #C94C74;
-  --color-accent-hover: #B04366;
+  --color-primary-text: #a45dc2;
+  --color-secondary-text: #cfa0e4;
+  --color-accent: #D79BCF;
+  --color-accent-hover: #C882B9;
   --color-accent-highlight: #D77F9C;
   --color-border: #DED7DC;
-  --color-footer-icon: var(--color-primary-text);
+  --color-footer-icon: #FFFFFF;
 }
-
-.theme-floral {
-  /* Backgrounds */
-  --color-primary-bg: #FBF7FA;          /* very light lavender-pink */
-  --color-primary-surface: #FFFFFF;     /* main cards stay white */
-  --color-secondary-surface: #F5EDF5;   /* soft pastel lilac for secondary surfaces */
-
-  /* Text */
-  --color-primary-text: #3B323D;        /* soft dark purple-gray for readability */
-  --color-secondary-text: #8A7485;      /* muted pinkish-purple */
-
-  /* Accents */
-  --color-accent: #D79BCF;              /* pastel pinkish-purple */
-  --color-accent-hover: #C882B9;        /* slightly darker for hover */
-  --color-accent-highlight: #EAC7E1;    /* very soft pink-lavender highlight */
-
-  /* Borders / lines */
-  --color-border: #E7DDE6;              /* subtle pink-lavender border */
-
-  /* Icons / footer */
-  --color-footer-icon: #3B323D;         /* matches primary text */
-}
-
-
 
 .theme-sunset {
   --color-primary-bg: #FFF3E6;
