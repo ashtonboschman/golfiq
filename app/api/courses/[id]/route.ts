@@ -10,6 +10,14 @@ type HoleResponse = {
   handicap: number | null;
 };
 
+type HoleFromDB = {
+  id: bigint;
+  holeNumber: number;
+  par: number;
+  yardage: number | null;
+  handicap: number | null;
+};
+
 type TeeResponse = {
   id: number;
   tee_name: string;
@@ -102,7 +110,7 @@ async function buildCourseResponse(
       back_bogey_rating: tee.backBogeyRating
         ? Number(tee.backBogeyRating)
         : null,
-      holes: tee.holes.map(h => ({
+      holes: tee.holes.map((h: HoleFromDB) => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
         par: h.par,
