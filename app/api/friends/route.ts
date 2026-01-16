@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Sort by username
-    results.sort((a, b) => a.username.localeCompare(b.username));
+    results.sort((a: any, b: any) => a.username.localeCompare(b.username));
 
     return successResponse({ results });
   } catch (error) {

@@ -280,12 +280,12 @@ export async function GET(request: NextRequest) {
 
     // Calculate aggregate stats
     const totalRounds = modeRounds.length;
-    const bestScore = totalRounds ? Math.min(...modeRounds.map(r => r.score)) : null;
-    const worstScore = totalRounds ? Math.max(...modeRounds.map(r => r.score)) : null;
+    const bestScore = totalRounds ? Math.min(...modeRounds.map((r: any) => r.score)) : null;
+    const worstScore = totalRounds ? Math.max(...modeRounds.map((r: any) => r.score)) : null;
     const averageScore = totalRounds ? modeRounds.reduce((s, r) => s + r.score, 0) / totalRounds : null;
 
     // Calculate toPar stats (only for rounds with to_par values)
-    const roundsWithToPar = (modeRounds as any[]).filter(r => r.to_par !== null && r.to_par !== undefined);
+    const roundsWithToPar = (modeRounds as any[]).filter((r: any) => r.to_par !== null && r.to_par !== undefined);
     const bestToPar = roundsWithToPar.length ? Math.min(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
     const worstToPar = roundsWithToPar.length ? Math.max(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
     const averageToPar = roundsWithToPar.length
