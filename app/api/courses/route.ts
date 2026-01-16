@@ -229,12 +229,12 @@ export async function GET(request: NextRequest) {
 
       // Build full course responses
       const courseResponses = await Promise.all(
-        courses.map(c => buildCourseResponse(c.id))
+        courses.map((c: any) => buildCourseResponse(c.id))
       );
 
       // Add distance to each course response
       const coursesWithDistance = courseResponses
-        .filter(c => c !== null)
+        .filter((c: any) => c !== null)
         .map((course, index) => ({
           ...course,
           distance: courses[index]?.distance ? Number(courses[index].distance) : undefined,
@@ -284,12 +284,12 @@ export async function GET(request: NextRequest) {
 
     // Build full course responses
     const courseResponses = await Promise.all(
-      courses.map(c => buildCourseResponse(c.id))
+      courses.map((c: any) => buildCourseResponse(c.id))
     );
 
     return successResponse({
       message: '',
-      courses: courseResponses.filter(c => c !== null),
+      courses: courseResponses.filter((c: any) => c !== null),
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
