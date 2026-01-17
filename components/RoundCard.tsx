@@ -1,4 +1,4 @@
-import { Edit, MapPin, Trash2 } from 'lucide-react';
+import { ChevronRight, Edit, MapPin, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface RoundCardProps {
@@ -96,41 +96,45 @@ export default function RoundCard({
           </div>
         )}
       </div>
-
-      {/* Info Grid */}
-      <div className="grid grid-4">
-        <div className="roundcard-info-row">
-          <span className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</span>
-        </div>
-        <div className="roundcard-info-row">
-          <strong>To Par</strong> {formatToPar(round.score, par)}
-        </div>
-        <div className="roundcard-info-row">
-          <strong>Score</strong> {formatValue(round.score)}
-        </div>
-        <div className="roundcard-info-row">
-          <strong>Par</strong> {formatValue(par)}
-        </div>
-        {showAdvanced && (
+      <div className='roundcard-bottom'>
+        {/* Info Grid */}
+        <div className="grid grid-4">
           <div className="roundcard-info-row">
-            <strong>FIR</strong> {formatValue(round.fir_hit)}
+            <span className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</span>
           </div>
-        )}
-        {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>GIR</strong> {formatValue(round.gir_hit)}
+            <strong>To Par</strong> {formatToPar(round.score, par)}
           </div>
-        )}
-        {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>Putts</strong> {formatValue(round.putts)}
+            <strong>Score</strong> {formatValue(round.score)}
           </div>
-        )}
-        {showAdvanced && (
           <div className="roundcard-info-row">
-            <strong>Pen</strong> {formatValue(round.penalties)}
+            <strong>Par</strong> {formatValue(par)}
           </div>
-        )}
+          {showAdvanced && (
+            <div className="roundcard-info-row">
+              <strong>FIR</strong> {formatValue(round.fir_hit)}
+            </div>
+          )}
+          {showAdvanced && (
+            <div className="roundcard-info-row">
+              <strong>GIR</strong> {formatValue(round.gir_hit)}
+            </div>
+          )}
+          {showAdvanced && (
+            <div className="roundcard-info-row">
+              <strong>Putts</strong> {formatValue(round.putts)}
+            </div>
+          )}
+          {showAdvanced && (
+            <div className="roundcard-info-row">
+              <strong>Pen</strong> {formatValue(round.penalties)}
+            </div>
+          )}
+        </div>
+        <div  className='roundcard-bottom-right'>
+          <ChevronRight className='primary-text'/>
+        </div>
       </div>
 
       {round.notes && (

@@ -334,7 +334,7 @@ export default function ImportCoursePage() {
           Alternatively, paste the JSON response from GolfCourseAPI.com below
         </p>
 
-        <label className="form-label">JSON Response:</label>
+        <label className="form-label">JSON Response</label>
         <textarea
           value={jsonInput}
           onChange={(e: any) => setJsonInput(e.target.value)}

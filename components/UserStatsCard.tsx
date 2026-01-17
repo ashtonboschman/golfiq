@@ -20,7 +20,7 @@ export default function UserStatsCard({ stats }: UserStatsCardProps) {
 
   return (
     <div className="card">
-      <label className="form-label">Handicap:</label>
+      <label className="form-label">Handicap</label>
       <input
         type="text"
         value={formatHandicap(stats.handicap)}
@@ -28,7 +28,7 @@ export default function UserStatsCard({ stats }: UserStatsCardProps) {
         className="form-input"
       />
 
-      <label className="form-label">Average Score:</label>
+      <label className="form-label">Average Score</label>
       <input
         type="text"
         value={format(stats.average_score)}
@@ -36,10 +36,10 @@ export default function UserStatsCard({ stats }: UserStatsCardProps) {
         className="form-input"
       />
 
-      <label className="form-label">Best Score:</label>
+      <label className="form-label">Best Score</label>
       <input type="text" value={format(stats.best_score)} disabled={true} className="form-input" />
 
-      <label className="form-label">Total Rounds:</label>
+      <label className="form-label">Total Rounds</label>
       <input
         type="text"
         value={format(stats.total_rounds)}

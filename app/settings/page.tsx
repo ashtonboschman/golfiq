@@ -109,7 +109,7 @@ export default function SettingsPage() {
             <div className="settings-card">
               <div className="subscription-info">
                 <div className="subscription-info-row">
-                  <span className="subscription-label">Current Plan:</span>
+                  <span className="subscription-label">Current Plan</span>
                   <SubscriptionBadge size="medium" />
                 </div>
 
@@ -140,7 +140,7 @@ export default function SettingsPage() {
                         {trialEndDate && new Date() < new Date(trialEndDate) ? (
                           <>
                             <p className="subscription-status" style={{ color: 'var(--color-success)' }}>
-                              Status: <strong>Free Trial Active</strong>
+                              Status <strong>Free Trial Active</strong>
                             </p>
                             <p className="subscription-expiry">
                               Trial ends on {new Date(trialEndDate).toLocaleDateString()}
@@ -153,7 +153,7 @@ export default function SettingsPage() {
                         ) : (
                           <>
                             <p className="subscription-status">
-                              Status: <strong>{subscriptionStatus}</strong>
+                              Status <strong>{subscriptionStatus}</strong>
                             </p>
                             {endDate && daysUntilExpiry !== null && (
                               <>
@@ -192,7 +192,7 @@ export default function SettingsPage() {
                     {tier === 'lifetime' && (
                       <div className="subscription-detail-box lifetime">
                         <p className="lifetime-note"><PartyPopper/> You have lifetime access to all Premium features!</p>
-                        <p className="subscription-note">
+                        <p className="lifetime-subscription-note">
                           Thank you for your continued support. You'll never need to pay again.
                         </p>
                       </div>
@@ -216,7 +216,7 @@ export default function SettingsPage() {
                 )}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
-                <label className="form-label">Selected Theme:</label>
+                <label className="form-label">Selected Theme</label>
                 <Select
                   value={availableThemes.find(t => t.value === theme)}
                   onChange={(option) => {

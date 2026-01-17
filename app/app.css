@@ -36,7 +36,7 @@
   --color-black: #000;
   --color-gray: #888;
   --color-yellow: #facb10;
-  --color-gold: #a79037;
+  --color-gold: #dfbd00;
   --color-white: #fff;
   --color-white-text: #EDEFF2;
   --color-success-background: #d4edda;
@@ -611,9 +611,11 @@ select option {
 }
 
 .grid-4 {
+  display: grid;
   grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap-small);
+  flex: 1;
 }
-
 
 /* ===========================
    Tables
@@ -941,10 +943,24 @@ select option {
 
 .course-card-bottom {
   display: flex;
+  flex-direction: row;
+  flex: 1;
+  justify-content: space-between;
+  gap: var(--gap-small);
+}
+
+.course-card-bottom-left {
+  display: flex;
   flex-direction: column;
   flex: 1;
   justify-content: space-between;
   gap: var(--gap-small);
+}
+
+.course-card-bottom-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 
 .course-name {
@@ -1255,11 +1271,25 @@ select option {
   right: 0;
   display: flex;
   flex-direction: row;
-  gap: var(--gap-small);
+  gap: var(--gap);
 }
 
 .roundcard-button-group .btn {
   padding: var(--padding-small);
+}
+
+.roundcard-bottom {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--gap-small);
+  justify-content: flex-start;
+}
+
+.roundcard-bottom-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 
 .roundcard-info-row {
@@ -1570,7 +1600,7 @@ select option {
 .leaderboard-row {
   color: var(--color-primary-text);
   display: grid;
-  grid-template-columns: 20px 2fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 20px 4fr 1fr 1fr 1fr;
   align-items: center;
   gap: var(--gap-small);
   padding: 0;
@@ -1607,7 +1637,10 @@ select option {
   overflow: hidden;
 }
 
-.first-name,
+.first-name {
+  white-space: nowrap;
+}
+
 .last-name {
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2502,8 +2535,14 @@ input[type="datetime-local"] {
 }
 
 .subscription-detail-box.lifetime .lifetime-note {
-  color: var(--color-primary-text);
+  color: var(--color-white-text);
   font-size: 1.1rem;
+  margin: var(--gap);
+}
+
+.lifetime-subscription-note {
+  font-size: 0.9rem;
+  color: var(---color-white-text);
   margin: var(--gap);
 }
 

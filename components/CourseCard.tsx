@@ -1,4 +1,4 @@
-import { MapPin } from 'lucide-react';
+import { ChevronRight, MapPin } from 'lucide-react';
 import Link from 'next/link';
 
 interface Location {
@@ -51,11 +51,15 @@ export default function CourseCard({ course, locations = [], tees = [] }: Course
           <p className="course-holes-tag">{holes}</p>
         </div>
         <div  className='course-card-bottom'>
-          <h5 className="course-location"><MapPin size='14'/> {locationString} </h5>
-          {course.distance !== undefined && (
-            <p className="course-distance">{course.distance.toFixed(1)} km away</p>
-          )}
-          
+          <div  className='course-card-bottom-left'>
+            <h5 className="course-location"><MapPin size='14'/> {locationString} </h5>
+            {course.distance !== undefined && (
+              <p className="course-distance">{course.distance.toFixed(1)} km away</p>
+            )}
+          </div>
+          <div  className='course-card-bottom-right'>
+            <ChevronRight className='primary-text'/>
+          </div>
         </div>
       </div>
     </Link>

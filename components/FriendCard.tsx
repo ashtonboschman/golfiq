@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { FriendUser } from '@/lib/friendUtils';
-import { Check, Plus, UserCheck2, UserPlus2, UserRoundCog, X } from 'lucide-react';
+import { Check, ChevronRight, Plus, UserCheck2, UserPlus2, UserRoundCog, X } from 'lucide-react';
 
 interface FriendCardProps {
   friend: FriendUser;
@@ -58,16 +58,16 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
           </div>
           <div className="friend-stats">
             <span className="stat-item">
-              <span className="stat-label">Hcp:</span> {formatHandicap(friend.handicap)}
+              <span className="stat-label">Hcp</span> {formatHandicap(friend.handicap)}
             </span>
             <span className="stat-item">
-              <span className="stat-label">Avg:</span> {formatNumber(friend.average_score)}
+              <span className="stat-label">Avg</span> {formatNumber(friend.average_score)}
             </span>
             <span className="stat-item">
-              <span className="stat-label">Best:</span> {friend.best_score ?? '-'}
+              <span className="stat-label">Best</span> {friend.best_score ?? '-'}
             </span>
             <span className="stat-item">
-              <span className="stat-label">Rnds:</span> {friend.total_rounds ?? '-'}
+              <span className="stat-label">Rnds</span> {friend.total_rounds ?? '-'}
             </span>
           </div>
         </div>
@@ -117,7 +117,9 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
           ))}
         {type === 'friend' &&
           (showDetails ? (
-            <></>
+            <Link href={`/users/${targetUserId}`} className="chevron-link">
+              <ChevronRight className='primary-text'/>
+            </Link>
           ) : (
             <button className="btn btn-friends" disabled>
               <UserCheck2/>

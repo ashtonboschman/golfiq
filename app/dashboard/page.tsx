@@ -113,27 +113,64 @@ function TrendCard({
         position: 'bottom' as const,
         labels: {
           color: textColor,
-          usePointStyle: true,
-          pointStyle: 'line',
+          usePointStyle: false,
+          boxWidth: 15,
+          boxHeight: 1,
           font: { size: 16 },
         },
       },
       tooltip: {
+        mode: 'index' as const,
+        intersect: false,
+        usePointStyle: true,
         backgroundColor: surfaceColor,
         titleColor: textColor,
         bodyColor: textColor,
+        callbacks: {
+          label: (context: any) => {
+            const value = context.parsed.y;
+
+            if (context.dataset.label === 'Score to Par' && value != null) {
+              return formatToPar(value);
+            }
+
+            if ((context.dataset.label === 'FIR %' || context.dataset.label === 'GIR %') && value != null) {
+              return `${value.toFixed(1)}%`;
+            }
+
+            return value != null ? value.toString() : '-';
+          },
+        },
       },
     },
     scales: {
       x: {
-        ticks: { color: textColor, maxRotation: 45, minRotation: 45 },
-        grid: { color: gridColor },
+        ticks: { 
+          color: textColor, 
+          maxRotation: 45, 
+          minRotation: 45 
+        },
+        grid: { 
+          color: gridColor 
+        },
       },
       y: {
         min: yMin,
         max: yMax,
-        ticks: { color: textColor, stepSize: yStep ?? 5, autoSkip: false },
-        grid: { color: gridColor },
+        ticks: { 
+          color: textColor, 
+          stepSize: yStep ?? 5, 
+          autoSkip: false ,
+          callback: (value: any) => {
+            if (trendData.datasets[0]?.label === 'Score to Par') {
+              return formatToPar(Number(value));
+            }
+            return value; // leave Total Score unchanged
+          },
+        },
+        grid: { 
+          color: gridColor 
+        },
       },
     },
   };
@@ -227,6 +264,33 @@ function InfoTooltip({ text }: { text: string }) {
     </div>
   );
 }
+
+// ---------- FORMATTERS ----------
+export const formatNumber = (num: number | null | undefined) =>
+  num == null || isNaN(num) ? '-' : num % 1 === 0 ? num.toString() : num.toFixed(1);
+
+export const formatToPar = (num: number | null | undefined) => {
+  if (num == null || isNaN(num)) return '-';
+  const formatted = num % 1 === 0 ? num.toString() : num.toFixed(1);
+  return num > 0 ? `+${formatted}` : formatted;
+};
+
+export const formatPercent = (num: number | null | undefined) =>
+  num == null || isNaN(num) ? '-' : `${num.toFixed(1)}%`;
+
+export const formatDate = (dateStr: string) => {
+  if (!dateStr) return '-';
+  const datePart = dateStr.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 12);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+export const formatHandicap = (num: number | null) => {
+  if (num == null || isNaN(num)) return '-';
+  if (num < 0) return `+${Math.abs(num)}`;
+  return num % 1 === 0 ? num.toString() : num.toFixed(1);
+};
 
 export default function DashboardPage({ userId: propUserId }: { userId?: number }) {
   const router = useRouter();
@@ -398,35 +462,6 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
   if (loading) return <p className="loading-text">Loading dashboard...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
-  // Formatters
-  const formatNumber = (num: number | null | undefined) =>
-    num == null || isNaN(num) ? '-' : num % 1 === 0 ? num : num.toFixed(1);
-  const formatToPar = (num: number | null | undefined) => {
-    if (num == null || isNaN(num)) return '-';
-    const formatted = num % 1 === 0 ? num.toString() : num.toFixed(1);
-    return num > 0 ? `+${formatted}` : formatted;
-  };
-  const formatPercent = (num: number | null | undefined) =>
-    num == null || isNaN(num) ? '-' : `${num.toFixed(1)}%`;
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-
-    // Parse date string to avoid timezone conversion issues
-    const datePart = dateStr.split('T')[0]; // "YYYY-MM-DD"
-    const [year, month, day] = datePart.split('-').map(Number);
-    const date = new Date(year, month - 1, day, 12, 0, 0);
-
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-  const formatHandicap = (num: number | null) => {
-    if (num == null || isNaN(num)) return '-';
-    if (num < 0) return `+${Math.abs(num)}`;
-    return num % 1 === 0 ? num : num.toFixed(1);
-  };
-
   const displayRounds = (stats.all_rounds ?? []).map((r: any) => ({
     ...r,
     course_name: r.course?.course_name ?? '-',
@@ -471,6 +506,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       dateLabel: formatDate(r.date),
       uniqueKey: `${r.date}-${index}`,
       score: r.score,
+      to_par: r.to_par,
       fir_pct:
         r.fir_hit != null && r.fir_total != null ? (r.fir_hit / r.fir_total) * 100 : null,
       gir_pct:
@@ -481,14 +517,16 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       labels: trendData.map(d => d.dateLabel),
       datasets: [
         {
-          label: 'Score',
-          data: trendData.map(d => d.score),
+          label: showToPar ? 'Score to Par' : 'Total Score',
+          data: trendData.map(d =>
+            showToPar ? d.to_par : d.score
+          ),
           borderColor: accentColor,
           backgroundColor: 'rgba(0,0,0,0)',
           tension: 0.3,
-          pointRadius: 4,
+          pointRadius: 5,
           pointBackgroundColor: accentColor,
-          pointHoverRadius: 5,
+          pointHoverRadius: 7,
         },
       ],
     };
@@ -504,9 +542,9 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           backgroundColor: `${accentColor}22`, // semi-transparent fill
           fill: true,
           tension: 0.3,
-          pointRadius: 4,
+          pointRadius: 5,
           pointBackgroundColor: accentColor,
-          pointHoverRadius: 5,
+          pointHoverRadius: 7,
           spanGaps: true,
         },
         {
@@ -516,17 +554,25 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           backgroundColor: `${accentHighlight}22`,
           fill: true,
           tension: 0.3,
-          pointRadius: 4,
+          pointRadius: 5,
           pointBackgroundColor: accentHighlight,
-          pointHoverRadius: 5,
+          pointHoverRadius: 7,
           spanGaps: true,
         },
       ],
     };
 
-  const scores = trendData.map((d) => d.score).filter((v): v is number => v != null);
-  const yMin = scores.length ? Math.floor(Math.min(...scores) / 10) * 10 : 0;
-  const yMax = scores.length ? Math.ceil(Math.max(...scores) / 10) * 10 : 100;
+  const scoreValues = trendData
+    .map(d => showToPar ? d.to_par : d.score)
+    .filter((v): v is number => v != null);
+
+  const yMin = scoreValues.length
+    ? Math.floor(Math.min(...scoreValues) / 5) * 5
+    : undefined;
+
+  const yMax = scoreValues.length
+    ? Math.ceil(Math.max(...scoreValues) / 5) * 5
+    : undefined;
 
   // Dynamic modal messaging based on round count
   const getModalMessage = () => {
@@ -632,13 +678,13 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           <p>{formatHandicap(stats.handicap)}</p>
         </div>
         {[
-          ['Average', showToPar ? stats.average_to_par : stats.average_score, showToPar ? 'Average score relative to par (negative is better)' : null, true],
-          ['Best', showToPar ? stats.best_to_par : stats.best_score, showToPar ? 'Best score relative to par (negative is better)' : null, true],
-          ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, showToPar ? 'Worst score relative to par (positive is worse)' : null, true],
-          ['Total Rounds', totalRounds, null, false],
-          ['Par 3 Average', par3_avg, 'Average score on par 3 holes', false],
-          ['Par 4 Average', par4_avg, 'Average score on par 4 holes', false],
-          ['Par 5 Average', par5_avg, 'Average score on par 5 holes', false],
+          ['Average', showToPar ? stats.average_to_par : stats.average_score, showToPar ? 'Average score relative to par' : null, true],
+          ['Best', showToPar ? stats.best_to_par : stats.best_score, showToPar ? 'Best score relative to par' : null, true],
+          ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, showToPar ? 'Worst score relative to par' : null, true],
+          ['Total', totalRounds, 'Total amount of rounds played', false],
+          ['Par 3', par3_avg, 'Average score on par 3 holes', false],
+          ['Par 4', par4_avg, 'Average score on par 4 holes', false],
+          ['Par 5', par5_avg, 'Average score on par 5 holes', false],
         ].map(([label, val, tooltip, isToggleable]) => (
           <div
             className="card dashboard-stat-card"
@@ -649,18 +695,6 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
               transition: 'all 0.2s ease',
             }}
             onClick={() => isToggleable && setShowToPar((p) => !p)}
-            onMouseEnter={(e) => {
-              if (isToggleable) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (isToggleable) {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
-              }
-            }}
           >
             {tooltip && <InfoTooltip text={tooltip as string} />}
             <h3>{label}</h3>
@@ -711,10 +745,10 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             ['GIR', stats.gir_avg, '%', 'Greens In Regulation - % of greens reached in regulation'],
             ['Putts', stats.avg_putts, null, 'Average putts per round'],
             ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round'],
-            ['Birdies <', birdiesOrBetterPerRound, null, 'Average birdies or better per round'],
+            ['Birdies ≤', birdiesOrBetterPerRound, null, 'Average birdies or better per round'],
             ['Pars', parPerRound, null, 'Average pars per round'],
             ['Bogeys', bogeysPerRound, null, 'Average bogeys per round'],
-            ['Doubles +', doublesOrWorsePerRound, null, 'Average double bogeys or worse per round'],
+            ['Doubles ≥', doublesOrWorsePerRound, null, 'Average double bogeys or worse per round'],
           ].map(([label, val, isPercent, tooltip]) => (
             <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
               {tooltip && <InfoTooltip text={tooltip as string} />}

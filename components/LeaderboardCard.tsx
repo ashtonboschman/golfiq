@@ -8,7 +8,6 @@ interface LeaderboardUser {
   handicap: number | null;
   average_score: number | null;
   best_score: number | null;
-  total_rounds: number;
 }
 
 interface LeaderboardCardProps {
@@ -43,7 +42,9 @@ export default function LeaderboardCard({ user, rank, isCurrentUser }: Leaderboa
             )}
             <div className="name-stack">
               <span className="first-name">{user.first_name}</span>
-              <span className="last-name">{user.last_name}</span>
+              <span className="last-name">
+                {user.last_name ? `${user.last_name[0]}.` : ''}
+              </span>
             </div>
           </div>
         </div>
@@ -53,8 +54,6 @@ export default function LeaderboardCard({ user, rank, isCurrentUser }: Leaderboa
         <div className="leaderboard-cell centered">{formatNumber(user.average_score, 1)}</div>
 
         <div className="leaderboard-cell centered">{user.best_score ?? '-'}</div>
-
-        <div className="leaderboard-cell centered">{user.total_rounds}</div>
       </div>
     </div>
   );

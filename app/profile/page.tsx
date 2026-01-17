@@ -488,10 +488,10 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <label className="form-label">Email:</label>
+        <label className="form-label">Email</label>
         <input type="email" value={profile.email} disabled className="form-input disabled" />
 
-        <label className="form-label">First Name:</label>
+        <label className="form-label">First Name</label>
         <input
           type="text"
           value={profile.first_name || ''}
@@ -500,7 +500,7 @@ export default function ProfilePage() {
           className="form-input"
         />
 
-        <label className="form-label">Last Name:</label>
+        <label className="form-label">Last Name</label>
         <input
           type="text"
           value={profile.last_name || ''}
@@ -509,7 +509,7 @@ export default function ProfilePage() {
           className="form-input"
         />
 
-        <label className="form-label">Bio:</label>
+        <label className="form-label">Bio</label>
         <textarea
           name="bio"
           value={profile.bio || ''}
@@ -526,7 +526,7 @@ export default function ProfilePage() {
           wrap='soft'
         />
 
-        <label className="form-label">Gender:</label>
+        <label className="form-label">Gender</label>
         <Select
           value={{ value: profile.gender || 'unspecified', label: profile.gender === 'male' ? 'Male' : profile.gender === 'female' ? 'Female' : 'Unspecified' }}
           isDisabled={!editing || loading}
@@ -540,7 +540,7 @@ export default function ProfilePage() {
           styles={selectStyles}
         />
 
-        <label className="form-label">Default Tee:</label>
+        <label className="form-label">Default Tee</label>
         <Select
           value={{ value: profile.default_tee || 'blue', label: (profile.default_tee || 'blue').charAt(0).toUpperCase() + (profile.default_tee || 'blue').slice(1) }}
           isDisabled={!editing || loading}
@@ -556,7 +556,7 @@ export default function ProfilePage() {
           styles={selectStyles}
         />
 
-        <label className="form-label">Favorite Course:</label>
+        <label className="form-label">Favorite Course</label>
         <AsyncPaginate
           value={favoriteCourseOption}
           loadOptions={loadCourseOptions}
@@ -572,7 +572,7 @@ export default function ProfilePage() {
           styles={selectStyles}
         />
 
-        <label className="form-label">Dashboard Visibility:</label>
+        <label className="form-label">Dashboard Visibility</label>
         <Select
           value={{ value: profile.dashboard_visibility || 'private', label: (profile.dashboard_visibility || 'private').charAt(0).toUpperCase() + (profile.dashboard_visibility || 'private').slice(1) }}
           isDisabled={!editing || loading}
@@ -611,7 +611,7 @@ export default function ProfilePage() {
 
       {showPasswordForm ? (
         <form onSubmit={handlePasswordChange} className="card">
-          <label className="form-label">Current Password:</label>
+          <label className="form-label">Current Password</label>
           <input
             type="password"
             value={passwords.currentPassword}
@@ -621,7 +621,7 @@ export default function ProfilePage() {
             disabled={loading}
             max={100}
           />
-          <label className="form-label">New Password:</label>
+          <label className="form-label">New Password</label>
           <input
             type="password"
             value={passwords.newPassword}
@@ -631,7 +631,7 @@ export default function ProfilePage() {
             disabled={loading}
             max={100}
           />
-          <label className="form-label">Confirm New Password:</label>
+          <label className="form-label">Confirm New Password</label>
           <input
             type="password"
             value={passwords.confirmPassword}

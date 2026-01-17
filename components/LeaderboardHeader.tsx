@@ -11,7 +11,6 @@ export default function LeaderboardHeader({ sortBy, sortOrder, onSort }: Leaderb
     { key: 'handicap', label: 'Hcp' },
     { key: 'average_score', label: 'Avg' },
     { key: 'best_score', label: 'Best' },
-    { key: 'total_rounds', label: 'Rnds' },
   ];
 
   const handleSort = (key: string) => {
