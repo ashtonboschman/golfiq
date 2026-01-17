@@ -669,7 +669,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="card flex justify-center" style={{ gap: '12px' }}>
+      <div className="card">
         <button
           type="button"
           className="btn btn-edit"
@@ -678,6 +678,8 @@ export default function ProfilePage() {
         >
           Settings
         </button>
+      </div>
+         <div className="card">
         <button type="button" className="btn btn-logout" onClick={handleLogout} disabled={loading}>
           Logout
         </button>

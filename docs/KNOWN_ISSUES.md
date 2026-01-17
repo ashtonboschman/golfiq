@@ -30,7 +30,7 @@
 - Lets make it so 'No rounds recorded.' does not get displayed when user first registers and doesnt have a round yet on dashboard last 5 rounds section.
 - Lets introduce a toggle on dashboard that switches all score based stats to toPar stats. Currently we have stat cards toggleable. We can maybe keep this and make it also change the scoring trend chart?
 - round add/edit lets look at how we can use # of holes from tee selection to set max fir/gir clamped values (when we add courses and tees do we add a new colujmn to tees db table that are like number of non par 3 holes? Or fir_possible?)
-- 
+- have profile info editable by default (remove edit profile button) and when user changes a stat, render the cancel/save buttons. If user tries to navigate away from page warn them that changes are not saved.
 
 ## 📋 Planned Features (Not Yet Implemented)
 

@@ -8,19 +8,31 @@ import { useSubscription } from '@/hooks/useSubscription';
 import RoundCard from '@/components/RoundCard';
 import InlineAdBanner from '@/components/InlineAdBanner';
 import UpgradeModal from '@/components/UpgradeModal';
+import { Line } from 'react-chartjs-2';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
   Tooltip,
   Legend,
-  ResponsiveContainer,
-} from 'recharts';
+} from 'chart.js';
 import { Info, Plus, TriangleAlert } from 'lucide-react';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
+
+ChartJS.defaults.font.family = "'Inter', sans-serif";
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface DashboardStats {
   handicap: number | null;
@@ -55,6 +67,91 @@ interface DashboardStats {
   isPremium?: boolean;
   limitedToLast20?: boolean;
   totalRoundsInDb?: number;
+}
+
+interface TrendCardProps {
+  trendData: {
+    labels: string[];
+    datasets: {
+      label: string;
+      data: (number | null)[];
+      borderColor: string;
+      backgroundColor?: string;
+      fill?: boolean;
+      tension?: number;
+      pointRadius?: number;
+      pointBackgroundColor?: string;
+      pointHoverRadius?: number;
+    }[];
+  };
+  accentColor: string;
+  surfaceColor: string;
+  textColor: string;
+  gridColor: string;
+  height?: number;
+  yMin?: number;
+  yMax?: number;
+  yStep?: number;
+}
+
+function TrendCard({
+  trendData,
+  accentColor,
+  surfaceColor,
+  textColor,
+  gridColor,
+  height,
+  yMin,
+  yMax,
+  yStep,
+}: TrendCardProps) {
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom' as const,
+        labels: {
+          color: textColor,
+          usePointStyle: true,
+          pointStyle: 'line',
+          font: { size: 16 },
+        },
+      },
+      tooltip: {
+        backgroundColor: surfaceColor,
+        titleColor: textColor,
+        bodyColor: textColor,
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: textColor, maxRotation: 45, minRotation: 45 },
+        grid: { color: gridColor },
+      },
+      y: {
+        min: yMin,
+        max: yMax,
+        ticks: { color: textColor, stepSize: yStep ?? 5, autoSkip: false },
+        grid: { color: gridColor },
+      },
+    },
+  };
+
+  return (
+    <div
+      className="trend-card flex flex-col items-center p-6 bg-white rounded-xl shadow-lg w-full max-w-2xl mx-auto"
+      style={{ height: height ?? 250 }}
+    >
+      <h3 className="mb-4" style={{ color: textColor }}>
+        Score Trend
+      </h3>
+
+      <div className="w-full h-full">
+        <Line data={trendData} options={options} />
+      </div>
+    </div>
+  );
 }
 
 // Info tooltip component
@@ -371,14 +468,61 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     .map((r, index) => ({
       id: r.id, // Use the round ID as unique identifier
       date: r.date,
-      dateLabel: formatDate(r.date), // Pre-format the date for display
-      uniqueKey: `${r.date}-${index}`, // Unique key for React/Recharts using datetime + index
+      dateLabel: formatDate(r.date),
+      uniqueKey: `${r.date}-${index}`,
       score: r.score,
       fir_pct:
         r.fir_hit != null && r.fir_total != null ? (r.fir_hit / r.fir_total) * 100 : null,
       gir_pct:
         r.gir_hit != null && r.gir_total != null ? (r.gir_hit / r.gir_total) * 100 : null,
     }));
+
+    const scoreChartData = {
+      labels: trendData.map(d => d.dateLabel),
+      datasets: [
+        {
+          label: 'Score',
+          data: trendData.map(d => d.score),
+          borderColor: accentColor,
+          backgroundColor: 'rgba(0,0,0,0)',
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: accentColor,
+          pointHoverRadius: 5,
+        },
+      ],
+    };
+
+
+    const firGirData = {
+      labels: trendData.map(d => d.dateLabel),
+      datasets: [
+        {
+          label: 'FIR %',
+          data: trendData.map(d => d.fir_pct ?? null),
+          borderColor: accentColor,
+          backgroundColor: `${accentColor}22`, // semi-transparent fill
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: accentColor,
+          pointHoverRadius: 5,
+          spanGaps: true,
+        },
+        {
+          label: 'GIR %',
+          data: trendData.map(d => d.gir_pct ?? null),
+          borderColor: accentHighlight,
+          backgroundColor: `${accentHighlight}22`,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: accentHighlight,
+          pointHoverRadius: 5,
+          spanGaps: true,
+        },
+      ],
+    };
 
   const scores = trendData.map((d) => d.score).filter((v): v is number => v != null);
   const yMin = scores.length ? Math.floor(Math.min(...scores) / 10) * 10 : 0;
@@ -409,10 +553,10 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       <div className="dashboard-filters">
         <Select
-          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined (9 & 18)' : statsMode === '9' ? '9-Hole Only' : '18-Hole Only' }}
+          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9-Hole Only' : '18-Hole Only' }}
           onChange={(option) => option && setStatsMode(option.value)}
           options={[
-            { value: 'combined', label: 'Combined (9 & 18)' },
+            { value: 'combined', label: 'Combined' },
             { value: '9', label: '9-Hole Only' },
             { value: '18', label: '18-Hole Only' },
           ]}
@@ -527,54 +671,15 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       {/* Ad after main stats grid */}
       <InlineAdBanner adSlot="DASHBOARD_SLOT_ID" />
-
-      <div className="card trend-card">
-        <h3>Score Trend</h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={trendData}>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-            <XAxis
-              dataKey="dateLabel"
-              interval={0}
-              angle={-45}
-              textAnchor="end"
-              height={60}
-              tick={{ fontSize: 11, fill: secondaryTextColor }}
-              stroke={gridColor}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              tick={{ fill: secondaryTextColor }}
-              stroke={gridColor}
-            />
-            <Tooltip
-              formatter={(v) => formatNumber(v as number)}
-              cursor={{ strokeDasharray: '3 3', stroke: accentColor }}
-              contentStyle={{
-                backgroundColor: surfaceColor,
-                border: `1px solid ${gridColor}`,
-                borderRadius: '4px',
-                color: textColor,
-              }}
-              labelStyle={{ color: textColor }}
-            />
-            <Legend
-              wrapperStyle={{ color: textColor }}
-              iconType="line"
-            />
-            <Line
-              type="monotone"
-              dataKey="score"
-              name="Score"
-              stroke={accentColor}
-              strokeWidth={2}
-              dot={{ r: 3, strokeWidth: 2, fill: accentColor, stroke: accentColor }}
-              activeDot={{ r: 5, strokeWidth: 2, fill: accentColor, stroke: accentColor }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-
+      
+      <TrendCard
+          trendData={scoreChartData}
+          accentColor={accentColor}
+          surfaceColor={surfaceColor}
+          textColor={textColor}
+          gridColor={gridColor}
+          height={300}
+        />
       <div className="section">
         <div className="card last-five-rounds-card">
           <h3>Last 5 Rounds</h3>
@@ -621,63 +726,17 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       )}
 
       {showAdvanced && (
-        <div className="card trend-card">
-          <h3>FIR / GIR % Trend</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis
-                dataKey="dateLabel"
-                interval={0}
-                angle={-45}
-                textAnchor="end"
-                height={60}
-                tick={{ fontSize: 11, fill: secondaryTextColor }}
-                stroke={gridColor}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fill: secondaryTextColor }}
-                stroke={gridColor}
-              />
-              <Tooltip
-                formatter={(v) => (v != null ? formatPercent(v as number) : '-')}
-                cursor={{ strokeDasharray: '3 3', stroke: accentColor }}
-                contentStyle={{
-                  backgroundColor: surfaceColor,
-                  border: `1px solid ${gridColor}`,
-                  borderRadius: '4px',
-                  color: textColor,
-                }}
-                labelStyle={{ color: textColor }}
-              />
-              <Legend
-                wrapperStyle={{ color: textColor }}
-                iconType="line"
-              />
-              <Line
-                type="monotone"
-                dataKey="fir_pct"
-                name="FIR %"
-                stroke={accentColor}
-                strokeWidth={2}
-                dot={{ r: 3, strokeWidth: 2, fill: accentColor, stroke: accentColor }}
-                activeDot={{ r: 5, strokeWidth: 2, fill: accentColor, stroke: accentColor }}
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="gir_pct"
-                name="GIR %"
-                stroke={accentHighlight}
-                strokeWidth={2}
-                dot={{ r: 3, strokeWidth: 2, fill: accentHighlight, stroke: accentHighlight }}
-                activeDot={{ r: 5, strokeWidth: 2, fill: accentHighlight, stroke: accentHighlight }}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <TrendCard
+          trendData={firGirData}
+          accentColor={accentColor}    
+          surfaceColor={surfaceColor}  
+          textColor={textColor}        
+          gridColor={gridColor}        
+          height={250}
+          yMin={0}      // start at 0%
+          yMax={100}    // end at 100%
+          yStep={25}
+        />
       )}
 
       {/* Upgrade modal - shows at 3 rounds, then every 5 rounds */}
