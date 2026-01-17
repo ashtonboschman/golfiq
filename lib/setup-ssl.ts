@@ -12,4 +12,6 @@ if (process.env.DB_CA_CERT) {
   process.env.NODE_EXTRA_CA_CERTS = certPath;
 
   console.log('[SSL] Certificate written to', certPath);
+  console.log('NODE_EXTRA_CA_CERTS:', process.env.NODE_EXTRA_CA_CERTS);
+  console.log('DB_CA_CERT length:', process.env.DB_CA_CERT?.length);
 }
