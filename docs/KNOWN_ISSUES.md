@@ -32,6 +32,7 @@
 - round add/edit lets look at how we can use # of holes from tee selection to set max fir/gir clamped values (when we add courses and tees do we add a new colujmn to tees db table that are like number of non par 3 holes? Or fir_possible?)
 - have profile info editable by default (remove edit profile button) and when user changes a stat, render the cancel/save buttons. If user tries to navigate away from page warn them that changes are not saved.
 - sometimes have to press logout button or settings button twice.
+- need to add timezone to user (can get from location) so date on add round is correct
 
 ## 📋 Planned Features (Not Yet Implemented)
 

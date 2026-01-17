@@ -801,7 +801,7 @@ select option {
 
 .avatar-dropdown {
   position: absolute;
-  top: calc(100% + 30px);
+  top: calc(100% + 40px);
   right: 0;
   min-width: 100px;
   background: var(--color-primary-surface);
@@ -1876,6 +1876,12 @@ input:disabled {
 input[type="date"],
 input[type="datetime-local"] {
   color-scheme: dark;
+}
+
+input[type='date'].form-input {
+  appearance: none; /* remove native styling */
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 
 :root input[type="date"]::-webkit-calendar-picker-indicator,
