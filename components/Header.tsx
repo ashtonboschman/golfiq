@@ -1,9 +1,10 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function Header() {
   const { data: session } = useSession();
@@ -12,7 +13,28 @@ export default function Header() {
   const pathname = usePathname();
   const { avatarUrl } = useAvatar();
 
-  // Show back button on authenticated pages (except dashboard/root) and auth pages
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    setDropdownOpen(false);
+    await signOut({ redirect: false });
+    router.replace('/login');
+  };
+
   const showBackButton =
     (user && pathname !== '/' && pathname !== '/dashboard') ||
     pathname === '/forgot-password' ||
@@ -63,14 +85,44 @@ export default function Header() {
         />
 
         {user && (
+        <div className="avatar-container" ref={dropdownRef}>
           <img
             src={avatarUrl || '/avatars/default.png'}
             alt="User Avatar"
-            onClick={() => router.push('/profile')}
+            onClick={() => setDropdownOpen(!dropdownOpen)}
             className="right-button"
-            title="View Profile"
+            title="User Menu"
           />
-        )}
+          {dropdownOpen && (
+            <div className="avatar-dropdown">
+              <button
+                className="dropdown-item primary-text"
+                onClick={() => {
+                  router.push('/profile');
+                  setDropdownOpen(false);
+                }}
+              >
+                Profile
+              </button>
+              <button
+                className="dropdown-item primary-text"
+                onClick={() => {
+                  router.push('/settings');
+                  setDropdownOpen(false);
+                }}
+              >
+                Settings
+              </button>
+              <button
+                className="dropdown-item text-red"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       </div>
     </header>
   );

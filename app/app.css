@@ -270,6 +270,10 @@
   color: var(--color-secondary-text);
 }
 
+.text-red {
+  color: var(--color-red);
+}
+
 .border-color {
   border: 1px solid var(--color-border);
 }
@@ -757,22 +761,6 @@ select option {
 
 }
 
-.header .right-button {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  color: var(--color-primary-text);
-  cursor: pointer;
-  padding: 0;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
-  object-fit: cover;
-}
-
 .header .left-button {
   position: absolute;
   left: 0;
@@ -784,6 +772,56 @@ select option {
   cursor: pointer;
   font-size: 1.5rem;
   padding: var(--padding-large);
+}
+
+.avatar-container {
+  position: absolute; /* stick to top-right */
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+}
+
+.header .right-button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  color: var(--color-primary-text);
+  cursor: pointer;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  object-fit: cover;
+  z-index: 10;
+}
+
+.avatar-dropdown {
+  position: absolute;
+  top: calc(100% + 30px);
+  right: 0;
+  min-width: 140px;
+  background: var(--color-primary-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  z-index: 50;
+}
+
+.dropdown-item {
+  padding: var(--gap);
+  text-align: left;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-base);
 }
 
 /* ===========================
@@ -838,6 +876,7 @@ select option {
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid var(--color-border);
+
 }
 
 .avatar-edit-button {
