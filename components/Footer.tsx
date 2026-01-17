@@ -13,12 +13,12 @@ export default function Footer() {
   if (!user) return null;
 
   const buttons = [
-    { path: '/', emoji: <LayoutDashboard/>, label: 'Dashboard' },
-    { path: '/rounds', emoji: <LandPlot/>, label: 'Rounds' },
-    { path: '/courses', emoji: <MapPin/>, label: 'Courses' },
-    { path: '/insights', emoji: <TrendingUp/>, label: 'Insights' },
-    { path: '/friends', emoji: <Users2/>, label: 'Friends' },
-    { path: '/leaderboard', emoji: <Trophy/>, label: 'Leaderboard' },
+    { path: '/', icon: <LayoutDashboard/>, label: 'Dashboard' },
+    { path: '/rounds', icon: <LandPlot/>, label: 'Rounds' },
+    { path: '/courses', icon: <MapPin/>, label: 'Courses' },
+    { path: '/insights', icon: <TrendingUp/>, label: 'Insights' },
+    { path: '/friends', icon: <Users2/>, label: 'Friends' },
+    { path: '/leaderboard', icon: <Trophy/>, label: 'Leaderboard' },
   ];
 
   const isButtonActive = (path: string) => {
@@ -30,13 +30,13 @@ export default function Footer() {
   return (
     <footer className="footer-menu">
       <div className="footer-menu-inner">
-        {buttons.map(({ path, emoji, label }) => (
+        {buttons.map(({ path, icon, label }) => (
           <button
             key={path}
             className={isButtonActive(path) ? 'active' : ''}
             onClick={() => router.push(path)}
           >
-            <span className="emoji">{emoji}</span>
+            <span className="icon">{icon}</span>
             <span className="label">{label}</span>
           </button>
         ))}

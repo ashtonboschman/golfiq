@@ -665,7 +665,7 @@ select option {
 =========================== */
 /* Footer container */
 .footer-menu {
-  align-items: center;
+  align-items: baseline;
   background-color: var(--color-primary-surface);
   bottom: 0;
   display: flex;
@@ -686,45 +686,37 @@ select option {
   align-items: center;
   width: 100%;
   max-width: 640px;
-  padding: 0 4px;
+  padding-top: var(--gap);
 }
 
 /* Buttons - equal width */
 .footer-menu-inner button {
   flex: 1;
-  margin: 0 4px;
+  margin: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-secondary-surface);
+  background-color: var(--color-primary-surface);
   border: none;
   border-radius: var(--border-radius);
   color: var(--color-primary-text);
-  padding: 8px 0;
+  padding: 0;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.2s;
-}
-
-.footer-menu-inner button:hover {
-  background-color: var(--color-border);
-  transform: translateY(-2px);
 }
 
 .footer-menu-inner button.active {
-  background-color: var(--color-accent);
-  transform: translateY(-4px);
-  color: var(--color-footer-icon);
+  color: var(--color-accent);
 }
 
-.footer-menu-inner button .emoji {
+.footer-menu-inner button .icon {
   font-size: 1.8rem;
   line-height: 1;
 }
 
 .footer-menu-inner button .label {
-  font-size: 0.6rem;
-  margin-top: 4px;
+  font-size: 0.55rem;
+  margin-top: 0;
   white-space: nowrap;
 }
 
@@ -1474,7 +1466,7 @@ select option {
 
 .stats-tab.active {
   background-color: var(--color-accent);
-  color: var(--color-primary-text);
+  color: var(--color-footer-icon);
 }
 
 .info-tool-tip-container {
