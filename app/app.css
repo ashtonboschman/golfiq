@@ -686,7 +686,8 @@ select option {
   align-items: center;
   width: 100%;
   max-width: 640px;
-  padding-top: var(--gap);
+  padding: var(--gap) 12px;
+  box-sizing: border-box;
 }
 
 /* Buttons - equal width */
