@@ -19,7 +19,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Info, Plus, TriangleAlert } from 'lucide-react';
+import { Info, Plus, TriangleAlert, ToggleLeft, ToggleRight } from 'lucide-react';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 
@@ -678,9 +678,9 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           <p>{formatHandicap(stats.handicap)}</p>
         </div>
         {[
-          ['Average', showToPar ? stats.average_to_par : stats.average_score, showToPar ? 'Average score relative to par' : null, true],
-          ['Best', showToPar ? stats.best_to_par : stats.best_score, showToPar ? 'Best score relative to par' : null, true],
-          ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, showToPar ? 'Worst score relative to par' : null, true],
+          ['Average', showToPar ? stats.average_to_par : stats.average_score, showToPar ? 'Average score relative to par' : 'Average score', true],
+          ['Best', showToPar ? stats.best_to_par : stats.best_score, showToPar ? 'Best score relative to par' : 'Best score', true],
+          ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, showToPar ? 'Worst score relative to par' : 'Worst score', true],
           ['Total', totalRounds, 'Total amount of rounds played', false],
           ['Par 3', par3_avg, 'Average score on par 3 holes', false],
           ['Par 4', par4_avg, 'Average score on par 4 holes', false],
@@ -696,6 +696,11 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             }}
             onClick={() => isToggleable && setShowToPar((p) => !p)}
           >
+            {isToggleable && (
+            <span className="toggle-icon icon-edge">
+              {showToPar ? <ToggleRight /> : <ToggleLeft />}
+            </span>
+            )}
             {tooltip && <InfoTooltip text={tooltip as string} />}
             <h3>{label}</h3>
             <p>{(isToggleable && showToPar) ? formatToPar(val as number) : formatNumber(val as number)}</p>

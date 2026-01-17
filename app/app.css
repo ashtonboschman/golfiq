@@ -1384,6 +1384,31 @@ select option {
   line-height: 1;
 }
 
+.info-tooltip-container {
+  position: relative;
+  top: 8px;
+  right: 18px;
+}
+
+.info-tooltip-icon,
+.toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-secondary-text);
+}
+
+.dashboard-stat-card .icon-edge {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-secondary-text);
+}
+
 .rounds-list {
   display: flex;
   flex-direction: column;
@@ -1468,26 +1493,6 @@ select option {
 .stats-tab.active {
   background-color: var(--color-accent);
   color: var(--color-footer-icon);
-}
-
-.info-tool-tip-container {
-  position: 'absolute';
-  top: '8px';
-  right: '8px';
-}
-
-.info-tool-tip {
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20;
-  height: 20;
-  border: 50%;
-  font-size: 0.75;
-  color: #18B14E;
-  font-weight: bold;
-  background-color: #00B4D8;
 }
 
 /* ===========================
@@ -2394,11 +2399,6 @@ input[type="datetime-local"] {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.coach-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
 .coach-card h2 {
   font-size: 1.5rem;
   color: var(--color-primary-text);
@@ -2521,7 +2521,7 @@ input[type="datetime-local"] {
 
 .subscription-detail-box.lifetime {
   background: linear-gradient(135deg, var(--color-gradient-1) 0%, var(--color-gradient-2) 50%, var(--color-gradient-3) 100%);
-  color: var(--color-primary-text);
+  color: var(--color-white-text);
   display: flex;
   flex-direction: column;
   align-items: center;
