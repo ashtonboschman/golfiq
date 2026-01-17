@@ -1565,7 +1565,7 @@ select option {
 .friend-actions {
   display: flex;
   gap: var(--gap-small);
-  flex-shrink: 0; /* Prevent buttons from shrinking */
+  flex-shrink: 0;
 }
 
 .friend-info.clickable {
@@ -1578,6 +1578,9 @@ select option {
   opacity: 0.9;
 }
 
+.chevron-link {
+  display: flex;
+}
 
 /* ===========================
    Leaderboard
