@@ -59,7 +59,7 @@ export default function UserActionsCard({ userId, permissions }: UserActionsCard
     <div className="card">
       {permissions?.can_view_dashboard && (
         <button
-          className="btn btn-view-dashboard"
+          className="btn btn-add"
           onClick={() => router.push(`/dashboard?user_id=${userId}`)}
         >
           View Dashboard

@@ -780,8 +780,17 @@ select option {
 /* ===========================
    Login Card Spacing
 =========================== */
+.login-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding-top: 80px;
+  padding-bottom: 80px;
+  justify-content: center;
+  align-content: center;
+}
+
 .login-card {
-  margin: 250px auto;
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -1635,7 +1644,6 @@ select option {
 }
 
 .btn-add,
-.btn-primary
 .btn-view-dashboard {
   background-color: var(--color-accent);
   color: var(--color-footer-icon);

@@ -146,7 +146,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="page-stack">
+    <div className="login-stack">
       <div className="card login-card">
         <form onSubmit={handleSubmit} className="form">
           {isRegister && (

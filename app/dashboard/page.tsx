@@ -580,7 +580,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           <h3>Last 5 Rounds</h3>
         </div>
         {lastRounds.length === 0 ? (
-          <p>No rounds recorded.</p>
+          <p className='secondary-text'>No rounds recorded.</p>
         ) : (
           <div className="rounds-list">
             {lastRounds.map((round) => (
