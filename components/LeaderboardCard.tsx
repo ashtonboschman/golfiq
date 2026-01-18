@@ -17,13 +17,18 @@ interface LeaderboardCardProps {
 }
 
 export default function LeaderboardCard({ user, rank, isCurrentUser }: LeaderboardCardProps) {
-  const formatNumber = (num: number | null | undefined, decimals = 0) =>
-    num !== null && num !== undefined ? num.toFixed(decimals) : '-';
-
   const formatHandicap = (hcp: number | null | undefined) => {
     if (hcp === null || hcp === undefined) return '-';
     const absValue = Math.abs(hcp).toFixed(1);
     return hcp < 0 ? `+${absValue}` : absValue;
+  };
+
+  const formatToPar = (toPar: number | null | undefined) => {
+    if (toPar === null || toPar === undefined) return '-';
+    const absValue = Math.abs(toPar).toFixed(1);
+    if (toPar > 0) return `+${absValue}`;
+    if (toPar < 0) return `-${absValue}`;
+    return 'E'; // Even par
   };
 
   const cardContent = (
@@ -51,9 +56,9 @@ export default function LeaderboardCard({ user, rank, isCurrentUser }: Leaderboa
 
         <div className="leaderboard-cell centered">{formatHandicap(user.handicap)}</div>
 
-        <div className="leaderboard-cell centered">{formatNumber(user.average_score, 1)}</div>
+        <div className="leaderboard-cell centered">{formatToPar(user.average_score)}</div>
 
-        <div className="leaderboard-cell centered">{user.best_score ?? '-'}</div>
+        <div className="leaderboard-cell centered">{formatToPar(user.best_score)}</div>
       </div>
     </div>
   );

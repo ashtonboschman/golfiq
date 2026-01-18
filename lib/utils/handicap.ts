@@ -3,6 +3,7 @@
 type Round = {
   holes: number;
   score: number;
+  to_par?: number | null;
   rating: number;
   slope: number;
   fir_hit?: number | null;
@@ -46,10 +47,12 @@ export function normalizeRoundsByMode<T extends Round>(
   // Combined mode: double all 9-hole stats
   return rounds.map(r => {
     if (r.holes === 9) {
+      const doubled_to_par = r.to_par != null ? r.to_par * 2 : null;
       return {
         ...r,
         holes: 18,
         score: r.score * 2,
+        to_par: doubled_to_par,
         fir_hit: r.fir_hit != null ? r.fir_hit * 2 : null,
         fir_total: r.fir_total * 2,
         gir_hit: r.gir_hit != null ? r.gir_hit * 2 : null,

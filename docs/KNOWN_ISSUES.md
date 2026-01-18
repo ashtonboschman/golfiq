@@ -12,11 +12,8 @@
 - Info tool tip popup is behind the filter button. I want the popup above the dropdown if dropdown is closed, but dropdown to be above eveything if that is open.
 - Upgrade modal did not popup after 3 rounds
 - User_leaderboard_stats toPar stats need to be updated on round insert/update/delete like the totalScore columns do (best_score, average_score)
-- Stats don’t show on friend card when accepting request until after refresh. Also make sure if user hcp is null we display '-' and not 0. That could be misleading.
-- Forgot password page return to login button too long and not completely theme matching (using link maybe we use button like everything else in the app? Lets check all files for links and make them buttons to match the app I think.)
-- Back to login button maybe on reset password page
-- Verify email page button and vertical spacing (lets make sure all login/register/verify-email/forgot-password/reset-password are styled the exact same so it all is uniform). I have made the styling good for login and register page so copy that to other pages.
-- Round stats number coloring needs work (logic for green and red) I made vs par to green < 0 <= primary-text < 19 <= red. I think we can follow the same for fir, gir, putts, penalties. FIR: red < 20% <= primary-text < 50% <= green. GIR: red < 20% <= primary-text < 50% <= green. Putts/hole: green < 2 <= primary-text < 3 <= red. Penalties: green < 1 <= primary-text < 3 <= red. 
+- Stats don’t show on friend card when accepting request until after refresh. Also make sure if user hcp is null we display '-' and not 0. That could be misleading. Let's make sure new accounts without rounds show '-' for all. If rounds = 0 disply '-', then for other fields if null display '-'.
+- Round stats should display '-' if fir/gir/putts/penalties are null. Doesn't skew stats
 - Cancel from add / edit round needs confirmation to avoid accidental data deletion
 - Update course search results from rounds/add and edit to include location string like we have on courseCard so we can differentiate between same named courses. We'll see if we need this or not.
 - Look into buttons for score/putts/penalties input. Not sure what we should do for this.

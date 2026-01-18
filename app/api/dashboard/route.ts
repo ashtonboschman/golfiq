@@ -137,13 +137,15 @@ export async function GET(request: NextRequest) {
     const allRounds = roundsToAnalyze.map((r: any) => {
       const firTotal = r.tee.holes.filter((h: any) => h.par !== 3).length;
       const girTotal = r.tee.holes.length;
+      const par = r.tee.parTotal ?? 72;
+      const to_par = r.toPar ?? (r.score ? r.score - par : null);
 
       return {
         id: Number(r.id),
         date: r.date,
         holes: r.tee.numberOfHoles ?? r.tee.holes.length ?? 18,
         score: r.score ?? 0,
-        to_par: r.toPar ?? null,
+        to_par,
         fir_hit: r.advancedStats ? r.firHit : null,
         gir_hit: r.advancedStats ? r.girHit : null,
         putts: r.advancedStats ? r.putts : null,
@@ -152,7 +154,7 @@ export async function GET(request: NextRequest) {
         gir_total: girTotal,
         rating: Number(r.tee.courseRating) ?? 72,
         slope: r.tee.slopeRating ?? 113,
-        par: r.tee.parTotal ?? 72,
+        par,
         advanced_stats: r.advancedStats,
         hole_by_hole: r.holeByHole,
         tee: {
@@ -284,7 +286,7 @@ export async function GET(request: NextRequest) {
     const worstScore = totalRounds ? Math.max(...modeRounds.map((r: any) => r.score)) : null;
     const averageScore = totalRounds ? modeRounds.reduce((s: any, r: any) => s + r.score, 0) / totalRounds : null;
 
-    // Calculate toPar stats (only for rounds with to_par values)
+    // Calculate to_par stats (only for rounds with to_par values)
     const roundsWithToPar = (modeRounds as any[]).filter((r: any) => r.to_par !== null && r.to_par !== undefined);
     const bestToPar = roundsWithToPar.length ? Math.min(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
     const worstToPar = roundsWithToPar.length ? Math.max(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
