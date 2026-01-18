@@ -94,9 +94,9 @@ export default function Header() {
             title="User Menu"
           />
           {dropdownOpen && (
-            <div className="avatar-dropdown">
+            <div className="card avatar-dropdown">
               <button
-                className="dropdown-item primary-text"
+                className="btn btn-secondary"
                 onClick={() => {
                   router.push('/profile');
                   setDropdownOpen(false);
@@ -105,7 +105,7 @@ export default function Header() {
                 Profile
               </button>
               <button
-                className="dropdown-item primary-text"
+                className="btn btn-secondary"
                 onClick={() => {
                   router.push('/settings');
                   setDropdownOpen(false);
@@ -114,7 +114,7 @@ export default function Header() {
                 Settings
               </button>
               <button
-                className="dropdown-item text-red"
+                className="btn btn-logout"
                 onClick={handleLogout}
               >
                 Logout

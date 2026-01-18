@@ -5,6 +5,7 @@
   --color-secondary-surface: #1E242F;
   --color-primary-text: #EDEFF2;
   --color-secondary-text: #9AA3B2;
+  --color-accent-text: #EDEFF2;
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
   --color-accent-highlight: #36ad64;
@@ -12,7 +13,6 @@
   --color-gradient-1: #2D6CFF;
   --color-gradient-2: #8c5bff;
   --color-gradient-3: #7F5AFF;
-  --color-footer-icon: #EDEFF2;
 
   /* Font sizes */
   --font-base: 16px;
@@ -55,11 +55,11 @@
   --color-secondary-surface: #1E242F;
   --color-primary-text: #EDEFF2;
   --color-secondary-text: #9AA3B2;
+  --color-accent-text: #EDEFF2;
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
   --color-accent-highlight: #36ad64;
   --color-border: #2A313D;
-  --color-footer-icon: #EDEFF2;
 }
 
 .theme-light {
@@ -68,11 +68,11 @@
   --color-secondary-surface: #EBEDF1;
   --color-primary-text: #0F131A;
   --color-secondary-text: #6B7280;
+  --color-accent-text: #EDEFF2;
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
   --color-accent-highlight: #36ad64;
   --color-border:#D1D5DB;
-  --color-footer-icon: #EDEFF2;
 }
 
 .theme-sunrise {
@@ -81,11 +81,11 @@
   --color-secondary-surface: #FFDFC1;
   --color-primary-text: #3C1F00;
   --color-secondary-text: #7D6C5D;
+  --color-accent-text: #EDEFF2;
   --color-accent: #FF6B00;
   --color-accent-hover: #D95A00;
   --color-accent-highlight: #FFB347;
   --color-border: #FFDAB5;
-  --color-footer-icon: #EDEFF2;
 }
 
 .theme-twilight {
@@ -94,11 +94,11 @@
   --color-secondary-surface: #33354B;
   --color-primary-text: #EDEFF2;
   --color-secondary-text: #A3A9BF;
+  --color-accent-text: #EDEFF2;
   --color-accent: #7F5AFF;
   --color-accent-hover: #6746D6;
-  --color-accent-highlight: #A68AFF;
+  --color-accent-highlight: #c1b0f7;
   --color-border: #3A3C4E;
-  --color-footer-icon: #EDEFF2;
 }
 
 .theme-classic {
@@ -107,11 +107,11 @@
   --color-secondary-surface: #EFE1BB;
   --color-primary-text: #4B3A21;
   --color-secondary-text: #877660;
+  --color-accent-text: #EDEFF2;
   --color-accent: #4CAF50;
   --color-accent-hover: #3E8E41;
-  --color-accent-highlight: #66BB6A;
+  --color-accent-highlight: #877660;
   --color-border: #E6DCC3;
-  --color-footer-icon: #EDEFF2;
 }
 
 .theme-metallic {
@@ -120,11 +120,11 @@
   --color-secondary-surface: #2c2c2c;
   --color-primary-text: #F5F5F5;
   --color-secondary-text: #B0B0B0;
+  --color-accent-text: #1E1E1E;
   --color-accent: #FFD700;
   --color-accent-hover: #D4B200;
-  --color-accent-highlight: #FFE54C;
+  --color-accent-highlight: #B0B0B0;
   --color-border:#3C3C3C;
-  --color-footer-icon: #1E1E1E;
 }
 
 .theme-oceanic {
@@ -133,11 +133,11 @@
   --color-secondary-surface: #B0F0FC;
   --color-primary-text: #0C4A6E;
   --color-secondary-text: #2B6CB0;
+  --color-accent-text: #EDEFF2;
   --color-accent: #00B4D8;
   --color-accent-hover: #0096B5;
   --color-accent-highlight: #4DD0E1;
   --color-border: #B0E6F2;
-  --color-footer-icon: #E0F7FA;
 }
 
 .theme-aurora {
@@ -146,11 +146,11 @@
   --color-secondary-surface: #2F354C;
   --color-primary-text: #E0E7FF;
   --color-secondary-text: #A3AED0;
+  --color-accent-text: #1B1D2C;
   --color-accent: #7DF9FF;
   --color-accent-hover: #5EDDE3;
-  --color-accent-highlight: #9CFFFF;
+  --color-accent-highlight: #A3AED0;
   --color-border: #383F54;
-  --color-footer-icon: #1B1D2C;
 }
 
 .theme-forest {
@@ -159,24 +159,24 @@
   --color-secondary-surface: #1A4D36;
   --color-primary-text: #C0E1A1;
   --color-secondary-text: #7B9E74;
+  --color-accent-text: #0F2F1C;
   --color-accent: #1FBF5A;
   --color-accent-hover: #18B14E;
   --color-accent-highlight: #a0eec2;
   --color-border:#1A4D36;
-  --color-footer-icon: #0F2F1C;
 }
 
 .theme-floral {
-  --color-primary-bg: #F6F4F5;
+  --color-primary-bg: #FBF9FA;
   --color-primary-surface: #FFFFFF;
-  --color-secondary-surface: #EEE9EC;
-  --color-primary-text: #a45dc2;
-  --color-secondary-text: #cfa0e4;
-  --color-accent: #D79BCF;
-  --color-accent-hover: #C882B9;
-  --color-accent-highlight: #D77F9C;
-  --color-border: #DED7DC;
-  --color-footer-icon: #FFFFFF;
+  --color-secondary-surface: #F2EDF1;
+  --color-primary-text: #3A2E3F;
+  --color-secondary-text: #7A6B82;
+  --color-accent-text: #EDEFF2;
+  --color-accent: #C86FA9;
+  --color-accent-hover: #B45A96;
+  --color-accent-highlight: #E3A6C8;
+  --color-border: #E1D7DE;
 }
 
 .theme-sunset {
@@ -185,11 +185,11 @@
   --color-secondary-surface: #FFD4A0;
   --color-primary-text: #803000;
   --color-secondary-text: #B87333;
+  --color-accent-text: #EDEFF2;
   --color-accent: #FF4500;
   --color-accent-hover: #D93A00;
-  --color-accent-highlight: #FF6A33;
+  --color-accent-highlight: #B87333;
   --color-border: #FFD1A6;
-  --color-footer-icon: #EDEFF2;
 }
 
 /* Theme-specific select arrow colors - match each theme's secondary text color exactly */
@@ -758,7 +758,6 @@ select option {
   font-size: 2.1rem;
   text-align: center;
   justify-content: center;
-
 }
 
 .header .left-button {
@@ -805,7 +804,7 @@ select option {
   position: absolute;
   top: calc(100% + 40px);
   right: 0;
-  min-width: 100px;
+  min-width: 150px;
   background: var(--color-primary-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius);
@@ -814,16 +813,6 @@ select option {
   overflow: hidden;
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   z-index: 50;
-}
-
-.dropdown-item {
-  padding: var(--gap);
-  text-align: left;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: var(--font-base);
 }
 
 /* ===========================
@@ -1533,7 +1522,7 @@ select option {
 
 .stats-tab.active {
   background-color: var(--color-accent);
-  color: var(--color-footer-icon);
+  color: var(--color-accent-text);
 }
 
 /* ===========================
@@ -1735,7 +1724,7 @@ select option {
 .btn-add,
 .btn-view-dashboard {
   background-color: var(--color-accent);
-  color: var(--color-footer-icon);
+  color: var(--color-accent-text);
 }
 
 .btn-add:hover,
@@ -1781,7 +1770,7 @@ select option {
 
 .btn-toggle {
   background-color: var(--color-accent);
-  color: var(--color-footer-icon);
+  color: var(--color-accent-text);
 }
 
 .btn-toggle:hover {

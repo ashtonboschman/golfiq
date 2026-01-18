@@ -5,34 +5,33 @@
 ---
 
 ## 🐛 Active Bugs
-- go through all of backend api and make sure type any is not used. Vercel deployment is giving errors.
+- go through all of backend api and make sure implicit type any is not used. Vercel deployment is giving errors. (I went through and added 'any' to A LOT of variables to get it working. We can refactor this to actual types later)
 - flashing edit screen when navigating to the stats page (we can look at this later)
-- Search results on courses/search api for users did not inherit styles
-- Success message way too quick on courses/search page after adding a course
+- Success message way too quick on courses/search page after adding a course (might need to add delay again for page switch or something idk)
 - Subscription confirmation page needs work. 
 - Subscription doesn’t auto apply anymore after the free trial update.
-- Profile button at the top right header should have a dropdown menu that shows Profile then Settings, then Logout. Leave all the profile page the same, but make it easier for users to find settings page (and logout)
 - Info tool tip popup is behind the filter button. I want the popup above the dropdown if dropdown is closed, but dropdown to be above eveything if that is open.
 - Upgrade modal did not popup after 3 rounds
-- Limit max input value fir (0 - # of non-par3 holes) and gir (0 - # of holes) on quick mode advanced stats
-- Add/edit rounds page should show both Quick and HBH buttons side by side like leaderboard (with same active highlighting)
+- Limit max input value fir (0 - # of non-par3 holes) and gir (0 - # of holes) on quick mode advanced stats (should we add a new column to tees table to auto calculate #ofnonpar3 holes upon course insert? Could be useful to speed up queries)
+- Add/edit rounds page should show both Quick and HBH buttons side by side like leaderboard (with same active highlighting) so users can see both options to have a better idea that there are options.
+- User_leaderboard_stats toPar stats need to be updated on round insert/update/delete like the totalScore columns do (best_score, average_score)
 - Stats don’t show on friend card when accepting request until after refresh. Also make sure if user hcp is null we display '-' and not 0. That could be misleading.
 - Forgot password page return to login button too long and not completely theme matching (using link maybe we use button like everything else in the app? Lets check all files for links and make them buttons to match the app I think.)
 - Back to login button maybe on reset password page
-- Verify email page button and vertical spacing (lets make sure all login/register/verify-email/forgot-password/reset-password are styled the exact same so it all is uniform)
-- Less than equal for birdies or less per hole (and greater than or equal for doubles)
-- Round stats number coloring needs work (logic for green and red) I think less than 0 = green, 1 - 18 = color-primary-text, and more than 18 = red.
+- Verify email page button and vertical spacing (lets make sure all login/register/verify-email/forgot-password/reset-password are styled the exact same so it all is uniform). I have made the styling good for login and register page so copy that to other pages.
+- Round stats number coloring needs work (logic for green and red) I made vs par to green < 0 <= primary-text < 19 <= red. I think we can follow the same for fir, gir, putts, penalties. FIR: red < 20% <= primary-text < 50% <= green. GIR: red < 20% <= primary-text < 50% <= green. Putts/hole: green < 2 <= primary-text < 3 <= red. Penalties: green < 1 <= primary-text < 3 <= red. 
 - Cancel from add / edit round needs confirmation to avoid accidental data deletion
-- Update course search results from rounds/add and edit to include location string so we can differentiate between same named courses. 
-- Make sure hbh table on rounds stats does not horizontally scroll on mobile devices
+- Update course search results from rounds/add and edit to include location string like we have on courseCard so we can differentiate between same named courses. We'll see if we need this or not.
 - Look into buttons for score/putts/penalties input. Not sure what we should do for this.
 - Look into competitor exporting to see if we can import easily
-- Lets make it so 'No rounds recorded.' does not get displayed when user first registers and doesnt have a round yet on dashboard last 5 rounds section.
-- Lets introduce a toggle on dashboard that switches all score based stats to toPar stats. Currently we have stat cards toggleable. We can maybe keep this and make it also change the scoring trend chart?
-- round add/edit lets look at how we can use # of holes from tee selection to set max fir/gir clamped values (when we add courses and tees do we add a new colujmn to tees db table that are like number of non par 3 holes? Or fir_possible?)
 - have profile info editable by default (remove edit profile button) and when user changes a stat, render the cancel/save buttons. If user tries to navigate away from page warn them that changes are not saved.
 - sometimes have to press logout button or settings button twice.
 - need to add timezone to user (can get from location) so date on add round is correct
+- Change password needs eye icon, lets copy what we have from register page and use the same logic and icons
+- Dual color trend fir gir
+- Edit other people’s rounds from their dashboard throwing db error (need to make sure edit/delete buttons are only rendered if current user = round.user)
+- Make sure if location is enabled we reload the page
+- lets
 
 ## 📋 Planned Features (Not Yet Implemented)
 
@@ -58,7 +57,7 @@
 ## ✅ Recently Completed
 
 ### Bug Fixes & Features (2026-01-13)
-- ✅ 7-Day Free Trial System
+- ✅ 14-Day Free Trial System
   - Added trialEndDate field to User model
   - Updated isPremium() function to check trial status
   - Stripe checkout automatically includes 7-day trial for new subscribers
