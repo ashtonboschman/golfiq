@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
 
     const subscriptionId = subscription.id;
     const trialEnd = subscription.trial_end;
-    const currentPeriodEnd = subscription.current_period_end;
+    // Access current_period_end from the subscription object (cast to access property)
+    const currentPeriodEnd = (subscription as any).current_period_end as number | null;
 
     // Update user with subscription details
     await prisma.user.update({
