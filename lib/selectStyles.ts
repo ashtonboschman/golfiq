@@ -99,4 +99,8 @@ export const selectStyles = {
       color: 'var(--color-secondary-text)',
     },
   }),
+  menuPortal: (base: any) => ({
+    ...base,
+    zIndex: 9999,
+  }),
 };

@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
       first_name: req.recipient.profile?.firstName,
       last_name: req.recipient.profile?.lastName,
       avatar_url: req.recipient.profile?.avatarUrl,
-      handicap: req.recipient.leaderboardStats ? Number(req.recipient.leaderboardStats.handicap) : null,
-      average_score: req.recipient.leaderboardStats ? Number(req.recipient.leaderboardStats.averageToPar) : null,
+      handicap: req.recipient.leaderboardStats?.handicap != null ? Number(req.recipient.leaderboardStats.handicap) : null,
+      average_score: req.recipient.leaderboardStats?.averageToPar != null ? Number(req.recipient.leaderboardStats.averageToPar) : null,
       best_score: req.recipient.leaderboardStats?.bestToPar ?? null,
       total_rounds: req.recipient.leaderboardStats?.totalRounds ?? null,
     }));

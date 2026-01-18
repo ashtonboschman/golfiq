@@ -121,8 +121,10 @@ export default function CourseSearchPage() {
         setSearchResults([]);
         setSearchQuery('');
 
-        // Redirect immediately to courses page
-        router.push('/courses');
+        // Delay redirect so user can see success message
+        setTimeout(() => {
+          router.push('/courses');
+        }, 1500);
       }
     } catch (err: any) {
       showMessage(err.message || 'Failed to add course', 'error');

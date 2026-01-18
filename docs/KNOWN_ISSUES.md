@@ -5,14 +5,9 @@
 ---
 
 ## 🐛 Active Bugs
-- go through all of backend api and make sure implicit type any is not used. Vercel deployment is giving errors. (I went through and added 'any' to A LOT of variables to get it working. We can refactor this to actual types later)
 - flashing edit screen when navigating to the stats page (we can look at this later)
-- Success message way too quick on courses/search page after adding a course (might need to add delay again for page switch or something idk)
 - Subscription confirmation page needs work. 
-- Info tool tip popup is behind the filter button. I want the popup above the dropdown if dropdown is closed, but dropdown to be above eveything if that is open.
 - Upgrade modal did not popup after 3 rounds
-- User_leaderboard_stats toPar stats need to be updated on round insert/update/delete like the totalScore columns do (best_score, average_score)
-- Stats don’t show on friend card when accepting request until after refresh. Also make sure if user hcp is null we display '-' and not 0. That could be misleading. Let's make sure new accounts without rounds show '-' for all. If rounds = 0 disply '-', then for other fields if null display '-'.
 - Round stats should display '-' if fir/gir/putts/penalties are null. Doesn't skew stats
 - Cancel from add / edit round needs confirmation to avoid accidental data deletion
 - Update course search results from rounds/add and edit to include location string like we have on courseCard so we can differentiate between same named courses. We'll see if we need this or not.
@@ -22,7 +17,6 @@
 - sometimes have to press logout button or settings button twice.
 - need to add timezone to user (can get from location) so date on add round is correct
 - Change password needs eye icon, lets copy what we have from register page and use the same logic and icons
-- Dual color trend fir gir
 - Edit other people’s rounds from their dashboard throwing db error (need to make sure edit/delete buttons are only rendered if current user = round.user). Or just make the dashboard round card not clickable unless user is correct. We would need to conditionally render teh chevron right
 - Make sure if location is enabled we reload the page on courses. Or we wait for their input before proceeding.
 - lets see if we need to add an api/bootstrap/route.ts Might need to wait until mvp is done and then optimize?

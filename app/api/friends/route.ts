@@ -72,8 +72,8 @@ export async function GET(request: NextRequest) {
         first_name: otherUser.profile?.firstName,
         last_name: otherUser.profile?.lastName,
         avatar_url: otherUser.profile?.avatarUrl,
-        handicap: otherUser.leaderboardStats ? Number(otherUser.leaderboardStats.handicap) : null,
-        average_score: otherUser.leaderboardStats ? Number(otherUser.leaderboardStats.averageToPar) : null,
+        handicap: otherUser.leaderboardStats?.handicap != null ? Number(otherUser.leaderboardStats.handicap) : null,
+        average_score: otherUser.leaderboardStats?.averageToPar != null ? Number(otherUser.leaderboardStats.averageToPar) : null,
         best_score: otherUser.leaderboardStats?.bestToPar ?? null,
         total_rounds: otherUser.leaderboardStats?.totalRounds ?? null,
       };

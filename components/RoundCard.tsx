@@ -36,7 +36,9 @@ export default function RoundCard({
   const formatToPar = (score: number | null, par: number | null | undefined) => {
     if (score === null || par === null || par === undefined) return '-';
     const diff = score - par;
-    return diff > 0 ? `+${diff}` : diff.toString();
+    if (diff > 0) return `+${diff}`;
+    if (diff < 0) return `${diff}`;
+    return 'E';
   };
 
   const formatDate = (dateStr: string) => {

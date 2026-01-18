@@ -1,11 +1,11 @@
 'use client';
 
-import { Check, AlertCircle } from 'lucide-react';
+import { Check, AlertCircle, Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 
-export default function SubscriptionSuccessPage() {
+function SubscriptionSuccessContent() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,7 +81,19 @@ export default function SubscriptionSuccessPage() {
   }, [countdown, verified, router]);
 
   if (status === 'loading' || verifying) {
-    return <p className='loading-text'>Activating your subscription...</p>;
+    return (
+      <div className="login-stack">
+        <div className="card login-card">
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ marginBottom: '16px' }}><Loader2 size={48} className="spinning" /></div>
+            <h1 className="auth-title">Activating Subscription...</h1>
+          </div>
+          <p className="secondary-text" style={{ textAlign: 'center' }}>
+            Please wait while we activate your premium membership.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (status === 'unauthenticated') {
@@ -92,83 +104,98 @@ export default function SubscriptionSuccessPage() {
     const isWrongUser = error.includes('does not belong to this user');
 
     return (
-      <div className="page-stack">
-        <div className="error-icon"><AlertCircle color='red' size={48} /></div>
-        <h1>{isWrongUser ? 'Wrong Account' : 'Something went wrong'}</h1>
-        <p className="error-message">
-          {isWrongUser
-            ? 'You are logged in with a different account than the one that started this checkout.'
-            : error
-          }
-        </p>
-        <p className="error-details">
-          {isWrongUser
-            ? 'Please log out and sign in with the account that initiated the subscription purchase.'
-            : 'Your payment may have been processed. Please check your settings page or contact support.'
-          }
-        </p>
-        <div className="success-actions">
-          {isWrongUser ? (
-            <button className="btn-primary" onClick={() => router.push('/api/auth/signout')}>
-              Sign Out & Switch Account
-            </button>
-          ) : (
-            <>
-              <button className="btn-primary" onClick={() => router.push('/settings')}>
-                Check Settings
+      <div className="login-stack">
+        <div className="card login-card">
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ marginBottom: '16px' }}><AlertCircle size={48} color="var(--color-red)" /></div>
+            <h1 className="auth-title">{isWrongUser ? 'Wrong Account' : 'Something Went Wrong'}</h1>
+          </div>
+
+          <p className="secondary-text" style={{ marginBottom: '12px', textAlign: 'center' }}>
+            {isWrongUser
+              ? 'You are logged in with a different account than the one that started this checkout.'
+              : error
+            }
+          </p>
+          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center', fontSize: '14px' }}>
+            {isWrongUser
+              ? 'Please log out and sign in with the account that initiated the subscription purchase.'
+              : 'Your payment may have been processed. Please check your settings page or contact support.'
+            }
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {isWrongUser ? (
+              <button className="btn btn-primary" onClick={() => router.push('/api/auth/signout')}>
+                Sign Out & Switch Account
               </button>
-              <button className="btn-secondary" onClick={() => router.push('/dashboard')}>
-                Go to Dashboard
-              </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button className="btn btn-primary" onClick={() => router.push('/settings')}>
+                  Check Settings
+                </button>
+                <button className="btn btn-toggle" onClick={() => router.push('/dashboard')}>
+                  Go to Dashboard
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page-stack">
-      <div className="success-icon"><Check color='green'/></div>
-      <h1>Welcome to Premium!</h1>
-      {trialEndDate ? (
-        <>
-          <p className="success-message">
-            Your 14-day free trial has started!
-          </p>
-          <p className="success-details">
-            You now have full access to all premium features. Your trial ends on{' '}
-            {new Date(trialEndDate).toLocaleDateString()}. Cancel anytime before then to avoid charges.
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="success-message">
-            Your subscription has been activated successfully.
-          </p>
-          <p className="success-details">
-            You now have access to all premium features including Insights,
-            full leaderboard access, and unlimited analytics history.
-          </p>
-        </>
-      )}
-      <div className="success-actions">
-        <button
-          className="btn-primary"
-          onClick={() => router.push('/dashboard')}
-        >
-          Go to Dashboard
-        </button>
-        <button
-          className="btn-secondary"
-          onClick={() => router.push('/settings')}
-        >
-          Manage Subscription
-        </button>
+    <div className="login-stack">
+      <div className="card login-card">
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div style={{ marginBottom: '16px' }}><Check size={48} color="var(--color-success)" /></div>
+          <h1 className="auth-title">Welcome to Premium!</h1>
+        </div>
+
+        {trialEndDate ? (
+          <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+            <p className="secondary-text" style={{ marginBottom: '12px', fontWeight: '600' }}>
+              Your 14-day free trial has started!
+            </p>
+            <p className="secondary-text" style={{ fontSize: '14px' }}>
+              You now have full access to all premium features. Your trial ends on{' '}
+              {new Date(trialEndDate).toLocaleDateString()}. Cancel anytime before then to avoid charges.
+            </p>
+          </div>
+        ) : (
+          <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+            <p className="secondary-text" style={{ marginBottom: '12px' }}>
+              Your subscription has been activated successfully.
+            </p>
+            <p className="secondary-text" style={{ fontSize: '14px' }}>
+              You now have access to all premium features including AI Insights,
+              full leaderboard access, and unlimited analytics history.
+            </p>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button className="btn btn-primary" onClick={() => router.push('/dashboard')}>
+            Go to Dashboard
+          </button>
+          <button className="btn btn-toggle" onClick={() => router.push('/settings')}>
+            Manage Subscription
+          </button>
+        </div>
+
+        <p className="secondary-text" style={{ marginTop: '16px', textAlign: 'center', fontSize: '14px' }}>
+          Redirecting to dashboard in {countdown} seconds...
+        </p>
       </div>
-      <p className="success-redirect">
-        Redirecting to dashboard in {countdown} seconds...
-      </p>
     </div>
+  );
+}
+
+export default function SubscriptionSuccessPage() {
+  return (
+    <Suspense fallback={<div className="loading-text">Loading...</div>}>
+      <SubscriptionSuccessContent />
+    </Suspense>
   );
 }

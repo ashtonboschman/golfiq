@@ -34,15 +34,24 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
 
   const type = friend.type || 'none';
 
-  // Format handicap like on dashboard
+  // If user has no rounds, show '-' for all stats
+  const hasRounds = friend.total_rounds != null && friend.total_rounds > 0;
+
+  // Format handicap like on dashboard (positive handicap shows as-is, negative shows with +)
   const formatHandicap = (num: number | null | undefined) => {
-    if (num == null || isNaN(num)) return '-';
-    if (num < 0) return `+${Math.abs(num)}`;
-    return num % 1 === 0 ? num : num.toFixed(1);
+    if (!hasRounds || num == null || isNaN(num)) return '-';
+    const absValue = Math.abs(num).toFixed(1);
+    return num < 0 ? `+${absValue}` : absValue;
   };
 
-  const formatNumber = (num: number | null | undefined) =>
-    num == null || isNaN(num) ? '-' : num % 1 === 0 ? num : num.toFixed(1);
+  // Format to-par values (positive shows +, negative shows -, zero shows E)
+  const formatToPar = (toPar: number | null | undefined) => {
+    if (!hasRounds || toPar == null || isNaN(toPar)) return '-';
+    const absValue = Math.abs(toPar).toFixed(1);
+    if (toPar > 0) return `+${absValue}`;
+    if (toPar < 0) return `-${absValue}`;
+    return 'E';
+  };
 
   return (
     <div className="friend-card">
@@ -61,13 +70,13 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
               <span className="stat-label">Hcp</span> {formatHandicap(friend.handicap)}
             </span>
             <span className="stat-item">
-              <span className="stat-label">Avg</span> {formatNumber(friend.average_score)}
+              <span className="stat-label">Avg</span> {formatToPar(friend.average_score)}
             </span>
             <span className="stat-item">
-              <span className="stat-label">Best</span> {friend.best_score ?? '-'}
+              <span className="stat-label">Best</span> {formatToPar(friend.best_score)}
             </span>
             <span className="stat-item">
-              <span className="stat-label">Rnds</span> {friend.total_rounds ?? '-'}
+              <span className="stat-label">Rnds</span> {hasRounds ? friend.total_rounds : '-'}
             </span>
           </div>
         </div>

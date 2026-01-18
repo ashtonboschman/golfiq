@@ -71,10 +71,10 @@
   --color-secondary-surface: #1E242F;
   --color-primary-text: #EDEFF2;
   --color-secondary-text: #9AA3B2;
-  --color-accent-text: #EDEFF2;
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
-  --color-accent-highlight: #36ad64;
+  --color-accent-highlight: #36AD64;
+  --color-accent-text: #EDEFF2;
   --color-border: #2A313D;
 }
 
@@ -84,10 +84,10 @@
   --color-secondary-surface: #EBEDF1;
   --color-primary-text: #0F131A;
   --color-secondary-text: #6B7280;
-  --color-accent-text: #EDEFF2;
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
-  --color-accent-highlight: #36ad64;
+  --color-accent-highlight: #36AD64;
+  --color-accent-text: #EDEFF2;
   --color-border:#D1D5DB;
 }
 
@@ -97,10 +97,10 @@
   --color-secondary-surface: #FFDFC1;
   --color-primary-text: #3C1F00;
   --color-secondary-text: #7D6C5D;
-  --color-accent-text: #EDEFF2;
   --color-accent: #FF6B00;
   --color-accent-hover: #D95A00;
   --color-accent-highlight: #FFB347;
+  --color-accent-text: #EDEFF2;
   --color-border: #FFDAB5;
 }
 
@@ -110,10 +110,10 @@
   --color-secondary-surface: #33354B;
   --color-primary-text: #EDEFF2;
   --color-secondary-text: #A3A9BF;
-  --color-accent-text: #EDEFF2;
   --color-accent: #7F5AFF;
   --color-accent-hover: #6746D6;
   --color-accent-highlight: #c1b0f7;
+  --color-accent-text: #EDEFF2;
   --color-border: #3A3C4E;
 }
 
@@ -123,10 +123,10 @@
   --color-secondary-surface: #EFE1BB;
   --color-primary-text: #4B3A21;
   --color-secondary-text: #877660;
-  --color-accent-text: #EDEFF2;
   --color-accent: #4CAF50;
   --color-accent-hover: #3E8E41;
   --color-accent-highlight: #877660;
+  --color-accent-text: #EDEFF2;
   --color-border: #E6DCC3;
 }
 
@@ -136,10 +136,10 @@
   --color-secondary-surface: #2c2c2c;
   --color-primary-text: #F5F5F5;
   --color-secondary-text: #B0B0B0;
-  --color-accent-text: #1E1E1E;
   --color-accent: #FFD700;
   --color-accent-hover: #D4B200;
   --color-accent-highlight: #B0B0B0;
+  --color-accent-text: #1E1E1E;
   --color-border:#3C3C3C;
 }
 
@@ -149,10 +149,10 @@
   --color-secondary-surface: #B0F0FC;
   --color-primary-text: #0C4A6E;
   --color-secondary-text: #2B6CB0;
-  --color-accent-text: #EDEFF2;
   --color-accent: #00B4D8;
   --color-accent-hover: #0096B5;
   --color-accent-highlight: #4DD0E1;
+  --color-accent-text: #EDEFF2;
   --color-border: #B0E6F2;
 }
 
@@ -162,10 +162,10 @@
   --color-secondary-surface: #2F354C;
   --color-primary-text: #E0E7FF;
   --color-secondary-text: #A3AED0;
-  --color-accent-text: #1B1D2C;
   --color-accent: #7DF9FF;
   --color-accent-hover: #5EDDE3;
   --color-accent-highlight: #A3AED0;
+  --color-accent-text: #1B1D2C;
   --color-border: #383F54;
 }
 
@@ -175,10 +175,10 @@
   --color-secondary-surface: #1A4D36;
   --color-primary-text: #C0E1A1;
   --color-secondary-text: #7B9E74;
-  --color-accent-text: #0F2F1C;
   --color-accent: #1FBF5A;
   --color-accent-hover: #18B14E;
   --color-accent-highlight: #a0eec2;
+  --color-accent-text: #0F2F1C;
   --color-border:#1A4D36;
 }
 
@@ -188,10 +188,10 @@
   --color-secondary-surface: #F2EDF1;
   --color-primary-text: #3A2E3F;
   --color-secondary-text: #7A6B82;
-  --color-accent-text: #EDEFF2;
   --color-accent: #C86FA9;
   --color-accent-hover: #B45A96;
   --color-accent-highlight: #E3A6C8;
+  --color-accent-text: #EDEFF2;
   --color-border: #E1D7DE;
 }
 
@@ -201,10 +201,10 @@
   --color-secondary-surface: #FFD4A0;
   --color-primary-text: #803000;
   --color-secondary-text: #B87333;
-  --color-accent-text: #EDEFF2;
   --color-accent: #FF4500;
   --color-accent-hover: #D93A00;
   --color-accent-highlight: #B87333;
+  --color-accent-text: #EDEFF2;
   --color-border: #FFD1A6;
 }
 
@@ -1501,7 +1501,7 @@ select option {
   gap: var(--gap);
   width: 100%;
   position: relative;
-  z-index: 10;
+  z-index: 5;
 }
 
 /* Target both native selects and react-select containers */

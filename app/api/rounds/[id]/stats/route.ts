@@ -46,16 +46,24 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return errorResponse('Unauthorized', 403);
     }
 
+    // Helper to format score to par consistently
+    const formatScoreToPar = (diff: number) => {
+      if (diff > 0) return `+${diff}`;
+      if (diff < 0) return `${diff}`;
+      return 'E';
+    };
+
     // Calculate statistics
     const totalPar = round.tee.parTotal || 0;
     const scoreToPar = round.score - totalPar;
-    const scoreToParFormatted = scoreToPar > 0 ? `+${scoreToPar}` : scoreToPar.toString();
+    const scoreToParFormatted = formatScoreToPar(scoreToPar);
 
-    // Get totals from Round table (always contains the totals regardless of mode)
-    const totalGIR = round.girHit || 0;
-    const totalFIR = round.firHit || 0;
-    const totalPutts = round.putts || 0;
-    const totalPenalties = round.penalties || 0;
+    // Get totals from Round table (only if advanced stats were tracked)
+    const hasAdvancedStats = round.advancedStats;
+    const totalGIR = hasAdvancedStats ? (round.girHit ?? null) : null;
+    const totalFIR = hasAdvancedStats ? (round.firHit ?? null) : null;
+    const totalPutts = hasAdvancedStats ? (round.putts ?? null) : null;
+    const totalPenalties = hasAdvancedStats ? (round.penalties ?? null) : null;
 
     // Scoring breakdown by par
     const scoringByPar: Record<number, { holes: number; totalScore: number; totalPar: number }> = {
@@ -68,7 +76,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const holeDetails = round.roundHoles.map((rh: any) => {
       const hole = rh.hole;
       const scoreDiff = rh.score - hole.par;
-      const scoreDiffFormatted = scoreDiff > 0 ? `+${scoreDiff}` : scoreDiff.toString();
+      const scoreDiffFormatted = formatScoreToPar(scoreDiff);
 
       // Update scoring by par breakdown
       if (scoringByPar[hole.par]) {
@@ -92,16 +100,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
       };
     });
 
-    // Calculate percentages
+    // Calculate percentages (only if advanced stats were tracked)
     // Use the tee's hole count for totals
     const totalHoles = round.tee.holes?.length || 0;
-    const girPercentage = totalHoles > 0 ? ((totalGIR / totalHoles) * 100).toFixed(1) : '0.0';
+    const girPercentage = hasAdvancedStats && totalGIR !== null && totalHoles > 0
+      ? ((totalGIR / totalHoles) * 100).toFixed(1)
+      : null;
 
     // FIR only applies to par 4s and 5s - count from tee holes
     const parFourFiveHoles = round.tee.holes?.filter((h: any) => h.par === 4 || h.par === 5).length || 0;
-    const firPercentage = parFourFiveHoles > 0 ? ((totalFIR / parFourFiveHoles) * 100).toFixed(1) : '0.0';
+    const firPercentage = hasAdvancedStats && totalFIR !== null && parFourFiveHoles > 0
+      ? ((totalFIR / parFourFiveHoles) * 100).toFixed(1)
+      : null;
 
-    const puttsPerHole = totalHoles > 0 ? (totalPutts / totalHoles).toFixed(2) : '0.00';
+    const puttsPerHole = hasAdvancedStats && totalPutts !== null && totalHoles > 0
+      ? (totalPutts / totalHoles).toFixed(2)
+      : null;
 
     // Build scoring breakdown
     const scoringBreakdown = Object.entries(scoringByPar)

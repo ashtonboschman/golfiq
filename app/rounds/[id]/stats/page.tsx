@@ -39,15 +39,15 @@ interface RoundStats {
   total_par: number;
   score_to_par: number;
   score_to_par_formatted: string;
-  greens_in_regulation: number;
-  gir_percentage: string;
+  greens_in_regulation: number | null;
+  gir_percentage: string | null;
   total_holes_for_gir: number;
-  fairways_hit: number;
-  fir_percentage: string;
+  fairways_hit: number | null;
+  fir_percentage: string | null;
   total_holes_for_fir: number;
-  total_putts: number;
-  putts_per_hole: string;
-  total_penalties: number;
+  total_putts: number | null;
+  putts_per_hole: string | null;
+  total_penalties: number | null;
   scoring_by_par: ScoringByPar[];
   hole_details: HoleDetail[];
   notes: string | null;
@@ -201,32 +201,32 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${parseFloat(stats.gir_percentage) >= 50 ? 'green' : parseFloat(stats.gir_percentage) < 20 ? 'red' : 'primary'}`}>
-                {stats.gir_percentage}%
+              <div className={`stats-score-value ${stats.gir_percentage !== null && parseFloat(stats.gir_percentage) >= 50 ? 'green' : stats.gir_percentage !== null && parseFloat(stats.gir_percentage) < 20 ? 'red' : 'primary'}`}>
+                {stats.gir_percentage !== null ? `${stats.gir_percentage}%` : '-'}
               </div>
               <div className="stats-score-label">
-                GIR ({stats.greens_in_regulation}/{stats.total_holes_for_gir})
+                GIR {stats.greens_in_regulation !== null ? `(${stats.greens_in_regulation}/${stats.total_holes_for_gir})` : ''}
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${parseFloat(stats.fir_percentage) >= 50 ? 'green' : parseFloat(stats.fir_percentage) < 20 ? 'red' : 'primary'}`}>
-                {stats.fir_percentage}%
+              <div className={`stats-score-value ${stats.fir_percentage !== null && parseFloat(stats.fir_percentage) >= 50 ? 'green' : stats.fir_percentage !== null && parseFloat(stats.fir_percentage) < 20 ? 'red' : 'primary'}`}>
+                {stats.fir_percentage !== null ? `${stats.fir_percentage}%` : '-'}
               </div>
               <div className="stats-score-label">
-                FIR ({stats.fairways_hit}/{stats.total_holes_for_fir})
+                FIR {stats.fairways_hit !== null ? `(${stats.fairways_hit}/${stats.total_holes_for_fir})` : ''}
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${parseFloat(stats.putts_per_hole) < 2 ? 'green' : parseFloat(stats.putts_per_hole) >= 3 ? 'red' : 'primary'}`}>
-                {stats.putts_per_hole}
+              <div className={`stats-score-value ${stats.putts_per_hole !== null && parseFloat(stats.putts_per_hole) < 2 ? 'green' : stats.putts_per_hole !== null && parseFloat(stats.putts_per_hole) >= 2.5 ? 'red' : 'primary'}`}>
+                {stats.putts_per_hole ?? '-'}
               </div>
               <div className="stats-score-label">
-                Putts/Hole ({stats.total_putts} total)
+                Putts/Hole {stats.total_putts !== null ? `(${stats.total_putts} total)` : ''}
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.total_penalties < 1 ? 'green' : stats.total_penalties >= 3 ? 'red' : 'primary'}`}>
-                {stats.total_penalties}
+              <div className={`stats-score-value ${stats.total_penalties !== null && stats.total_penalties < 1 ? 'green' : stats.total_penalties !== null && stats.total_penalties >= 3 ? 'red' : 'primary'}`}>
+                {stats.total_penalties ?? '-'}
               </div>
               <div className="stats-score-label">
                 Penalties

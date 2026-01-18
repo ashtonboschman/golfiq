@@ -271,8 +271,11 @@ export const formatNumber = (num: number | null | undefined) =>
 
 export const formatToPar = (num: number | null | undefined) => {
   if (num == null || isNaN(num)) return '-';
-  const formatted = num % 1 === 0 ? num.toString() : num.toFixed(1);
-  return num > 0 ? `+${formatted}` : formatted;
+  const absValue = Math.abs(num);
+  const formatted = absValue % 1 === 0 ? absValue.toString() : absValue.toFixed(1);
+  if (num > 0) return `+${formatted}`;
+  if (num < 0) return `-${formatted}`;
+  return 'E';
 };
 
 export const formatPercent = (num: number | null | undefined) =>
@@ -434,29 +437,30 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
   // Show upgrade modal at strategic milestones for free users (only for own dashboard)
   // First at 3 rounds, then every 5 rounds (8, 13, 18, 23...)
+  // Use totalRoundsInDb (unfiltered count) to ensure modal shows regardless of stats mode filter
+  const totalRoundsForModal = stats.totalRoundsInDb ?? stats.total_rounds;
   useEffect(() => {
     // Wait for both dashboard data and subscription data to load before showing modal
-    if (!loading && !subscriptionLoading && isOwnDashboard && !isPremium && stats.total_rounds >= 3) {
+    if (!loading && !subscriptionLoading && isOwnDashboard && !isPremium && totalRoundsForModal >= 3) {
       const lastShownRound = parseInt(localStorage.getItem('upgrade-modal-last-shown-round') || '0');
 
       // Show at round 3 (first time)
-      const isFirstShow = stats.total_rounds === 3 && lastShownRound === 0;
+      const isFirstShow = totalRoundsForModal >= 3 && lastShownRound === 0;
 
       // Show every 5 rounds after first show (8, 13, 18, 23...)
       const isSubsequentShow = lastShownRound > 0 &&
-                                stats.total_rounds >= lastShownRound + 5 &&
-                                (stats.total_rounds - 3) % 5 === 0;
+                                totalRoundsForModal >= lastShownRound + 5;
 
       if (isFirstShow || isSubsequentShow) {
         setShowUpgradeModal(true);
       }
     }
-  }, [loading, subscriptionLoading, isOwnDashboard, isPremium, stats.total_rounds]);
+  }, [loading, subscriptionLoading, isOwnDashboard, isPremium, totalRoundsForModal]);
 
   const handleCloseUpgradeModal = () => {
     setShowUpgradeModal(false);
     // Track which round we showed the modal at
-    localStorage.setItem('upgrade-modal-last-shown-round', stats.total_rounds.toString());
+    localStorage.setItem('upgrade-modal-last-shown-round', totalRoundsForModal.toString());
   };
 
   if (loading) return <p className="loading-text">Loading dashboard...</p>;
@@ -574,9 +578,9 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     ? Math.ceil(Math.max(...scoreValues) / 5) * 5
     : undefined;
 
-  // Dynamic modal messaging based on round count
+  // Dynamic modal messaging based on round count (use unfiltered count)
   const getModalMessage = () => {
-    const rounds = stats.total_rounds;
+    const rounds = totalRoundsForModal;
     if (rounds === 3) {
       return "You've logged 3 rounds! Upgrade to Premium to unlock Insights, unlimited analytics, and an ad-free experience.";
     } else if (rounds >= 13) {
@@ -608,6 +612,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           ]}
           isSearchable={false}
           styles={selectStyles}
+          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
         />
         <Select
           value={{
@@ -637,6 +642,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           isSearchable={false}
           isDisabled={subscriptionLoading} // only disable while loading
           styles={selectStyles}
+          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
           className={
             !subscriptionLoading && !isPremium
               ? 'dashboard-date-filter locked'
