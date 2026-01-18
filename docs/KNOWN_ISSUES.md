@@ -9,11 +9,8 @@
 - flashing edit screen when navigating to the stats page (we can look at this later)
 - Success message way too quick on courses/search page after adding a course (might need to add delay again for page switch or something idk)
 - Subscription confirmation page needs work. 
-- Subscription doesn’t auto apply anymore after the free trial update.
 - Info tool tip popup is behind the filter button. I want the popup above the dropdown if dropdown is closed, but dropdown to be above eveything if that is open.
 - Upgrade modal did not popup after 3 rounds
-- Limit max input value fir (0 - # of non-par3 holes) and gir (0 - # of holes) on quick mode advanced stats (should we add a new column to tees table to auto calculate #ofnonpar3 holes upon course insert? Could be useful to speed up queries)
-- Add/edit rounds page should show both Quick and HBH buttons side by side like leaderboard (with same active highlighting) so users can see both options to have a better idea that there are options.
 - User_leaderboard_stats toPar stats need to be updated on round insert/update/delete like the totalScore columns do (best_score, average_score)
 - Stats don’t show on friend card when accepting request until after refresh. Also make sure if user hcp is null we display '-' and not 0. That could be misleading.
 - Forgot password page return to login button too long and not completely theme matching (using link maybe we use button like everything else in the app? Lets check all files for links and make them buttons to match the app I think.)
@@ -30,8 +27,8 @@
 - Change password needs eye icon, lets copy what we have from register page and use the same logic and icons
 - Dual color trend fir gir
 - Edit other people’s rounds from their dashboard throwing db error (need to make sure edit/delete buttons are only rendered if current user = round.user). Or just make the dashboard round card not clickable unless user is correct. We would need to conditionally render teh chevron right
-- Make sure if location is enabled we reload the page
-- lets
+- Make sure if location is enabled we reload the page on courses. Or we wait for their input before proceeding.
+- lets see if we need to add an api/bootstrap/route.ts Might need to wait until mvp is done and then optimize?
 
 ## 📋 Planned Features (Not Yet Implemented)
 
