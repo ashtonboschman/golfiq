@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
-import Link from 'next/link';
+import { Mail } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -45,32 +47,33 @@ export default function ForgotPasswordPage() {
 
   if (submitted) {
     return (
-      <div className="page-stack">
+      <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ marginBottom: '16px' }}><Mail size={48} color="var(--color-accent)" /></div>
             <h1 className="auth-title">Check Your Email</h1>
           </div>
 
           <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-            <p style={{ marginBottom: '12px', color: '#9AA3B2' }}>
+            <p className="secondary-text" style={{ marginBottom: '12px' }}>
               If an account exists for <strong>{email}</strong>, you will receive a password reset link shortly.
             </p>
-            <p style={{ fontSize: '14px', color: '#9AA3B2' }}>
+            <p className="secondary-text" style={{ fontSize: '14px' }}>
               The link will expire in 1 hour. Check your spam folder if you don't see it.
             </p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <Link href="/login" className="btn btn-primary">
+            <button onClick={() => router.push('/login')} className="btn btn-primary">
               Return to Login
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => {
                 setSubmitted(false);
                 setEmail('');
               }}
-              className="btn btn-secondary"
+              className="btn btn-toggle"
             >
               Send Another Reset Link
             </button>
@@ -81,7 +84,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="login-stack">
       <div className="card login-card">
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <h1 className="auth-title">Forgot Password</h1>
@@ -103,10 +106,14 @@ export default function ForgotPasswordPage() {
             max={250}
           />
 
-          <button type="submit" className="btn btn-primary w-full" disabled={loading}>
+          <button type="submit" className="btn btn-save" disabled={loading}>
             {loading ? 'Sending...' : 'Send Reset Link'}
           </button>
         </form>
+
+        <button onClick={() => router.push('/login')} className="btn btn-toggle">
+          Back to Login
+        </button>
       </div>
     </div>
   );

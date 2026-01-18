@@ -3,8 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
-import Link from 'next/link';
-import { TriangleAlert, Eye, EyeOff } from 'lucide-react';
+import { TriangleAlert, Eye, EyeOff, Check } from 'lucide-react';
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -76,20 +75,25 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="page-stack">
+      <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}><TriangleAlert/></div>
+            <div style={{ marginBottom: '16px' }}><TriangleAlert size={48} color="var(--color-warning)" /></div>
             <h1 className="auth-title">Invalid Reset Link</h1>
           </div>
 
-          <p className='secondary-text'>
+          <p className='secondary-text' style={{ marginBottom: '24px', textAlign: 'center' }}>
             This password reset link is invalid or has expired. Please request a new one.
           </p>
 
-          <Link href="/forgot-password" className="btn btn-primary w-full" style={{ textAlign: 'center' }}>
-            Request New Reset Link
-          </Link>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button onClick={() => router.push('/forgot-password')} className="btn btn-primary">
+              Request New Reset Link
+            </button>
+            <button onClick={() => router.push('/login')} className="btn btn-toggle">
+              Back to Login
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -97,27 +101,27 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="page-stack">
+      <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+            <div style={{ marginBottom: '16px' }}><Check size={48} color="var(--color-success)" /></div>
             <h1 className="auth-title">Password Reset Successful</h1>
           </div>
 
-          <p className='secondary-text'>
+          <p className='secondary-text' style={{ marginBottom: '24px', textAlign: 'center' }}>
             Your password has been successfully reset. You will be redirected to the login page shortly.
           </p>
 
-          <Link href="/login" className="btn btn-primary w-full" style={{ textAlign: 'center' }}>
+          <button onClick={() => router.push('/login')} className="btn btn-primary">
             Go to Login
-          </Link>
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page-stack">
+    <div className="login-stack">
       <div className="card login-card">
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <h1 className="auth-title">Reset Password</h1>
@@ -197,10 +201,14 @@ function ResetPasswordForm() {
             </button>
           </div>
 
-          <button type="submit" className="btn btn-primary w-full" disabled={loading}>
+          <button type="submit" className="btn btn-save" disabled={loading}>
             {loading ? 'Resetting...' : 'Reset Password'}
           </button>
         </form>
+
+        <button onClick={() => router.push('/login')} className="btn btn-toggle">
+          Back to Login
+        </button>
       </div>
     </div>
   );

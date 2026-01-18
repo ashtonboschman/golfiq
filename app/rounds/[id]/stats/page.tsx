@@ -201,7 +201,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className="stats-score-value">
+              <div className={`stats-score-value ${parseFloat(stats.gir_percentage) >= 50 ? 'green' : parseFloat(stats.gir_percentage) < 20 ? 'red' : 'primary'}`}>
                 {stats.gir_percentage}%
               </div>
               <div className="stats-score-label">
@@ -209,7 +209,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className="stats-score-value">
+              <div className={`stats-score-value ${parseFloat(stats.fir_percentage) >= 50 ? 'green' : parseFloat(stats.fir_percentage) < 20 ? 'red' : 'primary'}`}>
                 {stats.fir_percentage}%
               </div>
               <div className="stats-score-label">
@@ -217,7 +217,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className="stats-score-value">
+              <div className={`stats-score-value ${parseFloat(stats.putts_per_hole) < 2 ? 'green' : parseFloat(stats.putts_per_hole) >= 3 ? 'red' : 'primary'}`}>
                 {stats.putts_per_hole}
               </div>
               <div className="stats-score-label">
@@ -225,7 +225,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.total_penalties > 0 ? 'penalties' : ''}`}>
+              <div className={`stats-score-value ${stats.total_penalties < 1 ? 'green' : stats.total_penalties >= 3 ? 'red' : 'primary'}`}>
                 {stats.total_penalties}
               </div>
               <div className="stats-score-label">

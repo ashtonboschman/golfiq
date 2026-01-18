@@ -29,7 +29,7 @@
 - need to add timezone to user (can get from location) so date on add round is correct
 - Change password needs eye icon, lets copy what we have from register page and use the same logic and icons
 - Dual color trend fir gir
-- Edit other people’s rounds from their dashboard throwing db error (need to make sure edit/delete buttons are only rendered if current user = round.user)
+- Edit other people’s rounds from their dashboard throwing db error (need to make sure edit/delete buttons are only rendered if current user = round.user). Or just make the dashboard round card not clickable unless user is correct.
 - Make sure if location is enabled we reload the page
 - lets
 

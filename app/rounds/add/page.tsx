@@ -423,6 +423,17 @@ export default function AddRoundPage() {
     initHoles();
   }, [round.tee_id]);
 
+  // Calculate max FIR (non-par-3 holes) and max GIR (total holes) dynamically
+  const maxFir = useMemo(() => {
+    if (holes.length === 0) return 14; // Default fallback
+    return holes.filter((h: any) => h.par !== 3).length;
+  }, [holes]);
+
+  const maxGir = useMemo(() => {
+    if (holes.length === 0) return 18; // Default fallback
+    return holes.length;
+  }, [holes]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
 
@@ -430,8 +441,8 @@ export default function AddRoundPage() {
       const numericValue = sanitizeNumeric(value);
 
       const maxMap: Record<string, number> = {
-        fir_hit: 14,
-        gir_hit: 18,
+        fir_hit: maxFir,
+        gir_hit: maxGir,
         score: 150,
         putts: 99,
         penalties: 30,
@@ -722,9 +733,26 @@ export default function AddRoundPage() {
 
           {initialized && (
             <>
-              <button type="button" className="btn btn-toggle" onClick={toggleHoleByHole}>
-                {isHBH ? 'Switch to Quick Score Mode' : 'Switch to Hole-by-Hole Mode'}
-              </button>
+              <div className="stats-tabs">
+                <button
+                  type="button"
+                  className={`stats-tab ${!isHBH ? 'active' : ''}`}
+                  onClick={() => {
+                    if (isHBH) toggleHoleByHole();
+                  }}
+                >
+                  Quick
+                </button>
+                <button
+                  type="button"
+                  className={`stats-tab ${isHBH ? 'active' : ''}`}
+                  onClick={() => {
+                    if (!isHBH) toggleHoleByHole();
+                  }}
+                >
+                  Hole-by-Hole
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -806,7 +834,15 @@ export default function AddRoundPage() {
           </div>
 
           <div className="form-actions">
-            <button type="button" onClick={() => router.push('/rounds')} className="btn btn-cancel">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                  router.push('/rounds');
+                }
+              }}
+              className="btn btn-cancel"
+            >
               Cancel
             </button>
             <button type="submit" disabled={loading} className="btn btn-save">

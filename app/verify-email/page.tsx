@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
-import Link from 'next/link';
+import { Check, TriangleAlert, X, Loader2 } from 'lucide-react';
 
 function VerifyEmailForm() {
   const router = useRouter();
@@ -60,14 +60,14 @@ function VerifyEmailForm() {
 
   if (loading) {
     return (
-      <div className="auth-container">
-        <div className="auth-card">
+      <div className="login-stack">
+        <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+            <div style={{ marginBottom: '16px' }}><Loader2 size={48} className="spinning" /></div>
             <h1 className="auth-title">Verifying Email...</h1>
           </div>
 
-          <p style={{ textAlign: 'center', color: '#666' }}>
+          <p className="secondary-text" style={{ textAlign: 'center' }}>
             Please wait while we verify your email address.
           </p>
         </div>
@@ -77,20 +77,20 @@ function VerifyEmailForm() {
 
   if (!token) {
     return (
-      <div className="auth-container">
-        <div className="auth-card">
+      <div className="login-stack">
+        <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+            <div style={{ marginBottom: '16px' }}><TriangleAlert size={48} color="var(--color-warning)" /></div>
             <h1 className="auth-title">Invalid Verification Link</h1>
           </div>
 
-          <p style={{ marginBottom: '24px', textAlign: 'center', color: '#666' }}>
+          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center' }}>
             This email verification link is invalid. Please check your email for the correct link.
           </p>
 
-          <Link href="/login" className="btn btn-primary w-full" style={{ textAlign: 'center' }}>
+          <button onClick={() => router.push('/login')} className="btn btn-primary">
             Go to Login
-          </Link>
+          </button>
         </div>
       </div>
     );
@@ -98,20 +98,20 @@ function VerifyEmailForm() {
 
   if (success) {
     return (
-      <div className="auth-container">
-        <div className="auth-card">
+      <div className="login-stack">
+        <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+            <div style={{ marginBottom: '16px' }}><Check size={48} color="var(--color-success)" /></div>
             <h1 className="auth-title">Email Verified!</h1>
           </div>
 
-          <p style={{ marginBottom: '24px', textAlign: 'center', color: '#666' }}>
+          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center' }}>
             Your email has been successfully verified. You can now access all features of GolfIQ.
           </p>
 
-          <Link href="/dashboard" className="btn btn-primary w-full" style={{ textAlign: 'center' }}>
+          <button onClick={() => router.push('/dashboard')} className="btn btn-primary">
             Go to Dashboard
-          </Link>
+          </button>
         </div>
       </div>
     );
@@ -119,24 +119,24 @@ function VerifyEmailForm() {
 
   if (error) {
     return (
-      <div className="page-stack">
-        <div className="auth-card">
+      <div className="login-stack">
+        <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+            <div style={{ marginBottom: '16px' }}><X size={48} color="var(--color-red)" /></div>
             <h1 className="auth-title">Verification Failed</h1>
           </div>
 
-          <p style={{ marginBottom: '24px', textAlign: 'center', color: '#666' }}>
+          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center' }}>
             {error}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <Link href="/dashboard" className="btn btn-primary" style={{ textAlign: 'center' }}>
+            <button onClick={() => router.push('/dashboard')} className="btn btn-primary">
               Go to Dashboard
-            </Link>
-            <Link href="/login" className="btn btn-secondary" style={{ textAlign: 'center' }}>
+            </button>
+            <button onClick={() => router.push('/login')} className="btn btn-toggle">
               Go to Login
-            </Link>
+            </button>
           </div>
         </div>
       </div>
