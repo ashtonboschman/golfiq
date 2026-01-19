@@ -7,7 +7,7 @@
 ## 🐛 Active Bugs
 - flashing edit screen when navigating to the stats page (we can look at this later)
 - Subscription confirmation page needs work. 
-- Upgrade modal did not popup after 3 rounds
+- Upgrade modal did not popup after 3 rounds. Not popping up at all
 - Round stats should display '-' if fir/gir/putts/penalties are null. Doesn't skew stats
 - Cancel from add / edit round needs confirmation to avoid accidental data deletion
 - Update course search results from rounds/add and edit to include location string like we have on courseCard so we can differentiate between same named courses. We'll see if we need this or not.

@@ -490,13 +490,13 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
   const hbhCount = stats.hbh_stats?.hbh_rounds_count ?? 0;
   const sb = stats.hbh_stats?.scoring_breakdown;
 
-  const birdiesOrBetterPerRound =
+  const scoringPerRound =
     sb && hbhCount
       ? ((sb.ace ?? 0) + (sb.albatross ?? 0) + (sb.eagle ?? 0) + (sb.birdie ?? 0)) / hbhCount
       : null;
   const parPerRound = sb && hbhCount ? (sb.par ?? 0) / hbhCount : null;
   const bogeysPerRound = sb && hbhCount ? (sb.bogey ?? 0) / hbhCount : null;
-  const doublesOrWorsePerRound = sb && hbhCount ? (sb.double_plus ?? 0) / hbhCount : null;
+  const blowUpPerRound = sb && hbhCount ? (sb.double_plus ?? 0) / hbhCount : null;
 
   // Premium users get 20 rounds for trend charts, free users get 5
   const trendRoundsCount = isPremium ? 20 : 5;
@@ -756,10 +756,10 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             ['GIR', stats.gir_avg, '%', 'Greens In Regulation - % of greens reached in regulation'],
             ['Putts', stats.avg_putts, null, 'Average putts per round'],
             ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round'],
-            ['Birdies ≤', birdiesOrBetterPerRound, null, 'Average birdies or better per round'],
-            ['Pars', parPerRound, null, 'Average pars per round'],
-            ['Bogeys', bogeysPerRound, null, 'Average bogeys per round'],
-            ['Doubles ≥', doublesOrWorsePerRound, null, 'Average double bogeys or worse per round'],
+            ['Scoring', scoringPerRound, null, 'Average birdies or better per round'],
+            ['Par', parPerRound, null, 'Average pars per round'],
+            ['Bogey', bogeysPerRound, null, 'Average bogeys per round'],
+            ['Blow Up', blowUpPerRound, null, 'Average double bogeys or worse per round'],
           ].map(([label, val, isPercent, tooltip]) => (
             <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
               {tooltip && <InfoTooltip text={tooltip as string} />}
