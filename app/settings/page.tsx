@@ -205,18 +205,14 @@ export default function SettingsPage() {
 
           {/* Preferences Section */}
           <section className="settings-section">
-            <div className="settings-card">
-              <h3 style={{ marginBottom: '15px', fontSize: '1.2rem', fontWeight: 'bold' }}>Theme</h3>
-              <p className="settings-description" style={{ marginBottom: '15px' }}>
-                Customize the appearance of GolfIQ. Free users can choose between Dark and Light themes.
+            <div className="settings-card">                            
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
+                <label className="form-label">Theme</label>
                 {!loading && !isPremium && (
-                  <span style={{ display: 'block', marginTop: '8px', color: 'var(--color-accent)' }}>
-                    Upgrade to Premium to unlock 9 additional themes!
+                  <span style={{ color: 'var(--color-accent)' }}>
+                    Upgrade to Premium to unlock additional themes!
                   </span>
                 )}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
-                <label className="form-label">Selected Theme</label>
                 <Select
                   value={availableThemes.find(t => t.value === theme)}
                   onChange={(option) => {
@@ -241,14 +237,6 @@ export default function SettingsPage() {
                   isSearchable={false}
                   styles={selectStyles}
                 />
-                {!loading && !isPremium && (
-                  <button
-                    className="btn btn-upgrade"
-                    onClick={() => router.push('/pricing')}
-                  >
-                    Upgrade for More Themes
-                  </button>
-                )}
               </div>
             </div>
           </section>
@@ -256,7 +244,13 @@ export default function SettingsPage() {
           {/* Data Export Section */}
           <section className="settings-section">
             <div className="settings-card">
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
+                <label className="form-label">Export</label>
+                {!loading && !isPremium && (
+                  <span style={{ color: 'var(--color-accent)' }}>
+                    Upgrade to Premium for unlimited exports plus Json!
+                  </span>
+                )}
                 <button
                   className="btn btn-secondary"
                   onClick={() => handleExportData('csv')}
@@ -273,15 +267,6 @@ export default function SettingsPage() {
                     <Download/>{exporting ? ' Exporting...' : ' Export JSON'}
                   </button>
                 )}
-                {!loading && !isPremium && (
-                  <button
-                    className="btn btn-upgrade"
-                    onClick={() => router.push('/pricing')}
-                    style={{ marginLeft: 'auto' }}
-                  >
-                    Upgrade for Unlimited Exports
-                  </button>
-                )}
               </div>
             </div>
           </section>
@@ -290,9 +275,6 @@ export default function SettingsPage() {
           {session?.user?.id === '1' && (
           <section className="settings-section">
             <div className="settings-card">
-              <p className="settings-description" style={{ marginBottom: '15px' }}>
-                Administrative tools for managing course data. (Note: Admin role restrictions will be added soon)
-              </p>
               <button
                 className="btn btn-secondary"
                 onClick={() => router.push('/admin/import-course')}
