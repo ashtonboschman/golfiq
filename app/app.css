@@ -144,16 +144,17 @@
 }
 
 .theme-oceanic {
-  --color-primary-bg: #E0F7FA;
-  --color-primary-surface: #CFFAFE;
-  --color-secondary-surface: #B0F0FC;
-  --color-primary-text: #0C4A6E;
-  --color-secondary-text: #2B6CB0;
-  --color-accent: #00B4D8;
-  --color-accent-hover: #0096B5;
-  --color-accent-highlight: #4DD0E1;
-  --color-accent-text: #EDEFF2;
-  --color-border: #B0E6F2;
+--color-primary-bg: #E6F2F5;
+--color-primary-surface: #D9EBF0;
+--color-secondary-surface: #C7DEE5;
+--color-primary-text: #05445E;
+--color-secondary-text: #2E7C9A;
+--color-accent: #0084c2;
+--color-accent-hover: #0275aa;
+--color-accent-highlight: #4DB6E2;
+--color-accent-text: #F0F7FA;
+--color-border: #A9D0DD;
+--color-footer-icon: #05445E;
 }
 
 .theme-aurora {
@@ -170,16 +171,16 @@
 }
 
 .theme-forest {
-  --color-primary-bg: #0F2F1C;
-  --color-primary-surface: #123C28;
-  --color-secondary-surface: #1A4D36;
-  --color-primary-text: #C0E1A1;
-  --color-secondary-text: #7B9E74;
-  --color-accent: #1FBF5A;
-  --color-accent-hover: #18B14E;
-  --color-accent-highlight: #a0eec2;
-  --color-accent-text: #0F2F1C;
-  --color-border:#1A4D36;
+--color-primary-bg: #1B2A23;
+--color-primary-surface: #22372D;
+--color-secondary-surface: #2B4437;
+--color-primary-text: #D0E6C8;
+--color-secondary-text: #9BB29A;
+--color-accent: #6DA56F;
+--color-accent-hover: #558C55;
+--color-accent-highlight: #A3C9A0;
+--color-accent-text: #1B2A23;
+--color-border: #2B4437;
 }
 
 .theme-floral {
@@ -193,19 +194,6 @@
   --color-accent-highlight: #E3A6C8;
   --color-accent-text: #EDEFF2;
   --color-border: #E1D7DE;
-}
-
-.theme-sunset {
-  --color-primary-bg: #FFF3E6;
-  --color-primary-surface: #FFE0B2;
-  --color-secondary-surface: #FFD4A0;
-  --color-primary-text: #803000;
-  --color-secondary-text: #B87333;
-  --color-accent: #FF4500;
-  --color-accent-hover: #D93A00;
-  --color-accent-highlight: #B87333;
-  --color-accent-text: #EDEFF2;
-  --color-border: #FFD1A6;
 }
 
 /* Theme-specific select arrow colors - match each theme's secondary text color exactly */
@@ -255,14 +243,9 @@
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237B9E74' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
 }
 
-.theme-minimalist select {
+.theme-floral select {
   /* Minimalist theme: #7D7D7D */
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237D7D7D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
-}
-
-.theme-sunset select {
-  /* Sunset theme: #B87333 */
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B87333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
 }
 
 
@@ -1916,10 +1899,8 @@ input[type='date'].form-input {
 .theme-classic input[type="datetime-local"],
 .theme-oceanic input[type="date"],
 .theme-oceanic input[type="datetime-local"],
-.theme-minimalist input[type="date"],
-.theme-minimalist input[type="datetime-local"],
-.theme-sunset input[type="date"],
-.theme-sunset input[type="datetime-local"] {
+.theme-floral input[type="date"],
+.theme-floral input[type="datetime-local"] {
   color-scheme: light;
 }
 
@@ -1931,10 +1912,8 @@ input[type='date'].form-input {
 .theme-classic input[type="datetime-local"]::-webkit-calendar-picker-indicator,
 .theme-oceanic input[type="date"]::-webkit-calendar-picker-indicator,
 .theme-oceanic input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-.theme-minimalist input[type="date"]::-webkit-calendar-picker-indicator,
-.theme-minimalist input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-.theme-sunset input[type="date"]::-webkit-calendar-picker-indicator,
-.theme-sunset input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+.theme-floral input[type="date"]::-webkit-calendar-picker-indicator,
+.theme-floral input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(0.3) !important;
   cursor: pointer !important;
   opacity: 0.9 !important;

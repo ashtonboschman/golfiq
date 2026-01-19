@@ -22,7 +22,6 @@ const AVAILABLE_THEMES = [
   { value: 'aurora', label: 'Aurora', premiumOnly: true },
   { value: 'forest', label: 'Forest', premiumOnly: true },
   { value: 'floral', label: 'Floral', premiumOnly: true },
-  { value: 'sunset', label: 'Sunset', premiumOnly: true },
 ];
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
