@@ -7,7 +7,7 @@ import { PRICING } from '@/lib/subscription';
 import { Check, X } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 
-type PlanTab = 'premium' | 'annual' | 'free';
+type PlanTab = 'monthly' | 'annual' | 'free';
 
 export default function PricingPage() {
   const { data: session, status } = useSession();
@@ -15,7 +15,7 @@ export default function PricingPage() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [activeTab, setActiveTab] = useState<PlanTab>('premium');
+  const [activeTab, setActiveTab] = useState<PlanTab>('monthly');
   const { isPremium, loading: subscriptionLoading } = useSubscription();
 
   useEffect(() => {
@@ -95,10 +95,10 @@ export default function PricingPage() {
               Free
             </button>
             <button
-              className={`pricing-tab ${activeTab === 'premium' ? 'active' : ''}`}
-              onClick={() => setActiveTab('premium')}
+              className={`pricing-tab ${activeTab === 'monthly' ? 'active' : ''}`}
+              onClick={() => setActiveTab('monthly')}
             >
-              Premium
+              Monthly
             </button>
             <button
               className={`pricing-tab ${activeTab === 'annual' ? 'active' : ''}`}
@@ -110,7 +110,7 @@ export default function PricingPage() {
 
           {/* Tab Content */}
           <div className="pricing-tab-content">
-            {activeTab === 'premium' && (
+            {activeTab === 'monthly' && (
               <div className="pricing-card featured single">
                 <div className="pricing-badge">Most Popular</div>
                 <div className="pricing-card-header">
@@ -120,7 +120,7 @@ export default function PricingPage() {
                     <span className="price-amount">${PRICING.monthly.price}</span>
                     <span className="price-period">/month</span>
                   </div>
-                  <p className="price-breakdown" style={{ color: 'var(--color-success-text)', fontWeight: 600 }}>
+                  <p className="price-breakdown" style={{ color: 'var(--color-green)', fontWeight: 600 }}>
                     14-day free trial included!
                   </p>
                 </div>
@@ -137,11 +137,17 @@ export default function PricingPage() {
                   </ul>
                   <button
                     className="pricing-button"
+                    aria-label="Subscribe monthly to Premium plan"
                     onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
                     disabled={loading !== null}
                   >
-                    {loading === 'month' ? 'Loading...' : 'Subscribe Monthly'}
+                    {loading === 'month' ? 'Loading...' : 'Start 14-day free trial'}
                   </button>
+                  <div>
+                    <p className="price-subtext">
+                      No charge today · Cancel anytime
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -156,8 +162,8 @@ export default function PricingPage() {
                     <span className="price-amount">${PRICING.annual.price}</span>
                     <span className="price-period">/year</span>
                   </div>
-                  <p className="price-breakdown">
-                    Just ${(PRICING.annual.price / 12).toFixed(2)}/month
+                  <p className="price-breakdown" style={{ color: 'var(--color-green)', fontWeight: 600 }}>
+                    Just <strong>${(PRICING.annual.price / 12).toFixed(2)}</strong>/month
                   </p>
                 </div>
                 <div className="pricing-card-body">
@@ -171,11 +177,17 @@ export default function PricingPage() {
                   </ul>
                   <button
                     className="pricing-button"
+                    aria-label="Subscribe annually to Premium plan"
                     onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
                     disabled={loading !== null}
                   >
-                    {loading === 'year' ? 'Loading...' : 'Subscribe Annually'}
+                    {loading === 'year' ? 'Loading...' : 'Subscribe annually'}
                   </button>
+                  <div>
+                    <p className="price-subtext">
+                      Billed ${PRICING.annual.price}/year · One-time payment · Save {PRICING.annual.savings} vs monthly
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -205,7 +217,7 @@ export default function PricingPage() {
                     className="pricing-button current"
                     disabled
                   >
-                    Current Plan
+                    Current plan
                   </button>
                 </div>
               </div>

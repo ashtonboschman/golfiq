@@ -2515,11 +2515,6 @@ input[type='date'].form-input {
   width: 100%;
 }
 
-.pricing-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-}
-
 .pricing-card.featured {
   border-color: var(--color-accent);
   box-shadow: 0 5px 20px var(--color-accent);
@@ -2584,6 +2579,14 @@ input[type='date'].form-input {
 .price-breakdown {
   font-size: 0.9rem;
   color: var(--color-secondary-text);
+}
+
+.price-subtext {
+  display: flex;
+  justify-content: center;
+  font-size: 0.6rem;
+  color: var(--color-secondary-text);
+  margin: 0;
 }
 
 .pricing-card-body {

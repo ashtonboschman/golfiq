@@ -6,7 +6,6 @@
 
 ## 🐛 Active Bugs
 - flashing edit screen when navigating to the stats page (we can look at this later)
-- Subscription confirmation page needs work. 
 - Upgrade modal did not popup after 3 rounds. Not popping up at all
 - have profile info editable by default (remove edit profile button) and when user changes a stat, render the cancel/save buttons. If user tries to navigate away from page warn them that changes are not saved.
 - sometimes have to press logout button or settings button twice.
