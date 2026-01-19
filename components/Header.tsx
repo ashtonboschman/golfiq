@@ -20,13 +20,19 @@ export default function Header() {
   // Check if viewing someone else's dashboard
   const isViewingOthersDashboard = pathname === '/dashboard' && searchParams.has('user_id');
 
-  // Check if on add/edit round pages
+  // Check if on add/edit round pages or profile with unsaved changes
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
+  const hasProfileChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-  // Helper to navigate with warning if on add/edit page
+  // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
     if (isOnAddEditPage) {
       if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
+        router.push(path);
+      }
+    } else if (hasProfileChanges) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        sessionStorage.removeItem('profile-has-changes');
         router.push(path);
       }
     } else {
@@ -52,6 +58,11 @@ export default function Header() {
       if (!window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
         return;
       }
+    } else if (hasProfileChanges) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        return;
+      }
+      sessionStorage.removeItem('profile-has-changes');
     }
     setDropdownOpen(false);
     await signOut({ redirect: false });
@@ -80,6 +91,13 @@ export default function Header() {
       if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
         const roundId = pathname.split('/')[3];
         router.push(`/rounds/${roundId}/stats`);
+      }
+    }
+    // On profile with unsaved changes, warn before navigating away
+    else if (hasProfileChanges) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        sessionStorage.removeItem('profile-has-changes');
+        window.history.back();
       }
     }
     // When viewing someone else's dashboard, go back to their profile

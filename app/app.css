@@ -3103,10 +3103,10 @@ input[type='date'].form-input {
 }
 
 .upgrade-modal-content {
-  background: var(--color-white-text);
+  background: var(--color-primary-surface);
   border-radius: var(--border-radius);
   padding: var(--padding);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   text-align: center;
 }
 
@@ -3183,8 +3183,8 @@ input[type='date'].form-input {
 
 .upgrade-modal-button-secondary {
   background: transparent;
-  color: var(--color-gray);
-  border: 2px solid var(--color-white-text);
+  color: var(--color-secondary-text);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   padding: var(--padding);
   font-size: 0.9rem;

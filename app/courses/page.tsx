@@ -45,6 +45,7 @@ export default function CoursesPage() {
   const [hasMore, setHasMore] = useState(true);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationChecked, setLocationChecked] = useState(false);
+  const [waitingForLocation, setWaitingForLocation] = useState(true);
 
   const observer = useRef<IntersectionObserver | null>(null);
 
@@ -59,7 +60,9 @@ export default function CoursesPage() {
     if (navigator.geolocation) {
       const timeoutId = setTimeout(() => {
         if (!locationChecked) {
+          console.log('Location request timed out, proceeding without location');
           setLocationChecked(true);
+          setWaitingForLocation(false);
         }
       }, 2000); // 2 second timeout
 
@@ -71,16 +74,23 @@ export default function CoursesPage() {
             lng: position.coords.longitude,
           });
           setLocationChecked(true);
+          setWaitingForLocation(false);
         },
         (error) => {
           clearTimeout(timeoutId);
-          console.error('Geolocation error:', error.message);
+          console.log('Geolocation denied or unavailable:', error.message);
           setLocationChecked(true);
+          setWaitingForLocation(false);
           // Silently fail - courses will be shown without distance sorting
+        },
+        {
+          timeout: 1000, // 1 second timeout for the geolocation API itself
+          maximumAge: 300000, // Accept cached position up to 5 minutes old
         }
       );
     } else {
       setLocationChecked(true);
+      setWaitingForLocation(false);
     }
   }, [locationChecked]);
 
@@ -146,6 +156,16 @@ export default function CoursesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, locationChecked]);
+
+  // Refetch courses when location becomes available (to add distance sorting)
+  useEffect(() => {
+    if (status === 'authenticated' && locationChecked && userLocation && courses.length > 0) {
+      // Only refetch if we have courses and just got location
+      // This will update the courses with distance information
+      fetchCourses(1, debouncedSearch, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation]);
 
   // Handle search changes
   useEffect(() => {

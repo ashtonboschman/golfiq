@@ -78,7 +78,7 @@ export default function UpgradeModal({
       <div className="upgrade-modal">
         <div className="upgrade-modal-content">
           {/* Icon */}
-          <div className="upgrade-modal-icon"><Rocket/></div>
+          <div className="upgrade-modal-icon"><Rocket color='var(--color-accent)' size='50'/></div>
 
           {/* Title */}
           <h2 className="upgrade-modal-title">{title}</h2>
@@ -91,7 +91,7 @@ export default function UpgradeModal({
             <ul className="upgrade-modal-features">
               {features.map((feature, index) => (
                 <li key={index}>
-                  <span className="upgrade-modal-checkmark"><Check color='green'/></span>
+                  <span className="upgrade-modal-checkmark"><Check color='var(--color-success)'/></span>
                   {feature}
                 </li>
               ))}
@@ -99,12 +99,12 @@ export default function UpgradeModal({
           )}
 
           {/* Buttons */}
-          <div className="upgrade-modal-buttons">
+          <div className="btn-upgrade">
             <button
               className="upgrade-modal-button-primary"
               onClick={handleUpgrade}
             >
-              Upgrade to Premium
+              Start 14-day free trial
             </button>
             {showCloseButton && (
               <button

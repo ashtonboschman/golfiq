@@ -442,31 +442,40 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
   const isOwnDashboard = parseInt(requestedUserId?.toString() || '0') === parseInt(session?.user?.id || '0');
 
   // Show upgrade modal at strategic milestones for free users (only for own dashboard)
-  // First at 3 rounds, then every 5 rounds (8, 13, 18, 23...)
+  // First at 3 rounds, then at 10, then every 5 rounds (10, 15, 20, 25...)
   // Use totalRoundsInDb (unfiltered count) to ensure modal shows regardless of stats mode filter
   const totalRoundsForModal = stats.totalRoundsInDb ?? stats.total_rounds;
   useEffect(() => {
     // Wait for both dashboard data and subscription data to load before showing modal
-    if (!loading && !subscriptionLoading && isOwnDashboard && !isPremium && totalRoundsForModal >= 3) {
-      const lastShownRound = parseInt(localStorage.getItem('upgrade-modal-last-shown-round') || '0');
+    // Also ensure user is still authenticated (prevents flash on logout)
+    if (!loading && !subscriptionLoading && status === 'authenticated' && isOwnDashboard && !isPremium && totalRoundsForModal >= 3) {
+      const hasShownAtCurrentRound = sessionStorage.getItem(`upgrade-modal-shown-${totalRoundsForModal}`) === 'true';
 
-      // Show at round 3 (first time)
-      const isFirstShow = totalRoundsForModal >= 3 && lastShownRound === 0;
+      // Show at round 3, 10, 15, 20, 25, etc.
+      // Calculate if we're at a milestone (3, 10, 15, 20, 25...)
+      const milestones = [3];
+      for (let i = 10; i <= totalRoundsForModal; i += 5) {
+        milestones.push(i);
+      }
 
-      // Show every 5 rounds after first show (8, 13, 18, 23...)
-      const isSubsequentShow = lastShownRound > 0 &&
-                                totalRoundsForModal >= lastShownRound + 5;
+      // Show if:
+      // 1. We're at a milestone AND
+      // 2. Haven't shown the modal during this session for this exact round count
+      const shouldShow = milestones.includes(totalRoundsForModal) && !hasShownAtCurrentRound;
 
-      if (isFirstShow || isSubsequentShow) {
+      if (shouldShow) {
         setShowUpgradeModal(true);
       }
+    } else if (status !== 'authenticated') {
+      // Immediately hide modal if user logs out
+      setShowUpgradeModal(false);
     }
-  }, [loading, subscriptionLoading, isOwnDashboard, isPremium, totalRoundsForModal]);
+  }, [loading, subscriptionLoading, status, isOwnDashboard, isPremium, totalRoundsForModal]);
 
   const handleCloseUpgradeModal = () => {
     setShowUpgradeModal(false);
-    // Track which round we showed the modal at
-    localStorage.setItem('upgrade-modal-last-shown-round', totalRoundsForModal.toString());
+    // Mark that we've shown the modal for this round count in this session
+    sessionStorage.setItem(`upgrade-modal-shown-${totalRoundsForModal}`, 'true');
   };
 
   if (loading) return <p className="loading-text">Loading dashboard...</p>;
@@ -588,11 +597,17 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
   const getModalMessage = () => {
     const rounds = totalRoundsForModal;
     if (rounds === 3) {
-      return "You've logged 3 rounds! Upgrade to Premium to unlock Insights, unlimited analytics, and an ad-free experience.";
-    } else if (rounds >= 13) {
-      return `You've logged ${rounds} rounds! You're experiencing the 20-round analytics limit. Upgrade to Premium for unlimited history and Insights.`;
+      return "You've logged 3 rounds! Upgrade to Premium to unlock Insights, advanced stats, and an ad-free experience.";
+    } else if (rounds === 10) {
+      return "10 rounds played! Premium gives you detailed trends and analytics to improve faster.";
+    } else if (rounds === 15) {
+      return "15 rounds logged! Upgrade to Premium to see full insights beyond your recent rounds.";
+    } else if (rounds === 20) {
+      return "20 rounds reached — the free stats limit! Upgrade to Premium for unlimited history and advanced Insights.";
+    } else if (rounds > 20 && rounds % 5 === 0) {
+      return `${rounds} rounds logged! Unlock Premium to analyze all your rounds and track long-term performance.`;
     } else {
-      return `You've logged ${rounds} rounds and you're building great habits! Upgrade to Premium for unlimited analytics, Insights, and ad-free tracking.`;
+      return `You've logged ${rounds} rounds! Upgrade to Premium for unlimited analytics, Insights, and an ad-free experience.`;
     }
   };
 
@@ -801,17 +816,17 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       {/* Upgrade modal - shows at 3 rounds, then every 5 rounds */}
       <UpgradeModal
-        isOpen={showUpgradeModal}
+        isOpen={showUpgradeModal && status === 'authenticated'}
         onClose={handleCloseUpgradeModal}
         title="Unlock Premium Insights"
         message={getModalMessage()}
         features={[
-          'Insights with personalized recommendations',
-          'Unlimited analytics history',
-          '20-round trend analysis (vs 5 for free)',
-          'Advanced charts and predictions',
-          'Completely ad-free experience',
-          'Full global leaderboard access'
+          'All-time stat access beyond your last 20 rounds',
+          'Estimated strokes gained & core performance KPIs',
+          'Trend charts across your last 20 rounds (vs 5 on Free)',
+          'AI performance insights & predictions',
+          'Flexible date-based comparisons',
+          'Premium themes & ad-free experience'
         ]}
       />
     </div>

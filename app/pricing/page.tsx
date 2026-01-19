@@ -133,7 +133,7 @@ export default function PricingPage() {
                     <li><Check color='green' size='20' className="feature-icon"/> Priority support</li>
                   </ul>
                   <button
-                    className="pricing-button"
+                    className="btn-upgrade"
                     aria-label="Subscribe monthly to Premium plan"
                     onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
                     disabled={loading !== null}
@@ -173,7 +173,7 @@ export default function PricingPage() {
                     <li><Check color='green' size='20' className="feature-icon"/> Ideal for long-term improvement tracking</li>
                   </ul>
                   <button
-                    className="pricing-button"
+                    className="btn-upgrade"
                     aria-label="Subscribe annually to Premium plan"
                     onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
                     disabled={loading !== null}

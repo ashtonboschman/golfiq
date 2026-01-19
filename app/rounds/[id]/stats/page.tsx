@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import Link from 'next/link';
-import { Check, Edit, X } from 'lucide-react';
+import { Check, Edit, X, Trash2 } from 'lucide-react';
 
 interface HoleDetail {
   hole_number: number;
@@ -128,6 +128,27 @@ export default function RoundStatsPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this round?')) return;
+
+    try {
+      const res = await fetch(`/api/rounds/${roundId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Error deleting round');
+      }
+
+      showMessage('Round deleted successfully', 'success');
+      router.replace('/rounds');
+    } catch (error: any) {
+      console.error('Error deleting round:', error);
+      showMessage(error.message || 'Failed to delete round', 'error');
+    }
+  };
+
   if (status === 'loading' || loading) {
     return (
       <div className="stats-loading-container">
@@ -173,12 +194,20 @@ export default function RoundStatsPage() {
               {formatDate(stats.date)} • {stats.tee_name} Tees
             </p>
           </div>
-          <Link
-            href={`/rounds/edit/${roundId}`}
-            className="btn btn-edit"
-          >
-            <Edit/>
-          </Link>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Link
+              href={`/rounds/edit/${roundId}`}
+              className="btn btn-edit"
+            >
+              <Edit/>
+            </Link>
+            <button
+              onClick={handleDelete}
+              className="btn btn-cancel"
+            >
+              <Trash2/>
+            </button>
+          </div>
         </div>
 
         {/* Score Summary Card */}

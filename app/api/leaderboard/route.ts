@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
         users: paginatedUsers,
         isPremium,
         totalUsers: allUsers.length,
-        showingLimited: true,
+        showingLimited: allUsers.length > 100,
         hasMore: skip + limit < finalUsers.length,
       });
     }

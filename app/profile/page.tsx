@@ -50,8 +50,9 @@ export default function ProfilePage() {
 
   const [originalProfile, setOriginalProfile] = useState<Profile>(profile);
   const [favoriteCourseOption, setFavoriteCourseOption] = useState<CourseOption | null>(null);
+  const [originalFavoriteCourseOption, setOriginalFavoriteCourseOption] = useState<CourseOption | null>(null);
   const [loading, setLoading] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwords, setPasswords] = useState({
     currentPassword: '',
@@ -128,7 +129,12 @@ export default function ProfilePage() {
 
             if (courseRes.ok) {
               const courseData = await courseRes.json();
+              const courseOption = {
+                value: courseData.course.id,
+                label: courseData.course.course_name,
+              };
               setFavoriteCourse(courseData.course);
+              setOriginalFavoriteCourseOption(courseOption);
             }
           } catch (err) {
             console.error(err);
@@ -205,21 +211,41 @@ export default function ProfilePage() {
     }
   };
 
+  // Check if there are unsaved changes
+  useEffect(() => {
+    const profileChanged = JSON.stringify(profile) !== JSON.stringify(originalProfile);
+    const courseChanged = favoriteCourseOption?.value !== originalFavoriteCourseOption?.value;
+    const hasChanges = profileChanged || courseChanged;
+    setHasChanges(hasChanges);
+
+    // Set flag in sessionStorage for Header/Footer to check
+    if (hasChanges) {
+      sessionStorage.setItem('profile-has-changes', 'true');
+    } else {
+      sessionStorage.removeItem('profile-has-changes');
+    }
+  }, [profile, originalProfile, favoriteCourseOption, originalFavoriteCourseOption]);
+
+  // Navigation warning when there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges]);
+
   const handleChange = (field: keyof Profile, value: any) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCancel = () => {
-    setEditing(false);
     setProfile(originalProfile);
-    if (originalProfile.favorite_course_id) {
-      setFavoriteCourse({
-        id: originalProfile.favorite_course_id,
-        course_name: favoriteCourseOption?.label || '',
-      });
-    } else {
-      setFavoriteCourse(null);
-    }
+    setFavoriteCourseOption(originalFavoriteCourseOption);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -247,8 +273,8 @@ export default function ProfilePage() {
       if (!profileRes.ok) throw new Error(profileData.message || 'Error updating profile details');
 
       showMessage(profileData.message || 'Profile updated', profileData.type || 'success');
-      setEditing(false);
       setOriginalProfile(profile);
+      setOriginalFavoriteCourseOption(favoriteCourseOption);
 
       // Refresh favorite course label
       if (profile.favorite_course_id) {
@@ -417,8 +443,25 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
+    if (hasChanges) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        return;
+      }
+      sessionStorage.removeItem('profile-has-changes');
+    }
     await signOut({ redirect: false });
     router.replace('/login');
+  };
+
+  const handleNavigation = (path: string) => {
+    if (hasChanges) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        sessionStorage.removeItem('profile-has-changes');
+        router.push(path);
+      }
+    } else {
+      router.push(path);
+    }
   };
 
   if (status === 'loading') return <p className="loading-text">Loading...</p>;
@@ -505,7 +548,7 @@ export default function ProfilePage() {
         <input
           type="text"
           value={profile.first_name || ''}
-          disabled={!editing || loading}
+          disabled={loading}
           onChange={(e) => handleChange('first_name', e.target.value)}
           className="form-input"
         />
@@ -514,7 +557,7 @@ export default function ProfilePage() {
         <input
           type="text"
           value={profile.last_name || ''}
-          disabled={!editing || loading}
+          disabled={loading}
           onChange={(e) => handleChange('last_name', e.target.value)}
           className="form-input"
         />
@@ -523,7 +566,7 @@ export default function ProfilePage() {
         <textarea
           name="bio"
           value={profile.bio || ''}
-          disabled={!editing || loading}
+          disabled={loading}
           onChange={(e) => {
             handleChange('bio', e.target.value);
             e.target.style.height = 'auto';
@@ -539,7 +582,7 @@ export default function ProfilePage() {
         <label className="form-label">Gender</label>
         <Select
           value={{ value: profile.gender || 'unspecified', label: profile.gender === 'male' ? 'Male' : profile.gender === 'female' ? 'Female' : 'Unspecified' }}
-          isDisabled={!editing || loading}
+          isDisabled={loading}
           onChange={(option) => option && handleChange('gender', option.value)}
           options={[
             { value: 'male', label: 'Male' },
@@ -553,7 +596,7 @@ export default function ProfilePage() {
         <label className="form-label">Default Tee</label>
         <Select
           value={{ value: profile.default_tee || 'blue', label: (profile.default_tee || 'blue').charAt(0).toUpperCase() + (profile.default_tee || 'blue').slice(1) }}
-          isDisabled={!editing || loading}
+          isDisabled={loading}
           onChange={(option) => option && handleChange('default_tee', option.value)}
           options={[
             { value: 'black', label: 'Black' },
@@ -575,7 +618,7 @@ export default function ProfilePage() {
               selected?.value ? { id: selected.value, course_name: selected.label } : null
             );
           }}
-          isDisabled={!editing || loading}
+          isDisabled={loading}
           isClearable={true}
           additional={{ page: 1 }}
           placeholder="Search or Select Course"
@@ -585,7 +628,7 @@ export default function ProfilePage() {
         <label className="form-label">Dashboard Visibility</label>
         <Select
           value={{ value: profile.dashboard_visibility || 'private', label: (profile.dashboard_visibility || 'private').charAt(0).toUpperCase() + (profile.dashboard_visibility || 'private').slice(1) }}
-          isDisabled={!editing || loading}
+          isDisabled={loading}
           onChange={(option) => option && handleChange('dashboard_visibility', option.value)}
           options={[
             { value: 'private', label: 'Private' },
@@ -596,27 +639,21 @@ export default function ProfilePage() {
           styles={selectStyles}
         />
 
-        <div className="form-actions">
-          {editing ? (
-            <>
-              <button
-                type="button"
-                className="btn btn-cancel"
-                onClick={handleCancel}
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-save" disabled={loading}>
-                {loading ? 'Saving...' : 'Save Changes'}
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-edit" onClick={() => setEditing(true)}>
-              Edit Profile
+        {hasChanges && (
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn btn-cancel"
+              onClick={handleCancel}
+              disabled={loading}
+            >
+              Cancel
             </button>
-          )}
-        </div>
+            <button type="submit" className="btn btn-save" disabled={loading}>
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        )}
       </form>
 
       {showPasswordForm ? (
@@ -755,7 +792,7 @@ export default function ProfilePage() {
         <button
           type="button"
           className="btn btn-edit"
-          onClick={() => router.push('/settings')}
+          onClick={() => handleNavigation('/settings')}
           disabled={loading}
         >
           Settings

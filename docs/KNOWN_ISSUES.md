@@ -1,18 +1,15 @@
 # GolfIQ Known Issues & Bug Tracker
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-01-19
 
 ---
 
 ## 🐛 Active Bugs
 - flashing edit screen when navigating to the stats page (we can look at this later)
-- Upgrade modal did not popup after 3 rounds. Not popping up at all
-- have profile info editable by default (remove edit profile button) and when user changes a stat, render the cancel/save buttons. If user tries to navigate away from page warn them that changes are not saved.
 - sometimes have to press logout button or settings button twice.
-- need to add timezone to user (can get from location) so date on add round is correct
-- Make sure if location is enabled we reload the page on courses. Or we wait for their input before proceeding.
-- upgrade modal flashes when logging out
-
+- profile page laeding with cancel/save changes buttons rendered (should only render when changes are made)
+- navigation also not warning users anymore after timezone change for profile page when unsaved changes.
+- I reverted timezone changes
 
 ## 📋 Planned Features (Not Yet Implemented)
 
@@ -201,6 +198,11 @@ How to fix it
 ---
 
 ## Change Log
+
+### 2026-01-19
+- Fixed upgrade modal flashing when logging out
+- Fixed courses page location detection to use 1-second timeout instead of 2 seconds
+- Courses now load immediately and update with distance sorting when location becomes available
 
 ### 2026-01-07
 - Created KNOWN_ISSUES.md to replace Current errors.txt
