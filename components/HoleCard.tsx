@@ -25,11 +25,17 @@ const clampValue = (field: string, rawValue: string): number | null => {
     penalties: 4,
   };
 
+  const minMap: Record<string, number> = {
+    score: 1,
+  };
+
   const sanitized = sanitizeNumeric(rawValue);
   if (sanitized === '') return null;
 
   const numericValue = Number(sanitized);
-  return Math.min(numericValue, maxMap[field] ?? Infinity);
+  const min = minMap[field] ?? 0;
+  const max = maxMap[field] ?? Infinity;
+  return Math.max(min, Math.min(numericValue, max));
 };
 
 const HoleCard = memo(({

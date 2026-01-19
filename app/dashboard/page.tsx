@@ -67,6 +67,10 @@ interface DashboardStats {
   isPremium?: boolean;
   limitedToLast20?: boolean;
   totalRoundsInDb?: number;
+  user?: {
+    first_name?: string | null;
+    last_name?: string | null;
+  };
 }
 
 interface TrendCardProps {
@@ -92,6 +96,7 @@ interface TrendCardProps {
   yMin?: number;
   yMax?: number;
   yStep?: number;
+  label?: string;
 }
 
 function TrendCard({
@@ -104,6 +109,7 @@ function TrendCard({
   yMin,
   yMax,
   yStep,
+  label,
 }: TrendCardProps) {
   const options = {
     responsive: true,
@@ -181,7 +187,7 @@ function TrendCard({
       style={{ height: height ?? 250 }}
     >
       <h3 className="mb-4" style={{ color: textColor }}>
-        Score Trend
+        {label}
       </h3>
 
       <div className="w-full h-full">
@@ -495,7 +501,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       ? ((sb.ace ?? 0) + (sb.albatross ?? 0) + (sb.eagle ?? 0) + (sb.birdie ?? 0)) / hbhCount
       : null;
   const parPerRound = sb && hbhCount ? (sb.par ?? 0) / hbhCount : null;
-  const bogeysPerRound = sb && hbhCount ? (sb.bogey ?? 0) / hbhCount : null;
+  const bogeyPerRound = sb && hbhCount ? (sb.bogey ?? 0) / hbhCount : null;
   const blowUpPerRound = sb && hbhCount ? (sb.double_plus ?? 0) / hbhCount : null;
 
   // Premium users get 20 rounds for trend charts, free users get 5
@@ -592,6 +598,12 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
   return (
     <div className="page-stack">
+      {!isOwnDashboard && stats.user && (
+        <h2 className="dashboard-user-header">
+          {stats.user.first_name} {stats.user.last_name}'s Dashboard
+        </h2>
+      )}
+
       {isOwnDashboard && (
         <button
           className="btn btn-add"
@@ -679,7 +691,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       <div className="grid grid-2">
         <div className="card dashboard-stat-card" style={{ position: 'relative' }}>
-          <InfoTooltip text="Official USGA handicap index based on your best 8 of last 20 rounds" />
+          <InfoTooltip text="GolfIQ Handicap Index (WHS-based)" />
           <h3>Handicap</h3>
           <p>{formatHandicap(stats.handicap)}</p>
         </div>
@@ -724,6 +736,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           textColor={textColor}
           gridColor={gridColor}
           height={300}
+          label='Score Trend'
         />
       <div className="section">
         <div className="card last-five-rounds-card">
@@ -739,6 +752,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
                 round={round}
                 showAdvanced={showAdvanced}
                 showActions={false}
+                disableClick={!isOwnDashboard}
               />
             ))}
           </div>
@@ -752,13 +766,13 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       {showAdvanced && (
         <div className="grid grid-2">
           {[
-            ['FIR', stats.fir_avg, '%', 'Fairways In Regulation - % of fairways hit off the tee'],
-            ['GIR', stats.gir_avg, '%', 'Greens In Regulation - % of greens reached in regulation'],
+            ['FIR', stats.fir_avg, '%', 'Average fairways in regulation % per round'],
+            ['GIR', stats.gir_avg, '%', 'Average greens in regulation % per round'],
             ['Putts', stats.avg_putts, null, 'Average putts per round'],
             ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round'],
             ['Scoring', scoringPerRound, null, 'Average birdies or better per round'],
             ['Par', parPerRound, null, 'Average pars per round'],
-            ['Bogey', bogeysPerRound, null, 'Average bogeys per round'],
+            ['Bogey', bogeyPerRound, null, 'Average bogeys per round'],
             ['Blow Up', blowUpPerRound, null, 'Average double bogeys or worse per round'],
           ].map(([label, val, isPercent, tooltip]) => (
             <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
@@ -781,6 +795,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           yMin={0}      // start at 0%
           yMax={100}    // end at 100%
           yStep={25}
+          label='FIR & GIR Trend'
         />
       )}
 

@@ -1525,6 +1525,412 @@ select option {
 }
 
 /* ===========================
+   Dashboard Info Tooltip Styles
+=========================== */
+
+.info-tooltip-container {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+}
+
+.info-tooltip-icon {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--color-secondary-text);
+  font-weight: bold;
+  background-color: var(--color-primary-surface);
+}
+
+.info-tooltip-content {
+  pointer-events: none;
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background-color: var(--color-primary-surface);
+  color: var(--color-primary-text);
+  border-radius: 4px;
+  font-size: 12px;
+  max-width: 400px;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  line-height: 1.4;
+  border: 1px solid var(--color-border);
+}
+
+.info-tooltip-content.right {
+  right: 0;
+}
+
+.info-tooltip-content.left {
+  left: 0;
+}
+
+.info-tooltip-content.center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.info-tooltip-arrow {
+  position: absolute;
+  top: 100%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--color-primary-surface);
+}
+
+.info-tooltip-arrow.right {
+  right: 12px;
+}
+
+.info-tooltip-arrow.left {
+  left: 12px;
+}
+
+.info-tooltip-arrow.center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Dashboard stat card with relative positioning */
+.dashboard-stat-card-relative {
+  position: relative;
+}
+
+.dashboard-stat-card-clickable {
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Dashboard date filter select */
+.dashboard-date-filter {
+  color: var(--color-primary-text);
+  cursor: pointer;
+}
+
+.dashboard-date-filter.disabled {
+  opacity: 0.6;
+}
+
+/* Dashboard user header for viewing others' dashboards */
+.dashboard-user-header {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-primary-text);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* ===========================
+   Dashboard Trend Card Styles
+=========================== */
+
+.trend-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.trend-card .recharts-responsive-container {
+  margin: 0 auto;
+}
+
+/* ===========================
+   Settings Page Styles
+=========================== */
+
+.settings-theme-title {
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.settings-theme-description {
+  margin-bottom: 15px;
+}
+
+.settings-theme-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-theme-select {
+  max-width: 300px;
+}
+
+.settings-theme-upgrade-btn {
+  margin-top: 10px;
+  max-width: 300px;
+}
+
+.settings-export-container {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-export-upgrade {
+  margin-left: auto;
+}
+
+.settings-admin-description {
+  margin-bottom: 15px;
+}
+
+/* ===========================
+   Profile Page Styles
+=========================== */
+
+.profile-avatar-upload-container {
+  display: inline-block;
+  position: relative;
+}
+
+.profile-avatar-upload-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  border-radius: 50%;
+}
+
+.profile-avatar-upload-overlay:hover {
+  opacity: 1;
+}
+
+.profile-avatar-upload-text {
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+}
+
+.profile-avatar-menu-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.profile-avatar-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background-color: var(--color-primary-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  min-width: 150px;
+}
+
+.profile-avatar-menu-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary-text);
+}
+
+.profile-avatar-menu-item:hover {
+  background-color: var(--color-secondary-surface);
+}
+
+.profile-avatar-menu-item.danger {
+  color: var(--color-error-text);
+}
+
+.profile-avatar-menu-item:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.profile-avatar-menu-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.profile-password-section {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid var(--color-border);
+}
+
+.profile-password-title {
+  font-size: 1.2rem;
+  margin-bottom: 15px;
+}
+
+.profile-password-note {
+  font-size: 0.9rem;
+  color: var(--color-secondary-text);
+  margin-top: 10px;
+}
+
+.profile-verification-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background-color: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.profile-verification-text {
+  flex: 1;
+  color: var(--color-warning-text);
+  font-size: 0.95rem;
+}
+
+/* ===========================
+   Messages Component Styles
+=========================== */
+
+.message-banner {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: 90%;
+  max-width: 600px;
+}
+
+/* ===========================
+   Round Card Styles
+=========================== */
+
+.round-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.round-card-title-section {
+  flex: 1;
+}
+
+.round-card-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin: 0 0 4px 0;
+  color: var(--color-primary-text);
+}
+
+.round-card-subtitle {
+  font-size: 0.9rem;
+  color: var(--color-secondary-text);
+  margin: 0;
+}
+
+.round-card-score-badge {
+  font-size: 1.5rem;
+  font-weight: bold;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background-color: var(--color-accent);
+  color: var(--color-primary-text);
+  min-width: 60px;
+  text-align: center;
+}
+
+.round-card-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.round-card-stat-item {
+  text-align: center;
+}
+
+.round-card-stat-label {
+  font-size: 0.85rem;
+  color: var(--color-secondary-text);
+  margin-bottom: 4px;
+}
+
+.round-card-stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-primary-text);
+}
+
+.round-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ===========================
+   General Utility Classes
+=========================== */
+
+.text-center {
+  text-align: center;
+}
+
+.text-warning {
+  color: var(--color-warning-text);
+}
+
+.text-error {
+  color: var(--color-error-text);
+}
+
+.text-success {
+  color: var(--color-success-text);
+}
+
+.block {
+  display: block;
+}
+
+.mt-8 {
+  margin-top: 8px;
+}
+
+.mt-10 {
+  margin-top: 10px;
+}
+
+.mb-15 {
+  margin-bottom: 15px;
+}
+
+.mb-20 {
+  margin-bottom: 20px;
+}
+
+/* ===========================
    Friend Page
 =========================== */
 .friend-card {

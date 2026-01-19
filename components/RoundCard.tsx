@@ -22,6 +22,7 @@ interface RoundCardProps {
   onDelete?: (id: number) => void;
   showActions?: boolean;
   showAdvanced?: boolean;
+  disableClick?: boolean;
 }
 
 export default function RoundCard({
@@ -30,6 +31,7 @@ export default function RoundCard({
   onDelete,
   showActions = true,
   showAdvanced = false,
+  disableClick = false,
 }: RoundCardProps) {
   const formatValue = (val: number | null | undefined) => val ?? '-';
 
@@ -68,11 +70,11 @@ export default function RoundCard({
     callback(round.id);
   };
 
-  return (
-    <Link href={`/rounds/${round.id}/stats`} className="card clickable" style={{ textDecoration: 'none', color: 'inherit' }}>
+  const cardContent = (
+    <>
       {/* Header */}
       <div className="roundcard-header">
-        
+
         <div className="roundcard-header-text">
           <h3 className="roundcard-course-name">{round.club_name == round.course_name ? round.course_name : round.club_name + ' - ' + round.course_name || '-'}</h3>
           <div className="roundcard-header-info">
@@ -134,9 +136,11 @@ export default function RoundCard({
             </div>
           )}
         </div>
-        <div  className='roundcard-bottom-right'>
-          <ChevronRight className='primary-text'/>
-        </div>
+        {!disableClick && (
+          <div  className='roundcard-bottom-right'>
+            <ChevronRight className='primary-text'/>
+          </div>
+        )}
       </div>
 
       {round.notes && (
@@ -144,6 +148,20 @@ export default function RoundCard({
           <strong>Notes</strong> {round.notes}
         </div>
       )}
+    </>
+  );
+
+  if (disableClick) {
+    return (
+      <div className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/rounds/${round.id}/stats`} className="card clickable" style={{ textDecoration: 'none', color: 'inherit' }}>
+      {cardContent}
     </Link>
   );
 }

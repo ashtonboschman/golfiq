@@ -15,10 +15,14 @@ export async function GET(request: NextRequest) {
     const requestedUserId = requestedUserIdParam ? BigInt(requestedUserIdParam) : currentUserId;
     const dateFilter = searchParams.get('dateFilter') || 'all';
 
-    // Check dashboard visibility
+    // Check dashboard visibility and get user info
     const profile = await prisma.userProfile.findUnique({
       where: { userId: requestedUserId },
-      select: { dashboardVisibility: true },
+      select: {
+        dashboardVisibility: true,
+        firstName: true,
+        lastName: true,
+      },
     });
 
     if (!profile) {
@@ -336,6 +340,10 @@ export async function GET(request: NextRequest) {
       isPremium,
       limitedToLast20: !isPremium && rounds.length > 20,
       totalRoundsInDb: rounds.length,
+      user: {
+        first_name: profile.firstName,
+        last_name: profile.lastName,
+      },
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

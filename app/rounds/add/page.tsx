@@ -88,6 +88,17 @@ export default function AddRoundPage() {
     }
   }, [status, router]);
 
+  // Warn user before navigating away with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   // Get user's geolocation for course sorting
   useEffect(() => {
     if (navigator.geolocation) {
@@ -176,10 +187,17 @@ export default function AddRoundPage() {
       const coursesArray = data.courses || [];
 
       return {
-        options: coursesArray.map((course: any) => ({
-          label: course.club_name == course.course_name ? course.course_name : course.club_name + ' - ' + course.course_name,
-          value: course.id,
-        })),
+        options: coursesArray.map((course: any) => {
+          const courseName = course.club_name == course.course_name ? course.course_name : course.club_name + ' - ' + course.course_name;
+          const location = course.location;
+          const city = location?.city || '';
+          const state = location?.state || '';
+          const locationString = city && state ? ` (${city}, ${state})` : '';
+          return {
+            label: courseName + locationString,
+            value: course.id,
+          };
+        }),
         hasMore: coursesArray.length === 20,
         additional: { page: page + 1 },
       };
@@ -522,11 +540,18 @@ export default function AddRoundPage() {
         });
         setHoleScores(fresh);
       }
-      setRound((prev) => ({ ...prev, hole_by_hole: 1, score: null }));
+      // Keep the current score when switching to HBH mode instead of nulling it
+      setRound((prev) => ({ ...prev, hole_by_hole: 1 }));
     } else {
       // Switching FROM hole-by-hole mode
       const sumScore = getTotalScore(holeScores);
-      setRound((prev) => ({ ...prev, hole_by_hole: 0, score: sumScore }));
+      // Only update score if hole scores were actually entered (sumScore > 0)
+      // Otherwise keep the existing quick score
+      setRound((prev) => ({
+        ...prev,
+        hole_by_hole: 0,
+        score: sumScore > 0 ? sumScore : prev.score
+      }));
     }
   };
 
@@ -838,7 +863,7 @@ export default function AddRoundPage() {
               type="button"
               onClick={() => {
                 if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-                  router.push('/rounds');
+                  router.replace('/rounds');
                 }
               }}
               className="btn btn-cancel"

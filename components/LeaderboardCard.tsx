@@ -28,7 +28,7 @@ export default function LeaderboardCard({ user, rank, isCurrentUser }: Leaderboa
     const absValue = Math.abs(toPar).toFixed(decimals);
     if (toPar > 0) return `+${absValue}`;
     if (toPar < 0) return `-${absValue}`;
-    return 'E'; // Even par
+    return 'E';
   };
 
   const cardContent = (

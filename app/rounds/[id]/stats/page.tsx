@@ -201,19 +201,19 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.gir_percentage !== null && parseFloat(stats.gir_percentage) >= 50 ? 'green' : stats.gir_percentage !== null && parseFloat(stats.gir_percentage) < 20 ? 'red' : 'primary'}`}>
-                {stats.gir_percentage !== null ? `${stats.gir_percentage}%` : '-'}
-              </div>
-              <div className="stats-score-label">
-                GIR {stats.greens_in_regulation !== null ? `(${stats.greens_in_regulation}/${stats.total_holes_for_gir})` : ''}
-              </div>
-            </div>
-            <div>
-              <div className={`stats-score-value ${stats.fir_percentage !== null && parseFloat(stats.fir_percentage) >= 50 ? 'green' : stats.fir_percentage !== null && parseFloat(stats.fir_percentage) < 20 ? 'red' : 'primary'}`}>
+              <div className={`stats-score-value ${stats.fir_percentage !== null && parseFloat(stats.fir_percentage) >= 40 ? 'green' : stats.fir_percentage !== null && parseFloat(stats.fir_percentage) < 20 ? 'red' : 'primary'}`}>
                 {stats.fir_percentage !== null ? `${stats.fir_percentage}%` : '-'}
               </div>
               <div className="stats-score-label">
                 FIR {stats.fairways_hit !== null ? `(${stats.fairways_hit}/${stats.total_holes_for_fir})` : ''}
+              </div>
+            </div>
+            <div>
+              <div className={`stats-score-value ${stats.gir_percentage !== null && parseFloat(stats.gir_percentage) >= 40 ? 'green' : stats.gir_percentage !== null && parseFloat(stats.gir_percentage) < 20 ? 'red' : 'primary'}`}>
+                {stats.gir_percentage !== null ? `${stats.gir_percentage}%` : '-'}
+              </div>
+              <div className="stats-score-label">
+                GIR {stats.greens_in_regulation !== null ? `(${stats.greens_in_regulation}/${stats.total_holes_for_gir})` : ''}
               </div>
             </div>
             <div>
@@ -225,7 +225,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.total_penalties !== null && stats.total_penalties < 1 ? 'green' : stats.total_penalties !== null && stats.total_penalties >= 3 ? 'red' : 'primary'}`}>
+              <div className={`stats-score-value ${stats.total_penalties !== null && stats.total_penalties < 2 ? 'green' : stats.total_penalties !== null && stats.total_penalties >= 3 ? 'red' : 'primary'}`}>
                 {stats.total_penalties ?? '-'}
               </div>
               <div className="stats-score-label">
@@ -258,7 +258,7 @@ export default function RoundStatsPage() {
                   <div className="stats-par-row">
                     <span className="stats-par-label">vs Par</span>
                     <span className={`stats-par-value ${item.score_to_par > 0 ? 'over-par' : item.score_to_par < 0 ? 'under-par' : ''}`}>
-                      {item.score_to_par > 0 ? '+' : ''}{item.score_to_par}
+                      {item.score_to_par > 0 ? `+${item.score_to_par}` : item.score_to_par < 0 ? item.score_to_par : 'E'}
                     </span>
                   </div>
                 </div>

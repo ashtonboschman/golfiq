@@ -1,7 +1,7 @@
 interface Stats {
   handicap?: number | null;
-  average_score?: number | null;
-  best_score?: number | null;
+  average_to_par?: number | null;
+  best_to_par?: number | null;
   total_rounds?: number | null;
 }
 
@@ -12,10 +12,18 @@ interface UserStatsCardProps {
 export default function UserStatsCard({ stats }: UserStatsCardProps) {
   const format = (val: number | null | undefined) => (val === null || val === undefined ? '-' : val);
 
-  // Show + only for negative numbers
+  // Show + for positive handicap (scratch/plus handicap)
   const formatHandicap = (val: number | null | undefined) => {
     if (val === null || val === undefined) return '-';
     return val < 0 ? `+${Math.abs(val)}` : val;
+  };
+
+  const formatToPar = (toPar: number | null | undefined, decimals = 1) => {
+    if (toPar === null || toPar === undefined) return '-';
+    const absValue = Math.abs(toPar).toFixed(decimals);
+    if (toPar > 0) return `+${absValue}`;
+    if (toPar < 0) return `-${absValue}`;
+    return 'E'; // Even par
   };
 
   return (
@@ -28,16 +36,16 @@ export default function UserStatsCard({ stats }: UserStatsCardProps) {
         className="form-input"
       />
 
-      <label className="form-label">Average Score</label>
+      <label className="form-label">Average To Par</label>
       <input
         type="text"
-        value={format(stats.average_score)}
+        value={formatToPar(stats.average_to_par)}
         disabled={true}
         className="form-input"
       />
 
-      <label className="form-label">Best Score</label>
-      <input type="text" value={format(stats.best_score)} disabled={true} className="form-input" />
+      <label className="form-label">Best To Par</label>
+      <input type="text" value={formatToPar(stats.best_to_par, 0)} disabled={true} className="form-input" />
 
       <label className="form-label">Total Rounds</label>
       <input

@@ -8,7 +8,7 @@ import { AsyncPaginate } from 'react-select-async-paginate';
 import Select from 'react-select';
 import { useUploadThing } from '@/lib/uploadthing';
 import { useAvatar } from '@/context/AvatarContext';
-import { Mail, SquarePen, Trash2, Upload, X } from 'lucide-react';
+import { Mail, SquarePen, Trash2, Upload, X, Eye, EyeOff } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 
 interface Profile {
@@ -58,6 +58,9 @@ export default function ProfilePage() {
     newPassword: '',
     confirmPassword: '',
   });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
@@ -177,10 +180,17 @@ export default function ProfilePage() {
       if (data.type === 'error') throw new Error(data.message || 'Error fetching courses');
 
       const options = Array.isArray(data.courses)
-        ? data.courses.map((course: any) => ({
-            value: course.id,
-            label: `${course.course_name}`,
-          }))
+        ? data.courses.map((course: any) => {
+            const courseName = course.club_name == course.course_name ? course.course_name : course.club_name + ' - ' + course.course_name;
+            const location = course.location;
+            const city = location?.city || '';
+            const state = location?.state || '';
+            const locationString = city && state ? ` (${city}, ${state})` : '';
+            return {
+              value: course.id,
+              label: courseName + locationString,
+            };
+          })
         : [];
 
       return {
@@ -612,41 +622,113 @@ export default function ProfilePage() {
       {showPasswordForm ? (
         <form onSubmit={handlePasswordChange} className="card">
           <label className="form-label">Current Password</label>
-          <input
-            type="password"
-            value={passwords.currentPassword}
-            onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
-            className="form-input"
-            required
-            disabled={loading}
-            max={100}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showCurrentPassword ? 'text' : 'password'}
+              value={passwords.currentPassword}
+              onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+              className="form-input"
+              required
+              disabled={loading}
+              max={100}
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'var(--color-secondary-text)',
+              }}
+              aria-label="Toggle current password visibility"
+            >
+              {showCurrentPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+            </button>
+          </div>
           <label className="form-label">New Password</label>
-          <input
-            type="password"
-            value={passwords.newPassword}
-            onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-            className="form-input"
-            required
-            disabled={loading}
-            max={100}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showNewPassword ? 'text' : 'password'}
+              value={passwords.newPassword}
+              onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+              className="form-input"
+              required
+              disabled={loading}
+              max={100}
+            />
+            <button
+              type="button"
+              onClick={() => setShowNewPassword(!showNewPassword)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'var(--color-secondary-text)',
+              }}
+              aria-label="Toggle new password visibility"
+            >
+              {showNewPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+            </button>
+          </div>
           <label className="form-label">Confirm New Password</label>
-          <input
-            type="password"
-            value={passwords.confirmPassword}
-            onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
-            className="form-input"
-            required
-            disabled={loading}
-            max={100}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={passwords.confirmPassword}
+              onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
+              className="form-input"
+              required
+              disabled={loading}
+              max={100}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'var(--color-secondary-text)',
+              }}
+              aria-label="Toggle confirm password visibility"
+            >
+              {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+            </button>
+          </div>
 
           <div className="form-actions">
             <button
               type="button"
               className="btn btn-cancel"
-              onClick={() => setShowPasswordForm(false)}
+              onClick={() => {
+                setShowPasswordForm(false);
+                setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                setShowCurrentPassword(false);
+                setShowNewPassword(false);
+                setShowConfirmPassword(false);
+              }}
               disabled={loading}
             >
               Cancel

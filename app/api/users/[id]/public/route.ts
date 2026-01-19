@@ -44,16 +44,16 @@ export async function GET(
       select: {
         handicap: true,
         totalRounds: true,
-        averageScore: true,
-        bestScore: true,
+        averageToPar: true,
+        bestToPar: true,
       },
     });
 
     const statsData = stats || {
       handicap: null,
       totalRounds: 0,
-      averageScore: null,
-      bestScore: null,
+      averageToPar: null,
+      bestToPar: null,
     };
 
     // Check if viewing own profile
@@ -74,8 +74,8 @@ export async function GET(
         stats: {
           handicap: stats?.handicap ? Number(stats.handicap) : null,
           total_rounds: stats?.totalRounds || 0,
-          average_score: stats?.averageScore ? Number(stats.averageScore) : null,
-          best_score: stats?.bestScore || null,
+          average_to_par: stats?.averageToPar != null ? Number(stats.averageToPar) : null,
+          best_to_par: stats?.bestToPar != null ? Number(stats.bestToPar) : null,
         },
         relationship: { is_self: true, status: 'self' },
         permissions: { can_view_dashboard: true },
@@ -132,8 +132,8 @@ export async function GET(
       stats: {
         handicap: stats?.handicap ? Number(stats.handicap) : null,
         total_rounds: stats?.totalRounds || 0,
-        average_score: stats?.averageScore ? Number(stats.averageScore) : null,
-        best_score: stats?.bestScore || null,
+        average_to_par: stats?.averageToPar != null ? Number(stats.averageToPar) : null,
+        best_to_par: stats?.bestToPar != null ? Number(stats.bestToPar) : null,
       },
       relationship: { is_self: false, status: relationshipStatus },
       permissions: { can_view_dashboard: canViewDashboard },

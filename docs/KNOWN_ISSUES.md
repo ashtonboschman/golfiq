@@ -8,19 +8,11 @@
 - flashing edit screen when navigating to the stats page (we can look at this later)
 - Subscription confirmation page needs work. 
 - Upgrade modal did not popup after 3 rounds. Not popping up at all
-- Round stats should display '-' if fir/gir/putts/penalties are null. Doesn't skew stats
-- Cancel from add / edit round needs confirmation to avoid accidental data deletion
-- Update course search results from rounds/add and edit to include location string like we have on courseCard so we can differentiate between same named courses. We'll see if we need this or not.
-- Look into buttons for score/putts/penalties input. Not sure what we should do for this.
-- Look into competitor exporting to see if we can import easily
 - have profile info editable by default (remove edit profile button) and when user changes a stat, render the cancel/save buttons. If user tries to navigate away from page warn them that changes are not saved.
 - sometimes have to press logout button or settings button twice.
 - need to add timezone to user (can get from location) so date on add round is correct
-- Change password needs eye icon, lets copy what we have from register page and use the same logic and icons
-- Edit other people’s rounds from their dashboard throwing db error (need to make sure edit/delete buttons are only rendered if current user = round.user). Or just make the dashboard round card not clickable unless user is correct. We would need to conditionally render teh chevron right
 - Make sure if location is enabled we reload the page on courses. Or we wait for their input before proceeding.
-- lets see if we need to add an api/bootstrap/route.ts Might need to wait until mvp is done and then optimize?
-- switching to quick from hole by hole erases the score. we should not update it switching back and forth.
+
 
 ## 📋 Planned Features (Not Yet Implemented)
 

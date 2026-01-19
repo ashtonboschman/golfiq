@@ -12,6 +12,20 @@ export default function Footer() {
 
   if (!user) return null;
 
+  // Check if on add/edit round pages
+  const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
+
+  // Helper to navigate with warning if on add/edit page
+  const navigateWithWarning = (path: string) => {
+    if (isOnAddEditPage) {
+      if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
+        router.push(path);
+      }
+    } else {
+      router.push(path);
+    }
+  };
+
   const buttons = [
     { path: '/', icon: <LayoutDashboard/>, label: 'Dashboard' },
     { path: '/rounds', icon: <LandPlot/>, label: 'Rounds' },
@@ -34,7 +48,7 @@ export default function Footer() {
           <button
             key={path}
             className={isButtonActive(path) ? 'active' : ''}
-            onClick={() => router.push(path)}
+            onClick={() => navigateWithWarning(path)}
           >
             <span className="icon">{icon}</span>
             <span className="label">{label}</span>
