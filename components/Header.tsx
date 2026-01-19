@@ -20,17 +20,19 @@ export default function Header() {
   // Check if viewing someone else's dashboard
   const isViewingOthersDashboard = pathname === '/dashboard' && searchParams.has('user_id');
 
-  // Check if on add/edit round pages or profile with unsaved changes
+  // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
-  const hasProfileChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
   // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
+    // Re-check sessionStorage at click time for most up-to-date value
+    const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
+
     if (isOnAddEditPage) {
       if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
         router.push(path);
       }
-    } else if (hasProfileChanges) {
+    } else if (hasUnsavedChanges) {
       if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
         sessionStorage.removeItem('profile-has-changes');
         router.push(path);
@@ -54,11 +56,14 @@ export default function Header() {
   }, []);
 
   const handleLogout = async () => {
+    // Re-check sessionStorage at click time for most up-to-date value
+    const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
+
     if (isOnAddEditPage) {
       if (!window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
         return;
       }
-    } else if (hasProfileChanges) {
+    } else if (hasUnsavedChanges) {
       if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
         return;
       }
@@ -76,6 +81,9 @@ export default function Header() {
     isViewingOthersDashboard;
 
   const handleBackClick = () => {
+    // Re-check sessionStorage at click time for most up-to-date value
+    const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
+
     // On reset-password page, always go to login
     if (pathname === '/reset-password') {
       router.push('/login');
@@ -94,7 +102,7 @@ export default function Header() {
       }
     }
     // On profile with unsaved changes, warn before navigating away
-    else if (hasProfileChanges) {
+    else if (hasUnsavedChanges) {
       if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
         sessionStorage.removeItem('profile-has-changes');
         window.history.back();

@@ -7,9 +7,6 @@
 ## 🐛 Active Bugs
 - flashing edit screen when navigating to the stats page (we can look at this later)
 - sometimes have to press logout button or settings button twice.
-- profile page laeding with cancel/save changes buttons rendered (should only render when changes are made)
-- navigation also not warning users anymore after timezone change for profile page when unsaved changes.
-- I reverted timezone changes
 
 ## 📋 Planned Features (Not Yet Implemented)
 
@@ -203,6 +200,8 @@ How to fix it
 - Fixed upgrade modal flashing when logging out
 - Fixed courses page location detection to use 1-second timeout instead of 2 seconds
 - Courses now load immediately and update with distance sorting when location becomes available
+- Fixed date picker showing wrong day when adding rounds near midnight (timezone issue)
+- Fixed profile page showing Save/Cancel buttons on load when no changes were made
 
 ### 2026-01-07
 - Created KNOWN_ISSUES.md to replace Current errors.txt

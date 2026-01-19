@@ -8,6 +8,7 @@ import { useMessage } from '@/app/providers';
 import { AsyncPaginate } from 'react-select-async-paginate';
 import { selectStyles } from '@/lib/selectStyles';
 import HoleCard from '@/components/HoleCard';
+import { getLocalDateString } from '@/lib/dateUtils';
 
 interface Round {
   date: string;
@@ -54,7 +55,7 @@ export default function AddRoundPage() {
   const { showMessage, clearMessage } = useMessage();
 
   const [round, setRound] = useState<Round>({
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateString(), // Use local timezone instead of UTC
     course_id: '',
     tee_id: '',
     hole_by_hole: 0,

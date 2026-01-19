@@ -120,8 +120,21 @@ export default function ProfilePage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Error loading profile');
 
-        setProfile((prev) => ({ ...prev, ...data.user }));
-        setOriginalProfile((prev) => ({ ...prev, ...data.user }));
+        // Create a fresh profile object from the API data
+        // Convert favorite_course_id to number to match form state type
+        const profileData = {
+          email: data.user.email ?? '',
+          first_name: data.user.first_name ?? '',
+          last_name: data.user.last_name ?? '',
+          avatar_url: data.user.avatar_url ?? '',
+          bio: data.user.bio ?? '',
+          gender: data.user.gender ?? 'unspecified',
+          default_tee: data.user.default_tee ?? 'blue',
+          favorite_course_id: data.user.favorite_course_id ? Number(data.user.favorite_course_id) : null,
+          dashboard_visibility: data.user.dashboard_visibility ?? 'private',
+        };
+        setProfile(profileData);
+        setOriginalProfile(profileData);
 
         if (data.user.favorite_course_id) {
           try {
@@ -134,7 +147,8 @@ export default function ProfilePage() {
                 label: courseData.course.course_name,
               };
               setFavoriteCourse(courseData.course);
-              setOriginalFavoriteCourseOption(courseOption);
+              setFavoriteCourseOption(courseOption); // Set current state
+              setOriginalFavoriteCourseOption(courseOption); // Set original for comparison
             }
           } catch (err) {
             console.error(err);
@@ -216,6 +230,7 @@ export default function ProfilePage() {
     const profileChanged = JSON.stringify(profile) !== JSON.stringify(originalProfile);
     const courseChanged = favoriteCourseOption?.value !== originalFavoriteCourseOption?.value;
     const hasChanges = profileChanged || courseChanged;
+
     setHasChanges(hasChanges);
 
     // Set flag in sessionStorage for Header/Footer to check
@@ -241,11 +256,15 @@ export default function ProfilePage() {
 
   const handleChange = (field: keyof Profile, value: any) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
+    // Immediately mark as having changes for reliable navigation blocking
+    sessionStorage.setItem('profile-has-changes', 'true');
   };
 
   const handleCancel = () => {
     setProfile(originalProfile);
     setFavoriteCourseOption(originalFavoriteCourseOption);
+    // Clear changes flag immediately
+    sessionStorage.removeItem('profile-has-changes');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -614,9 +633,12 @@ export default function ProfilePage() {
           value={favoriteCourseOption}
           loadOptions={loadCourseOptions}
           onChange={(selected) => {
+            setFavoriteCourseOption(selected); // Update the option state
             setFavoriteCourse(
               selected?.value ? { id: selected.value, course_name: selected.label } : null
             );
+            // Immediately mark as having changes for reliable navigation blocking
+            sessionStorage.setItem('profile-has-changes', 'true');
           }}
           isDisabled={loading}
           isClearable={true}

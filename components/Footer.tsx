@@ -12,17 +12,19 @@ export default function Footer() {
 
   if (!user) return null;
 
-  // Check if on add/edit round pages or profile with unsaved changes
+  // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
-  const hasProfileChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
   // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
+    // Re-check sessionStorage at click time for most up-to-date value
+    const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
+
     if (isOnAddEditPage) {
       if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
         router.push(path);
       }
-    } else if (hasProfileChanges) {
+    } else if (hasUnsavedChanges) {
       if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
         sessionStorage.removeItem('profile-has-changes');
         router.push(path);
