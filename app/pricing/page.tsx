@@ -120,9 +120,6 @@ export default function PricingPage() {
                     <span className="price-amount">${PRICING.monthly.price}</span>
                     <span className="price-period">/month</span>
                   </div>
-                  <p className="price-breakdown" style={{ color: 'var(--color-green)', fontWeight: 600 }}>
-                    14-day free trial included!
-                  </p>
                 </div>
                 <div className="pricing-card-body">
                   <ul className="pricing-features">
@@ -162,7 +159,7 @@ export default function PricingPage() {
                     <span className="price-amount">${PRICING.annual.price}</span>
                     <span className="price-period">/year</span>
                   </div>
-                  <p className="price-breakdown" style={{ color: 'var(--color-green)', fontWeight: 600 }}>
+                  <p className="price-breakdown">
                     Just <strong>${(PRICING.annual.price / 12).toFixed(2)}</strong>/month
                   </p>
                 </div>

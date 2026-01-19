@@ -11,6 +11,7 @@
 - sometimes have to press logout button or settings button twice.
 - need to add timezone to user (can get from location) so date on add round is correct
 - Make sure if location is enabled we reload the page on courses. Or we wait for their input before proceeding.
+- upgrade modal flashes when logging out
 
 
 ## 📋 Planned Features (Not Yet Implemented)

@@ -2562,7 +2562,7 @@ input[type='date'].form-input {
   align-items: baseline;
   justify-content: center;
   gap: var(--gap-small);
-  margin-bottom: var(--gap);
+  margin: var(--gap-small);
 }
 
 .price-amount {
@@ -2578,7 +2578,9 @@ input[type='date'].form-input {
 
 .price-breakdown {
   font-size: 0.9rem;
-  color: var(--color-secondary-text);
+  color: var(--color-green);
+  margin: 0;
+  margin-bottom: var(--gap);
 }
 
 .price-subtext {
