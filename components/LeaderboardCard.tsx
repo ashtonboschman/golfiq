@@ -23,9 +23,9 @@ export default function LeaderboardCard({ user, rank, isCurrentUser }: Leaderboa
     return hcp < 0 ? `+${absValue}` : absValue;
   };
 
-  const formatToPar = (toPar: number | null | undefined) => {
+  const formatToPar = (toPar: number | null | undefined, decimals = 1) => {
     if (toPar === null || toPar === undefined) return '-';
-    const absValue = Math.abs(toPar).toFixed(1);
+    const absValue = Math.abs(toPar).toFixed(decimals);
     if (toPar > 0) return `+${absValue}`;
     if (toPar < 0) return `-${absValue}`;
     return 'E'; // Even par
@@ -58,7 +58,7 @@ export default function LeaderboardCard({ user, rank, isCurrentUser }: Leaderboa
 
         <div className="leaderboard-cell centered">{formatToPar(user.average_score)}</div>
 
-        <div className="leaderboard-cell centered">{formatToPar(user.best_score)}</div>
+        <div className="leaderboard-cell centered">{formatToPar(user.best_score, 0)}</div>
       </div>
     </div>
   );

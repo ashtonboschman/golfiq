@@ -45,9 +45,9 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
   };
 
   // Format to-par values (positive shows +, negative shows -, zero shows E)
-  const formatToPar = (toPar: number | null | undefined) => {
+  const formatToPar = (toPar: number | null | undefined, decimals = 1) => {
     if (!hasRounds || toPar == null || isNaN(toPar)) return '-';
-    const absValue = Math.abs(toPar).toFixed(1);
+    const absValue = Math.abs(toPar).toFixed(decimals);
     if (toPar > 0) return `+${absValue}`;
     if (toPar < 0) return `-${absValue}`;
     return 'E';
@@ -73,7 +73,7 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
               <span className="stat-label">Avg</span> {formatToPar(friend.average_score)}
             </span>
             <span className="stat-item">
-              <span className="stat-label">Best</span> {formatToPar(friend.best_score)}
+              <span className="stat-label">Best</span> {formatToPar(friend.best_score, 0)}
             </span>
             <span className="stat-item">
               <span className="stat-label">Rnds</span> {hasRounds ? friend.total_rounds : '-'}

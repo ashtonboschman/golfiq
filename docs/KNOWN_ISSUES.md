@@ -20,6 +20,7 @@
 - Edit other people’s rounds from their dashboard throwing db error (need to make sure edit/delete buttons are only rendered if current user = round.user). Or just make the dashboard round card not clickable unless user is correct. We would need to conditionally render teh chevron right
 - Make sure if location is enabled we reload the page on courses. Or we wait for their input before proceeding.
 - lets see if we need to add an api/bootstrap/route.ts Might need to wait until mvp is done and then optimize?
+- switching to quick from hole by hole erases the score. we should not update it switching back and forth.
 
 ## 📋 Planned Features (Not Yet Implemented)
 
