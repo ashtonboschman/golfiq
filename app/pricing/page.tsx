@@ -123,14 +123,14 @@ export default function PricingPage() {
                 </div>
                 <div className="pricing-card-body">
                   <ul className="pricing-features">
-                    <li><Check color='green' size='20'/> Everything in Free</li>
-                    <li><Check color='green' size='20'/> Unlimited stat calculations & advanced trend charts</li>
-                    <li><Check color='green' size='20'/> Strokes gained per round & KPI comparisons</li>
-                    <li><Check color='green' size='20'/> AI performance insights & predictions</li>
-                    <li><Check color='green' size='20'/> Custom dashboard, saved filters & enhanced sorting</li>
-                    <li><Check color='green' size='20'/> Premium themes & ad-free experience</li>
-                    <li><Check color='green' size='20'/> Course insights, tee recommendations & course-specific leaderboards</li>
-                    <li><Check color='green' size='20'/> Priority support</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Everything in Free</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Unlimited stat calculations & advanced trend charts</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Strokes gained per round & KPI comparisons</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> AI performance insights & predictions</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Custom dashboard, saved filters & enhanced sorting</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Premium themes & ad-free experience</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Course insights, tee recommendations & course-specific leaderboards</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Priority support</li>
                   </ul>
                   <button
                     className="pricing-button"
@@ -165,12 +165,12 @@ export default function PricingPage() {
                 </div>
                 <div className="pricing-card-body">
                   <ul className="pricing-features">
-                    <li><Check color='green' size='20'/> Everything in Premium</li>
-                    <li><Check color='green' size='20'/> <span>Save <strong>{PRICING.annual.savings}</strong> vs monthly</span></li>
-                    <li><Check color='green' size='20'/> Best value for dedicated golfers</li>
-                    <li><Check color='green' size='20'/> Full season & year-over-year analysis</li>
-                    <li><Check color='green' size='20'/> One payment, no monthly friction</li>
-                    <li><Check color='green' size='20'/> Ideal for long-term improvement tracking</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Everything in Premium</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> <span>Save <strong>{PRICING.annual.savings}</strong> vs monthly</span></li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Best value for dedicated golfers</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Full season & year-over-year analysis</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> One payment, no monthly friction</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Ideal for long-term improvement tracking</li>
                   </ul>
                   <button
                     className="pricing-button"
@@ -200,15 +200,15 @@ export default function PricingPage() {
                 </div>
                 <div className="pricing-card-body">
                   <ul className="pricing-features">
-                    <li><Check color='green' size='20'/> Unlimited round tracking & storage</li>
-                    <li><Check color='green' size='20'/> Handicap & core scoring stats (last 20 rounds)</li>
-                    <li><Check color='green' size='20'/> FIR%, GIR%, putts & basic performance stats</li>
-                    <li><Check color='green' size='20'/> 9-hole & 18-hole support</li>
-                    <li><Check color='green' size='20'/> Course search, scorecards, friends, & leaderboards</li>
-                    <li><Check color='green' size='20'/> Light & dark themes, multi-device sync</li>
-                    <li><X color='red' size='20'/> Advanced analytics & predictions</li>
-                    <li><X color='red' size='20'/> Strokes gained & unlimited historical analysis</li>
-                    <li><X color='red' size='20'/> Custom dashboards, advanced filters & ad-free experience</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Unlimited round tracking & storage</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Handicap & core scoring stats (last 20 rounds)</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> FIR%, GIR%, putts & basic performance stats</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> 9-hole & 18-hole support</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Course search, scorecards, friends, & leaderboards</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Light & dark themes, multi-device sync</li>
+                    <li><X color='red' size='20' className="feature-icon"/> Advanced analytics & predictions</li>
+                    <li><X color='red' size='20' className="feature-icon"/> Strokes gained & unlimited historical analysis</li>
+                    <li><X color='red' size='20' className="feature-icon"/> Custom dashboards, advanced filters & ad-free experience</li>
                   </ul>
                   <button
                     className="pricing-button current"

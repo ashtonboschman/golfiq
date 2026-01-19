@@ -2611,6 +2611,7 @@ input[type='date'].form-input {
   color: var(--color-primary-text);
   border-bottom: 1px solid var(--color-border);
   gap: var(--gap);
+  font-size: 0.9rem;
 }
 
 .pricing-features li:last-child {
@@ -2673,7 +2674,9 @@ input[type='date'].form-input {
   line-height: 1.6;
 }
 
-/* Mobile responsiveness */
+.feature-icon {
+  flex-shrink: 0;       /* prevents shrinking if li gets narrow */
+}
 
 /* ============================================
    SUBSCRIPTION SUCCESS PAGE STYLES
