@@ -5,8 +5,7 @@
 ---
 
 ## 🐛 Active Bugs
-- flashing edit screen when navigating to the stats page
-- sometimes have to press logout button or settings button twice.
+- Warning popups are not working on friends phone. Maybe we change to a warning message from our message system instead of using the system? I do like the system but we need to guarantee it works for all devices. Works perfectly for my pc and phone.
 
 ## 📋 Planned Features (Not Yet Implemented)
 
@@ -202,6 +201,10 @@ How to fix it
 - Courses now load immediately and update with distance sorting when location becomes available
 - Fixed date picker showing wrong day when adding rounds near midnight (timezone issue)
 - Fixed profile page showing Save/Cancel buttons on load when no changes were made
+- Fixed flashing edit screen when navigating to stats page after saving a round
+- Fixed logout/settings buttons in header requiring double press (removed setTimeout delays)
+- Added iOS keyboard dismissal on Enter/checkmark press for all text inputs across the app
+- Added cursor positioning to end of text when focusing on input fields
 
 ### 2026-01-07
 - Created KNOWN_ISSUES.md to replace Current errors.txt

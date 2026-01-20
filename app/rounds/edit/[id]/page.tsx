@@ -479,12 +479,12 @@ export default function EditRoundPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error saving round');
 
+      // Keep loading state true during navigation to prevent flash
       // Replace history so back button doesn't return to edit page
       router.replace(`/rounds/${id}/stats`);
     } catch (err: any) {
       console.error(err);
       showMessage(err.message || 'Error saving round', 'error');
-    } finally {
       setLoading(false);
     }
   };

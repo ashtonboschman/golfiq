@@ -164,7 +164,7 @@ export default function Header() {
                 onClick={(e) => {
                   e.stopPropagation();
                   setDropdownOpen(false);
-                  setTimeout(() => navigateWithWarning('/profile'), 0);
+                  navigateWithWarning('/profile');
                 }}
               >
                 Profile
@@ -174,7 +174,7 @@ export default function Header() {
                 onClick={(e) => {
                   e.stopPropagation();
                   setDropdownOpen(false);
-                  setTimeout(() => navigateWithWarning('/settings'), 0);
+                  navigateWithWarning('/settings');
                 }}
               >
                 Settings

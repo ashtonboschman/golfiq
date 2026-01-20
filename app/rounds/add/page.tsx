@@ -591,12 +591,12 @@ export default function AddRoundPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error saving round');
 
+      // Keep loading state true during navigation to prevent flash
       // Replace history so back button goes to rounds page, not add page
       router.replace(`/rounds/${data.roundId}/stats`);
     } catch (err: any) {
       console.error(err);
       showMessage(err.message || 'Error saving round', 'error');
-    } finally {
       setLoading(false);
     }
   };
