@@ -569,6 +569,16 @@ export default function ProfilePage() {
           value={profile.first_name || ''}
           disabled={loading}
           onChange={(e) => handleChange('first_name', e.target.value)}
+          onFocus={(e) => {
+            const len = e.target.value.length;
+            e.target.setSelectionRange(len, len);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          enterKeyHint="done"
           className="form-input"
         />
 
@@ -578,6 +588,16 @@ export default function ProfilePage() {
           value={profile.last_name || ''}
           disabled={loading}
           onChange={(e) => handleChange('last_name', e.target.value)}
+          onFocus={(e) => {
+            const len = e.target.value.length;
+            e.target.setSelectionRange(len, len);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          enterKeyHint="done"
           className="form-input"
         />
 
@@ -591,11 +611,22 @@ export default function ProfilePage() {
             e.target.style.height = 'auto';
             e.target.style.height = `${e.target.scrollHeight}px`;
           }}
+          onFocus={(e) => {
+            const len = e.target.value.length;
+            e.target.setSelectionRange(len, len);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
           rows={4}
           className="form-input"
           maxLength={250}
           placeholder="Tell us a bit about yourself! (max 250 chars)"
           wrap='soft'
+          enterKeyHint="done"
         />
 
         <label className="form-label">Gender</label>
@@ -686,6 +717,16 @@ export default function ProfilePage() {
               type={showCurrentPassword ? 'text' : 'password'}
               value={passwords.currentPassword}
               onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+              onFocus={(e) => {
+                const len = e.target.value.length;
+                e.target.setSelectionRange(len, len);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="done"
               className="form-input"
               required
               disabled={loading}
@@ -718,6 +759,16 @@ export default function ProfilePage() {
               type={showNewPassword ? 'text' : 'password'}
               value={passwords.newPassword}
               onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+              onFocus={(e) => {
+                const len = e.target.value.length;
+                e.target.setSelectionRange(len, len);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="done"
               className="form-input"
               required
               disabled={loading}
@@ -750,6 +801,16 @@ export default function ProfilePage() {
               type={showConfirmPassword ? 'text' : 'password'}
               value={passwords.confirmPassword}
               onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
+              onFocus={(e) => {
+                const len = e.target.value.length;
+                e.target.setSelectionRange(len, len);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="done"
               className="form-input"
               required
               disabled={loading}

@@ -99,16 +99,16 @@ export default function UpgradeModal({
           )}
 
           {/* Buttons */}
-          <div className="btn-upgrade">
+          <div className="card">
             <button
-              className="upgrade-modal-button-primary"
+              className="btn btn-upgrade"
               onClick={handleUpgrade}
             >
               Start 14-day free trial
             </button>
             {showCloseButton && (
               <button
-                className="upgrade-modal-button-secondary"
+                className="btn btn-secondary"
                 onClick={onClose}
               >
                 Maybe Later

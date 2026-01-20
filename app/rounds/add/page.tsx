@@ -808,6 +808,16 @@ export default function AddRoundPage() {
                 name="score"
                 value={formatValue(round.score)}
                 onChange={handleChange}
+                onFocus={(e) => {
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                enterKeyHint="done"
                 className="form-input"
                 required
               />
@@ -833,6 +843,16 @@ export default function AddRoundPage() {
                     name={field}
                     value={formatValue(round[field as keyof Round] as number)}
                     onChange={handleChange}
+                    onFocus={(e) => {
+                      const len = e.target.value.length;
+                      e.target.setSelectionRange(len, len);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    enterKeyHint="done"
                     className="form-input"
                   />
                 </div>
@@ -851,11 +871,22 @@ export default function AddRoundPage() {
                 e.target.style.height = 'auto';
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
+              onFocus={(e) => {
+                const len = e.target.value.length;
+                e.target.setSelectionRange(len, len);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
               rows={3}
               className="form-input"
               maxLength={500}
               placeholder="Add any notes about your round (max 500 chars)"
               wrap='soft'
+              enterKeyHint="done"
             />
           </div>
 

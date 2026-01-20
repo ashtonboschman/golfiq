@@ -195,6 +195,16 @@ export default function RoundsPage() {
         placeholder="Search Rounds"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        onFocus={(e) => {
+          const len = e.target.value.length;
+          e.target.setSelectionRange(len, len);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          }
+        }}
+        enterKeyHint="search"
         className="form-input"
         max={250}
       />

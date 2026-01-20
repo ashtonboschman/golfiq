@@ -78,6 +78,16 @@ const HoleCard = memo(({
             onChange={(e) =>
               onChange(hole, 'score', clampValue('score', e.target.value))
             }
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            enterKeyHint="done"
           />
         </div>
       </div>
@@ -106,6 +116,16 @@ const HoleCard = memo(({
                 onChange={(e) =>
                   onChange(hole, 'putts', clampValue('putts', e.target.value))
                 }
+                onFocus={(e) => {
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                enterKeyHint="done"
               />
             </div>
           </div>
@@ -130,6 +150,16 @@ const HoleCard = memo(({
                 onChange={(e) =>
                   onChange(hole, 'penalties', clampValue('penalties', e.target.value))
                 }
+                onFocus={(e) => {
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                enterKeyHint="done"
               />
             </div>
           </div>

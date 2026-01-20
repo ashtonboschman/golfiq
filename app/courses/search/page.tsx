@@ -151,10 +151,20 @@ export default function CourseSearchPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch();
+                e.currentTarget.blur();
+              }
+            }}
             placeholder="Enter course name or city (e.g., 'Pebble Beach' or 'Augusta')"
             className="form-input"
             disabled={searchLoading}
+            enterKeyHint="search"
             max={250}
           />
           <button

@@ -5,7 +5,7 @@
 ---
 
 ## 🐛 Active Bugs
-- flashing edit screen when navigating to the stats page (we can look at this later)
+- flashing edit screen when navigating to the stats page
 - sometimes have to press logout button or settings button twice.
 
 ## 📋 Planned Features (Not Yet Implemented)
