@@ -5,7 +5,8 @@
 ---
 
 ## 🐛 Active Bugs
-- Warning popups are not working on friends phone. Maybe we change to a warning message from our message system instead of using the system? I do like the system but we need to guarantee it works for all devices. Works perfectly for my pc and phone.
+- Warning popups are not working on friends phone for add/edit round nor profile. Maybe we change to a warning message from our message system instead of using the system? I do like the system but we need to guarantee it works for all devices. Works perfectly for my pc and phone. He has an iphone 13
+- login/register/forgot-password/verify-email/reset-password all need the same ios input handling as we did for the rest of the inputs with allowing check mark to close keyboard and focus to go to end of string.
 
 ## 📋 Planned Features (Not Yet Implemented)
 

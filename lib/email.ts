@@ -168,3 +168,71 @@ If you didn't request a password reset, you can safely ignore this email.
 
   return { subject, html, text };
 }
+
+export function generateWaitlistConfirmationEmail({
+  name,
+  confirmationUrl,
+}: {
+  name: string;
+  confirmationUrl: string;
+}): { subject: string; html: string; text: string } {
+  const subject = 'Confirm your spot on the GolfIQ Beta 🏌️';
+
+  const greeting = name ? `Hello ${name}` : 'Hello';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+          .button { display: inline-block; background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Welcome to GolfIQ Beta! 🏌️</h1>
+          </div>
+          <div class="content">
+            <p>${greeting},</p>
+            <p>Thanks for joining the GolfIQ Beta! Please confirm your email to secure your spot:</p>
+            <div style="text-align: center;">
+              <a href="${confirmationUrl}" class="button">Confirm Email</a>
+            </div>
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #007bff;">${confirmationUrl}</p>
+            <p><strong>This link will expire in 24 hours.</strong></p>
+            <p>If you didn't sign up for the beta, you can safely ignore this email.</p>
+          </div>
+          <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const text = `
+Welcome to GolfIQ Beta!
+
+${greeting},
+
+Thanks for joining the GolfIQ Beta! Please confirm your email to secure your spot:
+
+${confirmationUrl}
+
+This link will expire in 24 hours.
+
+If you didn’t sign up for the beta, you can safely ignore this email.
+
+© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+  `.trim();
+
+  return { subject, html, text };
+  
+}

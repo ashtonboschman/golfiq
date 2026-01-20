@@ -274,12 +274,18 @@ export default function SettingsPage() {
           {/* Admin Section */}
           {session?.user?.id === '1' && (
           <section className="settings-section">
-            <div className="settings-card">
+            <div className="card settings-card">
               <button
                 className="btn btn-secondary"
                 onClick={() => router.push('/admin/import-course')}
               >
                 <Upload/> Import Course Data
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => router.push('/admin/waitlist')}
+              >
+                <Upload/> Manage Waitlist
               </button>
             </div>
           </section>

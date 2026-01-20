@@ -46,6 +46,52 @@ export async function POST(request: NextRequest) {
 
     const { email, password, first_name, last_name } = result.data;
 
+    // Check if registration is open or email is in allowlist (beta access)
+    try {
+      console.log('[REGISTER] Checking waitlist models...');
+      console.log('[REGISTER] prisma object keys:', Object.keys(prisma).filter(k => !k.startsWith('_') && !k.startsWith('$')).slice(0, 5));
+
+      // Try to access the models - if they don't exist, this will throw
+      const hasWaitlistModels = 'featureFlag' in prisma && 'allowedEmail' in prisma;
+      console.log('[REGISTER] Has waitlist models:', hasWaitlistModels);
+
+      if (!hasWaitlistModels) {
+        console.warn('[REGISTER] Waitlist models not available yet, allowing registration');
+      } else {
+        console.log('[REGISTER] Checking feature flag...');
+        // Check feature flag for open registration
+        const flagData = await (prisma as any).featureFlag.findUnique({
+          where: { flagName: 'registration_open' },
+        });
+        console.log('[REGISTER] Feature flag data:', flagData);
+
+        const registrationOpen = flagData?.enabled || false;
+        console.log('[REGISTER] Registration open:', registrationOpen);
+
+        if (!registrationOpen) {
+          console.log('[REGISTER] Checking allowlist for:', email.toLowerCase());
+          // Check if email is in allowlist
+          const allowedEmail = await (prisma as any).allowedEmail.findUnique({
+            where: { email: email.toLowerCase() },
+          });
+          console.log('[REGISTER] Allowed email found:', !!allowedEmail);
+
+          if (!allowedEmail) {
+            console.log('[REGISTER] Email not in allowlist, blocking registration');
+            return errorResponse(
+              'GolfIQ is currently in private beta. Join our waitlist at golfiq.ca to be notified when we launch!',
+              403
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[REGISTER] Error checking allowlist:', error);
+      console.error('[REGISTER] Error stack:', (error as Error).stack);
+      // If there's an error checking, allow registration (fail-open for now)
+      // You can change this to fail-closed in production
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -94,7 +140,7 @@ export async function POST(request: NextRequest) {
       data: {
         email: user.email,
         token: verificationToken,
-        expiresAt,
+        expiresAt: expiresAt,
       },
     });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
@@ -19,6 +19,19 @@ export default function ImportCoursePage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedTees, setSelectedTees] = useState<{[key: string]: boolean}>({});
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    const userId = session?.user?.id;
+    if (userId !== '1') {
+      router.push('/');
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [status, session, router]);
 
   const handlePreview = () => {
     try {
@@ -211,10 +224,12 @@ export default function ImportCoursePage() {
     showMessage('Course selected! Review the preview and select tees to import.', 'success');
   };
 
-  if (status === 'loading') return <p className="loading-text">Loading...</p>;
-  if (status === 'unauthenticated') {
-    router.replace('/login');
-    return null;
+  if (status === 'loading' || !authChecked) {
+    return (
+      <div className="page-stack">
+        <p className="loading-text">Loading admin panel...</p>
+      </div>
+    );
   }
 
   return (

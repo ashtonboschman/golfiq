@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import "./app.css";
 import { Providers } from "./providers";
 import Layout from "@/components/Layout";
 import { Inter, Space_Grotesk, IBM_Plex_Sans } from 'next/font/google';

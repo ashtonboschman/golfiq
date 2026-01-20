@@ -18,19 +18,25 @@ if (process.env.DB_CA_CERT) {
 
 }
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+  pool: typeof Pool.prototype | undefined;
+};
 
-const pool = new Pool({
+// Reuse the pool across hot reloads
+const pool = globalForPrisma.pool ?? new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+if (process.env.NODE_ENV !== 'production') globalForPrisma.pool = pool;
+
 const adapter = new PrismaPg(pool);
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter,
-    log: ['error', 'warn'],
-  });
+// Always create a new Prisma client in development to pick up schema changes
+export const prisma = new PrismaClient({
+  adapter,
+  log: ['error', 'warn'],
+});
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// Don't cache the Prisma client in development - always use fresh instance
+// if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

@@ -17,6 +17,11 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
+    "@react-email/button": "^0.2.1",
+    "@react-email/components": "^1.0.5",
+    "@react-email/heading": "^0.0.16",
+    "@react-email/html": "^0.0.12",
+    "@react-email/text": "^0.1.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@uploadthing/react": "^7.3.3",
     "bcryptjs": "^3.0.3",
@@ -30,9 +35,10 @@
     "react": "^19.2.3",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.3",
+    "react-email": "^5.2.5",
     "react-select-async-paginate": "^0.7.11",
     "recharts": "^3.6.0",
-    "resend": "^6.6.0",
+    "resend": "^6.8.0",
     "stripe": "^20.1.1",
     "uploadthing": "^7.7.4",
     "zod": "^4.3.5"

@@ -75,7 +75,7 @@ export default function Header() {
   };
 
   const showBackButton =
-    (user && pathname !== '/' && pathname !== '/dashboard') ||
+    (user && pathname !== '/dashboard') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     isViewingOthersDashboard;
@@ -143,9 +143,9 @@ export default function Header() {
           src={'/logos/wordmark/golfiq-wordmark.png'}
           alt="GolfIQ"
           height="40"
-          onClick={() => {if (user) navigateWithWarning('/');}}
+          onClick={() => {if (user) navigateWithWarning('/dashboard');}}
           className="logo"
-          title="Home Page"
+          title="Dashboard"
         />
 
         {user && (
