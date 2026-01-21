@@ -205,7 +205,7 @@ export function generateWaitlistConfirmationEmail({
       <body>
         <div class="container">
           <div class="header">
-            <h1>Welcome to GolfIQ Beta! 🏌️</h1>
+            <h1>Welcome to GolfIQ Beta!</h1>
           </div>
           <div class="content">
             <p>${greeting},</p>
