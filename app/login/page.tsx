@@ -264,7 +264,7 @@ export default function LoginPage() {
               </button>
             </div>
           )}
-          <button type="submit" className="btn btn-save" disabled={loading}>
+          <button type="submit" className="btn btn-accent" disabled={loading}>
             {loading
               ? isRegister
                 ? 'Registering...'
@@ -277,13 +277,13 @@ export default function LoginPage() {
 
         {!isRegister && (
           <div style={{ textAlign: 'center', marginTop: '12px', marginBottom: '12px' }}>
-            <Link href="/forgot-password" style={{ color: '#007bff', fontSize: '14px', textDecoration: 'none' }}>
+            <Link href="/forgot-password" style={{ color: '#9AA3B2', fontSize: '14px', textDecoration: 'none' }}>
               Forgot Password?
             </Link>
           </div>
         )}
 
-        <button onClick={() => setIsRegister(!isRegister)} className="btn btn-toggle">
+        <button onClick={() => setIsRegister(!isRegister)} className="btn btn-secondary">
           {isRegister ? 'Already have an account? Login' : 'Need an account? Register'}
         </button>
       </div>

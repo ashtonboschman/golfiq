@@ -8,7 +8,7 @@ import { AsyncPaginate } from 'react-select-async-paginate';
 import Select from 'react-select';
 import { useUploadThing } from '@/lib/uploadthing';
 import { useAvatar } from '@/context/AvatarContext';
-import { Mail, SquarePen, Trash2, Upload, X, Eye, EyeOff } from 'lucide-react';
+import { Mail, SquarePen, Trash2, Upload, Eye, EyeOff } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 
 interface Profile {
@@ -22,6 +22,7 @@ interface Profile {
   default_tee: string | null;
   favorite_course_id: number | null;
   dashboard_visibility: string | null;
+  theme?: string;
 }
 
 interface CourseOption {
@@ -46,6 +47,7 @@ export default function ProfilePage() {
     default_tee: 'blue',
     favorite_course_id: null,
     dashboard_visibility: 'private',
+    theme: 'dark',
   });
 
   const [originalProfile, setOriginalProfile] = useState<Profile>(profile);
@@ -68,6 +70,7 @@ export default function ProfilePage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const { startUpload } = useUploadThing('avatarUploader');
 
+  // Redirect unauthenticated users
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/login');
@@ -105,14 +108,15 @@ export default function ProfilePage() {
     });
   };
 
+  // Fetch profile from the new merged route
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchProfile = async () => {
       if (status !== 'authenticated') return;
       setLoading(true);
       try {
-        const res = await fetch('/api/users/me');
+        const res = await fetch('/api/users/profile');
 
-        if (res.status === 401 || res.status === 403) {
+        if ([401, 403].includes(res.status)) {
           router.replace('/login');
           return;
         }
@@ -120,35 +124,33 @@ export default function ProfilePage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Error loading profile');
 
-        // Create a fresh profile object from the API data
-        // Convert favorite_course_id to number to match form state type
         const profileData = {
-          email: data.user.email ?? '',
-          first_name: data.user.first_name ?? '',
-          last_name: data.user.last_name ?? '',
-          avatar_url: data.user.avatar_url ?? '',
-          bio: data.user.bio ?? '',
-          gender: data.user.gender ?? 'unspecified',
-          default_tee: data.user.default_tee ?? 'blue',
-          favorite_course_id: data.user.favorite_course_id ? Number(data.user.favorite_course_id) : null,
-          dashboard_visibility: data.user.dashboard_visibility ?? 'private',
+          email: data.profile.email ?? '',
+          email_verified: data.profile.email_verified ?? false,
+          first_name: data.profile.first_name ?? '',
+          last_name: data.profile.last_name ?? '',
+          avatar_url: data.profile.avatar_url ?? '',
+          bio: data.profile.bio ?? '',
+          gender: data.profile.gender ?? 'unspecified',
+          default_tee: data.profile.default_tee ?? 'blue',
+          favorite_course_id: data.profile.favorite_course_id ? Number(data.profile.favorite_course_id) : null,
+          dashboard_visibility: data.profile.dashboard_visibility ?? 'private',
+          theme: data.profile.theme ?? 'dark',
         };
         setProfile(profileData);
         setOriginalProfile(profileData);
 
-        if (data.user.favorite_course_id) {
+        if (data.profile.favorite_course_id) {
           try {
-            const courseRes = await fetch(`/api/courses/${data.user.favorite_course_id}`);
-
+            const courseRes = await fetch(`/api/courses/${data.profile.favorite_course_id}`);
             if (courseRes.ok) {
               const courseData = await courseRes.json();
               const courseOption = {
                 value: courseData.course.id,
                 label: courseData.course.course_name,
               };
-              setFavoriteCourse(courseData.course);
-              setFavoriteCourseOption(courseOption); // Set current state
-              setOriginalFavoriteCourseOption(courseOption); // Set original for comparison
+              setFavoriteCourseOption(courseOption);
+              setOriginalFavoriteCourseOption(courseOption);
             }
           } catch (err) {
             console.error(err);
@@ -162,7 +164,7 @@ export default function ProfilePage() {
       }
     };
 
-    fetchUser();
+    fetchProfile();
   }, [status, router]);
 
   // Close avatar menu when clicking outside
@@ -270,40 +272,20 @@ export default function ProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessage();
-
     setLoading(true);
     try {
-      const profileRes = await fetch('/api/users/profile', {
+      const res = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          first_name: profile.first_name,
-          last_name: profile.last_name,
-          avatar_url: profile.avatar_url,
-          bio: profile.bio,
-          gender: profile.gender,
-          default_tee: profile.default_tee,
-          favorite_course_id: profile.favorite_course_id,
-          dashboard_visibility: profile.dashboard_visibility,
-        }),
+        body: JSON.stringify(profile),
       });
 
-      const profileData = await profileRes.json();
-      if (!profileRes.ok) throw new Error(profileData.message || 'Error updating profile details');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Error updating profile');
 
-      showMessage(profileData.message || 'Profile updated', profileData.type || 'success');
       setOriginalProfile(profile);
       setOriginalFavoriteCourseOption(favoriteCourseOption);
-
-      // Refresh favorite course label
-      if (profile.favorite_course_id) {
-        const courseRes = await fetch(`/api/courses/${profile.favorite_course_id}`);
-
-        if (courseRes.ok) {
-          const courseData = await courseRes.json();
-          setFavoriteCourse(courseData.course);
-        }
-      }
+      showMessage(data.message || 'Profile updated', data.type || 'success');
     } catch (err: any) {
       console.error(err);
       showMessage(err.message || 'Error updating profile', 'error');

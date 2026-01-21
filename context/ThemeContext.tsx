@@ -29,29 +29,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<string>('dark');
   const [mounted, setMounted] = useState(false);
 
-  // Handle authentication state changes and initial theme load
   useEffect(() => {
-    if (status === 'loading') {
-      // Don't do anything while session is loading
-      return;
-    }
+    if (status === 'loading') return;
+
+    const applyTheme = (newTheme: string) => {
+      setThemeState(newTheme);
+      document.documentElement.className = document.documentElement.className
+        .split(' ')
+        .filter(cls => !cls.startsWith('theme-'))
+        .concat(`theme-${newTheme}`)
+        .join(' ');
+    };
 
     if (status === 'authenticated') {
-      // User is logged in - load their theme preference from database
+      // Fetch from the new merged API
       const loadUserTheme = async () => {
         try {
-          const res = await fetch('/api/profile');
+          const res = await fetch('/api/users/profile');
           if (res.ok) {
             const data = await res.json();
             const userTheme = data.profile?.theme || 'dark';
-
-            // Apply theme from database
-            setThemeState(userTheme);
-            document.documentElement.className = document.documentElement.className
-              .split(' ')
-              .filter(cls => !cls.startsWith('theme-'))
-              .concat(`theme-${userTheme}`)
-              .join(' ');
+            applyTheme(userTheme);
           }
         } catch (error) {
           console.error('Failed to load theme preference:', error);
@@ -59,26 +57,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       };
       loadUserTheme();
     } else if (status === 'unauthenticated') {
-      // User is not logged in - force default theme visually
-      const defaultTheme = 'dark';
-      setThemeState(defaultTheme);
-      document.documentElement.className = document.documentElement.className
-        .split(' ')
-        .filter(cls => !cls.startsWith('theme-'))
-        .concat(`theme-${defaultTheme}`)
-        .join(' ');
+      applyTheme('dark'); // default for unauthenticated users
     }
 
-    // Mark as mounted after status is resolved
-    if (!mounted) {
-      setMounted(true);
-    }
+    if (!mounted) setMounted(true);
   }, [status, mounted]);
 
   const setTheme = async (newTheme: string) => {
     setThemeState(newTheme);
 
-    // Remove all theme classes and add the new one
     document.documentElement.className = document.documentElement.className
       .split(' ')
       .filter(cls => !cls.startsWith('theme-'))
@@ -88,7 +75,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (status === 'authenticated') {
       // Save to database for authenticated users
       try {
-        await fetch('/api/profile/theme', {
+        await fetch('/api/theme', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ theme: newTheme }),
@@ -99,10 +86,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Prevent flash of unstyled content
-  if (!mounted) {
-    return null;
-  }
+  if (!mounted) return null;
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, availableThemes: AVAILABLE_THEMES }}>
@@ -113,8 +97,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
+  if (!context) throw new Error('useTheme must be used within a ThemeProvider');
   return context;
 }

@@ -88,7 +88,7 @@ function VerifyEmailForm() {
             This email verification link is invalid. Please check your email for the correct link.
           </p>
 
-          <button onClick={() => router.push('/login')} className="btn btn-primary">
+          <button onClick={() => router.push('/login')} className="btn btn-accent">
             Go to Login
           </button>
         </div>
@@ -109,7 +109,7 @@ function VerifyEmailForm() {
             Your email has been successfully verified. You can now access all features of GolfIQ.
           </p>
 
-          <button onClick={() => router.push('/dashboard')} className="btn btn-primary">
+          <button onClick={() => router.push('/dashboard')} className="btn btn-accent">
             Go to Dashboard
           </button>
         </div>
@@ -131,10 +131,10 @@ function VerifyEmailForm() {
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button onClick={() => router.push('/dashboard')} className="btn btn-primary">
+            <button onClick={() => router.push('/dashboard')} className="btn btn-accent">
               Go to Dashboard
             </button>
-            <button onClick={() => router.push('/login')} className="btn btn-toggle">
+            <button onClick={() => router.push('/login')} className="btn btn-secondary">
               Go to Login
             </button>
           </div>

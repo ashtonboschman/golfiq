@@ -174,7 +174,7 @@ export default function LeaderboardPage() {
               </p>
             </div>
             <button
-              className="btn"
+              className="btn btn-upgrade"
               onClick={() => router.push('/pricing')}
             >
               Upgrade

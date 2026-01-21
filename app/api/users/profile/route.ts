@@ -1,69 +1,140 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
-import { z } from 'zod';
 
-const updateProfileSchema = z.object({
-  first_name: z.string().nullable().optional(),
-  last_name: z.string().nullable().optional(),
-  avatar_url: z.string().nullable().optional(),
-  bio: z.string().nullable().optional(),
-  gender: z.enum(['male', 'female', 'unspecified']).nullable().optional(),
-  default_tee: z.enum(['blue', 'white', 'red', 'gold', 'black']).nullable().optional(),
-  favorite_course_id: z.union([z.string(), z.number()]).nullable().optional(),
-  dashboard_visibility: z.enum(['private', 'friends', 'public']).nullable().optional(),
-});
+export async function GET(request: NextRequest) {
+  try {
+    const userId = await requireAuth(request);
+
+    // Get user + profile
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        emailVerified: true,
+        createdDate: true,
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            bio: true,
+            gender: true,
+            defaultTee: true,
+            favoriteCourseId: true,
+            dashboardVisibility: true,
+            theme: true,
+          },
+        },
+      },
+    });
+
+    if (!user || !user.profile) {
+      return errorResponse('User or profile not found', 404);
+    }
+
+    // Flatten and serialize BigInt
+    const response = {
+      id: user.id.toString(),
+      username: user.username,
+      email: user.email,
+      email_verified: user.emailVerified,
+      created_date: user.createdDate,
+      first_name: user.profile.firstName,
+      last_name: user.profile.lastName,
+      avatar_url: user.profile.avatarUrl,
+      bio: user.profile.bio,
+      gender: user.profile.gender,
+      default_tee: user.profile.defaultTee,
+      favorite_course_id: user.profile.favoriteCourseId
+        ? user.profile.favoriteCourseId.toString()
+        : null,
+      dashboard_visibility: user.profile.dashboardVisibility,
+      theme: user.profile.theme || 'dark',
+    };
+
+    return successResponse({ profile: response });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return errorResponse('Unauthorized', 401);
+    }
+    console.error('Get profile error:', error);
+    return errorResponse('Failed to fetch profile', 500);
+  }
+}
 
 export async function PUT(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
     const body = await request.json();
 
-    const result = updateProfileSchema.safeParse(body);
-    if (!result.success) {
-      const firstError = result.error.issues?.[0];
-      return errorResponse(firstError?.message || 'Validation failed', 400);
-    }
+    // Destructure fields from body
+    const {
+      first_name,
+      last_name,
+      avatar_url,
+      bio,
+      gender,
+      default_tee,
+      favorite_course_id,
+      dashboard_visibility,
+      theme,
+      email,
+      username,
+    } = body;
 
-    const data = result.data;
-
-    if (Object.keys(data).length === 0) {
-      return errorResponse('No profile fields provided', 400);
-    }
-
-    // Map snake_case to camelCase for Prisma
-    const updateData: any = {};
-    if (data.first_name !== undefined) updateData.firstName = data.first_name;
-    if (data.last_name !== undefined) updateData.lastName = data.last_name;
-    if (data.avatar_url !== undefined) updateData.avatarUrl = data.avatar_url;
-    if (data.bio !== undefined) updateData.bio = data.bio;
-    if (data.gender !== undefined) updateData.gender = data.gender;
-    if (data.default_tee !== undefined) updateData.defaultTee = data.default_tee;
-    if (data.favorite_course_id !== undefined) {
-      if (data.favorite_course_id === null || data.favorite_course_id === '') {
-        updateData.favoriteCourseId = null;
-      } else {
-        const courseIdNum = typeof data.favorite_course_id === 'string'
-          ? Number(data.favorite_course_id)
-          : data.favorite_course_id;
-        updateData.favoriteCourseId = BigInt(courseIdNum);
-      }
-    }
-    if (data.dashboard_visibility !== undefined) {
-      updateData.dashboardVisibility = data.dashboard_visibility;
-    }
-
-    await prisma.userProfile.update({
+    // Update profile fields
+    const updatedProfile = await prisma.userProfile.update({
       where: { userId },
-      data: updateData,
+      data: {
+        firstName: first_name,
+        lastName: last_name,
+        avatarUrl: avatar_url,
+        bio,
+        gender,
+        defaultTee: default_tee,
+        favoriteCourseId: favorite_course_id ? Number(favorite_course_id) : null,
+        dashboardVisibility: dashboard_visibility,
+        theme,
+      },
     });
 
-    return successResponse({ message: 'Profile updated successfully' });
+    // Optional: allow updating email/username if provided
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: email ?? undefined,
+        username: username ?? undefined,
+      },
+    });
+
+    return successResponse({
+      message: 'Profile updated successfully',
+      profile: {
+        id: updatedUser.id.toString(),
+        username: updatedUser.username,
+        email: updatedUser.email,
+        email_verified: updatedUser.emailVerified,
+        created_date: updatedUser.createdDate,
+        first_name: updatedProfile.firstName,
+        last_name: updatedProfile.lastName,
+        avatar_url: updatedProfile.avatarUrl,
+        bio: updatedProfile.bio,
+        gender: updatedProfile.gender,
+        default_tee: updatedProfile.defaultTee,
+        favorite_course_id: updatedProfile.favoriteCourseId
+          ? updatedProfile.favoriteCourseId.toString()
+          : null,
+        dashboard_visibility: updatedProfile.dashboardVisibility,
+        theme: updatedProfile.theme || 'dark',
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return errorResponse('Unauthorized', 401);
     }
-
     console.error('Update profile error:', error);
     return errorResponse('Failed to update profile', 500);
   }

@@ -27,10 +27,10 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
       if (status !== 'authenticated') return;
 
       try {
-        const res = await fetch('/api/users/me');
+        const res = await fetch('/api/users/profile');
         if (res.ok) {
           const data = await res.json();
-          setAvatarUrl(data.user.avatar_url);
+          setAvatarUrl(data.profile.avatar_url);
         }
       } catch (err) {
         console.error('Error fetching avatar:', err);

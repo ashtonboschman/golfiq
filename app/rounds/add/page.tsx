@@ -122,7 +122,7 @@ export default function AddRoundPage() {
     if (status === 'authenticated') {
       const fetchUserProfile = async () => {
         try {
-          const res = await fetch('/api/users/me');
+          const res = await fetch('/api/users/profile');
           const data = await res.json();
           if (data.type === 'success' && data.user) {
             setUserProfile({

@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button onClick={() => router.push('/login')} className="btn btn-primary">
+            <button onClick={() => router.push('/login')} className="btn btn-accent">
               Return to Login
             </button>
             <button
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
                 setSubmitted(false);
                 setEmail('');
               }}
-              className="btn btn-toggle"
+              className="btn btn-secondary"
             >
               Send Another Reset Link
             </button>
@@ -106,12 +106,12 @@ export default function ForgotPasswordPage() {
             max={250}
           />
 
-          <button type="submit" className="btn btn-save" disabled={loading}>
+          <button type="submit" className="btn btn-accent" disabled={loading}>
             {loading ? 'Sending...' : 'Send Reset Link'}
           </button>
         </form>
 
-        <button onClick={() => router.push('/login')} className="btn btn-toggle">
+        <button onClick={() => router.push('/login')} className="btn btn-secondary">
           Back to Login
         </button>
       </div>

@@ -87,10 +87,10 @@ function ResetPasswordForm() {
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button onClick={() => router.push('/forgot-password')} className="btn btn-primary">
+            <button onClick={() => router.push('/forgot-password')} className="btn btn-accent">
               Request New Reset Link
             </button>
-            <button onClick={() => router.push('/login')} className="btn btn-toggle">
+            <button onClick={() => router.push('/login')} className="btn btn-secondary">
               Back to Login
             </button>
           </div>
@@ -112,7 +112,7 @@ function ResetPasswordForm() {
             Your password has been successfully reset. You will be redirected to the login page shortly.
           </p>
 
-          <button onClick={() => router.push('/login')} className="btn btn-primary">
+          <button onClick={() => router.push('/login')} className="btn btn-accent">
             Go to Login
           </button>
         </div>
@@ -201,12 +201,12 @@ function ResetPasswordForm() {
             </button>
           </div>
 
-          <button type="submit" className="btn btn-save" disabled={loading}>
+          <button type="submit" className="btn btn-accent" disabled={loading}>
             {loading ? 'Resetting...' : 'Reset Password'}
           </button>
         </form>
 
-        <button onClick={() => router.push('/login')} className="btn btn-toggle">
+        <button onClick={() => router.push('/login')} className="btn btn-secondary">
           Back to Login
         </button>
       </div>

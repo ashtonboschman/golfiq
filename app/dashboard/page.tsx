@@ -697,7 +697,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           <button
               type="button"
               onClick={() => router.push('/pricing')}
-              className="btn"
+              className="btn btn-upgrade"
             >
               Upgrade
             </button>
