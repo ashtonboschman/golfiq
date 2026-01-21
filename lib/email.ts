@@ -67,13 +67,31 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
     <!DOCTYPE html>
     <html>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button { display: inline-block; background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .button-container { text-align: center; margin: 30px 0; }
+          .button {
+            display: inline-block;
+            background-color: #28a745;
+            color: white !important;
+            padding: 16px 40px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+            min-width: 200px;
+            text-align: center;
+          }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          @media only screen and (max-width: 600px) {
+            .container { padding: 10px !important; }
+            .content { padding: 20px !important; }
+            .button { padding: 14px 30px !important; min-width: 150px !important; }
+          }
         </style>
       </head>
       <body>
@@ -84,8 +102,8 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
           <div class="content">
             <p>${greeting},</p>
             <p>Thank you for registering! Please verify your email address to complete your account setup:</p>
-            <div style="text-align: center;">
-              <a href="${verifyUrl}" class="button">Verify Email Address</a>
+            <div class="button-container">
+              <a href="${verifyUrl}" class="button" style="color: white; text-decoration: none;">Verify Email Address</a>
             </div>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #28a745;">${verifyUrl}</p>
@@ -126,13 +144,31 @@ export function generatePasswordResetEmail(resetUrl: string): { subject: string;
     <!DOCTYPE html>
     <html>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button { display: inline-block; background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .button-container { text-align: center; margin: 30px 0; }
+          .button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white !important;
+            padding: 16px 40px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+            min-width: 200px;
+            text-align: center;
+          }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          @media only screen and (max-width: 600px) {
+            .container { padding: 10px !important; }
+            .content { padding: 20px !important; }
+            .button { padding: 14px 30px !important; min-width: 150px !important; }
+          }
         </style>
       </head>
       <body>
@@ -143,8 +179,8 @@ export function generatePasswordResetEmail(resetUrl: string): { subject: string;
           <div class="content">
             <p>Hello,</p>
             <p>You requested to reset your password. Click the button below to reset it:</p>
-            <div style="text-align: center;">
-              <a href="${resetUrl}" class="button">Reset Password</a>
+            <div class="button-container">
+              <a href="${resetUrl}" class="button" style="color: white; text-decoration: none;">Reset Password</a>
             </div>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #007bff;">${resetUrl}</p>
@@ -193,13 +229,31 @@ export function generateWaitlistConfirmationEmail({
     <!DOCTYPE html>
     <html>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button { display: inline-block; background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .button-container { text-align: center; margin: 30px 0; }
+          .button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white !important;
+            padding: 16px 40px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+            min-width: 200px;
+            text-align: center;
+          }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          @media only screen and (max-width: 600px) {
+            .container { padding: 10px !important; }
+            .content { padding: 20px !important; }
+            .button { padding: 14px 30px !important; min-width: 150px !important; }
+          }
         </style>
       </head>
       <body>
@@ -210,8 +264,8 @@ export function generateWaitlistConfirmationEmail({
           <div class="content">
             <p>${greeting},</p>
             <p>Thanks for joining the GolfIQ Beta! Please confirm your email to secure your spot:</p>
-            <div style="text-align: center;">
-              <a href="${confirmationUrl}" class="button">Confirm Email</a>
+            <div class="button-container">
+              <a href="${confirmationUrl}" class="button" style="color: white; text-decoration: none;">Confirm Email</a>
             </div>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #007bff;">${confirmationUrl}</p>

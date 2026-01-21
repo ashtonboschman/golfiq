@@ -100,6 +100,12 @@ export async function createCheckoutSession(params: {
       metadata: params.metadata,
       trial_period_days: params.trialPeriodDays,
     },
+    ui_mode: 'hosted',
+    custom_text: {
+      submit: {
+        message: 'Subscribe to GolfIQ Premium',
+      },
+    },
   });
 
   return session;

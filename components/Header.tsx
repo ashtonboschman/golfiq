@@ -151,9 +151,16 @@ export default function Header() {
           src={'/logos/wordmark/golfiq-wordmark.png'}
           alt="GolfIQ"
           height="40"
-          onClick={() => {if (user) navigateWithWarning('/dashboard');}}
+          onClick={() => {
+            if (user) {
+              navigateWithWarning('/dashboard');
+            } else {
+              // On other pages (login, register, etc.), go to landing page
+              router.push('/');
+            }
+          }}
           className="logo"
-          title="Dashboard"
+          title={user ? "Dashboard" : "Home"}
         />
 
         {user && (

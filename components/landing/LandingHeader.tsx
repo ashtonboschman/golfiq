@@ -14,7 +14,7 @@ export default function LandingHeader() {
   return (
     <header className="landing-header">
       <div className="landing-header-inner">
-        <div className="landing-logo">
+        <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{ cursor: 'pointer' }}>
           <Image
             src="/logos/wordmark/golfiq-wordmark.png"
             alt="GolfIQ"
