@@ -328,7 +328,7 @@ export function generateBetaAccessEmail(name?: string) {
             <table align="center" border="0" cellspacing="0" cellpadding="0">
               <tr>
                 <td align="center" bgcolor="#28a745" style="padding:16px 40px;">
-                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${appUrl}/register" style="height:50px;v-text-anchor:middle;width:200px;" arcsize="8%" strokecolor="#28a745" fillcolor="#28a745">
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${appUrl}/login" style="height:50px;v-text-anchor:middle;width:200px;" arcsize="8%" strokecolor="#28a745" fillcolor="#28a745">
                     <w:anchorlock/>
                     <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Create Your Account</center>
                   </v:roundrect>
@@ -339,7 +339,7 @@ export function generateBetaAccessEmail(name?: string) {
 
             <!--[if !mso]><!-- -->
             <p style="text-align:center; margin:30px 0;">
-              <a href="${appUrl}/register" target="_blank" rel="noopener" style="${buttonInlineStyle('#28a745')}">Create Your Account</a>
+              <a href="${appUrl}/login" target="_blank" rel="noopener" style="${buttonInlineStyle('#28a745')}">Create Your Account</a>
             </p>
             <!--<![endif]-->
 
@@ -370,7 +370,7 @@ Congrats! You're now one of the first to try GolfIQ Beta!
 
 You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.
 
-Create your account here: ${appUrl}/register
+Create your account here: ${appUrl}/login
 
 What's included in the beta:
 - Comprehensive round tracking (quick or hole-by-hole)
