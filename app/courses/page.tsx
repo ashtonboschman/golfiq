@@ -245,7 +245,7 @@ export default function CoursesPage() {
                 />
                 {/* Show ad after every 10 courses */}
                 {(index + 1) % 10 === 0 && (
-                  <InlineAdBanner adSlot="COURSES_SLOT_ID" className="my-4" />
+                  <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" className="my-4" />
                 )}
               </div>
             );

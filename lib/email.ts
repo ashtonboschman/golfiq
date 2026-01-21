@@ -60,7 +60,6 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailOpti
 
 export function generateEmailVerificationEmail(verifyUrl: string, firstName?: string): { subject: string; html: string; text: string } {
   const subject = 'Verify your GolfIQ account';
-
   const greeting = firstName ? `Hello ${firstName}` : 'Hello';
 
   const html = `
@@ -73,27 +72,7 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
-          .button {
-            display: inline-block;
-            background-color: #28a745;
-            color: #ffffff !important;
-            padding: 16px 40px;
-            text-decoration: none !important;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 16px;
-            min-width: 200px;
-            text-align: center;
-            -webkit-text-size-adjust: none;
-            mso-hide: all;
-          }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
-          @media only screen and (max-width: 600px) {
-            .container { padding: 10px !important; }
-            .content { padding: 20px !important; }
-            .button { padding: 14px 30px !important; min-width: 150px !important; }
-          }
         </style>
       </head>
       <body>
@@ -104,9 +83,24 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
           <div class="content">
             <p>${greeting},</p>
             <p>Thank you for registering! Please verify your email address to complete your account setup:</p>
-            <div class="button-container">
-              <a href="${verifyUrl}" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #28a745;" target="_blank" rel="noopener">Verify Email Address</a>
-            </div>
+            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
+              <tr>
+                <td align="center" bgcolor="#28a745" style="border-radius:5px;">
+                  <a href="${verifyUrl}" target="_blank" rel="noopener" style="
+                    display:inline-block;
+                    font-family: Arial, sans-serif;
+                    font-size:16px;
+                    font-weight:bold;
+                    color:#ffffff !important;
+                    text-decoration:none !important;
+                    padding:16px 40px;
+                    border-radius:5px;
+                    min-width:200px;
+                    text-align:center;
+                  ">Verify Email Address</a>
+                </td>
+              </tr>
+            </table>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #28a745;">${verifyUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
@@ -152,27 +146,7 @@ export function generatePasswordResetEmail(resetUrl: string): { subject: string;
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
-          .button {
-            display: inline-block;
-            background-color: #007bff;
-            color: #ffffff !important;
-            padding: 16px 40px;
-            text-decoration: none !important;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 16px;
-            min-width: 200px;
-            text-align: center;
-            -webkit-text-size-adjust: none;
-            mso-hide: all;
-          }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
-          @media only screen and (max-width: 600px) {
-            .container { padding: 10px !important; }
-            .content { padding: 20px !important; }
-            .button { padding: 14px 30px !important; min-width: 150px !important; }
-          }
         </style>
       </head>
       <body>
@@ -183,9 +157,24 @@ export function generatePasswordResetEmail(resetUrl: string): { subject: string;
           <div class="content">
             <p>Hello,</p>
             <p>You requested to reset your password. Click the button below to reset it:</p>
-            <div class="button-container">
-              <a href="${resetUrl}" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #007bff;" target="_blank" rel="noopener">Reset Password</a>
-            </div>
+            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
+              <tr>
+                <td align="center" bgcolor="#007bff" style="border-radius:5px;">
+                  <a href="${resetUrl}" target="_blank" rel="noopener" style="
+                    display:inline-block;
+                    font-family: Arial, sans-serif;
+                    font-size:16px;
+                    font-weight:bold;
+                    color:#ffffff !important;
+                    text-decoration:none !important;
+                    padding:16px 40px;
+                    border-radius:5px;
+                    min-width:200px;
+                    text-align:center;
+                  ">Reset Password</a>
+                </td>
+              </tr>
+            </table>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #007bff;">${resetUrl}</p>
             <p><strong>This link will expire in 1 hour.</strong></p>
@@ -218,15 +207,8 @@ If you didn't request a password reset, you can safely ignore this email.
   return { subject, html, text };
 }
 
-export function generateWaitlistConfirmationEmail({
-  name,
-  confirmationUrl,
-}: {
-  name: string;
-  confirmationUrl: string;
-}): { subject: string; html: string; text: string } {
+export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { name: string; confirmationUrl: string; }): { subject: string; html: string; text: string } {
   const subject = 'Confirm Your Spot on the GolfIQ Beta Waitlist';
-
   const greeting = name ? `Hello ${name}` : 'Hello';
 
   const html = `
@@ -239,27 +221,7 @@ export function generateWaitlistConfirmationEmail({
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
-          .button {
-            display: inline-block;
-            background-color: #007bff;
-            color: #ffffff !important;
-            padding: 16px 40px;
-            text-decoration: none !important;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 16px;
-            min-width: 200px;
-            text-align: center;
-            -webkit-text-size-adjust: none;
-            mso-hide: all;
-          }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
-          @media only screen and (max-width: 600px) {
-            .container { padding: 10px !important; }
-            .content { padding: 20px !important; }
-            .button { padding: 14px 30px !important; min-width: 150px !important; }
-          }
         </style>
       </head>
       <body>
@@ -270,9 +232,24 @@ export function generateWaitlistConfirmationEmail({
           <div class="content">
             <p>${greeting},</p>
             <p>Thanks for your interest in GolfIQ Beta. Please confirm your email to secure your spot on the waitlist:</p>
-            <div class="button-container">
-              <a href="${confirmationUrl}" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #007bff;" target="_blank" rel="noopener">Confirm Email Address</a>
-            </div>
+            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
+              <tr>
+                <td align="center" bgcolor="#007bff" style="border-radius:5px;">
+                  <a href="${confirmationUrl}" target="_blank" rel="noopener" style="
+                    display:inline-block;
+                    font-family: Arial, sans-serif;
+                    font-size:16px;
+                    font-weight:bold;
+                    color:#ffffff !important;
+                    text-decoration:none !important;
+                    padding:16px 40px;
+                    border-radius:5px;
+                    min-width:200px;
+                    text-align:center;
+                  ">Confirm Email Address</a>
+                </td>
+              </tr>
+            </table>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #007bff;">${confirmationUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
@@ -308,12 +285,10 @@ If you didn't sign up for the waitlist, you can safely ignore this email.
   `.trim();
 
   return { subject, html, text };
-
 }
 
 export function generateBetaAccessEmail(name?: string): { subject: string; html: string; text: string } {
   const subject = 'You\'ve Been Granted Access to GolfIQ Beta';
-
   const greeting = name ? `Hello ${name}` : 'Hello';
 
   const html = `
@@ -326,27 +301,7 @@ export function generateBetaAccessEmail(name?: string): { subject: string; html:
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
-          .button {
-            display: inline-block;
-            background-color: #28a745;
-            color: #ffffff !important;
-            padding: 16px 40px;
-            text-decoration: none !important;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 16px;
-            min-width: 200px;
-            text-align: center;
-            -webkit-text-size-adjust: none;
-            mso-hide: all;
-          }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
-          @media only screen and (max-width: 600px) {
-            .container { padding: 10px !important; }
-            .content { padding: 20px !important; }
-            .button { padding: 14px 30px !important; min-width: 150px !important; }
-          }
         </style>
       </head>
       <body>
@@ -358,9 +313,24 @@ export function generateBetaAccessEmail(name?: string): { subject: string; html:
             <p>${greeting},</p>
             <p>Great news! You've been granted access to the GolfIQ Beta.</p>
             <p>You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.</p>
-            <div class="button-container">
-              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #28a745;" target="_blank" rel="noopener">Create Your Account</a>
-            </div>
+            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
+              <tr>
+                <td align="center" bgcolor="#28a745" style="border-radius:5px;">
+                  <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register" target="_blank" rel="noopener" style="
+                    display:inline-block;
+                    font-family: Arial, sans-serif;
+                    font-size:16px;
+                    font-weight:bold;
+                    color:#ffffff !important;
+                    text-decoration:none !important;
+                    padding:16px 40px;
+                    border-radius:5px;
+                    min-width:200px;
+                    text-align:center;
+                  ">Create Your Account</a>
+                </td>
+              </tr>
+            </table>
             <p><strong>What's included in the beta:</strong></p>
             <ul>
               <li>Comprehensive round tracking (quick or hole-by-hole)</li>

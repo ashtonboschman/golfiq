@@ -5,6 +5,7 @@ import AdSense from './AdSense';
 
 interface InlineAdBannerProps {
   adSlot: string;
+  adLayoutKey?: string;
   className?: string;
 }
 
@@ -13,9 +14,9 @@ interface InlineAdBannerProps {
  * Premium users see nothing (ad-free experience)
  *
  * Usage:
- * <InlineAdBanner adSlot="1234567890" />
+ * <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" />
  */
-export default function InlineAdBanner({ adSlot, className = '' }: InlineAdBannerProps) {
+export default function InlineAdBanner({ adSlot, adLayoutKey, className = '' }: InlineAdBannerProps) {
   const { isPremium, loading } = useSubscription();
 
   // While loading: render invisible placeholder to reserve space and prevent layout shift
@@ -34,7 +35,8 @@ export default function InlineAdBanner({ adSlot, className = '' }: InlineAdBanne
     <div className={`ad-banner ${className}`}>
       <AdSense
         adSlot={adSlot}
-        adFormat="auto"
+        adFormat="fluid"
+        adLayoutKey={adLayoutKey}
         fullWidthResponsive={true}
       />
     </div>

@@ -742,7 +742,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       </div>
 
       {/* Ad after main stats grid */}
-      <InlineAdBanner adSlot="DASHBOARD_SLOT_ID" />
+      <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" />
       
       <TrendCard
           trendData={scoreChartData}

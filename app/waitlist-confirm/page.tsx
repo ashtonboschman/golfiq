@@ -101,7 +101,7 @@ function WaitlistConfirmForm() {
           </div>
 
           <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center' }}>
-            Thank you for confirming your email! We'll notify you as soon as GolfIQ launches.
+            Thanks for confirming your email! You’re on the list and will be notified as soon as your beta access is granted.
           </p>
 
           <button onClick={() => router.push('/')} className="btn btn-primary">

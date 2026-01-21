@@ -225,7 +225,7 @@ export default function RoundsPage() {
                 />
                 {/* Show ad after every 5 rounds */}
                 {(index + 1) % 5 === 0 && (
-                  <InlineAdBanner adSlot="ROUNDS_SLOT_ID" className="my-4" />
+                  <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" className="my-4" />
                 )}
               </div>
             );

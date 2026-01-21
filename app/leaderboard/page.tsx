@@ -201,7 +201,7 @@ export default function LeaderboardPage() {
       {loading && <p className='loading-text'>Loading more users...</p>}
 
       {/* Bottom banner ad */}
-      <InlineAdBanner adSlot="LEADERBOARD_SLOT_ID" className="mt-6" />
+      <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" className="mt-6" />
     </div>
   );
 }

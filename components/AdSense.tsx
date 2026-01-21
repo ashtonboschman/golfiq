@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 interface AdSenseProps {
   adSlot: string;
   adFormat?: 'auto' | 'fluid' | 'rectangle' | 'vertical' | 'horizontal';
+  adLayoutKey?: string;
   fullWidthResponsive?: boolean;
 }
 
@@ -21,7 +22,8 @@ interface AdSenseProps {
  */
 export default function AdSense({
   adSlot,
-  adFormat = 'auto',
+  adFormat = 'fluid',
+  adLayoutKey,
   fullWidthResponsive = true,
 }: AdSenseProps) {
   const publisherId = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
@@ -56,9 +58,11 @@ export default function AdSense({
   return (
     <ins
       className="adsbygoogle"
+      style={{ display: 'block' }}
       data-ad-client={publisherId}
       data-ad-slot={adSlot}
       data-ad-format={adFormat}
+      data-ad-layout-key={adLayoutKey}
       data-full-width-responsive={fullWidthResponsive ? 'true' : 'false'}
     />
   );
