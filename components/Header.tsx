@@ -78,14 +78,22 @@ export default function Header() {
     (user && pathname !== '/dashboard') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
+    pathname === '/about' ||
+    pathname === '/privacy' ||
+    pathname === '/terms' ||
+    pathname === '/contact' ||
     isViewingOthersDashboard;
 
   const handleBackClick = () => {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
+    // On legal/info pages, always go to landing page
+    if (pathname === '/about' || pathname === '/privacy' || pathname === '/terms' || pathname === '/contact') {
+      router.push('/');
+    }
     // On reset-password page, always go to login
-    if (pathname === '/reset-password') {
+    else if (pathname === '/reset-password') {
       router.push('/login');
     }
     // On round add page, warn before navigating away
