@@ -343,6 +343,9 @@ export function generateBetaAccessEmail(name?: string) {
             </p>
             <!--<![endif]-->
 
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color:#28a745;">${appUrl}/login</p>
+
             <p><strong>What's included in the beta:</strong></p>
             <ul>
               <li>Comprehensive round tracking (quick or hole-by-hole)</li>
