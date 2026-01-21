@@ -73,18 +73,20 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button-container { text-align: center; margin: 30px 0; }
+          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
           .button {
             display: inline-block;
             background-color: #28a745;
-            color: white !important;
+            color: #ffffff !important;
             padding: 16px 40px;
-            text-decoration: none;
+            text-decoration: none !important;
             border-radius: 5px;
             font-weight: bold;
             font-size: 16px;
             min-width: 200px;
             text-align: center;
+            -webkit-text-size-adjust: none;
+            mso-hide: all;
           }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
           @media only screen and (max-width: 600px) {
@@ -103,7 +105,7 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
             <p>${greeting},</p>
             <p>Thank you for registering! Please verify your email address to complete your account setup:</p>
             <div class="button-container">
-              <a href="${verifyUrl}" class="button" style="color: white; text-decoration: none;">Verify Email Address</a>
+              <a href="${verifyUrl}" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #28a745;" target="_blank" rel="noopener">Verify Email Address</a>
             </div>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #28a745;">${verifyUrl}</p>
@@ -150,18 +152,20 @@ export function generatePasswordResetEmail(resetUrl: string): { subject: string;
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button-container { text-align: center; margin: 30px 0; }
+          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
           .button {
             display: inline-block;
             background-color: #007bff;
-            color: white !important;
+            color: #ffffff !important;
             padding: 16px 40px;
-            text-decoration: none;
+            text-decoration: none !important;
             border-radius: 5px;
             font-weight: bold;
             font-size: 16px;
             min-width: 200px;
             text-align: center;
+            -webkit-text-size-adjust: none;
+            mso-hide: all;
           }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
           @media only screen and (max-width: 600px) {
@@ -180,7 +184,7 @@ export function generatePasswordResetEmail(resetUrl: string): { subject: string;
             <p>Hello,</p>
             <p>You requested to reset your password. Click the button below to reset it:</p>
             <div class="button-container">
-              <a href="${resetUrl}" class="button" style="color: white; text-decoration: none;">Reset Password</a>
+              <a href="${resetUrl}" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #007bff;" target="_blank" rel="noopener">Reset Password</a>
             </div>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #007bff;">${resetUrl}</p>
@@ -221,7 +225,7 @@ export function generateWaitlistConfirmationEmail({
   name: string;
   confirmationUrl: string;
 }): { subject: string; html: string; text: string } {
-  const subject = 'Confirm your spot on the GolfIQ Beta 🏌️';
+  const subject = 'Confirm Your Spot on the GolfIQ Beta Waitlist';
 
   const greeting = name ? `Hello ${name}` : 'Hello';
 
@@ -235,18 +239,20 @@ export function generateWaitlistConfirmationEmail({
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button-container { text-align: center; margin: 30px 0; }
+          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
           .button {
             display: inline-block;
             background-color: #007bff;
-            color: white !important;
+            color: #ffffff !important;
             padding: 16px 40px;
-            text-decoration: none;
+            text-decoration: none !important;
             border-radius: 5px;
             font-weight: bold;
             font-size: 16px;
             min-width: 200px;
             text-align: center;
+            -webkit-text-size-adjust: none;
+            mso-hide: all;
           }
           .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
           @media only screen and (max-width: 600px) {
@@ -259,18 +265,20 @@ export function generateWaitlistConfirmationEmail({
       <body>
         <div class="container">
           <div class="header">
-            <h1>Welcome to GolfIQ Beta!</h1>
+            <h1>You're on the Waitlist</h1>
           </div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Thanks for joining the GolfIQ Beta! Please confirm your email to secure your spot:</p>
+            <p>Thanks for your interest in GolfIQ Beta. Please confirm your email to secure your spot on the waitlist:</p>
             <div class="button-container">
-              <a href="${confirmationUrl}" class="button" style="color: white; text-decoration: none;">Confirm Email</a>
+              <a href="${confirmationUrl}" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #007bff;" target="_blank" rel="noopener">Confirm Email Address</a>
             </div>
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #007bff;">${confirmationUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
-            <p>If you didn't sign up for the beta, you can safely ignore this email.</p>
+            <p><strong>What happens next?</strong></p>
+            <p>You'll receive a separate email once you've been granted access to create your account. We're reviewing applications and will notify you as soon as a spot opens up.</p>
+            <p>If you didn't sign up for the waitlist, you can safely ignore this email.</p>
           </div>
           <div class="footer">
             <p>&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</p>
@@ -281,21 +289,123 @@ export function generateWaitlistConfirmationEmail({
   `;
 
   const text = `
-Welcome to GolfIQ Beta!
+You're on the Waitlist
 
 ${greeting},
 
-Thanks for joining the GolfIQ Beta! Please confirm your email to secure your spot:
+Thanks for your interest in GolfIQ Beta. Please confirm your email to secure your spot on the waitlist:
 
 ${confirmationUrl}
 
 This link will expire in 24 hours.
 
-If you didn’t sign up for the beta, you can safely ignore this email.
+What happens next?
+You'll receive a separate email once you've been granted access to create your account. We're reviewing applications and will notify you as soon as a spot opens up.
+
+If you didn't sign up for the waitlist, you can safely ignore this email.
 
 © ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();
 
   return { subject, html, text };
-  
+
+}
+
+export function generateBetaAccessEmail(name?: string): { subject: string; html: string; text: string } {
+  const subject = 'You\'ve Been Granted Access to GolfIQ Beta';
+
+  const greeting = name ? `Hello ${name}` : 'Hello';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+          .button-container { text-align: center; margin: 30px 0; line-height: 1; }
+          .button {
+            display: inline-block;
+            background-color: #28a745;
+            color: #ffffff !important;
+            padding: 16px 40px;
+            text-decoration: none !important;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+            min-width: 200px;
+            text-align: center;
+            -webkit-text-size-adjust: none;
+            mso-hide: all;
+          }
+          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          @media only screen and (max-width: 600px) {
+            .container { padding: 10px !important; }
+            .content { padding: 20px !important; }
+            .button { padding: 14px 30px !important; min-width: 150px !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Welcome to GolfIQ Beta</h1>
+          </div>
+          <div class="content">
+            <p>${greeting},</p>
+            <p>Great news! You've been granted access to the GolfIQ Beta.</p>
+            <p>You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.</p>
+            <div class="button-container">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register" class="button" style="color: #ffffff !important; text-decoration: none !important; display: inline-block; background-color: #28a745;" target="_blank" rel="noopener">Create Your Account</a>
+            </div>
+            <p><strong>What's included in the beta:</strong></p>
+            <ul>
+              <li>Comprehensive round tracking (quick or hole-by-hole)</li>
+              <li>AI-powered insights and recommendations</li>
+              <li>Performance analytics and statistics</li>
+              <li>Course database and tracking</li>
+              <li>Friends and leaderboards</li>
+              <li>Multiple theme options</li>
+            </ul>
+            <p>We'd love to hear your feedback as you use the app. Your input will help shape the future of GolfIQ.</p>
+            <p>Welcome aboard!</p>
+          </div>
+          <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const text = `
+Welcome to GolfIQ Beta
+
+${greeting},
+
+Great news! You've been granted access to the GolfIQ Beta.
+
+You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.
+
+Create your account here: ${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register
+
+What's included in the beta:
+- Comprehensive round tracking (quick or hole-by-hole)
+- AI-powered insights and recommendations
+- Performance analytics and statistics
+- Course database and tracking
+- Friends and leaderboards
+- Multiple theme options
+
+We'd love to hear your feedback as you use the app. Your input will help shape the future of GolfIQ.
+
+Welcome aboard!
+
+© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+  `.trim();
+
+  return { subject, html, text };
 }

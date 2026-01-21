@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
-import { sendEmail, generateWaitlistConfirmationEmail } from '@/lib/email';
+import { sendEmail, generateBetaAccessEmail, EMAIL_FROM } from '@/lib/email';
 import { prisma } from '@/lib/db';
 
 // GET - Fetch waitlist and allowed emails
@@ -62,6 +62,25 @@ export async function POST(req: NextRequest) {
         notes: notes || null,
       },
     });
+
+    // Check if user is in waitlist to get their name
+    const waitlistEntry = await prisma.waitlist.findFirst({
+      where: { email: email.toLowerCase() },
+    });
+
+    // Send beta access email
+    const emailContent = generateBetaAccessEmail(waitlistEntry?.name || undefined);
+    const emailSent = await sendEmail({
+      to: email.toLowerCase(),
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+      from: EMAIL_FROM.ONBOARDING,
+    });
+
+    if (!emailSent) {
+      console.error('Failed to send beta access email to:', email);
+    }
 
     // Serialize response
     const serializedAllowedEmail = {
