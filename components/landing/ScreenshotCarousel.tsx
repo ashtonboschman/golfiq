@@ -20,8 +20,8 @@ export default function ScreenshotCarousel() {
 
   const screenshots: Screenshot[] = [
     { src: '/photos/dashboard_1.PNG', alt: 'GolfIQ Dashboard - Overview' },
-    { src: '/photos/dashboard_2.PNG', alt: 'GolfIQ Dashboard - Analytics' },
-    { src: '/photos/dashboard_3.PNG', alt: 'GolfIQ Dashboard - Insights' },
+    { src: '/photos/dashboard_2.PNG?v=2', alt: 'GolfIQ Dashboard - Analytics' },
+    { src: '/photos/dashboard_3.PNG?v=2', alt: 'GolfIQ Dashboard - Insights' },
     { src: '/photos/rounds.PNG', alt: 'GolfIQ Rounds' },
     { src: '/photos/add_round_quick_simple.PNG', alt: 'GolfIQ Add Round - Quick, Simple' },
     { src: '/photos/add_round_hole_by_hole_advanced.PNG', alt: 'GolfIQ Add Round - Hole By Hole, Advanced' },
