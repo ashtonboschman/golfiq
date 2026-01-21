@@ -22,6 +22,16 @@ export default function ScreenshotCarousel() {
     { src: '/photos/dashboard_1.PNG', alt: 'GolfIQ Dashboard - Overview' },
     { src: '/photos/dashboard_2.PNG', alt: 'GolfIQ Dashboard - Analytics' },
     { src: '/photos/dashboard_3.PNG', alt: 'GolfIQ Dashboard - Insights' },
+    { src: '/photos/rounds.PNG', alt: 'GolfIQ Rounds' },
+    { src: '/photos/add_round_quick_simple.PNG', alt: 'GolfIQ Add Round - Quick, Simple' },
+    { src: '/photos/add_round_hole_by_hole_advanced.PNG', alt: 'GolfIQ Add Round - Hole By Hole, Advanced' },
+    { src: '/photos/round_stats_1.PNG', alt: 'GolfIQ Round Stats - Overview' },
+    { src: '/photos/courses.PNG', alt: 'GolfIQ Courses' },
+    { src: '/photos/course_details.PNG', alt: 'GolfIQ Course Details' },
+    { src: '/photos/friends.PNG', alt: 'GolfIQ Friends' },
+    { src: '/photos/leaderboard_global.PNG', alt: 'GolfIQ Leaderboard - Global' },
+    { src: '/photos/leaderboard_friends.PNG', alt: 'GolfIQ Leaderboard - Friends' },
+    { src: '/photos/themes.PNG', alt: 'GolfIQ Themes' },
   ];
 
   const minSwipeDistance = 50;
@@ -138,27 +148,6 @@ export default function ScreenshotCarousel() {
               </div>
             );
           })}
-
-          {/* Navigation Arrows */}
-          {currentIndex > 0 && (
-            <button
-              onClick={handlePrevious}
-              className="carousel-button carousel-button-prev"
-              aria-label="Previous screenshot"
-            >
-              <ChevronLeft size={24} />
-            </button>
-          )}
-
-          {currentIndex < screenshots.length - 1 && (
-            <button
-              onClick={handleNext}
-              className="carousel-button carousel-button-next"
-              aria-label="Next screenshot"
-            >
-              <ChevronRight size={24} />
-            </button>
-          )}
         </div>
 
         {/* iPhone Frame Overlay */}
@@ -174,7 +163,7 @@ export default function ScreenshotCarousel() {
         </div>
       </div>
 
-      {/* Dot Indicators - Outside phone-mockup-wrapper so they're visible */}
+      {/* Dot Indicators - Below phone frame */}
       <div className="carousel-indicators">
         {screenshots.map((_, index) => (
           <button

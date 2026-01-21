@@ -9,15 +9,24 @@ interface SendEmailOptions {
   subject: string;
   html: string;
   text?: string;
+  from?: string; // Optional custom from address
 }
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function sendEmail({ to, subject, html, text }: SendEmailOptions): Promise<boolean> {
+// Default from addresses for different email types
+export const EMAIL_FROM = {
+  NOREPLY: 'GolfIQ <noreply@golfiq.ca>',
+  ONBOARDING: 'GolfIQ <onboarding@golfiq.ca>',
+  UPDATES: 'GolfIQ <updates@golfiq.ca>',
+} as const;
+
+export async function sendEmail({ to, subject, html, text, from }: SendEmailOptions): Promise<boolean> {
   // Development mode: also log email to console for debugging
   if (process.env.NODE_ENV === 'development') {
     console.log('\n========== EMAIL ===========');
     console.log('To:', to);
+    console.log('From:', from || EMAIL_FROM.NOREPLY);
     console.log('Subject:', subject);
     console.log('Sending via Resend...');
     console.log('============================\n');
@@ -26,7 +35,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions): 
   try {
     // Send email via Resend
     const { data, error } = await resend.emails.send({
-      from: 'GolfIQ <onboarding@resend.dev>', // Use Resend's test domain initially
+      from: from || EMAIL_FROM.NOREPLY, // Use provided from or default to noreply
       to,
       subject,
       html,

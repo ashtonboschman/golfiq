@@ -11,13 +11,14 @@ import Link from 'next/link';
 export default function LoginPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { showMessage, clearMessage } = useMessage();
+  const { message, showMessage, clearMessage } = useMessage();
 
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [shouldRedirectToLanding, setShouldRedirectToLanding] = useState(false);
 
   // Lock scroll while on login page
   useEffect(() => {
@@ -34,6 +35,15 @@ export default function LoginPage() {
       router.replace('/dashboard');
     }
   }, [status, router]);
+
+  // Redirect to landing page when private beta error is dismissed
+  useEffect(() => {
+    if (shouldRedirectToLanding && !message) {
+      // Message was cleared (user clicked OK), now redirect
+      router.push('/');
+      setShouldRedirectToLanding(false);
+    }
+  }, [shouldRedirectToLanding, message, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -128,6 +138,13 @@ export default function LoginPage() {
         const data = await res.json();
 
         if (!res.ok) {
+          // Check if it's the private beta error
+          if (res.status === 403 && data.message?.includes('private beta')) {
+            showMessage(data.message, 'error');
+            // Set flag to redirect when user dismisses the error modal
+            setShouldRedirectToLanding(true);
+            return;
+          }
           throw new Error(data.message || 'Failed to create account. Please try again.');
         }
 

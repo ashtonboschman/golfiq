@@ -5,32 +5,32 @@ export default function Features() {
     {
       icon: <Brain size={32} />,
       title: 'AI-Powered Insights',
-      description: 'Get personalized coaching and recommendations based on your performance data. Understand why you shoot the scores you do.',
+      description: 'Transform your performance data into clear, actionable explanations. GolfIQ analyzes your stats and delivers insights that show what is holding your game back and how to fix it.',
     },
     {
       icon: <BarChart3 size={32} />,
       title: 'Performance Dashboards',
-      description: 'Visualize your progress with beautiful charts, trends, and heatmaps. Track every stat that matters to your game.',
+      description: 'See your game clearly through interactive dashboards, trends, and detailed breakdowns. Track every stat that matters, from scoring consistency to long-term progress.',
     },
     {
       icon: <Trophy size={32} />,
       title: 'Achievements & Streaks',
-      description: 'Stay motivated with gamified achievements, milestone tracking, and streak rewards. Celebrate every improvement.',
+      description: 'Stay motivated with achievements, streaks, and milestones that reward real progress. Every great round and improvement is recognized.',
     },
     {
       icon: <Users2 size={32} />,
       title: 'Social Leaderboards',
-      description: 'Compete with friends and golfers worldwide. Join the community and climb the rankings.',
+      description: 'Compete with friends and golfers worldwide. Compare performance, track rankings, and stay motivated through friendly competition.',
     },
     {
       icon: <TrendingUp size={32} />,
       title: 'Trend Analysis',
-      description: 'Identify patterns in your game with advanced trend forecasting. See where you are improving and where to focus.',
+      description: 'Reveal patterns in your game over time. Understand what is improving, what needs attention, and where focused practice will deliver results.',
     },
     {
       icon: <MapPin size={32} />,
       title: 'Course-Specific Insights',
-      description: 'Get personalized strategies for each course based on your performance history and AI recommendations.',
+      description: 'Play smarter on every course. GolfIQ highlights how each course impacts your scoring and suggests focus areas based on your performance history.',
     },
   ];
 
@@ -39,7 +39,7 @@ export default function Features() {
       <div className="landing-section-header">
         <h2 className="landing-section-title">Everything You Need to Improve</h2>
         <p className="landing-section-subtitle">
-          Powerful features designed for golfers who are serious about lowering their scores
+          Powerful tools designed for golfers who want clarity, direction, and measurable improvement.
         </p>
       </div>
 

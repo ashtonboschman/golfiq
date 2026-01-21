@@ -13,17 +13,17 @@ export default function InsightsCTA() {
     {
       icon: <Sparkles size={24} />,
       title: 'AI Coaching',
-      description: 'Post-round analysis with personalized tips based on your performance patterns',
+      description: 'Post-round analysis with personalized feedback generated from your performance trends and strokes-gained data.',
     },
     {
       icon: <Target size={24} />,
       title: 'Weakness Detection',
-      description: 'Automatically identify and track areas that need the most improvement',
+      description: 'Automatically identify the parts of your game costing you the most strokes so you know exactly where to focus.',
     },
     {
       icon: <LineChart size={24} />,
       title: 'Predictive Analytics',
-      description: 'Forecast your handicap trajectory and get recommended practice focus areas',
+      description: 'See where your game is headed. Track improvement trends and receive guidance on what will lower your scores fastest.',
     },
   ];
 
@@ -36,8 +36,7 @@ export default function InsightsCTA() {
             Understand <span className="accent-text">Why</span> You Shoot the Scores You Do
           </h2>
           <p className="landing-insights-subtitle">
-            GolfIQ's AI doesn't just show you numbers—it tells you exactly what's holding you back
-            and how to fix it. Get insights that feel like having a personal coach in your pocket.
+            GolfIQ goes beyond charts and numbers. Our AI-driven insights explain the real factors behind your scores and guide you toward meaningful improvement.
           </p>
 
           <div className="landing-insights-list">
@@ -56,7 +55,7 @@ export default function InsightsCTA() {
             Get Premium Access in Beta
           </button>
           <p className="landing-insights-note">
-            All beta testers get full premium features for free
+            All beta testers receive full access to premium features at no cost during the beta period.
           </p>
         </div>
       </div>

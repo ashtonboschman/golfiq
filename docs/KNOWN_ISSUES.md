@@ -7,6 +7,11 @@
 ## 🐛 Active Bugs
 - Warning popups are not working on friends phone for add/edit round nor profile. Maybe we change to a warning message from our message system instead of using the system? I do like the system but we need to guarantee it works for all devices. Works perfectly for my pc and phone. He has an iphone 13
 - login/register/forgot-password/verify-email/reset-password all need the same ios input handling as we did for the rest of the inputs with allowing check mark to close keyboard and focus to go to end of string.
+- Add custom warning modal rather than relying on system based for all warnings
+- round edit, press back button and okay, should route to rounds page if came from there or round stats page if came from there. Currently routes to round stats regardless and then gets stuck in infinite back to round edit back to round stats loop.
+- Friend card stats go to null when sending that user a friend request. Check all instances of friend context switching
+- Round stats summary red/grey/green needs 9 hole checking
+- Add back to rounds button on stats summary like how we have back to dashboard
 
 ## 📋 Planned Features (Not Yet Implemented)
 

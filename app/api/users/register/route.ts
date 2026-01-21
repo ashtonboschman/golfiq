@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { errorResponse, successResponse } from '@/lib/api-auth';
-import { sendEmail, generateEmailVerificationEmail } from '@/lib/email';
+import { sendEmail, generateEmailVerificationEmail, EMAIL_FROM } from '@/lib/email';
 import { z } from 'zod';
 
 const registerSchema = z.object({
@@ -153,6 +153,7 @@ export async function POST(request: NextRequest) {
       subject,
       html,
       text,
+      from: EMAIL_FROM.NOREPLY, // Email verification from noreply
     });
 
     if (!emailSent) {

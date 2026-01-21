@@ -21,12 +21,11 @@ export default function Hero() {
     <section className="landing-hero">
       <div className="landing-hero-content">
         <h1 className="landing-hero-title">
-          Master Your Game with <span className="accent-text">AI-Powered</span> Golf Analytics
+          Master Your Game with <span className="accent-text">Intelligent</span> Golf Analytics
         </h1>
 
         <p className="landing-hero-subtitle">
-          Track every shot, understand every weakness, improve every round.
-          Join the future of golf performance with personalized AI coaching and advanced insights.
+          Track every round, uncover hidden weaknesses, and improve faster with AI-generated insights built on real performance data.
         </p>
 
         <div className="landing-hero-actions">

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { sendEmail, generateWaitlistConfirmationEmail } from '@/lib/email';
+import { sendEmail, generateWaitlistConfirmationEmail, EMAIL_FROM } from '@/lib/email';
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
         subject,
         html,
         text,
+        from: EMAIL_FROM.ONBOARDING, // Waitlist confirmation from onboarding
       });
     } catch (emailError) {
       console.error('Error sending confirmation email:', emailError);

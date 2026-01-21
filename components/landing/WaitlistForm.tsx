@@ -79,7 +79,7 @@ export default function WaitlistForm() {
         <div className="landing-waitlist-header">
           <h2 className="landing-section-title">Join the Beta</h2>
           <p className="landing-section-subtitle">
-            Be among the first to experience GolfIQ. All beta testers get full premium access for free.
+            Be among the first to experience GolfIQ and help shape the future of golf performance analytics.
           </p>
           {waitlistCount !== null && waitlistCount > 0 && (
             <p className="landing-waitlist-count">
@@ -161,8 +161,7 @@ export default function WaitlistForm() {
         </form>
 
         <p className="landing-waitlist-disclaimer">
-          By joining the waitlist, you agree to receive email updates about GolfIQ beta access.
-          You can unsubscribe at any time.
+          By joining the waitlist, you agree to receive email updates about GolfIQ beta access. You can unsubscribe at any time.
         </p>
       </div>
     </section>

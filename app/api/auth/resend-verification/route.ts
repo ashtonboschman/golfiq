@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
-import { sendEmail, generateEmailVerificationEmail } from '@/lib/email';
+import { sendEmail, generateEmailVerificationEmail, EMAIL_FROM } from '@/lib/email';
 import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       subject,
       html,
       text,
+      from: EMAIL_FROM.NOREPLY, // Email verification from noreply
     });
 
     if (!emailSent) {

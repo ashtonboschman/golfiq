@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { sendEmail, generatePasswordResetEmail } from '@/lib/email';
+import { sendEmail, generatePasswordResetEmail, EMAIL_FROM } from '@/lib/email';
 import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       subject,
       html,
       text,
+      from: EMAIL_FROM.NOREPLY, // Password reset from noreply
     });
 
     if (!emailSent) {
