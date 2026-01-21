@@ -56,8 +56,8 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailOpti
   }
 }
 
-/** BUTTON STYLES */
-const buttonStyle = (bgColor: string) => `
+/** BUTTON STYLES INLINE FOR NON-MSO EMAILS */
+const buttonInlineStyle = (bgColor: string) => `
   display:inline-block;
   background-color:${bgColor};
   color:#ffffff !important;
@@ -71,10 +71,9 @@ const buttonStyle = (bgColor: string) => `
   -webkit-text-size-adjust:none;
 `;
 
-/** EMAIL TEMPLATES */
-
+/** GENERATE EMAIL VERIFICATION */
 export function generateEmailVerificationEmail(verifyUrl: string, firstName?: string) {
-  const subject = 'Verify your GolfIQ account';
+  const subject = '✅ Verify your GolfIQ account';
   const greeting = firstName ? `Hello ${firstName}` : 'Hello';
 
   const html = `
@@ -83,7 +82,7 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+          body { font-family: Arial, sans-serif; line-height:1.6; color:#333; margin:0; padding:0; }
           .container { max-width:600px; margin:0 auto; padding:20px; }
           .header { background-color:#28a745; color:white; padding:20px; text-align:center; border-radius:5px 5px 0 0; }
           .content { background-color:#f9f9f9; padding:30px; border-radius:0 0 5px 5px; }
@@ -95,10 +94,27 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
           <div class="header"><h1>Welcome to GolfIQ!</h1></div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Thank you for registering! Please verify your email address to complete your account setup:</p>
+            <p>Thanks for signing up! Please verify your email to start tracking your golf game:</p>
+
+            <!--[if mso]>
+            <table align="center" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td align="center" bgcolor="#28a745" style="padding:16px 40px;">
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${verifyUrl}" style="height:50px;v-text-anchor:middle;width:200px;" arcsize="8%" strokecolor="#28a745" fillcolor="#28a745">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Verify Email Address</center>
+                  </v:roundrect>
+                </td>
+              </tr>
+            </table>
+            <![endif]-->
+
+            <!--[if !mso]><!-- -->
             <p style="text-align:center; margin:30px 0;">
-              <a href="${verifyUrl}" target="_blank" rel="noopener" style="${buttonStyle('#28a745')}">Verify Email Address</a>
+              <a href="${verifyUrl}" target="_blank" rel="noopener" style="${buttonInlineStyle('#28a745')}">Verify Email Address</a>
             </p>
+            <!--<![endif]-->
+
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color:#28a745;">${verifyUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
@@ -115,7 +131,7 @@ Welcome to GolfIQ!
 
 ${greeting},
 
-Thank you for registering! Please verify your email address to complete your account setup:
+Thanks for signing up! Please verify your email to start tracking your golf game:
 
 ${verifyUrl}
 
@@ -129,8 +145,9 @@ If you didn't create a GolfIQ account, you can safely ignore this email.
   return { subject, html, text };
 }
 
+/** GENERATE PASSWORD RESET EMAIL */
 export function generatePasswordResetEmail(resetUrl: string) {
-  const subject = 'Reset your GolfIQ password';
+  const subject = '🔑 Reset your GolfIQ password';
 
   const html = `
     <!DOCTYPE html>
@@ -150,10 +167,27 @@ export function generatePasswordResetEmail(resetUrl: string) {
           <div class="header"><h1>GolfIQ Password Reset</h1></div>
           <div class="content">
             <p>Hello,</p>
-            <p>You requested to reset your password. Click the button below to reset it:</p>
+            <p>You requested a password reset. Click below to set a new password:</p>
+
+            <!--[if mso]>
+            <table align="center" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td align="center" bgcolor="#007bff" style="padding:16px 40px;">
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${resetUrl}" style="height:50px;v-text-anchor:middle;width:200px;" arcsize="8%" strokecolor="#007bff" fillcolor="#007bff">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Reset Password</center>
+                  </v:roundrect>
+                </td>
+              </tr>
+            </table>
+            <![endif]-->
+
+            <!--[if !mso]><!-- -->
             <p style="text-align:center; margin:30px 0;">
-              <a href="${resetUrl}" target="_blank" rel="noopener" style="${buttonStyle('#007bff')}">Reset Password</a>
+              <a href="${resetUrl}" target="_blank" rel="noopener" style="${buttonInlineStyle('#007bff')}">Reset Password</a>
             </p>
+            <!--<![endif]-->
+
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color:#007bff;">${resetUrl}</p>
             <p><strong>This link will expire in 1 hour.</strong></p>
@@ -170,7 +204,7 @@ GolfIQ Password Reset
 
 Hello,
 
-You requested to reset your password. Click the link below to reset it:
+You requested a password reset. Click below to set a new password:
 
 ${resetUrl}
 
@@ -184,8 +218,9 @@ If you didn't request a password reset, you can safely ignore this email.
   return { subject, html, text };
 }
 
+/** GENERATE WAITLIST CONFIRMATION EMAIL */
 export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { name: string; confirmationUrl: string }) {
-  const subject = 'Confirm Your Spot on the GolfIQ Beta Waitlist';
+  const subject = '⛳ Confirm Your Spot on the GolfIQ Beta Waitlist';
   const greeting = name ? `Hello ${name}` : 'Hello';
 
   const html = `
@@ -203,13 +238,30 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
       </head>
       <body>
         <div class="container">
-          <div class="header"><h1>You're on the Waitlist</h1></div>
+          <div class="header"><h1>You're officially on the waitlist! 🎉</h1></div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Thanks for your interest in GolfIQ Beta. Please confirm your email to secure your spot on the waitlist:</p>
+            <p>Thanks for your interest in GolfIQ Beta. Confirm your email to lock in your spot and be one of the first to try GolfIQ Beta:</p>
+
+            <!--[if mso]>
+            <table align="center" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td align="center" bgcolor="#007bff" style="padding:16px 40px;">
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${confirmationUrl}" style="height:50px;v-text-anchor:middle;width:200px;" arcsize="8%" strokecolor="#007bff" fillcolor="#007bff">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Confirm Email Address</center>
+                  </v:roundrect>
+                </td>
+              </tr>
+            </table>
+            <![endif]-->
+
+            <!--[if !mso]><!-- -->
             <p style="text-align:center; margin:30px 0;">
-              <a href="${confirmationUrl}" target="_blank" rel="noopener" style="${buttonStyle('#007bff')}">Confirm Email Address</a>
+              <a href="${confirmationUrl}" target="_blank" rel="noopener" style="${buttonInlineStyle('#007bff')}">Confirm Email Address</a>
             </p>
+            <!--<![endif]-->
+
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color:#007bff;">${confirmationUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
@@ -224,11 +276,11 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
   `;
 
   const text = `
-You're on the Waitlist
+You're officially on the waitlist! 🎉
 
 ${greeting},
 
-Thanks for your interest in GolfIQ Beta. Please confirm your email to secure your spot on the waitlist:
+Thanks for your interest in GolfIQ Beta. Confirm your email to lock in your spot and be one of the first to try GolfIQ Beta:
 
 ${confirmationUrl}
 
@@ -245,9 +297,11 @@ If you didn't sign up for the waitlist, you can safely ignore this email.
   return { subject, html, text };
 }
 
+/** GENERATE BETA ACCESS EMAIL */
 export function generateBetaAccessEmail(name?: string) {
-  const subject = 'You\'ve Been Granted Access to GolfIQ Beta';
+  const subject = "🏌️‍♂️ You're In! Access GolfIQ Beta Now";
   const greeting = name ? `Hello ${name}` : 'Hello';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca';
 
   const html = `
     <!DOCTYPE html>
@@ -264,14 +318,31 @@ export function generateBetaAccessEmail(name?: string) {
       </head>
       <body>
         <div class="container">
-          <div class="header"><h1>Welcome to GolfIQ Beta</h1></div>
+          <div class="header"><h1>Welcome to GolfIQ Beta! 🎉</h1></div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Great news! You've been granted access to the GolfIQ Beta.</p>
+            <p>Congrats! You're now one of the first to try GolfIQ Beta!</p>
             <p>You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.</p>
+
+            <!--[if mso]>
+            <table align="center" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td align="center" bgcolor="#28a745" style="padding:16px 40px;">
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${appUrl}/register" style="height:50px;v-text-anchor:middle;width:200px;" arcsize="8%" strokecolor="#28a745" fillcolor="#28a745">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Create Your Account</center>
+                  </v:roundrect>
+                </td>
+              </tr>
+            </table>
+            <![endif]-->
+
+            <!--[if !mso]><!-- -->
             <p style="text-align:center; margin:30px 0;">
-              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register" target="_blank" rel="noopener" style="${buttonStyle('#28a745')}">Create Your Account</a>
+              <a href="${appUrl}/register" target="_blank" rel="noopener" style="${buttonInlineStyle('#28a745')}">Create Your Account</a>
             </p>
+            <!--<![endif]-->
+
             <p><strong>What's included in the beta:</strong></p>
             <ul>
               <li>Comprehensive round tracking (quick or hole-by-hole)</li>
@@ -291,15 +362,15 @@ export function generateBetaAccessEmail(name?: string) {
   `;
 
   const text = `
-Welcome to GolfIQ Beta
+Welcome to GolfIQ Beta! 🎉
 
 ${greeting},
 
-Great news! You've been granted access to the GolfIQ Beta.
+Congrats! You're now one of the first to try GolfIQ Beta!
 
 You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.
 
-Create your account here: ${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register
+Create your account here: ${appUrl}/register
 
 What's included in the beta:
 - Comprehensive round tracking (quick or hole-by-hole)
