@@ -48,5 +48,9 @@ yarn-error.log*
 
 # AI assistants
 .claude/
+CLAUDE.md
+
+# documentation
+/docs
 
 .NUL
