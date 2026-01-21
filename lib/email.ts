@@ -22,7 +22,6 @@ export const EMAIL_FROM = {
 } as const;
 
 export async function sendEmail({ to, subject, html, text, from }: SendEmailOptions): Promise<boolean> {
-  // Development mode: also log email to console for debugging
   if (process.env.NODE_ENV === 'development') {
     console.log('\n========== EMAIL ===========');
     console.log('To:', to);
@@ -33,9 +32,8 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailOpti
   }
 
   try {
-    // Send email via Resend
     const { data, error } = await resend.emails.send({
-      from: from || EMAIL_FROM.NOREPLY, // Use provided from or default to noreply
+      from: from || EMAIL_FROM.NOREPLY,
       to,
       subject,
       html,
@@ -58,7 +56,24 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailOpti
   }
 }
 
-export function generateEmailVerificationEmail(verifyUrl: string, firstName?: string): { subject: string; html: string; text: string } {
+/** BUTTON STYLES */
+const buttonStyle = (bgColor: string) => `
+  display:inline-block;
+  background-color:${bgColor};
+  color:#ffffff !important;
+  text-decoration:none !important;
+  font-weight:bold;
+  font-size:16px;
+  padding:16px 40px;
+  border-radius:5px;
+  min-width:200px;
+  text-align:center;
+  -webkit-text-size-adjust:none;
+`;
+
+/** EMAIL TEMPLATES */
+
+export function generateEmailVerificationEmail(verifyUrl: string, firstName?: string) {
   const subject = 'Verify your GolfIQ account';
   const greeting = firstName ? `Hello ${firstName}` : 'Hello';
 
@@ -69,46 +84,27 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          .container { max-width:600px; margin:0 auto; padding:20px; }
+          .header { background-color:#28a745; color:white; padding:20px; text-align:center; border-radius:5px 5px 0 0; }
+          .content { background-color:#f9f9f9; padding:30px; border-radius:0 0 5px 5px; }
+          .footer { margin-top:20px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666; text-align:center; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="header">
-            <h1>Welcome to GolfIQ!</h1>
-          </div>
+          <div class="header"><h1>Welcome to GolfIQ!</h1></div>
           <div class="content">
             <p>${greeting},</p>
             <p>Thank you for registering! Please verify your email address to complete your account setup:</p>
-            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
-              <tr>
-                <td align="center" bgcolor="#28a745" style="border-radius:5px;">
-                  <a href="${verifyUrl}" target="_blank" rel="noopener" style="
-                    display:inline-block;
-                    font-family: Arial, sans-serif;
-                    font-size:16px;
-                    font-weight:bold;
-                    color:#ffffff !important;
-                    text-decoration:none !important;
-                    padding:16px 40px;
-                    border-radius:5px;
-                    min-width:200px;
-                    text-align:center;
-                  ">Verify Email Address</a>
-                </td>
-              </tr>
-            </table>
+            <p style="text-align:center; margin:30px 0;">
+              <a href="${verifyUrl}" target="_blank" rel="noopener" style="${buttonStyle('#28a745')}">Verify Email Address</a>
+            </p>
             <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #28a745;">${verifyUrl}</p>
+            <p style="word-break: break-all; color:#28a745;">${verifyUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
             <p>If you didn't create a GolfIQ account, you can safely ignore this email.</p>
           </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</p>
-          </div>
+          <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
       </body>
     </html>
@@ -133,7 +129,7 @@ If you didn't create a GolfIQ account, you can safely ignore this email.
   return { subject, html, text };
 }
 
-export function generatePasswordResetEmail(resetUrl: string): { subject: string; html: string; text: string } {
+export function generatePasswordResetEmail(resetUrl: string) {
   const subject = 'Reset your GolfIQ password';
 
   const html = `
@@ -142,47 +138,28 @@ export function generatePasswordResetEmail(resetUrl: string): { subject: string;
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          body { font-family: Arial, sans-serif; line-height:1.6; color:#333; margin:0; padding:0; }
+          .container { max-width:600px; margin:0 auto; padding:20px; }
+          .header { background-color:#007bff; color:white; padding:20px; text-align:center; border-radius:5px 5px 0 0; }
+          .content { background-color:#f9f9f9; padding:30px; border-radius:0 0 5px 5px; }
+          .footer { margin-top:20px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666; text-align:center; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="header">
-            <h1>GolfIQ Password Reset</h1>
-          </div>
+          <div class="header"><h1>GolfIQ Password Reset</h1></div>
           <div class="content">
             <p>Hello,</p>
             <p>You requested to reset your password. Click the button below to reset it:</p>
-            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
-              <tr>
-                <td align="center" bgcolor="#007bff" style="border-radius:5px;">
-                  <a href="${resetUrl}" target="_blank" rel="noopener" style="
-                    display:inline-block;
-                    font-family: Arial, sans-serif;
-                    font-size:16px;
-                    font-weight:bold;
-                    color:#ffffff !important;
-                    text-decoration:none !important;
-                    padding:16px 40px;
-                    border-radius:5px;
-                    min-width:200px;
-                    text-align:center;
-                  ">Reset Password</a>
-                </td>
-              </tr>
-            </table>
+            <p style="text-align:center; margin:30px 0;">
+              <a href="${resetUrl}" target="_blank" rel="noopener" style="${buttonStyle('#007bff')}">Reset Password</a>
+            </p>
             <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #007bff;">${resetUrl}</p>
+            <p style="word-break: break-all; color:#007bff;">${resetUrl}</p>
             <p><strong>This link will expire in 1 hour.</strong></p>
             <p>If you didn't request a password reset, you can safely ignore this email.</p>
           </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</p>
-          </div>
+          <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
       </body>
     </html>
@@ -207,7 +184,7 @@ If you didn't request a password reset, you can safely ignore this email.
   return { subject, html, text };
 }
 
-export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { name: string; confirmationUrl: string; }): { subject: string; html: string; text: string } {
+export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { name: string; confirmationUrl: string }) {
   const subject = 'Confirm Your Spot on the GolfIQ Beta Waitlist';
   const greeting = name ? `Hello ${name}` : 'Hello';
 
@@ -217,49 +194,30 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          body { font-family: Arial, sans-serif; line-height:1.6; color:#333; margin:0; padding:0; }
+          .container { max-width:600px; margin:0 auto; padding:20px; }
+          .header { background-color:#007bff; color:white; padding:20px; text-align:center; border-radius:5px 5px 0 0; }
+          .content { background-color:#f9f9f9; padding:30px; border-radius:0 0 5px 5px; }
+          .footer { margin-top:20px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666; text-align:center; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="header">
-            <h1>You're on the Waitlist</h1>
-          </div>
+          <div class="header"><h1>You're on the Waitlist</h1></div>
           <div class="content">
             <p>${greeting},</p>
             <p>Thanks for your interest in GolfIQ Beta. Please confirm your email to secure your spot on the waitlist:</p>
-            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
-              <tr>
-                <td align="center" bgcolor="#007bff" style="border-radius:5px;">
-                  <a href="${confirmationUrl}" target="_blank" rel="noopener" style="
-                    display:inline-block;
-                    font-family: Arial, sans-serif;
-                    font-size:16px;
-                    font-weight:bold;
-                    color:#ffffff !important;
-                    text-decoration:none !important;
-                    padding:16px 40px;
-                    border-radius:5px;
-                    min-width:200px;
-                    text-align:center;
-                  ">Confirm Email Address</a>
-                </td>
-              </tr>
-            </table>
+            <p style="text-align:center; margin:30px 0;">
+              <a href="${confirmationUrl}" target="_blank" rel="noopener" style="${buttonStyle('#007bff')}">Confirm Email Address</a>
+            </p>
             <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #007bff;">${confirmationUrl}</p>
+            <p style="word-break: break-all; color:#007bff;">${confirmationUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
             <p><strong>What happens next?</strong></p>
             <p>You'll receive a separate email once you've been granted access to create your account. We're reviewing applications and will notify you as soon as a spot opens up.</p>
             <p>If you didn't sign up for the waitlist, you can safely ignore this email.</p>
           </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</p>
-          </div>
+          <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
       </body>
     </html>
@@ -287,7 +245,7 @@ If you didn't sign up for the waitlist, you can safely ignore this email.
   return { subject, html, text };
 }
 
-export function generateBetaAccessEmail(name?: string): { subject: string; html: string; text: string } {
+export function generateBetaAccessEmail(name?: string) {
   const subject = 'You\'ve Been Granted Access to GolfIQ Beta';
   const greeting = name ? `Hello ${name}` : 'Hello';
 
@@ -297,40 +255,23 @@ export function generateBetaAccessEmail(name?: string): { subject: string; html:
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }
+          body { font-family: Arial, sans-serif; line-height:1.6; color:#333; margin:0; padding:0; }
+          .container { max-width:600px; margin:0 auto; padding:20px; }
+          .header { background-color:#28a745; color:white; padding:20px; text-align:center; border-radius:5px 5px 0 0; }
+          .content { background-color:#f9f9f9; padding:30px; border-radius:0 0 5px 5px; }
+          .footer { margin-top:20px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666; text-align:center; }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="header">
-            <h1>Welcome to GolfIQ Beta</h1>
-          </div>
+          <div class="header"><h1>Welcome to GolfIQ Beta</h1></div>
           <div class="content">
             <p>${greeting},</p>
             <p>Great news! You've been granted access to the GolfIQ Beta.</p>
             <p>You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.</p>
-            <table cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 30px auto;">
-              <tr>
-                <td align="center" bgcolor="#28a745" style="border-radius:5px;">
-                  <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register" target="_blank" rel="noopener" style="
-                    display:inline-block;
-                    font-family: Arial, sans-serif;
-                    font-size:16px;
-                    font-weight:bold;
-                    color:#ffffff !important;
-                    text-decoration:none !important;
-                    padding:16px 40px;
-                    border-radius:5px;
-                    min-width:200px;
-                    text-align:center;
-                  ">Create Your Account</a>
-                </td>
-              </tr>
-            </table>
+            <p style="text-align:center; margin:30px 0;">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca'}/register" target="_blank" rel="noopener" style="${buttonStyle('#28a745')}">Create Your Account</a>
+            </p>
             <p><strong>What's included in the beta:</strong></p>
             <ul>
               <li>Comprehensive round tracking (quick or hole-by-hole)</li>
@@ -343,9 +284,7 @@ export function generateBetaAccessEmail(name?: string): { subject: string; html:
             <p>We'd love to hear your feedback as you use the app. Your input will help shape the future of GolfIQ.</p>
             <p>Welcome aboard!</p>
           </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</p>
-          </div>
+          <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
       </body>
     </html>
