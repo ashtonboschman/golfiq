@@ -3646,6 +3646,9 @@ input[type='date'].form-input {
 }
 
 .landing-logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   font-size: 24px;
   font-weight: bold;
   cursor: pointer;

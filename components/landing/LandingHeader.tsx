@@ -18,7 +18,7 @@ export default function LandingHeader() {
           <Image
             src="/logos/wordmark/golfiq-wordmark.png"
             alt="GolfIQ"
-            width={120}
+            width={160}
             height={40}
             priority
           />
