@@ -13,15 +13,31 @@ export const metadata: Metadata = {
   description:
     "GolfIQ helps you track your golf rounds, analyze your performance, and improve your game with AI-powered insights.",
 
+  icons: {
+    apple: "/logos/favicon/golfiq-icon-180.png",
+    icon: [
+      {
+        url: "/logos/favicon/golfiq-icon-16.png",
+        sizes: "16x16",
+        type: "image/png",
+      },
+      {
+        url: "/logos/favicon/golfiq-icon-32.png",
+        sizes: "32x32",
+        type: "image/png",
+      },
+    ],
+  },
+
   openGraph: {
     title: "GolfIQ",
     description:
       "Smart insights for golfers. Track rounds, analyze performance, and improve your game.",
-    url: "https://golfiq.ca", // replace with prod domain
+    url: "https://golfiq.ca",
     siteName: "GolfIQ",
     images: [
       {
-        url: "https://golfiq.ca/logos/share/golfiq-share.png",
+        url: "/logos/share/golfiq-share.png",
         width: 1200,
         height: 630,
         alt: "GolfIQ – Smart Golf Insights",
@@ -35,9 +51,7 @@ export const metadata: Metadata = {
     title: "GolfIQ",
     description:
       "Smart insights for golfers. Track rounds and improve your game.",
-    images: [
-      "https://golfiq.ca/logos/share/golfiq-share.png",
-    ],
+    images: ["/logos/share/golfiq-share.png"],
   },
 };
 
@@ -71,9 +85,6 @@ export default function RootLayout({
       <head>
         <meta name="google-adsense-account" content="ca-pub-6375440969561474" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/logos/favicon/golfiq-icon-180.png" sizes="180x180"/>
-        <link rel="icon" type="image/png" href="/logos/favicon/golfiq-icon-16.png" sizes="16x16" />
-        <link rel="icon" type="image/png" href="/logos/favicon/golfiq-icon-32.png" sizes="32x32" />
         {adSenseId && (
           <Script
             async
