@@ -30,12 +30,18 @@ export const metadata: Metadata = {
   },
 
   openGraph: {
-    title: "GolfIQ",
+    title: "GolfIQ - Track Your Golf Game",
     description:
       "Smart insights for golfers. Track rounds, analyze performance, and improve your game.",
     url: "https://golfiq.ca",
     siteName: "GolfIQ",
     images: [
+      {
+        url: "/logos/favicon/golfiq-icon-180.png",
+        width: 180,
+        height: 180,
+        alt: "GolfIQ Logo",
+      },
       {
         url: "/logos/share/golfiq-share.png",
         width: 1200,
