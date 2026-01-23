@@ -37,16 +37,10 @@ export const metadata: Metadata = {
     siteName: "GolfIQ",
     images: [
       {
-        url: "/logos/favicon/golfiq-icon-180.png",
-        width: 180,
-        height: 180,
+        url: "/logos/favicon/golfiq-icon-512.png",
+        width: 512,
+        height: 512,
         alt: "GolfIQ Logo",
-      },
-      {
-        url: "/logos/share/golfiq-share.png",
-        width: 1200,
-        height: 630,
-        alt: "GolfIQ – Smart Golf Insights",
       },
     ],
     type: "website",
