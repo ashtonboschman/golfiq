@@ -45,6 +45,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@svgr/webpack": "^8.1.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/bcryptjs": "^2.4.6",
     "@types/chart.js": "^2.9.41",

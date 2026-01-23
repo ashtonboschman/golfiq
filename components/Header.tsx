@@ -5,6 +5,20 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { useTheme } from '@/context/ThemeContext';
+
+const LOGO_BY_THEME: Record<string, string> = {
+  dark: '/logos/wordmark/golfiq-wordmark.png',
+  light: '/logos/wordmark/golfiq-wordmark-light.png',
+  sunrise: '/logos/wordmark/golfiq-wordmark-sunrise.png',
+  twilight: '/logos/wordmark/golfiq-wordmark-twilight.png',
+  classic: '/logos/wordmark/golfiq-wordmark-classic.png',
+  metallic: '/logos/wordmark/golfiq-wordmark-metallic.png',
+  oceanic: '/logos/wordmark/golfiq-wordmark-oceanic.png',
+  aurora: '/logos/wordmark/golfiq-wordmark-aurora.png',
+  forest: '/logos/wordmark/golfiq-wordmark-forest.png',
+  floral: '/logos/wordmark/golfiq-wordmark-floral.png',
+};
 
 export default function Header() {
   const { data: session } = useSession();
@@ -13,6 +27,8 @@ export default function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { avatarUrl } = useAvatar();
+  const { theme } = useTheme();
+  const logoSrc = LOGO_BY_THEME[theme] || '/logos/wordmark/golfiq-wordmark.png';
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -148,7 +164,7 @@ export default function Header() {
 
         
         <img
-          src={'/logos/wordmark/golfiq-wordmark.png'}
+          src={logoSrc}
           alt="GolfIQ"
           height="40"
           onClick={() => {
