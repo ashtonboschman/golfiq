@@ -25,6 +25,7 @@ interface Tee {
   total_yards: number;
   number_of_holes: number;
   holes?: Hole[];
+  par_total: number;
 }
 
 interface Course {
@@ -181,7 +182,12 @@ export default function CourseDetailsPage() {
       </button>
 
       <div className="card course-card">
-        <h2 className="course-name">{course.course_name}</h2>
+        <div className="course-name-container">
+          <h2 className="course-name">{course.course_name}</h2>
+          <p className="round-holes-tag">
+            {selectedTee?.number_of_holes} Holes
+          </p>
+        </div>
         <p className="course-club">
           <strong><Landmark size='14'/></strong> {course.club_name}
         </p>
@@ -223,12 +229,15 @@ export default function CourseDetailsPage() {
 
       {selectedTee && (
         <div className="card course-scorecard-meta">
-          <span>
-            <strong className='form-label'>Rating</strong> {selectedTee.course_rating}
-          </span>
-          <span>
-            <strong className='form-label'>Slope</strong> {selectedTee.slope_rating}
-          </span>
+          <div>
+            <strong className='form-label'>Par</strong> {selectedTee.par_total}
+          </div>
+          <div>
+            <strong className='form-label'>Yards</strong> {selectedTee.total_yards}
+          </div>
+          <div>
+            <strong className='form-label'>Rating / Slope</strong> {selectedTee.course_rating} / {selectedTee.slope_rating}
+          </div>
         </div>
       )}
 

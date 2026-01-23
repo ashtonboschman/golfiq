@@ -8,7 +8,7 @@ export default function LeaderboardHeader({ sortBy, sortOrder, onSort }: Leaderb
   const headers = [
     { key: 'rank', label: '#' },
     { key: 'name', label: 'Name' },
-    { key: 'handicap', label: 'Hcp' },
+    { key: 'handicap', label: 'HCP' },
     { key: 'average_score', label: 'Avg' },
     { key: 'best_score', label: 'Best' },
   ];

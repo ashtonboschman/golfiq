@@ -144,6 +144,16 @@ function ResetPasswordForm() {
               disabled={loading}
               style={{ paddingRight: '45px' }}
               max={100}
+              onFocus={(e) => {
+                const len = e.target.value.length;
+                e.target.setSelectionRange(len, len);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="done"
             />
             <button
               type="button"
@@ -179,6 +189,16 @@ function ResetPasswordForm() {
               disabled={loading}
               style={{ paddingRight: '45px' }}
               max={100}
+              onFocus={(e) => {
+                const len = e.target.value.length;
+                e.target.setSelectionRange(len, len);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="done"
             />
             <button
               type="button"

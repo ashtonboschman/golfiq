@@ -176,6 +176,16 @@ export default function LoginPage() {
                 required
                 className="form-input"
                 max={100}
+                onFocus={(e) => {
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                enterKeyHint="done"
               />
               <input
                 name="last_name"
@@ -185,6 +195,16 @@ export default function LoginPage() {
                 required
                 className="form-input"
                 max={100}
+                onFocus={(e) => {
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                enterKeyHint="done"
               />
             </>
           )}
@@ -197,6 +217,15 @@ export default function LoginPage() {
             required
             className="form-input"
             max={250}
+            onFocus={(e) => {
+              const input = e.target as HTMLInputElement;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            enterKeyHint="done"
           />
           <div style={{ position: 'relative' }}>
             <input
@@ -209,6 +238,16 @@ export default function LoginPage() {
               className="form-input"
               style={{ paddingRight: '45px' }}
               max={100}
+              onFocus={(e) => {
+                const len = e.target.value.length;
+                e.target.setSelectionRange(len, len);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="done"
             />
             <button
               type="button"

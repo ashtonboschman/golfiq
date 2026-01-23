@@ -29,8 +29,8 @@
   --padding-large: 20px;
 
   /* Base Specific Colors */
-  --color-green: #2bb673;
-  --color-green-hover: #239a60;
+  --color-green: #28a065;
+  --color-green-hover: #1f7f50;
   --color-red: #e74c3c;
   --color-red-hover: #972e22;
   --color-blue: #3498db;
@@ -902,11 +902,13 @@ select option {
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   overflow: hidden;
   z-index: 10;
-  min-width: 200px;
+  min-width: 165px;
 }
 
 .avatar-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: left;
   width: 100%;
   padding: var(--padding);
   cursor: pointer;
@@ -917,15 +919,16 @@ select option {
   font-family: inherit;
   font-weight: bold;
   transition: background-color 0.2s ease, opacity 0.2s ease;
+  gap: var(--gap);
 }
 
 .avatar-menu-item.border-bottom {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: avatar-menu-item
 }
 
 .avatar-menu-item.upload {
   background-color: var(--color-green);
-  color: var(--color-primary-text);
+  color: var(--color-white-text);
 }
 
 .avatar-menu-item.upload:hover {
@@ -983,6 +986,12 @@ select option {
   display: flex;
   align-items: center;
   margin-left: auto;
+}
+
+.course-name-container {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
 }
 
 .course-name {
@@ -1081,7 +1090,6 @@ select option {
   color: var(--color-secondary-text);
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
   gap: var(--gap);
   font-size: 0.95rem;
   flex: 1;
@@ -1093,6 +1101,15 @@ select option {
   flex: 1;
   gap: var(--gap);
   align-items: center;
+}
+
+.course-scorecard-meta div {
+  font-weight: 500;
+  display: flex;
+  flex: 1;
+  gap: var(--gap);
+  align-items: center;
+  white-space: nowrap;
 }
 
 .course-scorecard-right {
@@ -1994,7 +2011,7 @@ select option {
 }
 
 .friend-stats .stat-label {
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .friend-actions {
@@ -2118,7 +2135,7 @@ select option {
 .btn-save,
 .btn-accept {
   background-color: var(--color-green);
-  color: var(--color-white-text);
+  color: var(--color-white);
 }
 
 .btn-save:hover,
@@ -2144,7 +2161,7 @@ select option {
 .btn-remove,
 .btn-logout {
   background-color: var(--color-red);
-  color: var(--color-white-text);
+  color: var(--color-white);
 }
 
 .btn-cancel:hover,
@@ -2156,19 +2173,19 @@ select option {
 
 .btn-disabled {
   background-color: var(--color-gray);
-  color: var(--color-white-text);
+  color: var(--color-white);
   cursor: not-allowed;
 }
 
 .btn-friends {
   background-color: var(--color-blue);
-  color: var(--color-white-text);
+  color: var(--color-white);
   cursor: not-allowed;
 }
 
 .btn-edit {
   background-color: var(--color-blue);
-  color: var(--color-white-text);
+  color: var(--color-white);
 }
 
 .btn-edit:hover {
@@ -2740,7 +2757,7 @@ input[type='date'].form-input {
 
 .btn-primary {
   background-color: var(--color-blue);
-  color: var(--color-white-text);
+  color: var(--color-white);
 }
 
 .btn-primary:hover {
@@ -3016,7 +3033,7 @@ input[type='date'].form-input {
   font-size: 1.1rem;
   font-weight: bold;
   background: linear-gradient(135deg, var(--color-gradient-1) 0%, var(--color-gradient-2) 50%, var(--color-gradient-3) 100%);
-  color: var(--color-white-text);
+  color: var(--color-white);
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
@@ -3034,7 +3051,7 @@ input[type='date'].form-input {
   font-size: 1rem;
   font-weight: bold;
   background-color: var(--color-blue);
-  color: var(--color-white-text);
+  color: var(--color-white);
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
@@ -3374,6 +3391,14 @@ input[type='date'].form-input {
   align-items: flex-start;
 }
 
+.stats-header-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--gap-small);
+}
+
 .stats-header-title {
   margin: 0;
   font-size: 1.75rem;
@@ -3384,6 +3409,21 @@ input[type='date'].form-input {
   margin: 0;
   font-size: 0.9rem;
   color: var(--color-secondary-text);
+}
+
+.round-holes-tag {
+  display: inline-block;
+  align-self: flex-start;
+  background-color: var(--color-secondary-surface);
+  color: var(--color-secondary-text);
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin: 0;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .stats-header .btn-edit {
@@ -3796,11 +3836,11 @@ input[type='date'].form-input {
 }
 
 .carousel-button-prev {
-  left: -60px; /* Position outside phone frame on the left */
+  left: -20px; /* Position outside phone frame on the left */
 }
 
 .carousel-button-next {
-  right: -60px; /* Position outside phone frame on the right */
+  right: -20px; /* Position outside phone frame on the right */
 }
 
 .carousel-indicators {
@@ -3873,40 +3913,16 @@ input[type='date'].form-input {
   }
 
   .carousel-button {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
   }
 
   .carousel-button-prev {
-    left: 6px;
+    left: -10px;
   }
 
   .carousel-button-next {
-    right: 6px;
-  }
-}
-
-@media (max-width: 480px) {
-  .screenshot-carousel {
-    max-width: 280px;
-    max-height: 420px;
-  }
-
-  .phone-mockup-wrapper {
-    max-height: 420px;
-  }
-
-  .carousel-button {
-    width: 32px;
-    height: 32px;
-  }
-
-  .carousel-button-prev {
-    left: 4px;
-  }
-
-  .carousel-button-next {
-    right: 4px;
+    right: -10px;
   }
 }
 

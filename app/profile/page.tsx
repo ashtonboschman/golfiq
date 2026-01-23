@@ -523,14 +523,13 @@ export default function ProfilePage() {
                 htmlFor="avatar-upload"
                 className="avatar-menu-item upload border-bottom"
               >
-                <Upload/>
+                <Upload/> Upload Photo
               </label>
               <button
                 type="button"
                 onClick={handleRemoveAvatar}
-                className="avatar-menu-item remove"
-              >
-                <Trash2/>
+                className="avatar-menu-item remove">
+                <Trash2/> Remove Photo
               </button>
             </div>
           )}

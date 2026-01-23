@@ -104,6 +104,15 @@ export default function ForgotPasswordPage() {
             required
             disabled={loading}
             max={250}
+            onFocus={(e) => {
+              const input = e.target as HTMLInputElement;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            enterKeyHint="done"
           />
 
           <button type="submit" className="btn btn-accent" disabled={loading}>

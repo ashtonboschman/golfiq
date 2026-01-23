@@ -35,6 +35,7 @@ interface RoundStats {
   course_name: string;
   tee_name: string;
   date: string;
+  number_of_holes: number;
   total_score: number;
   total_par: number;
   score_to_par: number;
@@ -186,14 +187,17 @@ export default function RoundStatsPage() {
     <div className="page-stack">
       <div className='card'>
         <div className="stats-header">
-          <div>
+          <div className='stats-header-container'>
             <h1 className="stats-header-title">
               {stats.course_name}
             </h1>
             <p className="stats-header-subtitle">
               {formatDate(stats.date)} • {stats.tee_name} Tees
             </p>
-          </div>
+            <p className="round-holes-tag">
+              {stats.number_of_holes} Holes
+            </p>
+          </div>          
           <div style={{ display: 'flex', gap: '10px' }}>
             <Link
               href={`/rounds/edit/${roundId}`}
@@ -382,9 +386,15 @@ export default function RoundStatsPage() {
         )}
 
         {/* Navigation Button */}
-        <div className="form-actions">
+        <div className="form">
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/rounds')}
+            className="btn btn-add"
+          >
+            Back to Rounds
+          </button>
+          <button
+            onClick={() => router.push('/dashboard')}
             className="btn btn-add"
           >
             Back to Dashboard

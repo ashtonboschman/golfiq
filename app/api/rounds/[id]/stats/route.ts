@@ -138,6 +138,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const stats = {
       round_id: round.id.toString(),
       course_name: courseName,
+      number_of_holes: round.tee.numberOfHoles,
       tee_name: round.tee.teeName,
       date: round.date,
       total_score: round.score,

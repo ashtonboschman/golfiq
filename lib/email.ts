@@ -220,7 +220,7 @@ If you didn't request a password reset, you can safely ignore this email.
 
 /** GENERATE WAITLIST CONFIRMATION EMAIL */
 export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { name: string; confirmationUrl: string }) {
-  const subject = '⛳ Confirm Your Spot on the GolfIQ Beta Waitlist';
+  const subject = '⛳ Confirm Your Email for GolfIQ Beta Waitlist';
   const greeting = name ? `Hello ${name}` : 'Hello';
 
   const html = `
@@ -238,10 +238,10 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
       </head>
       <body>
         <div class="container">
-          <div class="header"><h1>You're officially on the waitlist! 🎉</h1></div>
+          <div class="header"><h1>Confirm Your Email to Join the Beta</h1></div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Thanks for your interest in GolfIQ Beta. Confirm your email to lock in your spot and be one of the first to try GolfIQ Beta:</p>
+            <p>Thanks for your interest in GolfIQ Beta. To be considered for access, please confirm your email:</p>
 
             <!--[if mso]>
             <table align="center" border="0" cellspacing="0" cellpadding="0">
@@ -265,9 +265,9 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color:#007bff;">${confirmationUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
-            <p><strong>What happens next?</strong></p>
-            <p>You'll receive a separate email once you've been granted access to create your account. We're reviewing applications and will notify you as soon as a spot opens up.</p>
-            <p>If you didn't sign up for the waitlist, you can safely ignore this email.</p>
+            <p><strong>Next steps:</strong></p>
+            <p>Once you confirm your email, you’ll be eligible to be granted beta access. We review applications carefully and will notify you when a spot becomes available.</p>
+            <p>If you didn’t sign up for the waitlist, you can safely ignore this email.</p>
           </div>
           <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
@@ -276,20 +276,20 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
   `;
 
   const text = `
-You're officially on the waitlist! 🎉
+Confirm Your Email to Join the Beta
 
 ${greeting},
 
-Thanks for your interest in GolfIQ Beta. Confirm your email to lock in your spot and be one of the first to try GolfIQ Beta:
+Thanks for your interest in GolfIQ Beta. To be considered for access, please confirm your email:
 
 ${confirmationUrl}
 
 This link will expire in 24 hours.
 
-What happens next?
-You'll receive a separate email once you've been granted access to create your account. We're reviewing applications and will notify you as soon as a spot opens up.
+Next steps:
+Once you confirm your email, you’ll be eligible to be granted beta access. We review applications carefully and will notify you when a spot becomes available.
 
-If you didn't sign up for the waitlist, you can safely ignore this email.
+If you didn’t sign up for the waitlist, you can safely ignore this email.
 
 © ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();
@@ -386,6 +386,70 @@ What's included in the beta:
 We'd love to hear your feedback as you use the app. Your input will help shape the future of GolfIQ.
 
 Welcome aboard!
+
+© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+  `.trim();
+
+  return { subject, html, text };
+}
+
+/** GENERATE ANONYMOUS ADMIN NOTIFICATION EMAIL WHEN SOMEONE CONFIRMS WAITLIST EMAIL */
+export function generateWaitlistAdminNotificationEmail({
+  confirmationDate,
+  source,
+}: {
+  confirmationDate: string; // ISO string or formatted date
+  source?: string; // e.g., 'landing_page', 'referral', etc.
+}) {
+  const subject = `📝 Waitlist Confirmation: A user confirmed their email`;
+  const greeting = 'Hello Admin,';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: Arial, sans-serif; line-height:1.6; color:#333; margin:0; padding:0; }
+          .container { max-width:600px; margin:0 auto; padding:20px; }
+          .header { background-color:#28a745; color:white; padding:20px; text-align:center; border-radius:5px 5px 0 0; }
+          .content { background-color:#f9f9f9; padding:30px; border-radius:0 0 5px 5px; }
+          .footer { margin-top:20px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666; text-align:center; }
+          .info { background-color:#e9ecef; padding:15px; border-radius:5px; margin:15px 0; }
+          .info p { margin:5px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header"><h1>Waitlist Email Confirmed ✅</h1></div>
+          <div class="content">
+            <p>${greeting}</p>
+            <p>Someone has confirmed their email for the GolfIQ Beta Waitlist.</p>
+
+            <div class="info">
+              <p><strong>Confirmation Date:</strong> ${confirmationDate}</p>
+              ${source ? `<p><strong>Signup Source:</strong> ${source}</p>` : ''}
+            </div>
+
+            <p>You can now consider granting beta access when appropriate.</p>
+          </div>
+          <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved;</div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const text = `
+Waitlist Email Confirmed
+
+${greeting}
+
+Someone has confirmed their email for the GolfIQ Beta Waitlist.
+
+Confirmation Date: ${confirmationDate}
+${source ? `Signup Source: ${source}` : ''}
+
+You can now consider granting beta access when appropriate.
 
 © ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();

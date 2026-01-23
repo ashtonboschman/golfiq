@@ -67,7 +67,7 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
           </div>
           <div className="friend-stats">
             <span className="stat-item">
-              <span className="stat-label">Hcp</span> {formatHandicap(friend.handicap)}
+              <span className="stat-label">HCP</span> {formatHandicap(friend.handicap)}
             </span>
             <span className="stat-item">
               <span className="stat-label">Avg</span> {formatToPar(friend.average_score)}

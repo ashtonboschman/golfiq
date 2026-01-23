@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { sendEmail, generateWaitlistAdminNotificationEmail, EMAIL_FROM } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   try {
@@ -79,6 +80,18 @@ export async function POST(req: NextRequest) {
         confirmed: true,
         confirmationToken: null,
       },
+    });
+
+    const adminEmailContent = generateWaitlistAdminNotificationEmail({
+      confirmationDate: new Date().toISOString(),
+    });
+
+    await sendEmail({
+      to: 'ashtonboschman16@gmail.com',
+      subject: adminEmailContent.subject,
+      html: adminEmailContent.html,
+      text: adminEmailContent.text,
+      from: EMAIL_FROM.ONBOARDING,
     });
 
     return NextResponse.json({

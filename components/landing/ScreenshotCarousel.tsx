@@ -19,19 +19,19 @@ export default function ScreenshotCarousel() {
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const screenshots: Screenshot[] = [
-    { src: '/photos/dashboard_1.PNG', alt: 'GolfIQ Dashboard - Overview' },
-    { src: '/photos/dashboard_2.PNG', alt: 'GolfIQ Dashboard - Analytics' },
-    { src: '/photos/dashboard_3.PNG', alt: 'GolfIQ Dashboard - Insights' },
-    { src: '/photos/rounds.png', alt: 'GolfIQ Rounds' },
-    { src: '/photos/add_round_quick_simple.png', alt: 'GolfIQ Add Round - Quick & Simple' },
-    { src: '/photos/add_round_hole_by_hole_advanced.png', alt: 'GolfIQ Add Round - Hole by Hole Advanced' },
-    { src: '/photos/round_stats_1.png', alt: 'GolfIQ Round Stats - Overview' },
-    { src: '/photos/courses.png', alt: 'GolfIQ Courses' },
-    { src: '/photos/course_details.png', alt: 'GolfIQ Course Details' },
-    { src: '/photos/friends.png', alt: 'GolfIQ Friends' },
-    { src: '/photos/leaderboard_global.png', alt: 'GolfIQ Leaderboard - Global' },
-    { src: '/photos/leaderboard_friends.png', alt: 'GolfIQ Leaderboard - Friends' },
-    { src: '/photos/themes.png', alt: 'GolfIQ Themes' },
+    { src: '/screenshots/landing/dashboard_1.PNG', alt: 'GolfIQ Dashboard - Overview' },
+    { src: '/screenshots/landing/dashboard_2.PNG', alt: 'GolfIQ Dashboard - Analytics' },
+    { src: '/screenshots/landing/dashboard_3.PNG', alt: 'GolfIQ Dashboard - Insights' },
+    { src: '/screenshots/landing/rounds.png', alt: 'GolfIQ Rounds' },
+    { src: '/screenshots/landing/add_round_quick_simple.png', alt: 'GolfIQ Add Round - Quick & Simple' },
+    { src: '/screenshots/landing/add_round_hole_by_hole_advanced.png', alt: 'GolfIQ Add Round - Hole by Hole Advanced' },
+    { src: '/screenshots/landing/round_stats_1.png', alt: 'GolfIQ Round Stats - Overview' },
+    { src: '/screenshots/landing/courses.png', alt: 'GolfIQ Courses' },
+    { src: '/screenshots/landing/course_details.png', alt: 'GolfIQ Course Details' },
+    { src: '/screenshots/landing/friends.png', alt: 'GolfIQ Friends' },
+    { src: '/screenshots/landing/leaderboard_global.png', alt: 'GolfIQ Leaderboard - Global' },
+    { src: '/screenshots/landing/leaderboard_friends.png', alt: 'GolfIQ Leaderboard - Friends' },
+    { src: '/screenshots/landing/themes.png', alt: 'GolfIQ Themes' },
   ];
 
   const minSwipeDistance = 50;
@@ -97,7 +97,6 @@ export default function ScreenshotCarousel() {
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          {/* Individual screenshots stacked on top of each other */}
           {screenshots.map((screenshot, index) => {
             const isCurrent = index === currentIndex;
             const isPrevious = index === previousIndex;
@@ -107,19 +106,12 @@ export default function ScreenshotCarousel() {
             let opacity = 0;
 
             if (isCurrent) {
-              if (isTransitioning) {
-                // Slide in from the appropriate direction
-                transform = direction === 'left' ? 'translateX(0)' : 'translateX(0)';
-              } else {
-                transform = 'translateX(0)';
-              }
+              transform = 'translateX(0)';
               opacity = 1;
             } else if (isPrevious && isTransitioning) {
-              // Slide out to the appropriate direction
               transform = direction === 'left' ? 'translateX(-100%)' : 'translateX(100%)';
               opacity = 0;
             } else {
-              // Hidden slides start off-screen in the direction they'll come from
               transform = index > currentIndex ? 'translateX(100%)' : 'translateX(-100%)';
               opacity = 0;
             }
@@ -150,10 +142,31 @@ export default function ScreenshotCarousel() {
           })}
         </div>
 
+        {/* Left / Right Buttons */}
+        {currentIndex > 0 && (
+          <button
+            className="carousel-button carousel-button-prev"
+            onClick={handlePrevious}
+            aria-label="Previous screenshot"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        )}
+
+        {currentIndex < screenshots.length - 1 && (
+          <button
+            className="carousel-button carousel-button-next"
+            onClick={handleNext}
+            aria-label="Next screenshot"
+          >
+            <ChevronRight size={24} />
+          </button>
+        )}
+
         {/* iPhone Frame Overlay */}
         <div className="phone-frame-overlay">
           <Image
-            src="/photos/iphone.png"
+            src="/screenshots/landing/iphone.png"
             alt="iPhone Frame"
             width={1200}
             height={800}

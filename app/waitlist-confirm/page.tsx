@@ -1,23 +1,23 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, TriangleAlert, X, Loader2 } from 'lucide-react';
 
 function WaitlistConfirmForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const hasConfirmedRef = useRef(false);
 
   useEffect(() => {
     const tokenParam = searchParams.get('token');
-    if (tokenParam) {
+    if (tokenParam && !hasConfirmedRef.current) {
       setToken(tokenParam);
-      // Automatically confirm when page loads with token
+      hasConfirmedRef.current = true;
       confirmWaitlist(tokenParam);
     }
   }, [searchParams]);
