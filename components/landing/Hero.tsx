@@ -30,7 +30,7 @@ export default function Hero() {
 
         <div className="landing-hero-actions">
           <button onClick={scrollToWaitlist} className="btn btn-accent btn-large">
-            Join Beta Waitlist
+            Get Early Access
           </button>
           <button onClick={scrollToFeatures} className="btn btn-secondary btn-large">
             See How It Works
