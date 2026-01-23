@@ -20,6 +20,7 @@ type TeeData = {
   total_yards: number | null;
   total_meters: number | null;
   number_of_holes: number | null;
+  non_par3_holes: number | null;
   par_total: number | null;
   front_course_rating: number | null;
   front_slope_rating: number | null;
@@ -40,6 +41,7 @@ type TeeFromDB = {
   totalYards: number | null;
   totalMeters: number | null;
   numberOfHoles: number | null;
+  nonPar3Holes: number | null;
   parTotal: number | null;
   frontCourseRating: string | number | null;
   frontSlopeRating: number | null;
@@ -92,6 +94,7 @@ async function buildCourseResponse(courseId: bigint | string) {
       total_yards: tee.totalYards ?? null,
       total_meters: tee.totalMeters ?? null,
       number_of_holes: tee.numberOfHoles ?? null,
+      non_par3_holes: tee.nonPar3Holes ?? null,
       par_total: tee.parTotal ?? null,
       front_course_rating: tee.frontCourseRating != null ? Number(tee.frontCourseRating) : null,
       front_slope_rating: tee.frontSlopeRating ?? null,
@@ -382,7 +385,6 @@ export async function POST(request: NextRequest) {
 
     // Create tees and holes if provided
     if (tees) {
-
       for (const gender of ['male', 'female']) {
         const genderTees = tees[gender];
         if (!genderTees || !Array.isArray(genderTees)) continue;
@@ -411,9 +413,16 @@ export async function POST(request: NextRequest) {
           const teeName = tee_name || '';
           if (teeName.toLowerCase().includes('combo') || teeName.includes('/') || teeName.includes('-')) {
             rejectedTees.push(`${teeName} (${gender})`);
-            continue; // Skip this tee
+            continue;
           }
 
+          // Precompute nonPar3Holes
+          let nonPar3Count = 0;
+          if (teeHoles && Array.isArray(teeHoles) && teeHoles.length > 0) {
+            nonPar3Count = teeHoles.reduce((count, h) => h.par && h.par !== 3 ? count + 1 : count, 0);
+          }
+
+          // Create tee with nonPar3Holes directly
           const createdTee = await prisma.tee.create({
             data: {
               id: teeIdFromApi ? BigInt(teeIdFromApi) : undefined,
@@ -426,6 +435,7 @@ export async function POST(request: NextRequest) {
               totalYards: total_yards || null,
               totalMeters: total_meters || null,
               numberOfHoles: number_of_holes || null,
+              nonPar3Holes: nonPar3Count,
               parTotal: par_total || null,
               frontCourseRating: front_course_rating ? String(front_course_rating) : null,
               frontSlopeRating: front_slope_rating || null,
@@ -438,18 +448,14 @@ export async function POST(request: NextRequest) {
 
           // Create holes for this tee
           if (teeHoles && Array.isArray(teeHoles) && teeHoles.length > 0) {
-            for (let i = 0; i < teeHoles.length; i++) {
-              const { par, yardage, handicap } = teeHoles[i];
-              await prisma.hole.create({
-                data: {
-                  teeId: createdTee.id,
-                  holeNumber: i + 1,
-                  par: par || null,
-                  yardage: yardage || null,
-                  handicap: handicap || null,
-                },
-              });
-            }
+            const holeData = teeHoles.map((h, i) => ({
+              teeId: createdTee.id,
+              holeNumber: i + 1,
+              par: h.par || null,
+              yardage: h.yardage || null,
+              handicap: h.handicap || null,
+            }));
+            await prisma.hole.createMany({ data: holeData });
           }
         }
       }

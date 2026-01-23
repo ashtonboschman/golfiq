@@ -151,6 +151,7 @@ model Tee {
   totalYards        Int?      @map("total_yards")
   totalMeters       Int?      @map("total_meters")
   numberOfHoles     Int?      @map("number_of_holes")
+  nonPar3Holes      Int       @map("non_par3_holes")
   parTotal          Int?      @map("par_total")
   frontCourseRating Decimal?  @map("front_course_rating") @db.Decimal(5, 2)
   frontSlopeRating  Int?      @map("front_slope_rating")
@@ -185,26 +186,27 @@ model Hole {
 }
 
 model Round {
-  id            BigInt      @id @default(autoincrement())
-  userId        BigInt      @map("user_id")
-  courseId      BigInt      @map("course_id")
-  teeId         BigInt      @map("tee_id")
-  holeByHole    Boolean     @default(false) @map("hole_by_hole")
-  advancedStats Boolean     @default(false) @map("advanced_stats")
-  date          DateTime    @db.Timestamptz(6)
-  score         Int
-  firHit        Int?        @map("fir_hit")
-  girHit        Int?        @map("gir_hit")
-  putts         Int?
-  penalties     Int?
-  notes         String?
-  createdDate   DateTime    @default(now()) @map("created_date")
-  updatedDate   DateTime    @updatedAt @map("updated_date")
-  toPar         Int?        @map("to_par") @db.SmallInt
-  roundHoles    RoundHole[]
-  course        Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  tee           Tee         @relation(fields: [teeId], references: [id])
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              BigInt      @id @default(autoincrement())
+  userId          BigInt      @map("user_id")
+  courseId        BigInt      @map("course_id")
+  teeId           BigInt      @map("tee_id")
+  holeByHole      Boolean     @default(false) @map("hole_by_hole")
+  advancedStats   Boolean     @default(false) @map("advanced_stats")
+  date            DateTime    @db.Timestamptz(6)
+  score           Int
+  firHit          Int?        @map("fir_hit")
+  girHit          Int?        @map("gir_hit")
+  putts           Int?
+  penalties       Int?
+  notes           String?
+  createdDate     DateTime    @default(now()) @map("created_date")
+  updatedDate     DateTime    @updatedAt @map("updated_date")
+  toPar           Int?        @map("to_par") @db.SmallInt
+  handicapAtRound Decimal?    @map("handicap_at_round") @db.Decimal(4, 1)
+  roundHoles      RoundHole[]
+  course          Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  tee             Tee         @relation(fields: [teeId], references: [id])
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_user_id")
   @@index([courseId], map: "idx_round_course_id")

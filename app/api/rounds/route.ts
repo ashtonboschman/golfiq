@@ -215,6 +215,11 @@ export async function POST(request: NextRequest) {
 
     const toPar = tee?.parTotal ? insertScore - tee.parTotal : null;
 
+    const userStats = await prisma.userLeaderboardStats.findUnique({
+      where: { userId },
+      select: { handicap: true },
+    });
+
     // Create round
     const round = await prisma.round.create({
       data: {
@@ -231,6 +236,7 @@ export async function POST(request: NextRequest) {
         putts: insertPutts,
         penalties: insertPenalties,
         notes: data.notes ?? null,
+        handicapAtRound: userStats?.handicap ?? null,
       },
     });
 

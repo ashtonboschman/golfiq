@@ -102,15 +102,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     // Calculate percentages (only if advanced stats were tracked)
     // Use the tee's hole count for totals
-    const totalHoles = round.tee.holes?.length || 0;
+    const totalHoles = round.tee.numberOfHoles ?? (round.tee.holes?.length || 0);
     const girPercentage = hasAdvancedStats && totalGIR !== null && totalHoles > 0
       ? ((totalGIR / totalHoles) * 100).toFixed(1)
       : null;
 
     // FIR only applies to par 4s and 5s - count from tee holes
-    const parFourFiveHoles = round.tee.holes?.filter((h: any) => h.par === 4 || h.par === 5).length || 0;
-    const firPercentage = hasAdvancedStats && totalFIR !== null && parFourFiveHoles > 0
-      ? ((totalFIR / parFourFiveHoles) * 100).toFixed(1)
+    const totalFIRHoles = round.tee.nonPar3Holes ?? round.tee.holes?.reduce((count, h) => (h.par !== 3 ? count + 1 : count), 0) ?? 0;
+    const firPercentage = hasAdvancedStats && totalFIR !== null && totalFIRHoles > 0
+      ? ((totalFIR / totalFIRHoles) * 100).toFixed(1)
       : null;
 
     const puttsPerHole = hasAdvancedStats && totalPutts !== null && totalHoles > 0
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       total_holes_for_gir: totalHoles,
       fairways_hit: totalFIR,
       fir_percentage: firPercentage,
-      total_holes_for_fir: parFourFiveHoles,
+      total_holes_for_fir: totalFIRHoles,
       total_putts: totalPutts,
       putts_per_hole: puttsPerHole,
       total_penalties: totalPenalties,

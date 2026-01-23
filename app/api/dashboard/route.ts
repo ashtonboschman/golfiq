@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
 
     // Transform rounds to format expected by handicap utils
     const allRounds = roundsToAnalyze.map((r: any) => {
-      const firTotal = r.tee.holes.filter((h: any) => h.par !== 3).length;
+      const firTotal = r.tee.nonPar3Holes ?? (r.tee.holes.filter((h: any) => h.par !== 3).length);
       const girTotal = r.tee.holes.length;
       const par = r.tee.parTotal ?? 72;
       const to_par = r.toPar ?? (r.score ? r.score - par : null);
