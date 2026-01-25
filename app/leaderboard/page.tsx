@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import LeaderboardCard from '@/components/LeaderboardCard';
 import LeaderboardHeader from '@/components/LeaderboardHeader';
-import InlineAdBanner from '@/components/InlineAdBanner';
 import { Crown } from 'lucide-react';
 
 interface LeaderboardUser {
@@ -199,9 +198,6 @@ export default function LeaderboardPage() {
       })}
 
       {loading && <p className='loading-text'>Loading more users...</p>}
-
-      {/* Bottom banner ad */}
-      <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" className="mt-6" />
     </div>
   );
 }

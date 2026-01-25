@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '../providers';
 import CourseCard from '@/components/CourseCard';
-import InlineAdBanner from '@/components/InlineAdBanner';
 import { Plus } from 'lucide-react';
 
 interface Location {
@@ -243,10 +242,6 @@ export default function CoursesPage() {
                   locations={course.location ? [course.location] : []}
                   tees={[...(course.tees?.male || []), ...(course.tees?.female || [])]}
                 />
-                {/* Show ad after every 10 courses */}
-                {(index + 1) % 10 === 0 && (
-                  <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" className="my-4" />
-                )}
               </div>
             );
           })}

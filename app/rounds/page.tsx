@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import RoundCard from '@/components/RoundCard';
-import InlineAdBanner from '@/components/InlineAdBanner';
 import { Plus } from 'lucide-react';
 
 interface Round {
@@ -223,10 +222,6 @@ export default function RoundsPage() {
                   onDelete={handleDelete}
                   showAdvanced={true}
                 />
-                {/* Show ad after every 5 rounds */}
-                {(index + 1) % 5 === 0 && (
-                  <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" className="my-4" />
-                )}
               </div>
             );
           })}

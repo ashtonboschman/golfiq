@@ -32,6 +32,7 @@ model User {
   subscriptionEvents     SubscriptionEvent[]
   leaderboardStats       UserLeaderboardStats?
   profile                UserProfile?
+  roundStrokesGaineds    RoundStrokesGained[]
 
   @@index([subscriptionTier, subscriptionStatus], map: "idx_users_subscription")
   @@index([stripeCustomerId], map: "idx_users_stripe_customer")
@@ -55,6 +56,7 @@ model UserProfile {
   timezone            String?             @db.VarChar(100)
   favoriteCourse      Course?             @relation(fields: [favoriteCourseId], references: [id])
   user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showStrokesGained   Boolean             @default(false) @map("show_strokes_gained")
 
   @@index([dashboardVisibility], map: "idx_dashboard_visibility")
   @@map("user_profiles")
@@ -186,27 +188,28 @@ model Hole {
 }
 
 model Round {
-  id              BigInt      @id @default(autoincrement())
-  userId          BigInt      @map("user_id")
-  courseId        BigInt      @map("course_id")
-  teeId           BigInt      @map("tee_id")
-  holeByHole      Boolean     @default(false) @map("hole_by_hole")
-  advancedStats   Boolean     @default(false) @map("advanced_stats")
-  date            DateTime    @db.Timestamptz(6)
-  score           Int
-  firHit          Int?        @map("fir_hit")
-  girHit          Int?        @map("gir_hit")
-  putts           Int?
-  penalties       Int?
-  notes           String?
-  createdDate     DateTime    @default(now()) @map("created_date")
-  updatedDate     DateTime    @updatedAt @map("updated_date")
-  toPar           Int?        @map("to_par") @db.SmallInt
-  handicapAtRound Decimal?    @map("handicap_at_round") @db.Decimal(4, 1)
-  roundHoles      RoundHole[]
-  course          Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  tee             Tee         @relation(fields: [teeId], references: [id])
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  BigInt               @id @default(autoincrement())
+  userId              BigInt               @map("user_id")
+  courseId            BigInt               @map("course_id")
+  teeId               BigInt               @map("tee_id")
+  holeByHole          Boolean              @default(false) @map("hole_by_hole")
+  advancedStats       Boolean              @default(false) @map("advanced_stats")
+  date                DateTime             @db.Timestamptz(6)
+  score               Int
+  firHit              Int?                 @map("fir_hit")
+  girHit              Int?                 @map("gir_hit")
+  putts               Int?
+  penalties           Int?
+  notes               String?
+  createdDate         DateTime             @default(now()) @map("created_date")
+  updatedDate         DateTime             @updatedAt @map("updated_date")
+  toPar               Int?                 @map("to_par") @db.SmallInt
+  handicapAtRound     Decimal?             @map("handicap_at_round") @db.Decimal(4, 1)
+  roundHoles          RoundHole[]
+  course              Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  tee                 Tee                  @relation(fields: [teeId], references: [id])
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roundStrokesGained  RoundStrokesGained?
 
   @@index([userId], map: "idx_user_id")
   @@index([courseId], map: "idx_round_course_id")
@@ -322,11 +325,11 @@ model ApiUsageLog {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model AllowedEmail {
-  id            BigInt   @id @default(autoincrement())
-  email         String   @unique @db.VarChar(255)
-  createdDate   DateTime @default(now()) @map("created_date")
-  addedBy       String?  @map("added_by") @db.VarChar(255)
-  notes         String?
+  id          BigInt   @id @default(autoincrement())
+  email       String   @unique @db.VarChar(255)
+  createdDate DateTime @default(now()) @map("created_date")
+  addedBy     String?  @map("added_by") @db.VarChar(255)
+  notes       String?
 
   @@index([email], map: "idx_allowed_emails_email")
   @@map("allowed_emails")
@@ -347,19 +350,58 @@ model FeatureFlag {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Waitlist {
-  id                  BigInt   @id @default(autoincrement())
-  email               String   @unique @db.VarChar(255)
-  name                String?  @db.VarChar(255)
-  handicap            String?  @db.VarChar(50)
-  createdDate         DateTime @default(now()) @map("created_date") @db.Timestamp(6)
-  source              String   @default("landing_page") @db.VarChar(50)
-  confirmed           Boolean  @default(false)
-  confirmationToken   String?  @unique @map("confirmation_token") @db.VarChar(255)
-  metadata            Json?
+  id                BigInt   @id @default(autoincrement())
+  email             String   @unique @db.VarChar(255)
+  name              String?  @db.VarChar(255)
+  handicap          String?  @db.VarChar(50)
+  createdDate       DateTime @default(now()) @map("created_date") @db.Timestamp(6)
+  source            String   @default("landing_page") @db.VarChar(50)
+  confirmed         Boolean  @default(false)
+  confirmationToken String?  @unique @map("confirmation_token") @db.VarChar(255)
+  metadata          Json?
 
   @@index([confirmed], map: "idx_waitlist_confirmed")
   @@index([email], map: "idx_waitlist_email")
   @@map("waitlist")
+}
+
+model RoundStrokesGained {
+  id                  BigInt        @id @default(autoincrement())
+  roundId             BigInt        @unique @map("round_id")
+  userId              BigInt        @map("user_id")
+  sgTotal             Decimal?      @map("sg_total") @db.Decimal(5, 2)
+  sgOffTee            Decimal?      @map("sg_off_tee") @db.Decimal(5, 2)
+  sgApproach          Decimal?      @map("sg_approach") @db.Decimal(5, 2)
+  sgPutting           Decimal?      @map("sg_putting") @db.Decimal(5, 2)
+  sgPenalties         Decimal?      @map("sg_penalties") @db.Decimal(5, 2)
+  sgResidual          Decimal?      @map("sg_residual") @db.Decimal(5, 2)
+  confidence          Confidence?   @map("confidence")
+  messages            String?
+  createdDate         DateTime      @default(now()) @map("created_date")
+  updatedDate         DateTime?     @map("updated_date")
+
+  round Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roundId], map: "idx_round_strokes_gained_round")
+  @@index([userId], map: "idx_round_strokes_gained_user")
+  @@map("round_strokes_gained")
+}
+
+model HandicapTierBaseline {
+  id                BigInt   @id @default(autoincrement())
+  tierName          String   @map("tier_name")
+  handicapMin       Int      @map("handicap_min")
+  handicapMax       Int?     @map("handicap_max")
+  baselineScore     Decimal  @map("baseline_score") @db.Decimal(5, 1)
+  baselineGIRPct    Decimal  @map("baseline_gir_pct") @db.Decimal(5, 1)
+  baselineFIRPct    Decimal  @map("baseline_fir_pct") @db.Decimal(5, 1)
+  baselinePutts     Decimal  @map("baseline_putts") @db.Decimal(5, 1)
+  baselinePenalties Decimal  @map("baseline_penalties") @db.Decimal(5, 1)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
+
+  @@map("handicap_tier_baseline")
 }
 
 enum SubscriptionTier {
@@ -397,4 +439,10 @@ enum DashboardVisibility {
 enum TeeGender {
   male
   female
+}
+
+enum Confidence {
+  high
+  medium
+  low
 }

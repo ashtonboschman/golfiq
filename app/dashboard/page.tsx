@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import RoundCard from '@/components/RoundCard';
-import InlineAdBanner from '@/components/InlineAdBanner';
 import UpgradeModal from '@/components/UpgradeModal';
 import { Line } from 'react-chartjs-2';
 import {
@@ -739,11 +738,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             <p>{(isToggleable && showToPar) ? formatToPar(val as number) : formatNumber(val as number)}</p>
           </div>
         ))}
-      </div>
-
-      {/* Ad after main stats grid */}
-      <InlineAdBanner adSlot="8573051513" adLayoutKey="-fb+5q+57-cn+4i" />
-      
+      </div>      
       <TrendCard
           trendData={scoreChartData}
           accentColor={accentColor}

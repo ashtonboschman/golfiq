@@ -20,12 +20,35 @@ export default function SettingsPage() {
   const { showMessage } = useMessage();
   const [exporting, setExporting] = useState(false);
   const { theme, setTheme, availableThemes } = useTheme();
+  const [showStrokesGained, setShowStrokesGained] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login?redirect=/settings');
     }
   }, [status, router]);
+
+  // Fetch user profile to get current showStrokesGained preference
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch('/api/users/profile');
+        if (res.ok) {
+          const data = await res.json();
+          setShowStrokesGained(data.profile?.showStrokesGained ?? false);
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    if (status === 'authenticated') {
+      fetchProfile();
+    }
+  }, [status]);
 
   const handleManageSubscription = async () => {
     setManagingSubscription(true);
@@ -92,6 +115,26 @@ export default function SettingsPage() {
     }
   };
 
+  const handleToggleStrokesGained = async (value: boolean) => {
+    try {
+      const res = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ show_strokes_gained: value }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update preference');
+      }
+
+      setShowStrokesGained(value);
+      showMessage('Preference updated successfully!', 'success');
+    } catch (error: any) {
+      console.error('Update preference error:', error);
+      showMessage(error.message || 'Failed to update preference', 'error');
+    }
+  };
+
   if (status === 'loading') {
     return <p className='loading-text'>Loading...</p>;
   }
@@ -139,7 +182,7 @@ export default function SettingsPage() {
                       <div className="subscription-detail-box">
                         {trialEndDate && new Date() < new Date(trialEndDate) ? (
                           <>
-                            <p className="subscription-status" style={{ color: 'var(--color-success)' }}>
+                            <p className="subscription-status trial-active">
                               Status <strong>Free Trial Active</strong>
                             </p>
                             <p className="subscription-expiry">
@@ -203,13 +246,13 @@ export default function SettingsPage() {
             </div>
           </section>
 
-          {/* Preferences Section */}
+          {/* Themes Section */}
           <section className="settings-section">
-            <div className="settings-card">                            
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
+            <div className="settings-card">
+              <div className="settings-theme-container">
                 <label className="form-label">Theme</label>
                 {!loading && !isPremium && (
-                  <span style={{ color: 'var(--color-accent)' }}>
+                  <span className="settings-theme-description">
                     Upgrade to Premium to unlock additional themes!
                   </span>
                 )}
@@ -236,18 +279,48 @@ export default function SettingsPage() {
                   }))}
                   isSearchable={false}
                   styles={selectStyles}
+                  className="settings-theme-select"
                 />
               </div>
             </div>
           </section>
 
+          {/* Preferences Section */}
+          {!loading && isPremium && (
+            <section className="settings-section">
+              <div className="settings-card">
+                <div className="preferences-container">
+                  <label className="form-label">Preferences</label>
+
+                  <div className="preference-row">
+                    <div className="preference-info">
+                      <div className="preference-title">Show Strokes Gained</div>
+                      <div className="preference-description">
+                        Display strokes gained data in round statistics
+                      </div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={showStrokesGained}
+                        onChange={(e) => handleToggleStrokesGained(e.target.checked)}
+                        disabled={loadingProfile}
+                      />
+                      <span className="toggle-slider" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Data Export Section */}
           <section className="settings-section">
             <div className="settings-card">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
+              <div className="settings-export-container">
                 <label className="form-label">Export</label>
                 {!loading && !isPremium && (
-                  <span style={{ color: 'var(--color-accent)' }}>
+                  <span className="settings-export-upgrade">
                     Upgrade to Premium for unlimited exports plus Json!
                   </span>
                 )}

@@ -1676,16 +1676,18 @@ select option {
 
 .settings-theme-description {
   margin-bottom: 15px;
+  color: var(--color-accent);
 }
 
 .settings-theme-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  flex: 1;
 }
 
 .settings-theme-select {
-  max-width: 300px;
+  width: 100%;
 }
 
 .settings-theme-upgrade-btn {
@@ -1695,12 +1697,14 @@ select option {
 
 .settings-export-container {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
 }
 
 .settings-export-upgrade {
-  margin-left: auto;
+  font-size: 0.9rem;
+  color: var(--color-accent);
 }
 
 .settings-admin-description {
@@ -3009,6 +3013,10 @@ input[type='date'].form-input {
 .subscription-status {
   font-size: 1rem;
   color: var(--color-primary-text);
+}
+
+.subscription-status.trial-active {
+  color: var(--color-success);
 }
 
 .subscription-expiry {
@@ -4546,4 +4554,86 @@ input[type='date'].form-input {
 
 .waitlist-table td {
   color: var(--color-secondary-text);
+}
+
+/* Preferences Section */
+.preferences-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  flex: 1;
+}
+
+.preference-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.preference-info {
+  flex: 1;
+}
+
+.preference-title {
+  font-weight: 500;
+  margin-bottom: var(--gap-small);
+  color: var(--color-primary-text);
+}
+
+.preference-description {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-gray);
+  transition: 0.3s;
+  border-radius: 28px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: var(--color-white);
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--color-green);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  cursor: not-allowed;
+  opacity: 0.6;
 }

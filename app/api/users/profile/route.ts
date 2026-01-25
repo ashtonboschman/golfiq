@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
             favoriteCourseId: true,
             dashboardVisibility: true,
             theme: true,
+            showStrokesGained: true
           },
         },
       },
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
         : null,
       dashboard_visibility: user.profile.dashboardVisibility,
       theme: user.profile.theme || 'dark',
+      showStrokesGained: user.profile.showStrokesGained,
     };
 
     return successResponse({ profile: response });
@@ -83,6 +85,7 @@ export async function PUT(request: NextRequest) {
       theme,
       email,
       username,
+      show_strokes_gained,
     } = body;
 
     // Update profile fields
@@ -98,6 +101,7 @@ export async function PUT(request: NextRequest) {
         favoriteCourseId: favorite_course_id ? Number(favorite_course_id) : null,
         dashboardVisibility: dashboard_visibility,
         theme,
+        showStrokesGained: show_strokes_gained,
       },
     });
 
@@ -129,6 +133,7 @@ export async function PUT(request: NextRequest) {
           : null,
         dashboard_visibility: updatedProfile.dashboardVisibility,
         theme: updatedProfile.theme || 'dark',
+        show_strokes_gained: updatedProfile.showStrokesGained,
       },
     });
   } catch (error) {

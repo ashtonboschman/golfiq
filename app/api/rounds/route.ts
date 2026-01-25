@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
+import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { z } from 'zod';
 
 // Helper to format round data
@@ -259,6 +260,23 @@ export async function POST(request: NextRequest) {
       // Recalculate round totals
       await recalcRoundTotals(roundId, data.advanced_stats);
     }
+
+    const sg = await calculateStrokesGained({ userId, roundId }, prisma);
+
+    await prisma.roundStrokesGained.create({
+      data: {
+        roundId,
+        userId,
+        sgTotal: sg.sgTotal,
+        sgOffTee: sg.sgOffTee,
+        sgApproach: sg.sgApproach,
+        sgPutting: sg.sgPutting,
+        sgPenalties: sg.sgPenalties,
+        sgResidual: sg.sgResidual,
+        confidence: sg.confidence,
+        messages: sg.messages.join('\n'), // store messages as text
+      },
+    });
 
     // Update leaderboard
     await recalcLeaderboard(userId);

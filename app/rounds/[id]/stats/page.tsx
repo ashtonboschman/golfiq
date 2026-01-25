@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
+import { useSubscription } from '@/hooks/useSubscription';
 import Link from 'next/link';
-import { Check, Edit, X, Trash2 } from 'lucide-react';
+import { Check, Edit, X, Trash2, Crown } from 'lucide-react';
+import { Confidence } from '@prisma/client';
 
 interface HoleDetail {
   hole_number: number;
@@ -40,6 +42,7 @@ interface RoundStats {
   total_par: number;
   score_to_par: number;
   score_to_par_formatted: string;
+  handicap_at_round: number | null;
   greens_in_regulation: number | null;
   gir_percentage: string | null;
   total_holes_for_gir: number;
@@ -54,6 +57,14 @@ interface RoundStats {
   notes: string | null;
   hole_by_hole: boolean;
   advanced_stats: boolean;
+  sg_total: number;
+  sg_off_tee: number | null;
+  sg_approach: number | null;
+  sg_putting: number | null;
+  sg_penalties: number | null;
+  sg_residual: number | null;
+  confidence: Confidence;
+  message: string;
 }
 
 export default function RoundStatsPage() {
@@ -64,6 +75,8 @@ export default function RoundStatsPage() {
 
   const [stats, setStats] = useState<RoundStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showStrokesGained, setShowStrokesGained] = useState(false);
+  const { isPremium } = useSubscription();
 
   const roundId = params?.id as string;
 
@@ -73,6 +86,25 @@ export default function RoundStatsPage() {
       router.replace('/login');
     }
   }, [status, router]);
+
+  // Fetch user preference for showing strokes gained
+  useEffect(() => {
+    const fetchPreference = async () => {
+      try {
+        const res = await fetch('/api/users/profile');
+        if (res.ok) {
+          const data = await res.json();
+          setShowStrokesGained(data.profile?.showStrokesGained ?? false);
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      }
+    };
+
+    if (status === 'authenticated') {
+      fetchPreference();
+    }
+  }, [status]);
 
   // Fetch round statistics
   useEffect(() => {
@@ -234,7 +266,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.fir_percentage !== null && parseFloat(stats.fir_percentage) >= 40 ? 'green' : stats.fir_percentage !== null && parseFloat(stats.fir_percentage) < 20 ? 'red' : 'primary'}`}>
+              <div className={`stats-score-value ${stats.fir_percentage != null ? parseFloat(stats.fir_percentage) >= 40 ? 'green' : parseFloat(stats.fir_percentage) < 20 ? 'red' : 'primary' : 'primary'}`}>
                 {stats.fir_percentage !== null ? `${stats.fir_percentage}%` : '-'}
               </div>
               <div className="stats-score-label">
@@ -242,7 +274,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.gir_percentage !== null && parseFloat(stats.gir_percentage) >= 40 ? 'green' : stats.gir_percentage !== null && parseFloat(stats.gir_percentage) < 20 ? 'red' : 'primary'}`}>
+              <div className={`stats-score-value ${stats.gir_percentage != null ? parseFloat(stats.gir_percentage) >= 40 ? 'green' : parseFloat(stats.gir_percentage) < 20 ? 'red' : 'primary' : 'primary'}`}>
                 {stats.gir_percentage !== null ? `${stats.gir_percentage}%` : '-'}
               </div>
               <div className="stats-score-label">
@@ -250,7 +282,7 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.putts_per_hole !== null && parseFloat(stats.putts_per_hole) < 2 ? 'green' : stats.putts_per_hole !== null && parseFloat(stats.putts_per_hole) >= 2.5 ? 'red' : 'primary'}`}>
+              <div className={`stats-score-value ${stats.putts_per_hole != null ? parseFloat(stats.putts_per_hole) < 1.85 ? 'green' : parseFloat(stats.putts_per_hole) >= 2.2 ? 'red' : 'primary' : 'primary'}`}>
                 {stats.putts_per_hole ?? '-'}
               </div>
               <div className="stats-score-label">
@@ -258,15 +290,82 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.total_penalties !== null && stats.total_penalties < 2 ? 'green' : stats.total_penalties !== null && stats.total_penalties >= 3 ? 'red' : 'primary'}`}>
+              <div className={`stats-score-value ${stats.total_penalties != null ? stats.total_penalties < 2 ? 'green' : stats.total_penalties >= 3 ? 'red' : 'primary' : 'primary'}`}>
                 {stats.total_penalties ?? '-'}
               </div>
               <div className="stats-score-label">
                 Penalties
               </div>
             </div>
+            {showStrokesGained && isPremium && stats.handicap_at_round !== null && (
+              <>
+                <div>
+                  <div className={`stats-score-value ${stats.sg_total != null ? stats.sg_total > 1 ? 'green' : stats.sg_total < -1 ? 'red' : 'primary' : 'primary'}`}>
+                    {stats.sg_total != null ? `${stats.sg_total > 0 ? '+' : ''}${stats.sg_total}` : '-'}
+                  </div>
+                  <div className="stats-score-label">
+                    SG Total
+                  </div>
+                </div>
+                <div>
+                  <div className={`stats-score-value ${stats.sg_off_tee != null ? stats.sg_off_tee > 1 ? 'green' : stats.sg_off_tee < -1 ? 'red' : 'primary' : 'primary'}`}>
+                    {stats.sg_off_tee != null ? `${stats.sg_off_tee > 0 ? '+' : ''}${stats.sg_off_tee}` : '-'}
+                  </div>
+                  <div className="stats-score-label">
+                    SG Off Tee
+                  </div>
+                </div>
+                <div>
+                  <div className={`stats-score-value ${stats.sg_approach != null ? stats.sg_approach > 1 ? 'green' : stats.sg_approach < -1 ? 'red' : 'primary' : 'primary'}`}>
+                    {stats.sg_approach != null ? `${stats.sg_approach > 0 ? '+' : ''}${stats.sg_approach}` : '-'}
+                  </div>
+                  <div className="stats-score-label">
+                    SG Approach
+                  </div>
+                </div>
+                <div>
+                  <div className={`stats-score-value ${stats.sg_putting != null ? stats.sg_putting > 1 ? 'green' : stats.sg_putting < -1 ? 'red' : 'primary' : 'primary'}`}>
+                    {stats.sg_putting != null ? `${stats.sg_putting > 0 ? '+' : ''}${stats.sg_putting}` : '-'}
+                  </div>
+                  <div className="stats-score-label">
+                    SG Putting
+                  </div>
+                </div>
+                <div>
+                  <div className={`stats-score-value ${stats.sg_penalties != null ? stats.sg_penalties > 1 ? 'green' : stats.sg_penalties < -1 ? 'red' : 'primary' : 'primary'}`}>
+                    {stats.sg_penalties != null ? `${stats.sg_penalties > 0 ? '+' : ''}${stats.sg_penalties}` : '-'}
+                  </div>
+                  <div className="stats-score-label">
+                    SG Penalties
+                  </div>
+                </div>
+                <div>
+                  <div className={`stats-score-value ${stats.sg_residual != null ? stats.sg_residual > 1 ? 'green' : stats.sg_residual < -1 ? 'red' : 'primary' : 'primary'}`}>
+                    {stats.sg_residual != null ? `${stats.sg_residual > 0 ? '+' : ''}${stats.sg_residual}` : '-'}
+                  </div>
+                  <div className="stats-score-label">
+                    SG Residual
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Handicap required message for strokes gained */}
+        {showStrokesGained && isPremium && stats.handicap_at_round === null && (
+          <div className="info-banner warning">
+            <div className="info-banner-content">
+              <div className="info-banner-icon"><Crown size={45}/></div>
+              <div className="info-banner-text">
+                <h4>Handicap Required for Strokes Gained</h4>
+                <p>
+                  To see strokes gained statistics, you need to establish a handicap by logging more rounds. Keep playing and your handicap will be calculated automatically.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Scoring by Par */}
         {stats.scoring_by_par.length > 0 && (

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
+import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { z } from 'zod';
 
 // Helper to format round data
@@ -288,6 +289,41 @@ export async function PUT(
 
       // Recalculate totals
       await recalcRoundTotals(roundId, data.advanced_stats);
+    }
+
+    const sg = await calculateStrokesGained({ userId, roundId }, prisma);
+
+    // Update existing SG record if it exists
+    const updated = await prisma.roundStrokesGained.updateMany({
+      where: { roundId },
+      data: {
+        sgTotal: sg.sgTotal,
+        sgOffTee: sg.sgOffTee,
+        sgApproach: sg.sgApproach,
+        sgPutting: sg.sgPutting,
+        sgPenalties: sg.sgPenalties,
+        sgResidual: sg.sgResidual,
+        confidence: sg.confidence,
+        messages: sg.messages.join('\n'),
+      },
+    });
+
+    // If no rows were updated, create it
+    if (updated.count === 0) {
+      await prisma.roundStrokesGained.create({
+        data: {
+          roundId,
+          userId,
+          sgTotal: sg.sgTotal,
+          sgOffTee: sg.sgOffTee,
+          sgApproach: sg.sgApproach,
+          sgPutting: sg.sgPutting,
+          sgPenalties: sg.sgPenalties,
+          sgResidual: sg.sgResidual,
+          confidence: sg.confidence,
+          messages: sg.messages.join('\n'),
+        },
+      });
     }
 
     // Update leaderboard

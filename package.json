@@ -12,11 +12,12 @@
     "lifetime:revoke": "tsx scripts/revoke-lifetime.ts",
     "lifetime:list": "tsx scripts/list-lifetime.ts",
     "courses:verify-existing": "tsx scripts/verify-existing-courses.ts",
-    "leaderboard:backfill": "tsx scripts/backfill-leaderboard-stats.ts"
+    "leaderboard:backfill": "tsx scripts/backfill-leaderboard-stats.ts",
+    "test": "jest --watchAll"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",
-    "@prisma/client": "^7.2.0",
+    "@prisma/client": "^7.3.0",
     "@react-email/button": "^0.2.1",
     "@react-email/components": "^1.0.5",
     "@react-email/heading": "^0.0.16",
@@ -49,6 +50,7 @@
     "@tailwindcss/postcss": "^4.1.18",
     "@types/bcryptjs": "^2.4.6",
     "@types/chart.js": "^2.9.41",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.0.3",
     "@types/pg": "^8.16.0",
     "@types/react": "^19.2.7",
@@ -57,9 +59,11 @@
     "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.1",
+    "jest": "^30.2.0",
     "postcss": "^8.5.6",
-    "prisma": "^7.2.0",
+    "prisma": "^7.3.0",
     "tailwindcss": "^4.1.18",
+    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"

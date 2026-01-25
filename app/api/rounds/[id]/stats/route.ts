@@ -34,6 +34,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             },
           },
         },
+        roundStrokesGained: true
       },
     });
 
@@ -134,6 +135,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ? round.course.courseName
       : `${round.course.clubName} - ${round.course.courseName}`;
 
+    const sgTotal = round.roundStrokesGained?.sgTotal;
+    const sgOffTee = round.roundStrokesGained?.sgOffTee;
+    const sgApproach = round.roundStrokesGained?.sgApproach;
+    const sgPutting = round.roundStrokesGained?.sgPutting;
+    const sgPenalties = round.roundStrokesGained?.sgPenalties;
+    const sgResidual = round.roundStrokesGained?.sgResidual;
+    const confidence = round.roundStrokesGained?.confidence;
+    const messages = round.roundStrokesGained?.messages;
+
     // Response
     const stats = {
       round_id: round.id.toString(),
@@ -145,6 +155,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       total_par: totalPar,
       score_to_par: scoreToPar,
       score_to_par_formatted: scoreToParFormatted,
+      handicap_at_round: round.handicapAtRound ? Number(round.handicapAtRound) : null,
 
       // Overall stats
       greens_in_regulation: totalGIR,
@@ -165,6 +176,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       notes: round.notes,
       hole_by_hole: round.holeByHole,
       advanced_stats: round.advancedStats,
+
+      // Strokes gained results
+      sg_total: sgTotal,
+      sg_off_tee: sgOffTee,
+      sg_approach: sgApproach,
+      sg_putting: sgPutting,
+      sg_penalties: sgPenalties,
+      sg_residual: sgResidual,
+      sg_confidence: confidence,
+      sg_messages: messages,
     };
 
     return successResponse({ stats });
