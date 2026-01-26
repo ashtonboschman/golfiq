@@ -25,7 +25,8 @@ async function checkPremium(userId: bigint) {
 }
 
 export async function GET(
-  req: NextRequest, { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserSession();
@@ -50,7 +51,8 @@ export async function GET(
 }
 
 export async function POST(
-  req: NextRequest, { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserSession();
