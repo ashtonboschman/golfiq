@@ -89,72 +89,42 @@ export async function calculateStrokesGained(
   const actualPutts = round.putts ?? null;
   const actualPenalties = round.penalties ?? null;
 
-  let sgTotal = adjScore - actualScore;
-  let sgOffTee = 0,
-    sgApproach = 0,
-    sgPutting = 0,
-    sgPenalties = 0,
-    sgResidual = 0;
-
-  let messages: string[] = [];
+  const sgTotal = adjScore - actualScore;
+  const messages: string[] = [];
   const partialAnalysis =
-  actualFIR === null ||
-  actualGIR === null ||
-  actualPutts === null ||
-  actualPenalties === null;
+    actualFIR === null || actualGIR === null || actualPutts === null || actualPenalties === null;
 
   const puttingCap = (totalHoles / 18) * C.PUTTING_CAP;
 
-  // Partial / Full Analysis Handling
-  if (
-    actualFIR !== null &&
-    actualGIR !== null &&
-    actualPutts !== null &&
-    actualPenalties !== null
-  ) {
-    // Full data
-    sgOffTee = (actualFIR - adjFIR) * C.STROKES_PER_FIR;
-    sgApproach = (actualGIR - adjGIR) * C.STROKES_PER_GIR;
-
-    const puttDiff = adjPutts - actualPutts;
-    sgPutting =
-      Math.abs(puttDiff) > puttingCap
-        ? Math.sign(puttDiff) * (puttingCap + (Math.abs(puttDiff) - puttingCap) * 0.5)
-        : puttDiff;
-
-    if (Math.abs(puttDiff) > puttingCap) {
-      messages.push(
-        `Exceptional putting detected; strokes beyond ±${puttingCap.toFixed(2)} are counted at reduced weight`
-      );
-    }
-
-    sgPenalties = (adjPenalties - actualPenalties) * C.STROKES_PER_PENALTY;
-    sgResidual = sgTotal - sgOffTee - sgApproach - sgPutting - sgPenalties;
-  } else {
-    // Partial data handling
-    messages.push("Partial analysis: missing FIR, GIR, Putts, or Penalties");
-
-    // Compute each SG independently if data exists
-    sgOffTee = actualFIR !== null ? (actualFIR - adjFIR) * C.STROKES_PER_FIR : 0;
-    sgApproach = actualGIR !== null ? (actualGIR - adjGIR) * C.STROKES_PER_GIR : 0;
-    sgPutting =
+  // --- Compute each SG component if data exists ---
+  const sgComponentsMap: Record<string, number | null> = {
+    offTee: actualFIR !== null ? (actualFIR - adjFIR) * C.STROKES_PER_FIR : null,
+    approach: actualGIR !== null ? (actualGIR - adjGIR) * C.STROKES_PER_GIR : null,
+    putting:
       actualPutts !== null
         ? (() => {
             const diff = adjPutts - actualPutts;
-            return Math.abs(diff) > puttingCap
-              ? Math.sign(diff) * (puttingCap + (Math.abs(diff) - puttingCap) * 0.5)
-              : diff;
+            if (Math.abs(diff) > puttingCap) {
+              messages.push(
+                `Extreme putting (capped at ±${puttingCap.toFixed(2)} strokes)`
+              );
+              return Math.sign(diff) * (puttingCap + (Math.abs(diff) - puttingCap) * 0.5);
+            }
+            return diff;
           })()
-        : 0;
-    if (actualPutts !== null && Math.abs(adjPutts - actualPutts) > puttingCap) {
-      messages.push(`Extreme putting (capped at ±${puttingCap.toFixed(2)} strokes)`);
-    }
+        : null,
+    penalties: actualPenalties !== null ? (adjPenalties - actualPenalties) * C.STROKES_PER_PENALTY : null,
+  };
 
-    sgPenalties = actualPenalties !== null ? (adjPenalties - actualPenalties) * C.STROKES_PER_PENALTY : 0;
-
-    // Residual goes to short game
-    sgResidual = sgTotal - sgApproach - sgOffTee - sgPutting - sgPenalties;
+  if (partialAnalysis) {
+    messages.push("Partial analysis: missing FIR, GIR, Putts, or Penalties");
   }
+
+  // --- Residual always fills remainder ---
+  const knownSGSum = Object.values(sgComponentsMap)
+    .filter((v): v is number => v !== null)
+    .reduce((sum, v) => sum + v, 0);
+  const sgResidual = sgTotal - knownSGSum;
 
   // --- Confidence Calculation ---
   const shortGameOpps = actualGIR !== null ? totalHoles - actualGIR : 0;
@@ -166,47 +136,58 @@ export async function calculateStrokesGained(
   } else if (
     Math.abs(sgResidual) < C.CONFIDENCE_RESIDUAL_HIGH &&
     shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_HIGH_PCT &&
-    Math.abs(sgPutting) <= puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT
+    Math.abs(sgComponentsMap.putting ?? 0) <= puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT
   ) {
     confidence = "high";
   } else if (
     Math.abs(sgResidual) >= C.CONFIDENCE_RESIDUAL_HIGH ||
-    (shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT && shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT) ||
-    (Math.abs(sgPutting) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT && Math.abs(sgPutting) <= puttingCap)
+    (shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT &&
+      shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT) ||
+    (Math.abs(sgComponentsMap.putting ?? 0) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT &&
+      Math.abs(sgComponentsMap.putting ?? 0) <= puttingCap)
   ) {
     confidence = "medium";
     messages.push("Short game estimate based on residual calculation - interpret with context");
-    if (shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT && shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT) {
+    if (
+      shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT &&
+      shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT
+    ) {
       messages.push(`Only ${shortGameOpps} short game opportunities - moderate confidence`);
     }
-    if (Math.abs(sgPutting) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT && Math.abs(sgPutting) <= puttingCap) {
-      if (sgPutting > 0) {
+    if (
+      Math.abs(sgComponentsMap.putting ?? 0) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT &&
+      Math.abs(sgComponentsMap.putting ?? 0) <= puttingCap
+    ) {
+      if ((sgComponentsMap.putting ?? 0) > 0) {
         messages.push(
-          `Strong putting performance (+${sgPutting.toFixed(2)}) may inflate short game results`
+          `Strong putting performance (+${(sgComponentsMap.putting ?? 0).toFixed(2)}) may inflate short game results`
         );
       } else {
         messages.push(
-          `Poor putting performance (${sgPutting.toFixed(2)}) likely contributed significantly to score`
+          `Poor putting performance (${(sgComponentsMap.putting ?? 0).toFixed(2)}) likely contributed significantly to score`
         );
       }
     }
   } else if (
-    Math.abs(sgPutting) > puttingCap ||
+    Math.abs(sgComponentsMap.putting ?? 0) > puttingCap ||
     Math.abs(sgResidual) > (totalHoles / 18) * C.CONFIDENCE_RESIDUAL_HIGH ||
     shortGameOpps < totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT
   ) {
     confidence = "low";
     messages.push(
-      `Exceptional putting (±${sgPutting.toFixed(2)}) or limited opportunities (${shortGameOpps}) affect short game estimate`
+      `Exceptional putting (±${(sgComponentsMap.putting ?? 0).toFixed(
+        2
+      )}) or limited opportunities (${shortGameOpps}) affect short game estimate`
     );
   }
 
+  // --- Round and return ---
   return {
     sgTotal: round2(sgTotal),
-    sgOffTee: round2(sgOffTee),
-    sgApproach: round2(sgApproach),
-    sgPutting: round2(sgPutting),
-    sgPenalties: round2(sgPenalties),
+    sgOffTee: sgComponentsMap.offTee !== null ? round2(sgComponentsMap.offTee) : null,
+    sgApproach: sgComponentsMap.approach !== null ? round2(sgComponentsMap.approach) : null,
+    sgPutting: sgComponentsMap.putting !== null ? round2(sgComponentsMap.putting) : null,
+    sgPenalties: sgComponentsMap.penalties !== null ? round2(sgComponentsMap.penalties) : null,
     sgResidual: round2(sgResidual),
     confidence,
     messages,

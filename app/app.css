@@ -2999,7 +2999,7 @@ input[type='date'].form-input {
 .btn-upgrade {
   width: 100%;
   padding: var(--padding);
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: bold;
   background: linear-gradient(135deg, var(--color-gradient-1) 0%, var(--color-gradient-2) 50%, var(--color-gradient-3) 100%);
   color: var(--color-white);
@@ -4737,4 +4737,94 @@ input[type='date'].form-input {
 
 .btn-accordion-next {
   margin-top: var(--gap);
+}
+/* ========================================
+   AI Insights Component
+   ======================================== */
+.insights-card {
+  
+}
+
+.insights-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.insights-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.insights-title svg {
+  color: var(--color-accent);
+}
+
+.insights-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-primary-text);
+}
+
+.insights-badge {
+  padding: 4px 12px;
+  background: linear-gradient(90deg, var(--color-gradient-1), var(--color-gradient-2));
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-white-text);
+}
+
+.insights-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.insight-message {
+  padding: var(--gap);
+  background: var(--color-secondary-surface);
+  border-radius: var(--border-radius);
+  border: 2px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  line-height: 1.6;
+  color: var(--color-primary-text);
+  font-size: 15px;
+}
+
+.premium-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+  text-align: center;
+  background: var(--color-secondary-surface);
+  border-radius: var(--border-radius);
+  border: 2px solid var(--color-border);
+}
+
+.premium-gate svg {
+  color: var(--color-primary-text);
+}
+
+.premium-gate p {
+  margin: 0;
+  color: var(--color-primary-text);
+  max-width: 300px;
+}
+
+.insights-loading,
+.insights-error {
+  padding: 20px;
+  text-align: center;
+  color: var(--color-secondary-text);
+}
+
+.insights-error {
+  color: var(--color-warning);
 }

@@ -20,7 +20,7 @@ model User {
   subscriptionEndDate    DateTime?             @map("subscription_end_date")
   subscriptionStartDate  DateTime?             @map("subscription_start_date")
   subscriptionStatus     SubscriptionStatus    @default(active) @map("subscription_status")
-  subscriptionTier       SubscriptionTier      @default(free) @map("subscription_tier")
+  subscriptionTier       SubscriptionTier      @default(premium) @map("subscription_tier")
   trialEndDate           DateTime?             @map("trial_end_date")
   dataExports            DataExport[]
   friendRequestsReceived FriendRequest[]       @relation("RecipientRelation")
@@ -33,6 +33,7 @@ model User {
   leaderboardStats       UserLeaderboardStats?
   profile                UserProfile?
   roundStrokesGaineds    RoundStrokesGained[]
+  RoundInsights          RoundInsight[]
 
   @@index([subscriptionTier, subscriptionStatus], map: "idx_users_subscription")
   @@index([stripeCustomerId], map: "idx_users_stripe_customer")
@@ -210,6 +211,7 @@ model Round {
   tee                 Tee                  @relation(fields: [teeId], references: [id])
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   roundStrokesGained  RoundStrokesGained?
+  RoundInsight        RoundInsight?
 
   @@index([userId], map: "idx_user_id")
   @@index([courseId], map: "idx_round_course_id")
@@ -376,7 +378,8 @@ model RoundStrokesGained {
   sgPenalties         Decimal?      @map("sg_penalties") @db.Decimal(5, 2)
   sgResidual          Decimal?      @map("sg_residual") @db.Decimal(5, 2)
   confidence          Confidence?   @map("confidence")
-  messages            String?
+  messages            Json?         @db.JsonB
+  partialAnalysis     Boolean       @map("partial_analysis")
   createdDate         DateTime      @default(now()) @map("created_date")
   updatedDate         DateTime?     @map("updated_date")
 
@@ -402,6 +405,23 @@ model HandicapTierBaseline {
   updatedAt         DateTime @default(now()) @map("updated_at")
 
   @@map("handicap_tier_baseline")
+}
+
+model RoundInsight {
+  id         BigInt    @id @default(autoincrement())
+  roundId    BigInt    @unique @map("round_id")
+  userId     BigInt    @map("user_id")
+  modelUsed  String    @default("gpt-5-mini") @map("model_used")
+  insights   Json      @db.JsonB
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime? @map("updated_at")
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roundId], map: "idx_round_insights_round")
+  @@index([userId], map: "idx_round_insights_user")
+  @@map("round_insights")
 }
 
 enum SubscriptionTier {

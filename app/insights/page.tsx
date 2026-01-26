@@ -31,7 +31,7 @@ export default function InsightsPage() {
           Get personalized insights and recommendations to improve your game
         </p>
       </div>    
-      <PremiumGate featureName="Golf IQ Insights">
+      <PremiumGate featureName="GolfIQ Insights">
         <></>
       </PremiumGate>
       <div className="ai-coach-content">

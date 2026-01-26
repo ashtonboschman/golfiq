@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useSubscription } from '@/hooks/useSubscription';
 import { ReactNode } from 'react';
+import { Lock } from 'lucide-react';
 
 interface PremiumGateProps {
   children: ReactNode;
@@ -69,21 +70,17 @@ export default function PremiumGate({
 
     // Full card version
     return (
-      <div className="premium-gate">
-        <div className="premium-gate-icon">🔒</div>
-        <h3>Premium Feature</h3>
-        <p>
-          {featureName} is available exclusively for Premium members.
-        </p>
-        <button
-          className="premium-gate-button"
+        <div className="premium-gate">
+          <Lock size={32} />
+          <p>{featureName} is available exclusively for Premium members.</p>
+          <button
+          className="btn btn-upgrade"
           onClick={() => router.push('/pricing')}
         >
           Upgrade to Premium
         </button>
-      </div>
+        </div>
     );
-  }
-
+  }  
   return <>{children}</>;
 }

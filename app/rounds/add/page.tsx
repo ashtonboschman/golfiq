@@ -616,6 +616,8 @@ export default function AddRoundPage() {
   const calculateTotals = () => {
     const totals = { score: 0, par: 0, fir_hit: 0, gir_hit: 0, putts: 0, penalties: 0 };
     let hasScore = false;
+    let hasFir = false, hasGir = false, hasPutts = false, hasPenalties = false;
+
     holeScores.forEach((h) => {
       if (h.score !== null) {
         totals.score += h.score;
@@ -623,18 +625,32 @@ export default function AddRoundPage() {
       }
       if (h.par !== null) totals.par += h.par;
       if (hasAdvanced) {
-        ['fir_hit', 'gir_hit', 'putts', 'penalties'].forEach((f) => {
-          if (h[f as keyof HoleScore] !== null) totals[f as keyof typeof totals] += h[f as keyof HoleScore] as number;
-        });
+        if (h.fir_hit !== null) {
+          totals.fir_hit += h.fir_hit;
+          hasFir = true;
+        }
+        if (h.gir_hit !== null) {
+          totals.gir_hit += h.gir_hit;
+          hasGir = true;
+        }
+        if (h.putts !== null) {
+          totals.putts += h.putts;
+          hasPutts = true;
+        }
+        if (h.penalties !== null) {
+          totals.penalties += h.penalties;
+          hasPenalties = true;
+        }
       }
     });
+
     return {
       score: hasScore ? totals.score : null,
       par: totals.par || null,
-      fir_hit: totals.fir_hit || null,
-      gir_hit: totals.gir_hit || null,
-      putts: totals.putts || null,
-      penalties: totals.penalties || null,
+      fir_hit: hasFir ? totals.fir_hit : null,
+      gir_hit: hasGir ? totals.gir_hit : null,
+      putts: hasPutts ? totals.putts : null,
+      penalties: hasPenalties ? totals.penalties : null,
     };
   };
 

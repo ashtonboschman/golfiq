@@ -269,7 +269,7 @@ describe("calculateStrokesGained", () => {
     expect(result.sgPutting).toBeGreaterThan(3.5);
     expect(result.messages).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("Exceptional putting"),
+        expect.stringContaining("Extreme putting"),
       ])
     );
   });

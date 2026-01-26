@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
+import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { z } from 'zod';
 
 // Helper to format round data
@@ -274,12 +275,18 @@ export async function POST(request: NextRequest) {
         sgPenalties: sg.sgPenalties,
         sgResidual: sg.sgResidual,
         confidence: sg.confidence,
-        messages: sg.messages.join('\n'), // store messages as text
+        messages: sg.messages,
+        partialAnalysis: sg.partialAnalysis,
       },
     });
 
     // Update leaderboard
     await recalcLeaderboard(userId);
+
+    // Trigger insights generation asynchronously (don't await)
+    triggerInsightsGeneration(roundId, userId).catch((error: any) => {
+      console.error('Failed to generate insights:', error);
+    });
 
     return successResponse({ message: 'Round created', roundId: roundId.toString() }, 201);
   } catch (error) {
@@ -289,6 +296,24 @@ export async function POST(request: NextRequest) {
 
     console.error('POST /api/rounds error:', error);
     return errorResponse('Database error', 500);
+  }
+}
+
+// Helper to trigger insights generation for premium users
+async function triggerInsightsGeneration(roundId: bigint, userId: bigint): Promise<void> {
+  // Check if user is premium or lifetime
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { subscriptionTier: true },
+  });
+
+  if (user?.subscriptionTier === 'premium' || user?.subscriptionTier === 'lifetime') {
+    try {
+      await generateInsights(roundId, userId);
+    } catch (error) {
+      // Silently fail - insights can be generated later if needed
+      console.error('Failed to generate insights:', error);
+    }
   }
 }
 

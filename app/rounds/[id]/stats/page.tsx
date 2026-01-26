@@ -8,6 +8,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import Link from 'next/link';
 import { Check, Edit, X, Trash2, Crown } from 'lucide-react';
 import { Confidence } from '@prisma/client';
+import RoundInsights from '@/components/RoundInsights';
 
 interface HoleDetail {
   hole_number: number;
@@ -300,79 +301,82 @@ export default function RoundStatsPage() {
           </div>
         </div>
 
+        {/* AI Performance Insights */}
+        <RoundInsights roundId={roundId} isPremium={isPremium} />
+
         {/* Strokes Gained Summary Card */}
-        <div className="stats-score-summary">
-          <div className="stats-score-grid">
-              {showStrokesGained && isPremium && stats.handicap_at_round !== null && (
-                <>
-                  <div>
-                    <div className={`stats-score-value ${stats.sg_total != null ? stats.sg_total > 1 ? 'green' : stats.sg_total < -1 ? 'red' : 'primary' : 'primary'}`}>
-                      {stats.sg_total != null ? `${stats.sg_total > 0 ? '+' : ''}${stats.sg_total}` : '-'}
+        {isPremium && showStrokesGained && (
+          <div className="stats-score-summary">
+            <div className="stats-score-grid">
+                {stats.handicap_at_round !== null && (
+                  <>
+                    <div>
+                      <div className={`stats-score-value ${stats.sg_total != null ? stats.sg_total > 1 ? 'green' : stats.sg_total < -1 ? 'red' : 'primary' : 'primary'}`}>
+                        {stats.sg_total != null ? `${stats.sg_total > 0 ? '+' : ''}${stats.sg_total}` : '-'}
+                      </div>
+                      <div className="stats-score-label">
+                        SG Total
+                      </div>
                     </div>
-                    <div className="stats-score-label">
-                      SG Total
+                    <div>
+                      <div className={`stats-score-value ${stats.sg_off_tee != null ? stats.sg_off_tee > 1 ? 'green' : stats.sg_off_tee < -1 ? 'red' : 'primary' : 'primary'}`}>
+                        {stats.sg_off_tee != null ? `${stats.sg_off_tee > 0 ? '+' : ''}${stats.sg_off_tee}` : '-'}
+                      </div>
+                      <div className="stats-score-label">
+                        SG Off Tee
+                      </div>
                     </div>
+                    <div>
+                      <div className={`stats-score-value ${stats.sg_approach != null ? stats.sg_approach > 1 ? 'green' : stats.sg_approach < -1 ? 'red' : 'primary' : 'primary'}`}>
+                        {stats.sg_approach != null ? `${stats.sg_approach > 0 ? '+' : ''}${stats.sg_approach}` : '-'}
+                      </div>
+                      <div className="stats-score-label">
+                        SG Approach
+                      </div>
+                    </div>
+                    <div>
+                      <div className={`stats-score-value ${stats.sg_putting != null ? stats.sg_putting > 1 ? 'green' : stats.sg_putting < -1 ? 'red' : 'primary' : 'primary'}`}>
+                        {stats.sg_putting != null ? `${stats.sg_putting > 0 ? '+' : ''}${stats.sg_putting}` : '-'}
+                      </div>
+                      <div className="stats-score-label">
+                        SG Putting
+                      </div>
+                    </div>
+                    <div>
+                      <div className={`stats-score-value ${stats.sg_penalties != null ? stats.sg_penalties > 1 ? 'green' : stats.sg_penalties < -1 ? 'red' : 'primary' : 'primary'}`}>
+                        {stats.sg_penalties != null ? `${stats.sg_penalties > 0 ? '+' : ''}${stats.sg_penalties}` : '-'}
+                      </div>
+                      <div className="stats-score-label">
+                        SG Penalties
+                      </div>
+                    </div>
+                    <div>
+                      <div className={`stats-score-value ${stats.sg_residual != null ? stats.sg_residual > 1 ? 'green' : stats.sg_residual < -1 ? 'red' : 'primary' : 'primary'}`}>
+                        {stats.sg_residual != null ? `${stats.sg_residual > 0 ? '+' : ''}${stats.sg_residual}` : '-'}
+                      </div>
+                      <div className="stats-score-label">
+                        SG Residual
+                      </div>
+                    </div>
+                  </>
+                )}
+            </div>
+            {/* Handicap required message for strokes gained */}
+            {stats.handicap_at_round === null && (
+              <div className="info-banner warning">
+                <div className="info-banner-content">
+                  <div className="info-banner-icon"><Crown size={45}/></div>
+                  <div className="info-banner-text">
+                    <h4>Handicap Required for Strokes Gained</h4>
+                    <p>
+                      To see strokes gained statistics, you need to establish a handicap by logging more rounds. Keep playing and your handicap will be calculated automatically.
+                    </p>
                   </div>
-                  <div>
-                    <div className={`stats-score-value ${stats.sg_off_tee != null ? stats.sg_off_tee > 1 ? 'green' : stats.sg_off_tee < -1 ? 'red' : 'primary' : 'primary'}`}>
-                      {stats.sg_off_tee != null ? `${stats.sg_off_tee > 0 ? '+' : ''}${stats.sg_off_tee}` : '-'}
-                    </div>
-                    <div className="stats-score-label">
-                      SG Off Tee
-                    </div>
-                  </div>
-                  <div>
-                    <div className={`stats-score-value ${stats.sg_approach != null ? stats.sg_approach > 1 ? 'green' : stats.sg_approach < -1 ? 'red' : 'primary' : 'primary'}`}>
-                      {stats.sg_approach != null ? `${stats.sg_approach > 0 ? '+' : ''}${stats.sg_approach}` : '-'}
-                    </div>
-                    <div className="stats-score-label">
-                      SG Approach
-                    </div>
-                  </div>
-                  <div>
-                    <div className={`stats-score-value ${stats.sg_putting != null ? stats.sg_putting > 1 ? 'green' : stats.sg_putting < -1 ? 'red' : 'primary' : 'primary'}`}>
-                      {stats.sg_putting != null ? `${stats.sg_putting > 0 ? '+' : ''}${stats.sg_putting}` : '-'}
-                    </div>
-                    <div className="stats-score-label">
-                      SG Putting
-                    </div>
-                  </div>
-                  <div>
-                    <div className={`stats-score-value ${stats.sg_penalties != null ? stats.sg_penalties > 1 ? 'green' : stats.sg_penalties < -1 ? 'red' : 'primary' : 'primary'}`}>
-                      {stats.sg_penalties != null ? `${stats.sg_penalties > 0 ? '+' : ''}${stats.sg_penalties}` : '-'}
-                    </div>
-                    <div className="stats-score-label">
-                      SG Penalties
-                    </div>
-                  </div>
-                  <div>
-                    <div className={`stats-score-value ${stats.sg_residual != null ? stats.sg_residual > 1 ? 'green' : stats.sg_residual < -1 ? 'red' : 'primary' : 'primary'}`}>
-                      {stats.sg_residual != null ? `${stats.sg_residual > 0 ? '+' : ''}${stats.sg_residual}` : '-'}
-                    </div>
-                    <div className="stats-score-label">
-                      SG Residual
-                    </div>
-                  </div>
-                </>
-              )}
-          </div>
-          {/* Handicap required message for strokes gained */}
-          {showStrokesGained && isPremium && stats.handicap_at_round === null && (
-            <div className="info-banner warning">
-              <div className="info-banner-content">
-                <div className="info-banner-icon"><Crown size={45}/></div>
-                <div className="info-banner-text">
-                  <h4>Handicap Required for Strokes Gained</h4>
-                  <p>
-                    To see strokes gained statistics, you need to establish a handicap by logging more rounds. Keep playing and your handicap will be calculated automatically.
-                  </p>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-
-        
+            )}
+          </div>
+        )}
 
         {/* Scoring by Par */}
         {stats.scoring_by_par.length > 0 && (
