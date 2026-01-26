@@ -126,10 +126,9 @@ export default function PricingPage() {
                     <li><Check color='green' size='20' className="feature-icon"/> Everything in Free</li>
                     <li><Check color='green' size='20' className="feature-icon"/> Unlimited stat calculations & advanced trend charts</li>
                     <li><Check color='green' size='20' className="feature-icon"/> Strokes gained per round & KPI comparisons</li>
-                    <li><Check color='green' size='20' className="feature-icon"/> AI performance insights & predictions</li>
-                    <li><Check color='green' size='20' className="feature-icon"/> Custom dashboard, saved filters & enhanced sorting</li>
-                    <li><Check color='green' size='20' className="feature-icon"/> Premium themes & ad-free experience</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Round based and weekly AI performance insights & predictions</li>
                     <li><Check color='green' size='20' className="feature-icon"/> Course insights, tee recommendations & course-specific leaderboards</li>
+                    <li><Check color='green' size='20' className="feature-icon"/> Premium themes & enhanced filtering</li>
                     <li><Check color='green' size='20' className="feature-icon"/> Priority support</li>
                   </ul>
                   <button
@@ -207,8 +206,8 @@ export default function PricingPage() {
                     <li><Check color='green' size='20' className="feature-icon"/> Course search, scorecards, friends, & leaderboards</li>
                     <li><Check color='green' size='20' className="feature-icon"/> Light & dark themes, multi-device sync</li>
                     <li><X color='red' size='20' className="feature-icon"/> Advanced analytics & predictions</li>
-                    <li><X color='red' size='20' className="feature-icon"/> Strokes gained & unlimited historical analysis</li>
-                    <li><X color='red' size='20' className="feature-icon"/> Custom dashboards, advanced filters & ad-free experience</li>
+                    <li><X color='red' size='20' className="feature-icon"/> Round based AI performance insights</li>
+                    <li><X color='red' size='20' className="feature-icon"/> Custom dashboards & advanced filters</li>
                   </ul>
                   <button
                     className="pricing-button current"

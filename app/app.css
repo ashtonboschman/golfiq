@@ -4714,11 +4714,11 @@ input[type='date'].form-input {
 
 .stepper-btn:hover:not(:disabled) {
   background: var(--color-hover);
-  border-color: var(--color-accent);
 }
 
 .stepper-btn:active:not(:disabled) {
   transform: scale(0.95);
+  border-color: var(--color-accent);
 }
 
 .stepper-btn:disabled {

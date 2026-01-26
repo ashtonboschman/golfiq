@@ -821,7 +821,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           'Trend charts across your last 20 rounds (vs 5 on Free)',
           'AI performance insights & predictions',
           'Flexible date-based comparisons',
-          'Premium themes & ad-free experience'
+          'Premium themes'
         ]}
       />
     </div>
