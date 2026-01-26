@@ -212,28 +212,24 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
 
 ROLE & EXPECTATIONS:
 - Analyze rounds using only the provided, non-null data.
-- Do NOT calculate, estimate, or invent missing values.
-- Use previous rounds for trends only if the metric exists in both current and historical rounds.
 - Highlight positives, weaknesses, and actionable recommendations in exactly three messages.
-- Insights must be personal and specific to this round.
+- Each message should be **no more than 2 sentences**.
 
 CONFIDENCE & EMOJIS:
-- 🔥 = exceptional/high impact positive (assertive language)
-- ✅ = solid/good performance (contextual language)
-- ⚠️ = major concern / needs work (always for SG < -2.0)
+- 🔥 = exceptional/high impact positive
+- ✅ = solid/good performance
+- ⚠️ = major concern / needs work
 - ℹ️ = observations or low confidence / tracking recommendations
 
 FORMAT:
-[emoji] [2-3 complete sentences about this round]
-[emoji] [2-3 complete sentences about this round]
-[emoji] [2-3 complete sentences actionable practice recommendation]
+[emoji] [1-2 complete sentences about this round]
+[emoji] [1-2 complete sentences about this round]
+[emoji] [1-2 complete sentences actionable practice recommendation]
 
 RULES:
-- Each insight: 2-3 complete sentences.
 - Reference numbers/statistics only when it clarifies the insight.
-- Do NOT use double dashes (--) or add headings, metadata, or extra commentary.
-- Always return exactly three insights; if data is missing, use observations instead.
-`;
+- Do NOT include extra commentary, headings, or metadata.
+- Always return exactly three insights.`
 
   const userPrompt = `Generate post-round performance messages for a premium user. 
 
@@ -241,41 +237,24 @@ INPUT:
 - score, to_par, course details (always present)
 - stats: fir_hit, gir_hit, putts, penalties (may be null)
 - strokes_gained: sgTotal, sgOffTee, sgApproach, sgPutting, sgResidual (may be null)
-- confidence: "high", "medium", "low"
-- partialAnalysis: boolean (true = incomplete data)
 - history: last 5 rounds (may be null)
 
 NULL HANDLING:
-- If a stat is null, it was NOT tracked. Do NOT mention it.
-- Only recommend tracking advanced stats (fir_hit, gir_hit, putts, penalties) if ALL are null.
-- Only mention strokes gained if the value exists.
-- Use descriptive stats (percentages, counts) instead of SG when SG magnitude ≤ 1.0.
+- If a stat is null, do not mention it.
 
 STROKES GAINED THRESHOLDS:
-| SG Value          | Insight Type                  |
-|------------------|-------------------------------|
-| < -2.0           | ⚠️ Major loss (must mention)  |
-| -2.0 to -1.0     | ⚠️ Minor concern               |
-| -1.0 to 1.0      | Use stat or % instead          |
-| > 1.0            | 🔥 Positive                    |
-
-ANALYSIS ORDER:
-1. Identify largest stroke losses (most negative SG values).
-2. If any SG < -2.0 → first insight MUST address this major loss with ⚠️.
-3. Highlight strongest positive areas (SG > 1.0 or high percentages).
-4. Provide actionable recommendations based on biggest weaknesses or trend declines.
-5. Compare to history only for metrics that exist in both current and past rounds.
+- < -2.0 ⚠️ major loss
+- -2.0 to -1.0 ⚠️ minor concern
+- > 1.0 🔥 positive
 
 OUTPUT RULES:
-- Exactly three messages: 
-   1. Positive / strengths (or minor positives if round was poor)
-   2. Weaknesses / stroke losses
-   3. Actionable practice recommendations
-- Insights must be personal, reference numbers when relevant, and specific to this round.
-- Do NOT recommend tracking stats if they were already tracked.
-- Follow confidence mapping from system prompt.
+- Exactly three messages: strengths, weaknesses, actionable recommendation
+- Each message: **max 2 sentences**
+- Be personal, reference numbers if relevant, and focus on actionable insights
+- Do NOT recommend tracking stats if they were already tracked
 
-${JSON.stringify(payload, null, 2)}`;
+${JSON.stringify(payload, null, 2)}`
+
 
   // Call OpenAI API
   const response = await fetch('https://api.openai.com/v1/chat/completions', {

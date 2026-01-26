@@ -34,7 +34,10 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = async () => {
-    if (status !== 'authenticated') return;
+    if (status !== 'authenticated') {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     clearMessage();
 
@@ -51,36 +54,38 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
         outgoingRes.json(),
       ]);
 
-      if (friendsData.type !== 'success')
-        throw new Error(friendsData.message || 'Failed to fetch friends');
-      if (incomingData.type !== 'success')
-        throw new Error(incomingData.message || 'Failed to fetch incoming requests');
-      if (outgoingData.type !== 'success')
-        throw new Error(outgoingData.message || 'Failed to fetch outgoing requests');
+      if (friendsData.type === 'success') {
+        setFriends(
+          friendsData.results.map((u: any) =>
+            normalizeFriend({ ...u, id: u.id, user_id: u.id, type: 'friend' })
+          )
+        );
+      } else {
+        console.warn('Friends fetch failed:', friendsData.message);
+        setFriends([]);
+      }
 
-      setFriends(
-        friendsData.results.map((u: any) =>
-          normalizeFriend({ ...u, id: u.id, user_id: u.id, type: 'friend' })
-        )
-      );
+      if (incomingData.type === 'success') {
+        setIncomingRequests(
+          incomingData.results.map((u: any) =>
+            normalizeFriend({ ...u, type: 'incoming' })
+          )
+        );
+      } else {
+        console.warn('Incoming requests fetch failed:', incomingData.message);
+        setIncomingRequests([]);
+      }
 
-      setIncomingRequests(
-        incomingData.results.map((u: any) =>
-          normalizeFriend({
-            ...u,
-            type: 'incoming',
-          })
-        )
-      );
-
-      setOutgoingRequests(
-        outgoingData.results.map((u: any) =>
-          normalizeFriend({
-            ...u,
-            type: 'outgoing',
-          })
-        )
-      );
+      if (outgoingData.type === 'success') {
+        setOutgoingRequests(
+          outgoingData.results.map((u: any) =>
+            normalizeFriend({ ...u, type: 'outgoing' })
+          )
+        );
+      } else {
+        console.warn('Outgoing requests fetch failed:', outgoingData.message);
+        setOutgoingRequests([]);
+      }
     } catch (err: any) {
       console.error(err);
       showMessage(err.message || 'Failed to fetch friends', 'error');
@@ -120,7 +125,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       const res = await fetch(url, {
         method,
         headers: {
-          'Content-Type': body ? 'application/json' : 'application/json',
+          'Content-Type': 'application/json',
         },
         body,
       });
