@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { GroupBase } from 'react-select';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -69,16 +69,17 @@ export default function AddRoundPage() {
     advanced_stats: 0,
   });
 
-  const [courses, setCourses] = useState<any[]>([]);
-  const [tees, setTees] = useState<any[]>([]);
   const [holes, setHoles] = useState<any[]>([]);
   const [holeScores, setHoleScores] = useState<HoleScore[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseOption | null>(null);
   const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
-  const [userProfile, setUserProfile] = useState<{ default_tee?: string; gender?: string } | null>(null);
+  const userProfileRef = useRef<{ default_tee?: string; gender?: string } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [expandedHole, setExpandedHole] = useState<number>(1); // Track which hole is currently expanded
+  const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set()); // Track holes where Next was clicked
+  const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   const isHBH = round.hole_by_hole === 1;
   const hasAdvanced = round.advanced_stats === 1;
@@ -124,11 +125,11 @@ export default function AddRoundPage() {
         try {
           const res = await fetch('/api/users/profile');
           const data = await res.json();
-          if (data.type === 'success' && data.user) {
-            setUserProfile({
-              default_tee: data.user.default_tee,
-              gender: data.user.gender,
-            });
+          if (data.type === 'success' && data.profile) {
+            userProfileRef.current = {
+              default_tee: data.profile.default_tee,
+              gender: data.profile.gender,
+            };
           }
         } catch (err) {
           console.error('Error fetching user profile:', err);
@@ -253,112 +254,111 @@ export default function AddRoundPage() {
     }
   };
 
-  const fetchTees = async (courseId: number, skipAutoSelect = false) => {
+  const fetchTees = async (courseId: number) => {
     if (!courseId) return [];
     try {
       const res = await fetch(`/api/tees?course_id=${courseId}`);
       const data = await res.json();
-      const teesArray = data.tees || [];
-      setTees(teesArray);
-
-      // Auto-select tee based on user's default_tee and gender
-      // Skip if coming from course details page (tee already provided in URL)
-      // Note: default_tee is always set to 'white' during registration and can't be removed
-      if (userProfile && teesArray.length > 0 && !skipAutoSelect) {
-        const { default_tee, gender } = userProfile;
-
-        // If no gender is set, default to 'male' for tee selection
-        const effectiveGender = gender || 'male';
-
-        // Define tee order (longest to shortest)
-        const teeOrder = ['black', 'gold', 'blue', 'white', 'red'];
-        const defaultIndex = default_tee ? teeOrder.indexOf(default_tee.toLowerCase()) : -1;
-
-        let matchedTee = null;
-
-        // 1. Try exact match (name + gender)
-        if (default_tee) {
-          matchedTee = teesArray.find((t: any) =>
-            t.tee_name?.toLowerCase() === default_tee.toLowerCase() &&
-            t.gender?.toLowerCase() === effectiveGender.toLowerCase()
-          );
-        }
-
-        // 2. Try matching just the tee name (any gender)
-        if (!matchedTee && default_tee) {
-          matchedTee = teesArray.find((t: any) =>
-            t.tee_name?.toLowerCase() === default_tee.toLowerCase()
-          );
-        }
-
-        // 3. If default tee not available, find next longer tee (lower index) for gender
-        if (!matchedTee && defaultIndex !== -1) {
-          // Try longer tees first (lower index = longer course)
-          for (let i = defaultIndex - 1; i >= 0; i--) {
-            matchedTee = teesArray.find((t: any) =>
-              t.tee_name?.toLowerCase() === teeOrder[i] &&
-              t.gender?.toLowerCase() === effectiveGender.toLowerCase()
-            );
-            if (matchedTee) break;
-          }
-
-          // If no longer tee found, try shorter tees
-          if (!matchedTee) {
-            for (let i = defaultIndex + 1; i < teeOrder.length; i++) {
-              matchedTee = teesArray.find((t: any) =>
-                t.tee_name?.toLowerCase() === teeOrder[i] &&
-                t.gender?.toLowerCase() === effectiveGender.toLowerCase()
-              );
-              if (matchedTee) break;
-            }
-          }
-
-          // If still no match with effectiveGender, try without gender filter
-          if (!matchedTee) {
-            for (let i = defaultIndex - 1; i >= 0; i--) {
-              matchedTee = teesArray.find((t: any) =>
-                t.tee_name?.toLowerCase() === teeOrder[i]
-              );
-              if (matchedTee) break;
-            }
-          }
-
-          if (!matchedTee) {
-            for (let i = defaultIndex + 1; i < teeOrder.length; i++) {
-              matchedTee = teesArray.find((t: any) =>
-                t.tee_name?.toLowerCase() === teeOrder[i]
-              );
-              if (matchedTee) break;
-            }
-          }
-        }
-
-        // 4. Ultimate fallback - just pick first available tee
-        if (!matchedTee && teesArray.length > 0) {
-          matchedTee = teesArray[0];
-        }
-
-        // Auto-select the matched tee
-        if (matchedTee) {
-          setRound((prev) => ({ ...prev, tee_id: String(matchedTee.id) }));
-          setSelectedTee({
-            value: matchedTee.id,
-            label: `${matchedTee.tee_name} ${matchedTee.total_yards ?? 0} yds (${matchedTee.course_rating ?? 0}/${matchedTee.slope_rating ?? 0}) ${matchedTee.number_of_holes ?? 0} holes`,
-            teeObj: matchedTee,
-          });
-
-          // Set par_total from the matched tee
-          if (matchedTee.par_total) {
-            setRound((prev) => ({ ...prev, par_total: matchedTee.par_total }));
-          }
-        }
-      }
-
-      return teesArray;
+      return data.tees || [];
     } catch (err) {
       console.error(err);
       showMessage('Error fetching tees.', 'error');
       return [];
+    }
+  };
+
+  const autoSelectTee = (teesArray: any[]) => {
+    const profile = userProfileRef.current;
+    if (!profile || teesArray.length === 0) {
+      return;
+    }
+
+    const { default_tee, gender } = profile;
+
+    // If no gender is set, default to 'male' for tee selection
+    const effectiveGender = gender || 'male';
+
+    // Define tee order (longest to shortest)
+    const teeOrder = ['black', 'gold', 'blue', 'white', 'red'];
+    const defaultIndex = default_tee ? teeOrder.indexOf(default_tee.toLowerCase()) : -1;
+
+    let matchedTee = null;
+
+    // 1. Try exact match (name + gender)
+    if (default_tee) {
+      matchedTee = teesArray.find((t: any) =>
+        t.tee_name?.toLowerCase() === default_tee.toLowerCase() &&
+        t.gender?.toLowerCase() === effectiveGender.toLowerCase()
+      );
+    }
+
+    // 2. Try matching just the tee name (any gender)
+    if (!matchedTee && default_tee) {
+      matchedTee = teesArray.find((t: any) =>
+        t.tee_name?.toLowerCase() === default_tee.toLowerCase()
+      );
+    }
+
+    // 3. If default tee not available, find next longer tee (lower index) for gender
+    if (!matchedTee && defaultIndex !== -1) {
+      // Try longer tees first (lower index = longer course)
+      for (let i = defaultIndex - 1; i >= 0; i--) {
+        matchedTee = teesArray.find((t: any) =>
+          t.tee_name?.toLowerCase() === teeOrder[i] &&
+          t.gender?.toLowerCase() === effectiveGender.toLowerCase()
+        );
+        if (matchedTee) break;
+      }
+
+      // If no longer tee found, try shorter tees
+      if (!matchedTee) {
+        for (let i = defaultIndex + 1; i < teeOrder.length; i++) {
+          matchedTee = teesArray.find((t: any) =>
+            t.tee_name?.toLowerCase() === teeOrder[i] &&
+            t.gender?.toLowerCase() === effectiveGender.toLowerCase()
+          );
+          if (matchedTee) break;
+        }
+      }
+
+      // If still no match with effectiveGender, try without gender filter
+      if (!matchedTee) {
+        for (let i = defaultIndex - 1; i >= 0; i--) {
+          matchedTee = teesArray.find((t: any) =>
+            t.tee_name?.toLowerCase() === teeOrder[i]
+          );
+          if (matchedTee) break;
+        }
+      }
+
+      if (!matchedTee) {
+        for (let i = defaultIndex + 1; i < teeOrder.length; i++) {
+          matchedTee = teesArray.find((t: any) =>
+            t.tee_name?.toLowerCase() === teeOrder[i]
+          );
+          if (matchedTee) break;
+        }
+      }
+    }
+
+    // 4. Ultimate fallback - just pick first available tee
+    if (!matchedTee && teesArray.length > 0) {
+      matchedTee = teesArray[0];
+    }
+
+    // Auto-select the matched tee
+    if (matchedTee) {
+      setRound((prev) => ({ ...prev, tee_id: String(matchedTee.id) }));
+      setSelectedTee({
+        value: matchedTee.id,
+        label: `${matchedTee.tee_name} ${matchedTee.total_yards ?? 0} yds (${matchedTee.course_rating ?? 0}/${matchedTee.slope_rating ?? 0}) ${matchedTee.number_of_holes ?? 0} holes`,
+        teeObj: matchedTee,
+      });
+
+      // Set par_total from the matched tee
+      if (matchedTee.par_total) {
+        setRound((prev) => ({ ...prev, par_total: matchedTee.par_total }));
+      }
     }
   };
 
@@ -406,10 +406,10 @@ export default function AddRoundPage() {
         setRound((prev) => ({ ...prev, course_id: String(courseId) }));
         setSelectedCourse({ label: courseName || '', value: Number(courseId) });
 
-        // Skip auto-select if teeId is provided (coming from course details page)
-        const fetchedTees = await fetchTees(Number(courseId), !!teeId);
+        const fetchedTees = await fetchTees(Number(courseId));
 
         if (teeId) {
+          // Use tee from URL (coming from course details page)
           const foundTee = fetchedTees.find((t: any) => t.id === Number(teeId));
           if (foundTee) {
             setRound((prev) => ({ ...prev, tee_id: String(teeId) }));
@@ -423,6 +423,9 @@ export default function AddRoundPage() {
             const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
             setRound((prev) => ({ ...prev, par_total: totalPar }));
           }
+        } else if (fetchedTees.length > 0) {
+          // Auto-select tee based on user profile
+          autoSelectTee(fetchedTees);
         }
       }
       setInitialized(true);
@@ -488,16 +491,27 @@ export default function AddRoundPage() {
 
       updated[index] = {
         ...hole,
-        [field]:
-          (field === 'fir_hit' || field === 'gir_hit') && isHBH
-            ? value
-            : sanitizeNumeric(value) === ''
-            ? null
-            : Number(sanitizeNumeric(value)),
+        [field]: value,
       };
 
       return updated;
     });
+  };
+
+  const handleToggleExpand = (holeNumber: number) => {
+    setExpandedHole((prev) => (prev === holeNumber ? -1 : holeNumber));
+  };
+
+  const handleNext = (currentHoleIndex: number) => {
+    const currentHoleNumber = holeScores[currentHoleIndex].hole_number;
+    setCompletedHoles((prev) => new Set(prev).add(currentHoleNumber));
+
+    if (currentHoleIndex < holeScores.length - 1) {
+      const nextHoleNumber = holeScores[currentHoleIndex + 1].hole_number;
+      setExpandedHole(nextHoleNumber);
+    } else {
+      setExpandedHole(-1);
+    }
   };
 
   const toggleHoleByHole = async () => {
@@ -545,13 +559,9 @@ export default function AddRoundPage() {
       setRound((prev) => ({ ...prev, hole_by_hole: 1 }));
     } else {
       // Switching FROM hole-by-hole mode
-      const sumScore = getTotalScore(holeScores);
-      // Only update score if hole scores were actually entered (sumScore > 0)
-      // Otherwise keep the existing quick score
       setRound((prev) => ({
         ...prev,
         hole_by_hole: 0,
-        score: sumScore > 0 ? sumScore : prev.score
       }));
     }
   };
@@ -640,20 +650,35 @@ export default function AddRoundPage() {
 
     return (
       <div>
-        {holeScores.map((h, idx) => (
-          <HoleCard
-            key={h.hole_id}
-            hole={h.hole_number}
-            par={h.par}
-            score={h.score}
-            fir_hit={h.fir_hit}
-            gir_hit={h.gir_hit}
-            putts={h.putts}
-            penalties={h.penalties}
-            hasAdvanced={hasAdvanced}
-            onChange={(holeNumber, field, value) => handleHoleScoreChange(idx, field, value)}
-          />
-        ))}
+        {holeScores.map((h, idx) => {
+          const isExpanded = expandedHole === h.hole_number;
+          const isCompleted = completedHoles.has(h.hole_number);
+
+          return (
+            <div
+              key={h.hole_id}
+              ref={(el) => {
+                holeCardRefs.current[h.hole_number] = el;
+              }}
+            >
+              <HoleCard
+                hole={h.hole_number}
+                par={h.par}
+                score={h.score}
+                fir_hit={h.fir_hit}
+                gir_hit={h.gir_hit}
+                putts={h.putts}
+                penalties={h.penalties}
+                hasAdvanced={hasAdvanced}
+                isExpanded={isExpanded}
+                isCompleted={isCompleted}
+                onChange={(_, field, value) => handleHoleScoreChange(idx, field, value)}
+                onToggleExpand={handleToggleExpand}
+                onNext={() => handleNext(idx)}
+              />
+            </div>
+          );
+        })}
 
         {holeScores.length > 0 && (
           <div className="card hole-card-total">
@@ -718,9 +743,12 @@ export default function AddRoundPage() {
                 setHoles([]);
                 setHoleScores([]);
 
-                // Auto-select tee when course is manually selected
+                // Fetch tees and auto-select based on user profile
                 if (option?.value) {
-                  await fetchTees(option.value, false);
+                  const fetchedTees = await fetchTees(option.value);
+                  if (fetchedTees.length > 0) {
+                    autoSelectTee(fetchedTees);
+                  }
                 }
               }}
               additional={{ page: 1 }}
@@ -828,8 +856,8 @@ export default function AddRoundPage() {
             hasAdvanced &&
             ['fir_hit', 'gir_hit', 'putts', 'penalties'].map((field) => {
               const labelMap: Record<string, string> = {
-                fir_hit: 'FIR',
-                gir_hit: 'GIR',
+                fir_hit: 'Fairways In Regulation',
+                gir_hit: 'Greens In Regulation',
                 putts: 'Putts',
                 penalties: 'Penalties',
               };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
@@ -77,6 +77,9 @@ export default function EditRoundPage() {
   const [selectedCourse, setSelectedCourse] = useState<CourseOption | null>(null);
   const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [expandedHole, setExpandedHole] = useState<number>(1);
+  const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set());
+  const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   const isHBH = round.hole_by_hole === 1;
   const hasAdvanced = round.advanced_stats === 1;
@@ -404,16 +407,31 @@ export default function EditRoundPage() {
 
       updated[index] = {
         ...hole,
-        [field]:
-          (field === 'fir_hit' || field === 'gir_hit') && isHBH
-            ? value
-            : sanitizeNumeric(value) === ''
-            ? null
-            : Number(sanitizeNumeric(value)),
+        [field]: value,
       };
 
       return updated;
     });
+  };
+
+  const handleToggleExpand = (holeNumber: number) => {
+    // Toggle: if clicking the currently expanded hole, close it
+    setExpandedHole((prev) => (prev === holeNumber ? -1 : holeNumber));
+  };
+
+  const handleNext = (currentHoleIndex: number) => {
+    // Mark current hole as completed
+    const currentHoleNumber = holeScores[currentHoleIndex].hole_number;
+    setCompletedHoles((prev) => new Set(prev).add(currentHoleNumber));
+
+    // Auto-advance to next hole
+    if (currentHoleIndex < holeScores.length - 1) {
+      const nextHoleNumber = holeScores[currentHoleIndex + 1].hole_number;
+      setExpandedHole(nextHoleNumber);
+    } else {
+      // Last hole - collapse all (user can review totals)
+      setExpandedHole(-1);
+    }
   };
 
   const toggleHoleByHole = () => {
@@ -526,20 +544,35 @@ export default function EditRoundPage() {
 
     return (
       <div>
-        {holeScores.map((h, idx) => (
-          <HoleCard
-            key={h.hole_id}
-            hole={h.hole_number}
-            par={h.par}
-            score={h.score}
-            fir_hit={h.fir_hit}
-            gir_hit={h.gir_hit}
-            putts={h.putts}
-            penalties={h.penalties}
-            hasAdvanced={hasAdvanced}
-            onChange={(holeNumber, field, value) => handleHoleScoreChange(idx, field, value)}
-          />
-        ))}
+        {holeScores.map((h, idx) => {
+          const isExpanded = expandedHole === h.hole_number;
+          const isCompleted = completedHoles.has(h.hole_number);
+
+          return (
+            <div
+              key={h.hole_id}
+              ref={(el) => {
+                holeCardRefs.current[h.hole_number] = el;
+              }}
+            >
+              <HoleCard
+                hole={h.hole_number}
+                par={h.par}
+                score={h.score}
+                fir_hit={h.fir_hit}
+                gir_hit={h.gir_hit}
+                putts={h.putts}
+                penalties={h.penalties}
+                hasAdvanced={hasAdvanced}
+                isExpanded={isExpanded}
+                isCompleted={isCompleted}
+                onChange={(_, field, value) => handleHoleScoreChange(idx, field, value)}
+                onToggleExpand={handleToggleExpand}
+                onNext={() => handleNext(idx)}
+              />
+            </div>
+          );
+        })}
 
         {holeScores.length > 0 && (
           <div className="card hole-card-total">
@@ -554,13 +587,13 @@ export default function EditRoundPage() {
               {hasAdvanced && (
                 <>
                   <div className="hole-field">
-                    <strong>FIR</strong> {show(totals.fir_hit)}
+                    <strong>Fairways In Regulation</strong> {show(totals.fir_hit)}
                   </div>
                   <div className="hole-field">
                     <strong>Putts</strong> {show(totals.putts)}
                   </div>
                   <div className="hole-field">
-                    <strong>GIR</strong> {show(totals.gir_hit)}
+                    <strong>Greens In Regulation</strong> {show(totals.gir_hit)}
                   </div>
                   <div className="hole-field">
                     <strong>Penalties</strong> {show(totals.penalties)}

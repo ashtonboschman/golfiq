@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
 import "./app.css";
 import { Providers, PostHogProvider } from "./providers";
@@ -78,21 +77,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const adSenseId = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 
   return (
     <html lang="en" className={`${inter.variable} ${space_grotesk.variable} theme-dark`}>
       <head>
-        <meta name="google-adsense-account" content="ca-pub-6375440969561474" />
         <link rel="manifest" href="/manifest.json" />
-        {adSenseId && (
-          <Script
-            async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adSenseId}`}
-            crossOrigin="anonymous"
-            strategy="afterInteractive"
-          />
-        )}
       </head>
       <body>
         <PostHogProvider>

@@ -274,7 +274,7 @@
 }
 
 .border-color {
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
 
 /* ===========================
@@ -342,63 +342,6 @@ h1, h2, h3, h2, h1, .btn {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
-}
-
-/* Ad banner spacing - FORCE fixed height to prevent Google AdSense from breaking layout */
-.ad-banner {
-  height: 200px !important;
-  max-height: 200px !important;
-  min-height: 200px !important;
-  overflow: hidden !important;
-  width: 100%;
-  box-sizing: border-box;
-  position: relative;
-}
-
-.ad-banner-loading {
-  color: var(--color-secondary-text);
-  visibility: hidden;
-}
-
-.adsbygoogle {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  max-height: 200px !important;
-  min-height: 200px !important;
-  overflow: hidden !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-}
-
-/* Force all children of ad container to respect height limits */
-.ad-banner *,
-.ad-banner iframe,
-.adsbygoogle *,
-.adsbygoogle iframe {
-  max-height: 250px !important;
-  overflow: hidden !important;
-}
-
-.ad-placeholder {
-  background-color: var(--color-primary-bg);
-  border: 2px dashed var(--color-border);
-  padding: var(--padding);
-  text-align: center;
-  color: var(--color-primary-text);
-  font-size: 1rem;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.ad-placeholder-text {
-  font-size: 0.9rem;
 }
 
 /* ===========================
@@ -525,6 +468,7 @@ h1, h2, h3, h2, h1, .btn {
   overflow-wrap: break-word;
   word-wrap: break-word;
   gap: var(--gap);
+  border: 2px solid var(--color-border)
 }
 
 .card select,
@@ -633,7 +577,7 @@ select option {
 
 .table th,
 .table td {
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   overflow: hidden;
   padding: var(--padding);
   text-align: center;
@@ -792,7 +736,7 @@ select option {
   padding: 0;
   width: 45px;
   height: 45px;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: 50%;
   object-fit: cover;
   z-index: 10;
@@ -805,7 +749,7 @@ select option {
   right: 0;
   min-width: 150px;
   background: var(--color-primary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   display: flex;
   flex-direction: column;
@@ -865,7 +809,7 @@ select option {
   height: 200px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 
 }
 
@@ -897,7 +841,7 @@ select option {
   top: 100%;
   margin-top: 8px;
   background-color: var(--color-primary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   overflow: hidden;
@@ -1080,7 +1024,7 @@ select option {
 
 .course-scorecard-left th {
   background: var(--color-primary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   height: 25px;
   padding: 16px 8px;
   text-align: center;
@@ -1120,7 +1064,7 @@ select option {
 
 .course-scorecard-right td,
 .course-scorecard-right th {
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   height: 25px;
   overflow: hidden;
   padding: 16px 8px;
@@ -1173,6 +1117,7 @@ select option {
   padding: var(--padding);
   width: 100%;
   gap: var(--gap);
+  border: 2px solid var(--color-border);
 }
 
 .hole-card .hole-header,
@@ -1201,7 +1146,7 @@ select option {
 
 .hole-field input {
   background-color: var(--color-secondary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   box-sizing: border-box;
   flex: 1 1 auto;
@@ -1220,7 +1165,7 @@ select option {
 .hole-field input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 30px var(--color-secondary-surface) inset !important;
   -webkit-text-fill-color: var(--color-secondary-text) !important;
-  border: 1px solid var(--color-border) !important;
+  border: 2px solid var(--color-border) !important;
 }
 
 /* ===========================
@@ -1230,12 +1175,12 @@ select option {
   display: flex;
   gap: var(--gap);
   width: 100%;
-  height: 30px;
+  height: 48px;
 }
 
 .binary-null-toggle button {
   background-color: var(--color-secondary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   cursor: pointer;
   flex: 1 1 auto;
@@ -1581,7 +1526,7 @@ select option {
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   line-height: 1.4;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
 
 .info-tooltip-content.right {
@@ -1658,6 +1603,7 @@ select option {
   display: flex;
   flex-direction: column;
   align-items: center;
+  border: 2px solid var(--color-border);
 }
 
 .trend-card .recharts-responsive-container {
@@ -1758,7 +1704,7 @@ select option {
   right: 0;
   margin-top: 8px;
   background-color: var(--color-primary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   z-index: 10;
@@ -1816,7 +1762,7 @@ select option {
   gap: 12px;
   padding: 12px;
   background-color: var(--color-warning-bg);
-  border: 1px solid var(--color-warning-border);
+  border: 2px solid var(--color-warning-border);
   border-radius: 8px;
   margin-bottom: 20px;
 }
@@ -1966,6 +1912,7 @@ select option {
   padding: var(--padding);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
   width: 100%;
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
 }
 
@@ -2072,7 +2019,7 @@ select option {
   height: 32px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
 
 .name-header {
@@ -2236,7 +2183,7 @@ select option {
 select {
   background-color: var(--color-secondary-surface);
   color: var(--color-secondary-text);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   box-sizing: border-box;
   font-size: 1rem;
@@ -2248,7 +2195,7 @@ select {
 textarea {
   background-color: var(--color-secondary-surface);
   color: var(--color-secondary-text);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   box-sizing: border-box;
   font-size: 1rem;
@@ -2368,7 +2315,7 @@ input[type='date'].form-input {
 .form-row input,
 .form-row select {
   background-color: var(--color-secondary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   box-sizing: border-box;
   font-size: 1rem;
@@ -2387,7 +2334,7 @@ input[type='date'].form-input {
   padding: var(--padding);
   color: var(--color-secondary-text);
   background-color: var(--color-secondary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   box-sizing: border-box;
   white-space: pre-wrap;
@@ -2528,7 +2475,7 @@ input[type='date'].form-input {
 
 .pricing-card {
   background: var(--color-primary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   /* Lets update the spacing here eventually */
   position: relative;
@@ -2865,6 +2812,7 @@ input[type='date'].form-input {
 
 .coach-card {
   background: var(--color-primary-surface);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   padding: var(--padding);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -2887,6 +2835,7 @@ input[type='date'].form-input {
   grid-column: 1 / -1;
   padding: var(--padding);
   background: var(--color-primary-surface);
+  border: 2px solid var(--color-border);
   border-radius: var(--border-radius);
   text-align: center;
 }
@@ -3445,6 +3394,7 @@ input[type='date'].form-input {
   padding: var(--padding);
   border-radius: var(--border-radius);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 2px solid var(--color-border);
 }
 
 .stats-score-grid {
@@ -3488,6 +3438,7 @@ input[type='date'].form-input {
 .stats-section-title {
   font-size: 1.25rem;
   font-weight: bold;
+  padding-bottom: var(--gap);
 }
 
 .stats-par-grid {
@@ -3501,6 +3452,7 @@ input[type='date'].form-input {
   padding: var(--padding);
   border-radius: var(--border-radius);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 2px solid var(--color-border);
 }
 
 .stats-par-card-title {
@@ -3534,6 +3486,8 @@ input[type='date'].form-input {
 
 .stats-table-wrapper {
   overflow-x: auto;
+  border-radius: var(--border-radius);
+  border: 2px solid var(--color-border);
 }
 
 .stats-table {
@@ -3612,7 +3566,7 @@ input[type='date'].form-input {
   background-color: var(--color-primary-surface);
   padding: var(--padding);
   border-radius: var(--border-radius);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   white-space: pre-wrap;
   color: var(--color-primary-text);
@@ -3827,7 +3781,7 @@ input[type='date'].form-input {
   top: 50%;
   transform: translateY(-50%);
   background-color: rgba(15, 19, 26, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   width: 48px;
   height: 48px;
@@ -3975,7 +3929,7 @@ input[type='date'].form-input {
   background-color: var(--color-primary-surface);
   padding: 32px;
   border-radius: 12px;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -4008,6 +3962,7 @@ input[type='date'].form-input {
   padding: 80px 24px;
   background-color: var(--color-primary-bg);
   scroll-margin-top: 100px;
+  border: none;
 }
 
 .landing-insights-content {
@@ -4050,13 +4005,17 @@ input[type='date'].form-input {
   flex-direction: column;
   gap: 24px;
   margin-bottom: 32px;
-
 }
 
 .landing-insight-item {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+}
+
+.landing-insight-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(45, 108, 255, 0.15);
 }
 
 .landing-insight-icon {
@@ -4124,7 +4083,7 @@ input[type='date'].form-input {
   background-color: var(--color-primary-surface);
   padding: 40px;
   border-radius: 12px;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
 
 .landing-form-row {
@@ -4201,7 +4160,7 @@ input[type='date'].form-input {
   height: 40px;
   border-radius: 50%;
   background-color: var(--color-secondary-surface);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
 
 .landing-social-icon:hover {
@@ -4395,7 +4354,7 @@ input[type='date'].form-input {
   background-color: var(--color-primary-surface);
   border-radius: 12px;
   padding: 30px;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
 }
 
 .legal-title {
@@ -4636,4 +4595,151 @@ input[type='date'].form-input {
 .toggle-switch input:disabled + .toggle-slider {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* Accordion Hole Card Styles */
+.accordion-hole-card {
+  background: var(--color-primary-surface);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--gap);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 2px solid var(--color-border);
+}
+
+.accordion-hole-card.completed .accordion-hole-header {
+  background: rgba(var(--color-success-rgb), 0.1);
+}
+
+.accordion-hole-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--padding);
+  background: var(--color-secondary-surface);
+  transition: background 0.2s ease;
+}
+
+.accordion-hole-header:hover {
+  background: var(--color-hover);
+}
+
+.accordion-hole-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+}
+
+.accordion-hole-number {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--color-primary-text);
+}
+
+.accordion-hole-par {
+  color: var(--color-secondary-text);
+  font-size: 0.95rem;
+}
+
+.accordion-hole-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+}
+
+.accordion-hole-summary {
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+}
+
+.completion-check {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.accordion-icon {
+  color: var(--color-secondary-text);
+  flex-shrink: 0;
+}
+
+.accordion-hole-content {
+  padding: var(--padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Stepper Controls */
+.stepper-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.stepper-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+}
+
+.stepper-label {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--color-primary-text);
+}
+
+.stepper-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-small);
+  justify-content: center;
+}
+
+.stepper-btn {
+  width: 100%;
+  height: 48px;
+  border: 2px solid var(--color-border);
+  background: var(--color-secondary-surface);
+  color: var(--color-secondary-text);
+  font-size: 1.5rem;
+  font-weight: 600;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.stepper-btn:hover:not(:disabled) {
+  background: var(--color-hover);
+  border-color: var(--color-accent);
+}
+
+.stepper-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stepper-value {
+  min-width: 100px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-primary-text);
+  background: var(--color-tertiary-surface);
+  border-radius: var(--border-radius);
+  border: 2px solid var(--color-border);
+}
+
+.btn-accordion-next {
+  margin-top: var(--gap);
 }
