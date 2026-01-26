@@ -1,5 +1,5 @@
 'use client';
-
+import { useFriends } from '../context/FriendsContext';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { LayoutDashboard, LandPlot, MapPin, TrendingUp, Users2, Trophy } from 'lucide-react'
@@ -49,6 +49,9 @@ export default function Footer() {
     return pathname.startsWith(path);
   };
 
+  const { incomingRequests } = useFriends();
+  const hasIncomingRequests = incomingRequests.length > 0;
+
   return (
     <footer className="footer-menu">
       <div className="footer-menu-inner">
@@ -58,7 +61,12 @@ export default function Footer() {
             className={isButtonActive(path) ? 'active' : ''}
             onClick={() => navigateWithWarning(path)}
           >
-            <span className="icon">{icon}</span>
+            <span className="icon relative">
+              {icon}
+              {path === '/friends' && hasIncomingRequests && (
+                <span className="friend-badge" />
+              )}
+            </span>
             <span className="label">{label}</span>
           </button>
         ))}

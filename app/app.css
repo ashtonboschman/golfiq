@@ -668,6 +668,17 @@ select option {
   white-space: nowrap;
 }
 
+.friend-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  background-color: #dc2626; /* red-600 */
+  border-radius: 9999px;
+  border: 2px solid var(--footer-bg, white);
+}
+
 .header {
   position: fixed;
   top: 0;
