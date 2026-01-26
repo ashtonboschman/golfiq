@@ -97,7 +97,10 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
     include: { tee: true },
   });
 
-  // Averages
+  // Current round's holes played (for scaling averages)
+  const currentHolesPlayed = round.tee.numberOfHoles || 18;
+
+  // Averages (normalized per hole, then scaled to current round)
   let avgScore = null,
     avgToPar = null,
     avgFirPct = null,
@@ -111,9 +114,21 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
     avgSgResidual = null;
 
   if (last5Rounds.length) {
-    avgScore = last5Rounds.reduce((sum, r) => sum + r.score, 0) / last5Rounds.length;
-    avgToPar = last5Rounds.reduce((sum, r) => sum + (r.score - (r.tee.parTotal || 72)), 0) / last5Rounds.length;
+    // Calculate per-hole averages, then scale to current round's holes
+    const avgScorePerHole = last5Rounds.reduce((sum, r) => {
+      const holesPlayed = r.tee.numberOfHoles || 18;
+      return sum + (r.score / holesPlayed);
+    }, 0) / last5Rounds.length;
+    avgScore = avgScorePerHole * currentHolesPlayed;
 
+    const avgToParPerHole = last5Rounds.reduce((sum, r) => {
+      const holesPlayed = r.tee.numberOfHoles || 18;
+      const toPar = r.score - (r.tee.parTotal || 72);
+      return sum + (toPar / holesPlayed);
+    }, 0) / last5Rounds.length;
+    avgToPar = avgToParPerHole * currentHolesPlayed;
+
+    // FIR % and GIR % are already normalized (percentages)
     const roundsWithFir = last5Rounds.filter((r) => r.firHit !== null && r.tee.nonPar3Holes);
     if (roundsWithFir.length)
       avgFirPct = roundsWithFir.reduce((sum, r) => sum + ((r.firHit || 0) / (r.tee.nonPar3Holes || 14)) * 100, 0) / roundsWithFir.length;
@@ -122,26 +137,50 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
     if (roundsWithGir.length)
       avgGirPct = roundsWithGir.reduce((sum, r) => sum + ((r.girHit || 0) / (r.tee.numberOfHoles || 18)) * 100, 0) / roundsWithGir.length;
 
-    const roundsWithPutts = last5Rounds.filter((r) => r.putts !== null);
-    if (roundsWithPutts.length)
-      avgPutts = roundsWithPutts.reduce((sum, r) => sum + (r.putts || 0), 0) / roundsWithPutts.length;
+    // Normalize putts per hole, then scale to current round
+    const roundsWithPutts = last5Rounds.filter((r) => r.putts !== null && r.tee.numberOfHoles);
+    if (roundsWithPutts.length) {
+      const avgPuttsPerHole = roundsWithPutts.reduce((sum, r) => {
+        const holesPlayed = r.tee.numberOfHoles || 18;
+        return sum + ((r.putts || 0) / holesPlayed);
+      }, 0) / roundsWithPutts.length;
+      avgPutts = avgPuttsPerHole * currentHolesPlayed;
+    }
 
-    const roundsWithPenalties = last5Rounds.filter((r) => r.penalties !== null);
-    if (roundsWithPenalties.length)
-      avgPenalties = roundsWithPenalties.reduce((sum, r) => sum + (r.penalties || 0), 0) / roundsWithPenalties.length;
+    // Normalize penalties per hole, then scale to current round
+    const roundsWithPenalties = last5Rounds.filter((r) => r.penalties !== null && r.tee.numberOfHoles);
+    if (roundsWithPenalties.length) {
+      const avgPenaltiesPerHole = roundsWithPenalties.reduce((sum, r) => {
+        const holesPlayed = r.tee.numberOfHoles || 18;
+        return sum + ((r.penalties || 0) / holesPlayed);
+      }, 0) / roundsWithPenalties.length;
+      avgPenalties = avgPenaltiesPerHole * currentHolesPlayed;
+    }
 
+    // Fetch strokes gained for last 5 rounds and normalize per hole
     const last5SGs = await prisma.roundStrokesGained.findMany({
       where: { roundId: { in: last5Rounds.map(r => r.id) } },
     });
+
+    // Create a map of roundId to holes played for SG normalization
+    const roundHolesMap = new Map(last5Rounds.map(r => [r.id, r.tee.numberOfHoles || 18]));
+
     const validSgResults = last5SGs.filter((sg) => sg && sg.sgTotal !== null);
 
     if (validSgResults.length) {
-      const sumSG = (fn: (sg: any) => number) => validSgResults.reduce((sum, sg) => sum + fn(sg), 0) / validSgResults.length;
-      avgSgTotal = sumSG((sg) => sg.sgTotal || 0);
-      avgSgOffTee = sumSG((sg) => sg.sgOffTee || 0);
-      avgSgApproach = sumSG((sg) => sg.sgApproach || 0);
-      avgSgPutting = sumSG((sg) => sg.sgPutting || 0);
-      avgSgResidual = sumSG((sg) => sg.sgResidual || 0);
+      // Normalize each SG value by holes played, then scale to current round
+      const sumSGPerHole = (fn: (sg: any) => number) => {
+        return validSgResults.reduce((sum, sg) => {
+          const holesPlayed = roundHolesMap.get(sg.roundId) || 18;
+          return sum + (fn(sg) / holesPlayed);
+        }, 0) / validSgResults.length;
+      };
+
+      avgSgTotal = sumSGPerHole((sg) => sg.sgTotal || 0) * currentHolesPlayed;
+      avgSgOffTee = sumSGPerHole((sg) => sg.sgOffTee || 0) * currentHolesPlayed;
+      avgSgApproach = sumSGPerHole((sg) => sg.sgApproach || 0) * currentHolesPlayed;
+      avgSgPutting = sumSGPerHole((sg) => sg.sgPutting || 0) * currentHolesPlayed;
+      avgSgResidual = sumSGPerHole((sg) => sg.sgResidual || 0) * currentHolesPlayed;
     }
   }
 
@@ -231,7 +270,7 @@ RULES:
 - Do NOT include extra commentary, headings, or metadata.
 - Always return exactly three insights.`
 
-  const userPrompt = `Generate post-round performance messages for a premium user. 
+  const userPrompt = `Generate post-round performance messages for a premium user.
 
 INPUT:
 - score, to_par, course details (always present)
@@ -243,15 +282,27 @@ NULL HANDLING:
 - If a stat is null, do not mention it.
 
 STROKES GAINED THRESHOLDS:
-- < -2.0 ⚠️ major loss
+- < -2.0 ⚠️ major loss (playing BELOW expectations)
 - -2.0 to -1.0 ⚠️ minor concern
-- > 1.0 🔥 positive
+- -1.0 to 1.0 ✅ expected/on-pace round (performing as expected for handicap)
+- 1.0 to 2.0 🔥 positive (slight improvement)
+- > 2.0 🔥 exceptional (playing ABOVE expectations)
+
+COURSE RATING CONTEXT:
+- Standard 18-hole par 72: rating 72.0, slope 113
+- Standard 9-hole par 36: rating 36.0, slope 113
+- Higher rating/slope = more difficult course
+- If course rating/slope are near standard, focus on performance vs par
+- If course is significantly harder (rating > par+2 or slope > 130), acknowledge difficulty in insights
 
 OUTPUT RULES:
 - Exactly three messages: strengths, weaknesses, actionable recommendation
 - Each message: **max 2 sentences**
 - Be personal, reference numbers if relevant, and focus on actionable insights
 - Do NOT recommend tracking stats if they were already tracked
+- If total SG is between -1.0 and 1.0, acknowledge this was an expected/on-pace round
+- If total SG > 2.0, acknowledge this was playing ABOVE expectations (exceptional performance)
+- If total SG < -2.0, acknowledge this was playing BELOW expectations (underperformance)
 
 ${JSON.stringify(payload, null, 2)}`
 
