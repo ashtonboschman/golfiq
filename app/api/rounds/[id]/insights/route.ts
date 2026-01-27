@@ -294,28 +294,96 @@ EMOJI RULES (HARD CONSTRAINTS):
 - ℹ️ = actionable recommendation
   - MUST be used for Message 3
 
-PRIMARY DECISION LOGIC (FOLLOW IN THIS ORDER):
-1. Evaluate total strokes gained.
-2. - When determining the component that “cost the most strokes,” consider ALL individual strokes gained components (off_tee, approach, putting, penalties). 
-  - Select the component with the **most negative value**, even if it is penalties. 
-  - Residual is ignored.
-3. Determine Message 2 content using the rules below.
+PRIMARY DECISION LOGIC (MANDATORY ALGORITHM):
+You MUST execute this selection algorithm to determine message content:
 
-MESSAGE 1 LOGIC (BEST PERFORMING AREA):
-- Always positive in tone.
-- If total SG > +2.0, Message 1 MUST use 🔥.
-- If total SG ≤ -2.0, Message 1 MUST use ✅ and avoid exaggerated praise.
-- If no individual SG exists, focus on overall round context.
+1. EXTRACT COMPONENTS:
+   - Get array: [off_tee, approach, putting, penalties] from payload
+   - Exclude residual (NEVER use it)
+   - Exclude null values
 
-MESSAGE 2 LOGIC (STRICT):
-- If ONE OR MORE individual strokes gained components are STRICTLY less than -1.0:
-  - Message 2 MUST highlight the SINGLE MOST NEGATIVE component (most negative value).
-  - Message 2 MUST use ⚠️.
-  - This message represents what is holding the round back or costing the most strokes.
-- If NO individual strokes gained component is less than -1.0:
-  - Message 2 MUST highlight the second-best strokes gained stat or another clear positive.
-  - Message 2 MUST use ✅ or 🔥.
-  - Message 2 MUST NOT include advice, critique, or improvement language.
+2. FIND WORST COMPONENT (for Message 2 when weakness exists):
+   - Filter components where value < -1.0
+   - If no components < -1.0: NO_WEAKNESS_MODE = true, proceed to find BEST and SECOND_BEST
+   - If one or more < -1.0: Use Math.min() to find MOST NEGATIVE value
+     - Example: Math.min(-1.33, -3.28) = -3.28 ✓
+     - NOT: pick first negative, NOT: pick based on order
+     - GUARANTEE: This selects the component costing the MOST strokes
+
+3. FIND BEST COMPONENT (for Message 1):
+   - Exclude WORST_COMPONENT (if it exists)
+   - Use Math.max() on remaining components
+   - Example: Math.max(-0.4, -0.56, -1.33) = -0.4 ✓
+   - This is the best performing area
+
+4. FIND SECOND_BEST COMPONENT (for Message 2 when NO weakness):
+   - Exclude BEST_COMPONENT and WORST_COMPONENT
+   - Use Math.max() on remaining components
+   - Example: Math.max(-0.56, -1.33) = -0.56 ✓
+   - Only used when NO_WEAKNESS_MODE = true
+
+5. ASSIGN TO MESSAGES:
+   - Message 1 = BEST_COMPONENT (always positive tone)
+   - Message 2 = WORST_COMPONENT if exists, else SECOND_BEST_COMPONENT
+   - Message 3 = Actionable recommendation (always ℹ️)
+
+CRITICAL MATH OPERATIONS:
+- Math.min(-1.33, -3.28) = -3.28 (most negative, worst performance)
+- Math.max(-0.4, -0.56, +1.2) = +1.2 (best performance)
+- These operations GUARANTEE correct selection regardless of payload order
+
+SELECTION ALGORITHM (EXECUTE IN THIS EXACT ORDER):
+
+STEP 1: EXTRACT ALL SG COMPONENTS
+- Get: off_tee, approach, putting, penalties from payload
+- IGNORE residual completely
+- Create array: [off_tee, approach, putting, penalties] (only non-null values)
+
+STEP 2: IDENTIFY WORST COMPONENT
+- Filter array to values < -1.0
+- If filter result is EMPTY → NO_WEAKNESS_MODE = true
+- If filter result has values → Find component with Math.min() (most negative number)
+  → This is WORST_COMPONENT
+
+STEP 3: IDENTIFY BEST COMPONENT
+- From original array, exclude WORST_COMPONENT (if it exists)
+- Find component with Math.max() (largest number, most positive or least negative)
+- This is BEST_COMPONENT
+
+STEP 4: IDENTIFY SECOND BEST COMPONENT
+- From original array, exclude BEST_COMPONENT and WORST_COMPONENT
+- Find component with Math.max() (largest remaining number)
+- This is SECOND_BEST_COMPONENT
+
+STEP 5: ASSIGN TO MESSAGES
+- Message 1 = BEST_COMPONENT (always)
+  - Use 🔥 if total SG > +2.0 or BEST_COMPONENT > +2.0
+  - Use ✅ if total SG ≤ -2.0
+
+- Message 2 =
+  - If NO_WEAKNESS_MODE = true: SECOND_BEST_COMPONENT (use ✅ or 🔥, positive tone only)
+  - If NO_WEAKNESS_MODE = false: WORST_COMPONENT (use ⚠️)
+
+- Message 3 = Actionable recommendation (ℹ️)
+
+CRITICAL EXAMPLES:
+
+Example 1 - Multiple negatives < -1.0:
+- Components: off_tee (-0.4), approach (-0.56), putting (-1.33), penalties (-3.28)
+- Step 2: Filter < -1.0 → [putting (-1.33), penalties (-3.28)]
+  - Math.min(-1.33, -3.28) = -3.28 → WORST = penalties
+- Step 3: Exclude penalties → [off_tee (-0.4), approach (-0.56), putting (-1.33)]
+  - Math.max(-0.4, -0.56, -1.33) = -0.4 → BEST = off_tee
+- Step 4: Exclude off_tee and penalties → [approach (-0.56), putting (-1.33)]
+  - Math.max(-0.56, -1.33) = -0.56 → SECOND_BEST = approach
+- Result: Message 1 = off_tee (✅), Message 2 = penalties (⚠️)
+
+Example 2 - No negatives < -1.0:
+- Components: off_tee (+1.2), approach (-0.3), putting (+0.8), penalties (-0.5)
+- Step 2: Filter < -1.0 → [] (empty) → NO_WEAKNESS_MODE = true
+- Step 3: Math.max(+1.2, -0.3, +0.8, -0.5) = +1.2 → BEST = off_tee
+- Step 4: Exclude off_tee → Math.max(-0.3, +0.8, -0.5) = +0.8 → SECOND_BEST = putting
+- Result: Message 1 = off_tee (✅ or 🔥), Message 2 = putting (✅ or 🔥)
 
 MESSAGE 3 LOGIC (ACTIONABLE):
 - MUST use ℹ️.
@@ -324,35 +392,98 @@ MESSAGE 3 LOGIC (ACTIONABLE):
 - Must NOT imply poor performance unless Message 2 identified a true weakness (SG < -1.0).
 
 CRITICAL CONSTRAINTS:
+- MANDATORY: Use the selection algorithm (Math.min/Math.max) to guarantee correct component selection.
 - Never repeat the same area in Messages 1 and 2.
-- Never reference strokes gained residual.
+- Never reference strokes gained residual in ANY message.
+- Residual is EXCLUDED from best/worst calculations.
 - Any SG value between -1.0 and +1.0 is expected variance and MUST NOT be framed as a weakness.
 - Do NOT provide coaching or cautionary language unless SG < -1.0.
 - Use course difficulty context only if rating > 73 or slope > 130.
 - If analysis confidence is medium or low, gently note possible data gaps.
 - Message 1 MUST NEVER use ⚠️.
 - Message 1 MUST always use 🔥 or ✅ only.
+- Message 2 MUST use ⚠️ ONLY when a component < -1.0 exists.
+- Message 2 MUST use ✅ or 🔥 when NO components < -1.0 exist (second-best stat).
 - If total strokes gained ≤ -5.0:
   - Do NOT praise raw stats (FIR, GIR, putts).
-  - Message 2 MUST be the most costly strokes gained component.
+  - Message 2 MUST be the most costly strokes gained component (use Math.min to find it).
+
+ALGORITHM GUARANTEES:
+- Math.min() on filtered negatives < -1.0 ALWAYS finds the component costing the MOST strokes.
+- Math.max() on remaining components ALWAYS finds the BEST performing area.
+- Excluding used components prevents overlap between Message 1 and Message 2.
+- When NO_WEAKNESS_MODE = true, both messages are positive (best and second-best).
 
 FORBIDDEN:
 - Negative or cautionary language for any SG ≥ -1.0.
 - Using 🔥 when total SG ≤ -2.0.
 - Using ⚠️ when no individual SG < -1.0 exists.
 - Inventing, exaggerating, or guessing data.
+- Selecting anything other than the largest absolute negative SG for Message 2 when multiple negatives < -1.0 exist.
 
 🔥 is factual recognition of exceptional performance, not exaggeration. When thresholds are met, enthusiastic praise is REQUIRED.`;
 
 const userPrompt = `Generate post-round performance messages for a premium user.
-DECISION LOGIC (MUST BE FOLLOWED IN ORDER):
-1. Check all individual strokes gained components.
-2. If ANY component < -1.0:
-   - Message 2 highlights ONLY that area and uses ⚠️.
-3. If NO component < -1.0:
-   - Message 2 MUST be positive.
-   - Message 2 MUST use ✅ or 🔥.
-   - Message 2 MUST NOT imply improvement is needed.
+
+🚨 MANDATORY SELECTION ALGORITHM 🚨
+Execute this EXACT algorithm before writing any messages:
+
+ALGORITHM:
+1. Extract SG components: [off_tee, approach, putting, penalties] (exclude residual, exclude null values)
+
+2. Find WORST component:
+   - negatives = filter components where value < -1.0
+   - if negatives.length == 0:
+       WORST_COMPONENT = null
+       NO_WEAKNESS_MODE = true
+   - else:
+       WORST_COMPONENT = Math.min(...negatives)  // most negative number
+
+3. Find BEST component:
+   - remaining = all components (exclude WORST_COMPONENT if it exists)
+   - BEST_COMPONENT = Math.max(...remaining)  // largest number
+
+4. Find SECOND_BEST component:
+   - remaining = all components (exclude BEST_COMPONENT and WORST_COMPONENT)
+   - SECOND_BEST_COMPONENT = Math.max(...remaining)  // largest remaining
+
+5. Assign to messages:
+   - Message 1 = BEST_COMPONENT
+     - Use 🔥 if total SG > +2.0 OR BEST_COMPONENT > +2.0
+     - Use ✅ if total SG ≤ -2.0
+
+   - Message 2 =
+     - If NO_WEAKNESS_MODE: SECOND_BEST_COMPONENT (use ✅ or 🔥, positive tone)
+     - Else: WORST_COMPONENT (use ⚠️)
+
+   - Message 3 = Actionable recommendation (ℹ️)
+
+VERIFICATION EXAMPLES:
+
+Test Case 1:
+- off_tee: -0.4, approach: -0.56, putting: -1.33, penalties: -3.28
+- negatives < -1.0: [putting: -1.33, penalties: -3.28]
+- WORST = Math.min(-1.33, -3.28) = -3.28 (penalties) ✓
+- remaining for BEST = [-0.4, -0.56, -1.33]
+- BEST = Math.max(-0.4, -0.56, -1.33) = -0.4 (off_tee) ✓
+- Message 1: off_tee (✅)
+- Message 2: penalties (⚠️) ✓
+
+Test Case 2:
+- off_tee: +1.2, approach: -0.3, putting: +0.8, penalties: -0.5
+- negatives < -1.0: [] (empty)
+- NO_WEAKNESS_MODE = true
+- BEST = Math.max(+1.2, -0.3, +0.8, -0.5) = +1.2 (off_tee) ✓
+- remaining for SECOND_BEST = [-0.3, +0.8, -0.5]
+- SECOND_BEST = Math.max(-0.3, +0.8, -0.5) = +0.8 (putting) ✓
+- Message 1: off_tee (🔥 or ✅)
+- Message 2: putting (✅ or 🔥) ✓
+
+CRITICAL:
+- Math.min() finds MOST NEGATIVE (e.g., -3.28 < -1.33)
+- Math.max() finds LARGEST/BEST (e.g., +1.2 > +0.8 > -0.3)
+- NEVER use residual in calculations
+- NEVER pick same component for Message 1 and Message 2
 
 🚨 OUTPUT REMINDER 🚨
 - Output EXACTLY 3 messages
@@ -371,11 +502,10 @@ INPUT STRUCTURE:
 - round.course.rating, round.course.slope = course difficulty
 - round.confidence.overall = "high", "medium", "low", or null
 - round.confidence.partial_analysis = true/false
-- round.confidence.advanced_stats_logged = true/false
 
 NULL & MISSING DATA HANDLING:
 - Only reference strokes gained components present in the payload.
-- Do NOT reference residual.
+- Do NOT reference residual in ANY message.
 - If total SG exists but individual components do not, focus on overall performance and encourage tracking more stats for deeper insights.
 - If partial_analysis = true, do NOT attribute specific performance to SG components; focus on overall round and encouragement.
 - If confidence.medium or low, mention that some stats may be inflated or missing.
@@ -384,11 +514,11 @@ NULL & MISSING DATA HANDLING:
 
 INSIGHT RULES:
 - Generate exactly 3 messages in order:
-  1. BEST performing area
-  2. - ONLY an area needing work IF an individual strokes gained component is STRICTLY < -1.0.
-     - OTHERWISE, this message MUST highlight another positive strength or solid performance.
-     - Negative, cautionary, or improvement-oriented language is FORBIDDEN unless SG < -1.0.
-  3. may include general maintenance, skill reinforcement, or trend-based practice even if no weaknesses exist.
+  1. BEST performing area (excluding component used in Message 2 if it's a weakness)
+  2. - IF one or more SG components < -1.0: highlight the SINGLE MOST NEGATIVE component (largest absolute negative value)
+     - ELSE: highlight another positive strength or solid performance
+     - Negative, cautionary, or improvement-oriented language is FORBIDDEN unless SG < -1.0
+  3. Actionable recommendation (may include general maintenance, skill reinforcement, or trend-based practice)
 - Actionable advice must not imply poor performance unless a true weakness (SG < -1.0) was identified.
 - Avoid repeating areas across messages.
 - Include course difficulty context when course rating > 73 or slope > 130 only. Do not mention course difficulty if these conditions are not met.
@@ -400,6 +530,51 @@ OUTPUT RULES:
 - No headings, labels, or formatting
 - Focus on clarity, encouragement, and actionable advice
 - Do NOT invent any missing data or exaggerate results
+
+WORKED EXAMPLE - APPLY THE ALGORITHM:
+Given payload:
+- SG Total = -0.85
+- SG Off Tee = -0.4
+- SG Approach = -0.56
+- SG Putting = -1.33
+- SG Penalties = -3.28
+- SG Residual = +4.72 (IGNORE)
+
+STEP 1: Extract components
+- Array: [off_tee: -0.4, approach: -0.56, putting: -1.33, penalties: -3.28]
+
+STEP 2: Find WORST
+- Filter < -1.0: [putting: -1.33, penalties: -3.28]
+- Math.min(-1.33, -3.28) = -3.28
+- WORST_COMPONENT = penalties (-3.28)
+- NO_WEAKNESS_MODE = false
+
+STEP 3: Find BEST
+- Exclude penalties: [off_tee: -0.4, approach: -0.56, putting: -1.33]
+- Math.max(-0.4, -0.56, -1.33) = -0.4
+- BEST_COMPONENT = off_tee (-0.4)
+
+STEP 4: Find SECOND_BEST
+- Exclude off_tee and penalties: [approach: -0.56, putting: -1.33]
+- Math.max(-0.56, -1.33) = -0.56
+- SECOND_BEST_COMPONENT = approach (-0.56)
+
+STEP 5: Assign messages
+- Message 1 = off_tee (-0.4) → ✅ (because total SG = -0.85, which is ≤ -2.0? No, > -2.0, so use ✅ or 🔥 based on context)
+- Message 2 = penalties (-3.28) → ⚠️ (NO_WEAKNESS_MODE = false)
+- Message 3 = Actionable → ℹ️
+
+CORRECT OUTPUT:
+✅ Message 1 about off_tee (best remaining after excluding penalties)
+⚠️ Message 2 about penalties (worst component, -3.28 is most negative)
+ℹ️ Message 3 actionable recommendation
+
+COMMON ERRORS TO AVOID:
+❌ Selecting putting for Message 2 because it appears first in payload
+❌ Selecting putting for Message 2 because "penalties belong in actionable tips"
+❌ Not using Math.min() to guarantee most negative selection
+❌ Using residual (+4.72) in any calculation
+❌ Repeating same component in Message 1 and Message 2
 
 ${JSON.stringify(payload, null, 2)}`;
 
