@@ -225,11 +225,16 @@ export default function RoundStatsPage() {
               {stats.course_name}
             </h1>
             <p className="stats-header-subtitle">
-              {formatDate(stats.date)} • {stats.tee_name} Tees
+              {formatDate(stats.date)}
             </p>
-            <p className="round-holes-tag">
-              {stats.number_of_holes} Holes
-            </p>
+            <div className='stats-holes-tees-container'>
+              <p className="round-holes-tag">
+                {stats.number_of_holes} Holes
+              </p>
+              <p className={`tee-tag stats-tee-tag tee-${stats.tee_name.toLowerCase()}`}>
+                {stats.tee_name}
+              </p>
+            </div>
           </div>          
           <div style={{ display: 'flex', gap: '10px' }}>
             <Link

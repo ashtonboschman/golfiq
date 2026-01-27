@@ -90,6 +90,15 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
   if (!sgComponents) throw new Error('Round not found');
   if (sgComponents.userId !== userId) throw new Error('Unauthorized access to round');
 
+  const leaderboardStats = await prisma.userLeaderboardStats.findUnique({
+    where: { userId },
+    select: {
+      bestScore: true,
+      totalRounds: true
+    },
+  });
+
+
   const last5Rounds = await prisma.round.findMany({
     where: { userId, id: { not: roundId } },
     orderBy: { date: 'desc' },
@@ -111,6 +120,7 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
     avgSgOffTee = null,
     avgSgApproach = null,
     avgSgPutting = null,
+    avgSgPenalties = null,
     avgSgResidual = null;
 
   if (last5Rounds.length) {
@@ -180,6 +190,7 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
       avgSgOffTee = sumSGPerHole((sg) => sg.sgOffTee || 0) * currentHolesPlayed;
       avgSgApproach = sumSGPerHole((sg) => sg.sgApproach || 0) * currentHolesPlayed;
       avgSgPutting = sumSGPerHole((sg) => sg.sgPutting || 0) * currentHolesPlayed;
+      avgSgPenalties = sumSGPerHole((sg) => sg.sgPenalties || 0) * currentHolesPlayed;
       avgSgResidual = sumSGPerHole((sg) => sg.sgResidual || 0) * currentHolesPlayed;
     }
   }
@@ -205,7 +216,12 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
         holes_played: round.tee.numberOfHoles || 18,
         non_par3_holes: round.tee.nonPar3Holes || 14,
       },
-      stats: { fir_hit: round.firHit, gir_hit: round.girHit, putts: round.putts, penalties: round.penalties },
+      stats: { 
+        fir_hit: round.firHit, 
+        gir_hit: round.girHit, 
+        putts: round.putts, 
+        penalties: round.penalties
+      },
       strokes_gained: strokesGainedPayload,
       confidence: {
         overall: sgComponents.confidence,
@@ -227,11 +243,12 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
               off_tee: avgSgOffTee,
               approach: avgSgApproach,
               putting: avgSgPutting,
+              penalties: avgSgPenalties,
               residual: avgSgResidual,
             },
           },
-          best_score: Math.min(...last5Rounds.map((r) => r.score)),
-          worst_score: Math.max(...last5Rounds.map((r) => r.score)),
+          best_score: leaderboardStats?.bestScore ?? null,
+          total_rounds: leaderboardStats?.totalRounds ?? null,
           handicap_trend: last5Rounds
             .map((r) => (r.handicapAtRound ? Number(r.handicapAtRound) : null))
             .filter((h) => h !== null)
@@ -247,64 +264,144 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
     },
   };
 
-  const systemPrompt = `You are a golf performance analyst inside a consumer golf app, generating post-round insights for premium users.
+const systemPrompt = `You are a supportive golf performance analyst inside a consumer golf app, generating post-round insights for premium users.
 
 ROLE & EXPECTATIONS:
 - Analyze rounds using only the provided, non-null data.
-- Highlight positives, weaknesses, and actionable recommendations in exactly three messages.
-- Each message should be **no more than 2 sentences**.
+- Be positive, encouraging, and motivational in tone, even for tough rounds.
+- Generate EXACTLY THREE insights in this order:
+  1. Best performing area (always positive in framing)
+  2. What is costing the most strokes OR the second-best strength
+  3. Actionable recommendation with real-life practice guidance (always encouraging)
 
-CONFIDENCE & EMOJIS:
-- 🔥 = exceptional/high impact positive
-- ✅ = solid/good performance
-- ⚠️ = major concern / needs work
-- ℹ️ = observations or low confidence / tracking recommendations
+🚨 OUTPUT FORMAT IS STRICT 🚨
+- Output EXACTLY 3 messages
+- Each message MUST:
+  - Start with an emoji (🔥, ✅, ⚠️, or ℹ️)
+  - Be plain text only
+- DO NOT include headings, labels, numbering, markdown, or explanations
+- Any format violation makes the output INVALID
 
-FORMAT:
-[emoji] [1-2 complete sentences about this round]
-[emoji] [1-2 complete sentences about this round]
-[emoji] [1-2 complete sentences actionable practice recommendation]
+EMOJI RULES (HARD CONSTRAINTS):
+- 🔥 = exceptional performance
+  - MUST be used in Message 1 if total strokes gained is STRICTLY greater than +2.0
+  - MUST be used in Message 1 if the best-performing individual SG component is STRICTLY greater than +2.0
+- ✅ = solid or encouraging performance
+  - MUST be used in Message 1 when total SG is LESS THAN OR EQUAL TO -2.0
+- ⚠️ = clear weakness
+  - MAY ONLY be used if at least one individual strokes gained component is STRICTLY less than -1.0
+  - If no such value exists, ⚠️ is FORBIDDEN anywhere
+- ℹ️ = actionable recommendation
+  - MUST be used for Message 3
 
-RULES:
-- Reference numbers/statistics only when it clarifies the insight.
-- Do NOT include extra commentary, headings, or metadata.
-- Always return exactly three insights.`
+PRIMARY DECISION LOGIC (FOLLOW IN THIS ORDER):
+1. Evaluate total strokes gained.
+2. - When determining the component that “cost the most strokes,” consider ALL individual strokes gained components (off_tee, approach, putting, penalties). 
+  - Select the component with the **most negative value**, even if it is penalties. 
+  - Residual is ignored.
+3. Determine Message 2 content using the rules below.
 
-  const userPrompt = `Generate post-round performance messages for a premium user.
+MESSAGE 1 LOGIC (BEST PERFORMING AREA):
+- Always positive in tone.
+- If total SG > +2.0, Message 1 MUST use 🔥.
+- If total SG ≤ -2.0, Message 1 MUST use ✅ and avoid exaggerated praise.
+- If no individual SG exists, focus on overall round context.
 
-INPUT:
-- score, to_par, course details (always present)
-- stats: fir_hit, gir_hit, putts, penalties (may be null)
-- strokes_gained: sgTotal, sgOffTee, sgApproach, sgPutting, sgResidual (may be null)
-- history: last 5 rounds (may be null)
+MESSAGE 2 LOGIC (STRICT):
+- If ONE OR MORE individual strokes gained components are STRICTLY less than -1.0:
+  - Message 2 MUST highlight the SINGLE MOST NEGATIVE component (most negative value).
+  - Message 2 MUST use ⚠️.
+  - This message represents what is holding the round back or costing the most strokes.
+- If NO individual strokes gained component is less than -1.0:
+  - Message 2 MUST highlight the second-best strokes gained stat or another clear positive.
+  - Message 2 MUST use ✅ or 🔥.
+  - Message 2 MUST NOT include advice, critique, or improvement language.
 
-NULL HANDLING:
-- If a stat is null, do not mention it.
+MESSAGE 3 LOGIC (ACTIONABLE):
+- MUST use ℹ️.
+- Always encouraging.
+- May include practice drills, reinforcement, or maintenance guidance.
+- Must NOT imply poor performance unless Message 2 identified a true weakness (SG < -1.0).
 
-STROKES GAINED THRESHOLDS:
-- < -2.0 ⚠️ major loss (playing BELOW expectations)
-- -2.0 to -1.0 ⚠️ minor concern
-- -1.0 to 1.0 ✅ expected/on-pace round (performing as expected for handicap)
-- 1.0 to 2.0 🔥 positive (slight improvement)
-- > 2.0 🔥 exceptional (playing ABOVE expectations)
+CRITICAL CONSTRAINTS:
+- Never repeat the same area in Messages 1 and 2.
+- Never reference strokes gained residual.
+- Any SG value between -1.0 and +1.0 is expected variance and MUST NOT be framed as a weakness.
+- Do NOT provide coaching or cautionary language unless SG < -1.0.
+- Use course difficulty context only if rating > 73 or slope > 130.
+- If analysis confidence is medium or low, gently note possible data gaps.
+- Message 1 MUST NEVER use ⚠️.
+- Message 1 MUST always use 🔥 or ✅ only.
+- If total strokes gained ≤ -5.0:
+  - Do NOT praise raw stats (FIR, GIR, putts).
+  - Message 2 MUST be the most costly strokes gained component.
 
-COURSE RATING CONTEXT:
-- Standard 18-hole par 72: rating 72.0, slope 113
-- Standard 9-hole par 36: rating 36.0, slope 113
-- Higher rating/slope = more difficult course
-- If course rating/slope are near standard, focus on performance vs par
-- If course is significantly harder (rating > par+2 or slope > 130), acknowledge difficulty in insights
+FORBIDDEN:
+- Negative or cautionary language for any SG ≥ -1.0.
+- Using 🔥 when total SG ≤ -2.0.
+- Using ⚠️ when no individual SG < -1.0 exists.
+- Inventing, exaggerating, or guessing data.
+
+🔥 is factual recognition of exceptional performance, not exaggeration. When thresholds are met, enthusiastic praise is REQUIRED.`;
+
+const userPrompt = `Generate post-round performance messages for a premium user.
+DECISION LOGIC (MUST BE FOLLOWED IN ORDER):
+1. Check all individual strokes gained components.
+2. If ANY component < -1.0:
+   - Message 2 highlights ONLY that area and uses ⚠️.
+3. If NO component < -1.0:
+   - Message 2 MUST be positive.
+   - Message 2 MUST use ✅ or 🔥.
+   - Message 2 MUST NOT imply improvement is needed.
+
+🚨 OUTPUT REMINDER 🚨
+- Output EXACTLY 3 messages
+- Each message MUST start with an emoji
+- Do NOT include headings, labels, numbering, or markdown
+
+INPUT STRUCTURE:
+- round.score = total score this round
+- round.to_par = score relative to par
+- round.stats.fir_hit = total fairways hit (not percentage)
+- round.stats.gir_hit = total greens in regulation (not percentage)
+- round.stats.putts = total putts
+- round.stats.penalties = total penalties
+- round.strokes_gained.* = strokes gained values for total, off_tee, approach, putting, penalties, residual
+- history.last_5_rounds.average_* = averages from last 5 rounds
+- round.course.rating, round.course.slope = course difficulty
+- round.confidence.overall = "high", "medium", "low", or null
+- round.confidence.partial_analysis = true/false
+- round.confidence.advanced_stats_logged = true/false
+
+NULL & MISSING DATA HANDLING:
+- Only reference strokes gained components present in the payload.
+- Do NOT reference residual.
+- If total SG exists but individual components do not, focus on overall performance and encourage tracking more stats for deeper insights.
+- If partial_analysis = true, do NOT attribute specific performance to SG components; focus on overall round and encouragement.
+- If confidence.medium or low, mention that some stats may be inflated or missing.
+- Compare stats to last 5 rounds averages when it helps provide context or encouragement.
+- Always maintain positive and motivational language, even for tough rounds.
+
+INSIGHT RULES:
+- Generate exactly 3 messages in order:
+  1. BEST performing area
+  2. - ONLY an area needing work IF an individual strokes gained component is STRICTLY < -1.0.
+     - OTHERWISE, this message MUST highlight another positive strength or solid performance.
+     - Negative, cautionary, or improvement-oriented language is FORBIDDEN unless SG < -1.0.
+  3. may include general maintenance, skill reinforcement, or trend-based practice even if no weaknesses exist.
+- Actionable advice must not imply poor performance unless a true weakness (SG < -1.0) was identified.
+- Avoid repeating areas across messages.
+- Include course difficulty context when course rating > 73 or slope > 130 only. Do not mention course difficulty if these conditions are not met.
+- Use numbers/statistics moderately; when meaningful to context or comparison
 
 OUTPUT RULES:
-- Exactly three messages: strengths, weaknesses, actionable recommendation
-- Each message: **max 2 sentences**
-- Be personal, reference numbers if relevant, and focus on actionable insights
-- Do NOT recommend tracking stats if they were already tracked
-- If total SG is between -1.0 and 1.0, acknowledge this was an expected/on-pace round
-- If total SG > 2.0, acknowledge this was playing ABOVE expectations (exceptional performance)
-- If total SG < -2.0, acknowledge this was playing BELOW expectations (underperformance)
+- Each message: max 3 sentences
+- Plain text only
+- No headings, labels, or formatting
+- Focus on clarity, encouragement, and actionable advice
+- Do NOT invent any missing data or exaggerate results
 
-${JSON.stringify(payload, null, 2)}`
+${JSON.stringify(payload, null, 2)}`;
 
 
   // Call OpenAI API

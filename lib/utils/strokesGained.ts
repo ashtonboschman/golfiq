@@ -47,36 +47,76 @@ export async function calculateStrokesGained(
     };
   }
 
-  // Fetch baseline
-  const baseline = await prisma.handicapTierBaseline.findFirst({
-    where: {
-      handicapMin: { lte: Number(round.handicapAtRound) },
-      handicapMax: { gte: Number(round.handicapAtRound) },
-    },
-    orderBy: {
-      handicapMin: "desc", // pick the highest possible min below handicap
-    },
+  // Fetch all baselines for interpolation
+  const allBaselines = await prisma.handicapTierBaseline.findMany({
+    orderBy: { handicapMin: "asc" },
   });
-  if (!baseline) throw new Error("Baseline not found for handicap tier");
+  if (!allBaselines.length) throw new Error("No baseline tiers found");
+
+  const handicap = Number(round.handicapAtRound);
+
+  // Find current tier and adjacent tiers
+  const currentTierIndex = allBaselines.findIndex(
+    (b) => handicap >= Number(b.handicapMin) && handicap <= Number(b.handicapMax)
+  );
+  if (currentTierIndex === -1) throw new Error("Baseline not found for handicap tier");
+
+  const currentTier = allBaselines[currentTierIndex];
+  const prevTier = currentTierIndex > 0 ? allBaselines[currentTierIndex - 1] : null;
+  const nextTier = currentTierIndex < allBaselines.length - 1 ? allBaselines[currentTierIndex + 1] : null;
+
+  // Helper: Interpolate a baseline value based on handicap position
+  const interpolateBaseline = (getValue: (tier: any) => number): number => {
+    const currentMin = Number(currentTier.handicapMin);
+    const currentMax = Number(currentTier.handicapMax);
+    const currentMid = (currentMin + currentMax) / 2;
+    const currentValue = getValue(currentTier);
+
+    // If at the midpoint or edges, return current tier value
+    if (Math.abs(handicap - currentMid) < 0.1) return currentValue;
+
+    // Interpolate towards previous tier (lower handicap)
+    if (handicap < currentMid && prevTier) {
+      const prevMid = (Number(prevTier.handicapMin) + Number(prevTier.handicapMax)) / 2;
+      const prevValue = getValue(prevTier);
+      const ratio = (currentMid - handicap) / (currentMid - prevMid);
+      return currentValue + ratio * (prevValue - currentValue);
+    }
+
+    // Interpolate towards next tier (higher handicap)
+    if (handicap > currentMid && nextTier) {
+      const nextMid = (Number(nextTier.handicapMin) + Number(nextTier.handicapMax)) / 2;
+      const nextValue = getValue(nextTier);
+      const ratio = (handicap - currentMid) / (nextMid - currentMid);
+      return currentValue + ratio * (nextValue - currentValue);
+    }
+
+    // Fallback to current tier value
+    return currentValue;
+  };
+
+  // Interpolate baseline values
+  const baselineScore = interpolateBaseline((t) => Number(t.baselineScore));
+  const baselineFIR = interpolateBaseline((t) => Number(t.baselineFIRPct));
+  const baselineGIR = interpolateBaseline((t) => Number(t.baselineGIRPct));
+  const baselinePutts = interpolateBaseline((t) => Number(t.baselinePutts));
+  const baselinePenalties = interpolateBaseline((t) => Number(t.baselinePenalties));
 
   const totalHoles = round.tee.numberOfHoles || 18;
   const nonPar3Holes = round.tee.nonPar3Holes;
   const courseRating = round.tee.courseRating !== null ? Number(round.tee.courseRating) : 72;
-
-  // Course difficulty calculations
-  const neutralExpectedScore = 72 + Number(round.handicapAtRound);
   const slope = round.tee.slopeRating || 113;
-  const coursePlayingHandicap = Number(round.handicapAtRound) * (slope / 113);
-  const courseExpectedScore = (courseRating || 72) + coursePlayingHandicap;
+
+  // Course difficulty adjustment (based on how much harder/easier than neutral)
+  // Neutral course: par 72, rating 72, slope 113
+  const neutralRating = 72;
+  const coursePlayingHandicap = handicap * (slope / 113);
+  const courseExpectedScore = courseRating + coursePlayingHandicap;
+  const neutralExpectedScore = neutralRating + handicap;
   const courseDiffAdj = courseExpectedScore - neutralExpectedScore;
 
-  const baselineFIR = Number(baseline.baselineFIRPct);
-  const baselineGIR = Number(baseline.baselineGIRPct);
-  const baselinePutts = Number(baseline.baselinePutts);
-  const baselinePenalties = Number(baseline.baselinePenalties);
-
-  // Adjusted expected stats
-  const adjScore = courseExpectedScore;
+  // Adjusted expected stats (baseline adjusted for course difficulty)
+  const adjScore = baselineScore + courseDiffAdj;
   const adjFIR = ((baselineFIR - (courseDiffAdj * C.COURSE_DIFF_TO_FIR_PCT)) / 100) * nonPar3Holes;
   const adjGIR = ((baselineGIR - (courseDiffAdj * C.COURSE_DIFF_TO_GIR_PCT)) / 100) * totalHoles;
   const adjPutts = baselinePutts + courseDiffAdj * C.COURSE_DIFF_TO_PUTTS;

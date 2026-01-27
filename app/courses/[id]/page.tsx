@@ -183,7 +183,7 @@ export default function CourseDetailsPage() {
 
       <div className="card course-card">
         <div className="course-name-container">
-          <h2 className="course-name">{course.course_name}</h2>
+          <h1 className="course-name">{course.course_name}</h1>
           <p className="round-holes-tag">
             {selectedTee?.number_of_holes} Holes
           </p>
