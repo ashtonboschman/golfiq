@@ -554,7 +554,6 @@ ${JSON.stringify(payload, null, 2)}`;
   }
 
   const data = await response.json();
-  console.log('OpenAI usage:', JSON.stringify(data.usage, null, 2));
   const choice = data.choices?.[0];
   const content = choice?.message?.content;
 

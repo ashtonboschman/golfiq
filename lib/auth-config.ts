@@ -34,19 +34,23 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid credentials');
         }
 
-        // Serialize profile to convert BigInts to strings
-        const serializedProfile = user.profile ? {
-          ...user.profile,
-          id: user.profile.id.toString(),
-          userId: user.profile.userId.toString(),
-          favoriteCourseId: user.profile.favoriteCourseId?.toString() || null,
-        } : null;
+        // Map Prisma profile to NextAuth expected profile type
+        const mappedProfile = user.profile
+          ? {
+              ...user.profile,
+              id: user.profile.id.toString(),
+              userId: user.profile.userId.toString(),
+              favoriteCourseId: user.profile.favoriteCourseId?.toString() || null,
+              createdDate: user.profile.createdAt,   // map createdAt -> createdDate
+              updatedDate: user.profile.updatedAt,   // map updatedAt -> updatedDate
+            }
+          : null;
 
         return {
           id: user.id.toString(),
           email: user.email,
           name: user.username,
-          profile: serializedProfile,
+          profile: mappedProfile,
         };
       },
     }),
