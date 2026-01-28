@@ -111,7 +111,8 @@ export async function GET(request: NextRequest) {
       skip,
     });
 
-    const users = stats.map(s => ({
+    const users = stats.map((s, index) => ({
+      rank: index + 1,
       user_id: Number(s.userId),
       handicap: s.handicap ?? null,
       average_score: s.averageToPar ?? null,
