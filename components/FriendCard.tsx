@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { FriendUser } from '@/lib/friendUtils';
-import { Check, ChevronRight, Plus, UserCheck2, UserPlus2, UserRoundCog, X } from 'lucide-react';
+import { Check, ChevronRight, UserCheck2, UserPlus2, UserRoundCog, X } from 'lucide-react';
 
 interface FriendCardProps {
   friend: FriendUser;

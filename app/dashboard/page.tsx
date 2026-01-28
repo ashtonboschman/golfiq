@@ -684,7 +684,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       {stats.limitedToLast20 && stats.totalRoundsInDb && stats.totalRoundsInDb > 20 && (
         <div className="info-banner warning">
           <div className="info-banner-content">
-            <div className="info-banner-icon"><TriangleAlert size='45'/></div>
+            <div className="info-banner-icon"><TriangleAlert size={50}/></div>
             <div className="info-banner-text">
               <h4>Limited Stats View</h4>
               <p>

@@ -266,7 +266,7 @@ export default function LoginPage() {
               }}
               aria-label="Toggle password visibility"
             >
-              {showPassword ? <Eye/> : <EyeOff/>}
+              {showPassword ? <Eye size={20}/> : <EyeOff size={20}/>}
             </button>
           </div>
           {isRegister && (
@@ -299,7 +299,7 @@ export default function LoginPage() {
                 }}
                 aria-label="Toggle confirm password visibility"
               >
-                {showConfirmPassword ? <Eye/> : <EyeOff/>}
+                {showConfirmPassword ? <Eye size={20}/> : <EyeOff size={20}/>}
               </button>
             </div>
           )}

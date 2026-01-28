@@ -85,7 +85,7 @@ function SubscriptionSuccessContent() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Loader2 size={48} className="spinning" /></div>
+            <div style={{ marginBottom: '16px' }}><Loader2 size={50} className="spinning" /></div>
             <h1 className="auth-title">Activating Subscription...</h1>
           </div>
           <p className="secondary-text" style={{ textAlign: 'center' }}>
@@ -107,7 +107,7 @@ function SubscriptionSuccessContent() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><AlertCircle size={48} color="var(--color-red)" /></div>
+            <div style={{ marginBottom: '16px' }}><AlertCircle size={50} color="var(--color-red)" /></div>
             <h1 className="auth-title">{isWrongUser ? 'Wrong Account' : 'Something Went Wrong'}</h1>
           </div>
 
@@ -149,7 +149,7 @@ function SubscriptionSuccessContent() {
     <div className="login-stack">
       <div className="card login-card">
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ marginBottom: '16px' }}><Check size={48} color="var(--color-success)" /></div>
+          <div style={{ marginBottom: '16px' }}><Check size={50} color="var(--color-success)" /></div>
           <h1 className="auth-title">Welcome to Premium!</h1>
         </div>
 

@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Mail size={48} color="var(--color-accent)" /></div>
+            <div style={{ marginBottom: '16px' }}><Mail size={50} color="var(--color-accent)" /></div>
             <h1 className="auth-title">Check Your Email</h1>
           </div>
 

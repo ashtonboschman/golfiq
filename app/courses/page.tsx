@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '../providers';
 import CourseCard from '@/components/CourseCard';
-import { Plus } from 'lucide-react';
 
 interface Location {
   city?: string | null;

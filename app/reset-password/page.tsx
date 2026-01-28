@@ -78,7 +78,7 @@ function ResetPasswordForm() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><TriangleAlert size={48} color="var(--color-warning)" /></div>
+            <div style={{ marginBottom: '16px' }}><TriangleAlert size={50} color="var(--color-warning)" /></div>
             <h1 className="auth-title">Invalid Reset Link</h1>
           </div>
 
@@ -104,7 +104,7 @@ function ResetPasswordForm() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Check size={48} color="var(--color-success)" /></div>
+            <div style={{ marginBottom: '16px' }}><Check size={50} color="var(--color-success)" /></div>
             <h1 className="auth-title">Password Reset Successful</h1>
           </div>
 
@@ -172,7 +172,7 @@ function ResetPasswordForm() {
               }}
               aria-label="Toggle password visibility"
             >
-              {showPassword ? <Eye/> : <EyeOff/>}
+              {showPassword ? <Eye size={20}/> : <EyeOff size={20}/>}
             </button>
           </div>
 
@@ -217,7 +217,7 @@ function ResetPasswordForm() {
               }}
               aria-label="Toggle confirm password visibility"
             >
-              {showConfirmPassword ? <Eye/> : <EyeOff/>}
+              {showConfirmPassword ? <Eye size={20}/> : <EyeOff size={20}/>}
             </button>
           </div>
 

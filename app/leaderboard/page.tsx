@@ -163,14 +163,14 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Premium upgrade CTA for limited leaderboard */}
-      {scope === 'global' && true && (
+      {scope === 'global' && totalUsers > 50 && (
         <div className="info-banner warning">
           <div className="info-banner-content">
-            <div className="info-banner-icon"><Crown size='45'/></div>
+            <div className="info-banner-icon"><Crown size={50}/></div>
             <div className="info-banner-text">
               <h4>Want the full picture?</h4>
               <p>
-                Currently showing top 100 players out of {totalUsers}. Upgrade to Premium to see the entire global leaderboard and your true ranking.
+                Currently showing top 50 players out of {totalUsers}. Upgrade to Premium to see the entire global leaderboard and your true ranking.
               </p>
             </div>
             <button

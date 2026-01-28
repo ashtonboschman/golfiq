@@ -14,7 +14,7 @@
   --color-gradient-2: #8c5bff;
   --color-gradient-3: #7F5AFF;
   --color-warning: #f59e0b;
-  --color-success: #2bb673;
+  --color-success: #28a065;
 
   /* Font sizes */
   --font-base: 16px;
@@ -2454,10 +2454,12 @@ input[type='date'].form-input {
 }
 
 .flex-row {
+  display: flex;
   flex-direction: row;
 }
 
 .flex-column {
+  display: flex;
   flex-direction: column;
 }
 
@@ -2479,6 +2481,14 @@ input[type='date'].form-input {
 
 .right {
   text-align: right;
+}
+
+.gap {
+  gap: var(--gap);
+}
+
+.gap-small {
+  gap: var(--gap-small);
 }
 
 /* ===========================

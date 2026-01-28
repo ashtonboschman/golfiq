@@ -481,7 +481,7 @@ export default function ProfilePage() {
       {profile.email_verified === false && (
         <div className="info-banner warning">
           <div className="info-banner-content">
-            <div className="info-banner-icon"><Mail size='45'/></div>
+            <div className="info-banner-icon"><Mail size={50}/></div>
             <div className="info-banner-text">
               <h4>Email Not Verified</h4>
               <p>

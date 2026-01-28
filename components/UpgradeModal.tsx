@@ -78,7 +78,7 @@ export default function UpgradeModal({
       <div className="upgrade-modal">
         <div className="upgrade-modal-content">
           {/* Icon */}
-          <div className="upgrade-modal-icon"><Rocket color='var(--color-accent)' size='50'/></div>
+          <div className="upgrade-modal-icon"><Rocket color='var(--color-accent)' size={50}/></div>
 
           {/* Title */}
           <h2 className="upgrade-modal-title">{title}</h2>

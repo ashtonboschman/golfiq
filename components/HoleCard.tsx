@@ -125,7 +125,7 @@ const HoleCard = memo(({
         style={{ cursor: onToggleExpand ? 'pointer' : 'default' }}
       >
         <div className="accordion-hole-header-left">
-          {isCompleted && <Check className="completion-check" size={20} />}
+          {isCompleted && <Check className="completion-check" />}
           <span className="accordion-hole-number">Hole {hole}</span>
           <span className="accordion-hole-par">Par {par ?? '-'}</span>
         </div>
@@ -135,7 +135,7 @@ const HoleCard = memo(({
               Score: {score}{hasAdvanced && putts !== null && ` • Putts: ${putts}`}
             </span>
           )}
-          {onToggleExpand && (isExpanded ? <ChevronUp className="accordion-icon" size={20} /> : <ChevronDown className="accordion-icon" size={20} />)}
+          {onToggleExpand && (isExpanded ? <ChevronUp className="accordion-icon" /> : <ChevronDown className="accordion-icon" />)}
         </div>
       </div>
 

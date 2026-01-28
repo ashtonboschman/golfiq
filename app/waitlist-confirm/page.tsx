@@ -58,7 +58,7 @@ function WaitlistConfirmForm() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Loader2 size={48} className="spinning" /></div>
+            <div style={{ marginBottom: '16px' }}><Loader2 size={50} className="spinning" /></div>
             <h1 className="auth-title">Confirming...</h1>
           </div>
 
@@ -75,7 +75,7 @@ function WaitlistConfirmForm() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><TriangleAlert size={48} color="var(--color-warning)" /></div>
+            <div style={{ marginBottom: '16px' }}><TriangleAlert size={50} color="var(--color-warning)" /></div>
             <h1 className="auth-title">Invalid Confirmation Link</h1>
           </div>
 
@@ -96,7 +96,7 @@ function WaitlistConfirmForm() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Check size={48} color="var(--color-success)" /></div>
+            <div style={{ marginBottom: '16px' }}><Check size={50} color="var(--color-success)" /></div>
             <h1 className="auth-title">You're Confirmed! 🎉</h1>
           </div>
 
@@ -117,7 +117,7 @@ function WaitlistConfirmForm() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><X size={48} color="var(--color-red)" /></div>
+            <div style={{ marginBottom: '16px' }}><X size={50} color="var(--color-red)" /></div>
             <h1 className="auth-title">Confirmation Failed</h1>
           </div>
 

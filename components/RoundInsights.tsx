@@ -75,7 +75,7 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
         <Header />
         <div className="premium-gate">
           <div className="premium-gate-top">
-            <Lock size={28} />
+            <Lock size={50} />
             <p>Want to find out <strong>exactly</strong> what’s costing you strokes?</p>
           </div>
           <div className="premium-gate-bottom">

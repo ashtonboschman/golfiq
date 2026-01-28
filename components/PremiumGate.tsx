@@ -56,7 +56,7 @@ export default function PremiumGate({
     if (inline) {
       return (
         <div className="inline-flex items-center gap-2 text-sm text-gray-600">
-          <span className="text-yellow-600">🔒</span>
+          <span className="text-yellow-600"><Lock/></span>
           <span>{featureName} is premium only.</span>
           <button
             className="text-blue-600 hover:text-blue-700 underline font-medium"
@@ -71,7 +71,7 @@ export default function PremiumGate({
     // Full card version
     return (
         <div className="premium-gate">
-          <Lock size={32} />
+          <Lock size={50} />
           <p>{featureName} is available exclusively for Premium members.</p>
           <button
           className="btn btn-upgrade"

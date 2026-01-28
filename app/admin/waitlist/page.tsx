@@ -157,7 +157,7 @@ export default function AdminWaitlistPage() {
     <div className="page-stack">
       <div className="page-header">
         <button onClick={exportWaitlist} className="btn btn-secondary">
-          <Download size={18} /> Export CSV
+          <Download/> Export CSV
         </button>
       </div>
 
@@ -225,7 +225,7 @@ export default function AdminWaitlistPage() {
                           onClick={() => removeFromAllowlist(entry.id, entry.email)}
                           className="btn btn-cancel btn-small"
                         >
-                          <Trash2 size={16} />
+                          <Trash2/>
                         </button>
                       </td>
                     </tr>
@@ -264,9 +264,9 @@ export default function AdminWaitlistPage() {
                       <td>{new Date(entry.signedUpAt).toLocaleDateString()}</td>
                       <td>
                         {entry.confirmed ? (
-                          <CheckCircle size={18} className="text-success" />
+                          <CheckCircle className="text-success" />
                         ) : (
-                          <XCircle size={18} className="text-error" />
+                          <XCircle className="text-error" />
                         )}
                       </td>
                       <td>

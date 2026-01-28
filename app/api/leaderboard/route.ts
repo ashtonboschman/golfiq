@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     // FREE USER GLOBAL LEADERBOARD
     // ----------------------------
     if (scope === 'global' && !isPremium) {
-      const TOP_N = 100;
+      const TOP_N = 50;
 
       // Fetch all users sorted by handicap
       const allStats = await prisma.userLeaderboardStats.findMany({

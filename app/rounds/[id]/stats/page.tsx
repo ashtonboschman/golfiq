@@ -373,7 +373,7 @@ export default function RoundStatsPage() {
             {stats.handicap_at_round === null && (
               <div className="info-banner warning">
                 <div className="info-banner-content">
-                  <div className="info-banner-icon"><Crown size={45}/></div>
+                  <div className="info-banner-icon"><Crown size={50}/></div>
                   <div className="info-banner-text">
                     <h4>Handicap Required for Strokes Gained</h4>
                     <p>
@@ -460,7 +460,7 @@ export default function RoundStatsPage() {
                             <span className="fg-left">
                               {hole.fir_hit !== null
                                 ? hole.fir_hit === 1
-                                  ? <Check size={16} color="#2bb673" />
+                                  ? <Check size={16} color="#28a065" />
                                   : <X size={16} color="#e74c3c" />
                                 : '-'}
                             </span>
@@ -470,7 +470,7 @@ export default function RoundStatsPage() {
                             <span className="fg-right">
                               {hole.gir_hit !== null
                                 ? hole.gir_hit === 1
-                                  ? <Check size={16} color="#2bb673" />
+                                  ? <Check size={16} color="#28a065" />
                                   : <X size={16} color="#e74c3c" />
                                 : '-'}
                             </span>

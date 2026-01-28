@@ -149,7 +149,7 @@ export default function ScreenshotCarousel() {
             onClick={handlePrevious}
             aria-label="Previous screenshot"
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft/>
           </button>
         )}
 
@@ -159,7 +159,7 @@ export default function ScreenshotCarousel() {
             onClick={handleNext}
             aria-label="Next screenshot"
           >
-            <ChevronRight size={24} />
+            <ChevronRight/>
           </button>
         )}
 
