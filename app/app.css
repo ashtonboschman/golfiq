@@ -2107,7 +2107,7 @@ select option {
 .leaderboard-row {
   color: var(--color-primary-text);
   display: grid;
-  grid-template-columns: 20px 4fr 1fr 1fr 1fr;
+  grid-template-columns: 0.5fr 3fr 1fr 1fr 1fr;
   align-items: center;
   gap: var(--gap-small);
   padding: 0;
@@ -2115,6 +2115,7 @@ select option {
 
 .leaderboard-cell {
   min-width: 0;
+  white-space: nowrap;
 }
 
 .leaderboard-avatar {
