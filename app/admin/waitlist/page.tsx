@@ -58,7 +58,7 @@ export default function AdminWaitlistPage() {
           name: w.name,
           handicap: w.handicap,
           confirmed: w.confirmed,
-          signedUpAt: w.createdDate, // <--- map createdDate from API to signedUpAt
+          signedUpAt: w.createdAt,
         }))
       );
 
@@ -67,7 +67,7 @@ export default function AdminWaitlistPage() {
           id: a.id.toString(),
           email: a.email,
           notes: a.notes,
-          addedAt: a.createdDate, // <--- map createdDate from API to addedAt
+          addedAt: a.createdAt,
         }))
       );
     } catch (error) {

@@ -33,14 +33,14 @@ SELECT
   c.club_name,
   l.city,
   l.state,
-  c.created_date,
+  c.created_at,
   COUNT(DISTINCT t.id) as tee_count
 FROM courses c
 LEFT JOIN locations l ON c.id = l.course_id
 LEFT JOIN tees t ON c.id = t.course_id
 WHERE c.verified = false
-GROUP BY c.id, c.course_name, c.club_name, l.city, l.state, c.created_date
-ORDER BY c.created_date DESC;
+GROUP BY c.id, c.course_name, c.club_name, l.city, l.state, c.created_at
+ORDER BY c.created_at DESC;
 
 -- Example: Verify a course
 UPDATE courses SET verified = true WHERE id = 12345;
@@ -196,7 +196,7 @@ All lifetime grants are tracked in the database:
 To view audit history for a user, query the database:
 ```sql
 SELECT * FROM lifetime_grants WHERE user_id = <user_id>;
-SELECT * FROM subscription_events WHERE user_id = <user_id> ORDER BY created_date DESC;
+SELECT * FROM subscription_events WHERE user_id = <user_id> ORDER BY created_at DESC;
 ```
 
 ---

@@ -12,8 +12,8 @@ interface UserProfile {
   defaultTee: string;
   favoriteCourseId: string | null;
   dashboardVisibility: string;
-  createdDate: Date;
-  updatedDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 declare module "next-auth" {

@@ -34,8 +34,8 @@ SELECT
   course_name,
   club_name,
   verified,
-  created_date
+  created_at
 FROM courses
 WHERE verified = true
-ORDER BY created_date DESC
+ORDER BY created_at DESC
 LIMIT 10;

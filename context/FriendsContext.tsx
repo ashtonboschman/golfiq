@@ -150,7 +150,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
             last_name: request.last_name,
             avatar_url: request.avatar_url,
             type: 'outgoing',
-            created_date: request.created_date,
+            created_at: request.created_at,
           });
 
           setOutgoingRequests((prev) => [normalized, ...prev]);

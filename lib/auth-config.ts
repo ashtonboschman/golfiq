@@ -41,8 +41,8 @@ export const authOptions: NextAuthOptions = {
               id: user.profile.id.toString(),
               userId: user.profile.userId.toString(),
               favoriteCourseId: user.profile.favoriteCourseId?.toString() || null,
-              createdDate: user.profile.createdAt,   // map createdAt -> createdDate
-              updatedDate: user.profile.updatedAt,   // map updatedAt -> updatedDate
+              createdAt: user.profile.createdAt,
+              updatedAt: user.profile.updatedAt,
             }
           : null;
 

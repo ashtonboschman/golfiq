@@ -12,14 +12,14 @@ SELECT
   l.city,
   l.state,
   l.country,
-  c.created_date,
+  c.created_at,
   COUNT(DISTINCT t.id) as tee_count
 FROM courses c
 LEFT JOIN locations l ON c.id = l.course_id
 LEFT JOIN tees t ON c.id = t.course_id
 WHERE c.verified = false
-GROUP BY c.id, c.course_name, c.club_name, c.verified, l.city, l.state, l.country, c.created_date
-ORDER BY c.created_date DESC;
+GROUP BY c.id, c.course_name, c.club_name, c.verified, l.city, l.state, l.country, c.created_at
+ORDER BY c.created_at DESC;
 
 -- Verify a course (mark as verified)
 -- Replace COURSE_ID with the actual course ID
@@ -72,12 +72,12 @@ SELECT
   c.club_name,
   l.city,
   l.state,
-  c.created_date
+  c.created_at
 FROM courses c
 LEFT JOIN locations l ON c.id = l.course_id
 WHERE c.verified = false
-  AND c.created_date >= NOW() - INTERVAL '7 days'
-ORDER BY c.created_date DESC;
+  AND c.created_at >= NOW() - INTERVAL '7 days'
+ORDER BY c.created_at DESC;
 
 -- Batch verify multiple courses
 -- Replace the IDs in the array with actual course IDs
