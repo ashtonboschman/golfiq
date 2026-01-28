@@ -13,7 +13,7 @@ function SubscriptionSuccessContent() {
   const [verifying, setVerifying] = useState(true);
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [trialEndDate, setTrialEndDate] = useState<string | null>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -46,8 +46,8 @@ function SubscriptionSuccessContent() {
         }
 
         setVerified(true);
-        if (data.trialEndDate) {
-          setTrialEndDate(data.trialEndDate);
+        if (data.trialEndsAt) {
+          setTrialEndsAt(data.trialEndsAt);
         }
       } catch (err: any) {
         console.error('Verification error:', err);
@@ -153,14 +153,14 @@ function SubscriptionSuccessContent() {
           <h1 className="auth-title">Welcome to Premium!</h1>
         </div>
 
-        {trialEndDate ? (
+        {trialEndsAt ? (
           <div style={{ marginBottom: '24px', textAlign: 'center' }}>
             <p className="secondary-text" style={{ marginBottom: '12px', fontWeight: '600' }}>
               Your 14-day free trial has started!
             </p>
             <p className="secondary-text" style={{ fontSize: '14px' }}>
               You now have full access to all premium features. Your trial ends on{' '}
-              {new Date(trialEndDate).toLocaleDateString()}. Cancel anytime before then to avoid charges.
+              {new Date(trialEndsAt).toLocaleDateString()}. Cancel anytime before then to avoid charges.
             </p>
           </div>
         ) : (

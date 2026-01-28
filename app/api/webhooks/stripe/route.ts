@@ -121,8 +121,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       stripeSubscriptionId: subscriptionId,
       subscriptionTier: 'premium',
       subscriptionStatus: 'active',
-      subscriptionStartDate: new Date(),
-      trialEndDate: trialEnd ? new Date(trialEnd * 1000) : null,
+      subscriptionStartsAt: new Date(),
+      trialEndsAt: trialEnd ? new Date(trialEnd * 1000) : null,
     },
   });
 
@@ -139,7 +139,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       metadata: {
         checkoutSessionId: session.id,
         subscriptionId,
-        trialEndDate: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+        trialEndsAt: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
       },
     },
   });
@@ -170,7 +170,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   const currentPeriodEnd = (subscription as any).current_period_end;
   const currentPeriodStart = (subscription as any).current_period_start;
   const trialEnd = (subscription as any).trial_end;
-  const endDate = new Date(currentPeriodEnd * 1000);
+  const endsAt = new Date(currentPeriodEnd * 1000);
 
   await prisma.user.update({
     where: { id: BigInt(userId) },
@@ -178,9 +178,9 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       stripeSubscriptionId: subscription.id,
       subscriptionTier: 'premium',
       subscriptionStatus: status,
-      subscriptionStartDate: new Date(currentPeriodStart * 1000),
-      subscriptionEndDate: endDate,
-      trialEndDate: trialEnd ? new Date(trialEnd * 1000) : null,
+      subscriptionStartsAt: new Date(currentPeriodStart * 1000),
+      subscriptionEndsAt: endsAt,
+      trialEndsAt: trialEnd ? new Date(trialEnd * 1000) : null,
     },
   });
 
@@ -195,7 +195,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       stripeEventId: subscription.id,
       metadata: {
         subscriptionId: subscription.id,
-        periodEnd: endDate.toISOString(),
+        periodEnd: endsAt.toISOString(),
       },
     },
   });
@@ -218,7 +218,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 
   const status = mapStripeStatus(subscription.status);
   const currentPeriodEnd = (subscription as any).current_period_end;
-  const endDate = new Date(currentPeriodEnd * 1000);
+  const endsAt = new Date(currentPeriodEnd * 1000);
 
   // Determine if subscription is being cancelled
   const tier = subscription.cancel_at_period_end ? user.subscriptionTier : 'premium';
@@ -227,7 +227,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     where: { id: user.id },
     data: {
       subscriptionStatus: status,
-      subscriptionEndDate: endDate,
+      subscriptionEndsAt: endsAt,
       subscriptionTier: tier,
     },
   });
@@ -244,7 +244,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
       metadata: {
         subscriptionId: subscription.id,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        periodEnd: endDate.toISOString(),
+        periodEnd: endsAt.toISOString(),
       },
     },
   });

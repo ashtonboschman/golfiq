@@ -47,8 +47,8 @@ async function listLifetimeUsers() {
         }
       }
 
-      if (user.subscriptionStartDate) {
-        console.log(`   Lifetime granted: ${user.subscriptionStartDate.toLocaleDateString()}`);
+      if (user.subscriptionStartsAt) {
+        console.log(`   Lifetime granted: ${user.subscriptionStartsAt.toLocaleDateString()}`);
       }
 
       if (user.lifetimeGrants.length > 0) {

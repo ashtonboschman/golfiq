@@ -15,7 +15,7 @@ import { selectStyles } from '@/lib/selectStyles';
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { tier, status: subscriptionStatus, endDate, trialEndDate, loading, isPremium } = useSubscription();
+  const { tier, status: subscriptionStatus, endsAt, trialEndsAt, loading, isPremium } = useSubscription();
   const [managingSubscription, setManagingSubscription] = useState(false);
   const { showMessage } = useMessage();
   const [exporting, setExporting] = useState(false);
@@ -143,7 +143,7 @@ export default function SettingsPage() {
     return null;
   }
 
-  const daysUntilExpiry = endDate ? getDaysUntilExpiry(endDate, tier) : null;
+  const daysUntilExpiry = endsAt ? getDaysUntilExpiry(endsAt, tier) : null;
 
   return (
     <div className="page-stack">
@@ -180,14 +180,14 @@ export default function SettingsPage() {
 
                     {tier === 'premium' && (
                       <div className="subscription-detail-box">
-                        {trialEndDate && new Date() < new Date(trialEndDate) ? (
+                        {trialEndsAt && new Date() < new Date(trialEndsAt) ? (
                           <>
                             <p className="subscription-status trial-active">
                               Status <strong>Free Trial Active</strong>
                             </p>
                             <p className="subscription-expiry">
-                              Trial ends on {new Date(trialEndDate).toLocaleDateString()}
-                              {' '}({Math.ceil((new Date(trialEndDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days remaining)
+                              Trial ends on {new Date(trialEndsAt).toLocaleDateString()}
+                              {' '}({Math.ceil((new Date(trialEndsAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days remaining)
                             </p>
                             <p className="subscription-note">
                               Your card will be charged after the trial ends. Cancel anytime before then to avoid charges.
@@ -198,7 +198,7 @@ export default function SettingsPage() {
                             <p className="subscription-status">
                               Status <strong>{subscriptionStatus}</strong>
                             </p>
-                            {endDate && daysUntilExpiry !== null && (
+                            {endsAt && daysUntilExpiry !== null && (
                               <>
                                 {daysUntilExpiry > 0 ? (
                                   <p className="subscription-expiry">
@@ -211,9 +211,9 @@ export default function SettingsPage() {
                                 )}
                               </>
                             )}
-                            {subscriptionStatus === 'cancelled' && endDate && (
+                            {subscriptionStatus === 'cancelled' && endsAt && (
                               <p className="subscription-expiry warning">
-                                Access ends on {endDate.toLocaleDateString()}
+                                Access ends on {endsAt.toLocaleDateString()}
                               </p>
                             )}
                           </>

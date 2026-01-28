@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     // Check if user has ever had a subscription (first-time users get 14-day trial for monthly plan only)
-    const hasHadSubscription = user.subscriptionStartDate !== null;
+    const hasHadSubscription = user.subscriptionStartsAt !== null;
     const isMonthlyPlan = interval === 'month';
     const shouldOfferTrial = !hasHadSubscription && isMonthlyPlan;
 

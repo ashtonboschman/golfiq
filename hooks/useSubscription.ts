@@ -5,8 +5,8 @@ import { isPremium, isLifetime } from '@/lib/subscription';
 export interface SubscriptionData {
   tier: any;
   status: any;
-  endDate: Date | null;
-  trialEndDate: Date | null;
+  endsAt: Date | null;
+  trialEndsAt: Date | null;
   loading: boolean;
 }
 
@@ -18,8 +18,8 @@ export function useSubscription() {
   const [subscription, setSubscription] = useState<SubscriptionData>({
     tier: 'free',
     status: 'active',
-    endDate: null,
-    trialEndDate: null,
+    endsAt: null,
+    trialEndsAt: null,
     loading: true,
   });
 
@@ -29,8 +29,8 @@ export function useSubscription() {
         setSubscription({
           tier: 'free',
           status: 'active',
-          endDate: null,
-          trialEndDate: null,
+          endsAt: null,
+          trialEndsAt: null,
           loading: false,
         });
         return;
@@ -43,16 +43,16 @@ export function useSubscription() {
           setSubscription({
             tier: data.tier,
             status: data.status,
-            endDate: data.endDate ? new Date(data.endDate) : null,
-            trialEndDate: data.trialEndDate ? new Date(data.trialEndDate) : null,
+            endsAt: data.endsAt ? new Date(data.endsAt) : null,
+            trialEndsAt: data.trialEndsAt ? new Date(data.trialEndsAt) : null,
             loading: false,
           });
         } else {
           setSubscription({
             tier: 'free',
             status: 'active',
-            endDate: null,
-            trialEndDate: null,
+            endsAt: null,
+            trialEndsAt: null,
             loading: false,
           });
         }
@@ -61,8 +61,8 @@ export function useSubscription() {
         setSubscription({
           tier: 'free',
           status: 'active',
-          endDate: null,
-          trialEndDate: null,
+          endsAt: null,
+          trialEndsAt: null,
           loading: false,
         });
       }
@@ -73,8 +73,8 @@ export function useSubscription() {
 
   return {
     ...subscription,
-    isPremium: isPremium(subscription.tier, subscription.status, subscription.trialEndDate),
+    isPremium: isPremium(subscription.tier, subscription.status, subscription.trialEndsAt),
     isLifetime: isLifetime(subscription.tier),
-    isFree: subscription.tier === 'free' && !subscription.trialEndDate,
+    isFree: subscription.tier === 'free' && !subscription.trialEndsAt,
   };
 }

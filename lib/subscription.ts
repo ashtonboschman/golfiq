@@ -12,9 +12,9 @@ import { SubscriptionTier, SubscriptionStatus } from '@prisma/client';
 /**
  * Check if user is in active trial period
  */
-export function isInTrial(trialEndDate: Date | null): boolean {
-  if (!trialEndDate) return false;
-  return new Date() < new Date(trialEndDate);
+export function isInTrial(trialEndsAt: Date | null): boolean {
+  if (!trialEndsAt) return false;
+  return new Date() < new Date(trialEndsAt);
 }
 
 /**
@@ -23,10 +23,10 @@ export function isInTrial(trialEndDate: Date | null): boolean {
 export function isPremium(
   tier: SubscriptionTier,
   status: SubscriptionStatus,
-  trialEndDate?: Date | null
+  trialEndsAt?: Date | null
 ): boolean {
   // Check if user is in trial period
-  if (trialEndDate && isInTrial(trialEndDate)) {
+  if (trialEndsAt && isInTrial(trialEndsAt)) {
     return true;
   }
 
@@ -44,10 +44,10 @@ export function isPremium(
 export function isPremiumUser(user: {
   subscriptionTier: SubscriptionTier;
   subscriptionStatus?: SubscriptionStatus;
-  trialEndDate?: Date | null;
+  trialEndsAt?: Date | null;
 }): boolean {
   const status = user.subscriptionStatus || 'active';
-  return isPremium(user.subscriptionTier, status, user.trialEndDate);
+  return isPremium(user.subscriptionTier, status, user.trialEndsAt);
 }
 
 /**
@@ -74,9 +74,9 @@ export function isFree(tier: SubscriptionTier): boolean {
 export function canAccessAICoach(
   tier: SubscriptionTier,
   status: SubscriptionStatus,
-  trialEndDate?: Date | null
+  trialEndsAt?: Date | null
 ): boolean {
-  return isPremium(tier, status, trialEndDate);
+  return isPremium(tier, status, trialEndsAt);
 }
 
 /**
@@ -85,9 +85,9 @@ export function canAccessAICoach(
 export function canAccessFullLeaderboard(
   tier: SubscriptionTier,
   status: SubscriptionStatus,
-  trialEndDate?: Date | null
+  trialEndsAt?: Date | null
 ): boolean {
-  return isPremium(tier, status, trialEndDate);
+  return isPremium(tier, status, trialEndsAt);
 }
 
 /**
@@ -96,9 +96,9 @@ export function canAccessFullLeaderboard(
 export function hasUnlimitedAnalytics(
   tier: SubscriptionTier,
   status: SubscriptionStatus,
-  trialEndDate?: Date | null
+  trialEndsAt?: Date | null
 ): boolean {
-  return isPremium(tier, status, trialEndDate);
+  return isPremium(tier, status, trialEndsAt);
 }
 
 /**
@@ -107,9 +107,9 @@ export function hasUnlimitedAnalytics(
 export function getAnalyticsHistoryLimit(
   tier: SubscriptionTier,
   status: SubscriptionStatus,
-  trialEndDate?: Date | null
+  trialEndsAt?: Date | null
 ): number | null {
-  if (isPremium(tier, status, trialEndDate)) {
+  if (isPremium(tier, status, trialEndsAt)) {
     return null; // Unlimited
   }
   return 90; // Free users: 90 days
@@ -121,9 +121,9 @@ export function getAnalyticsHistoryLimit(
 export function getLeaderboardLimit(
   tier: SubscriptionTier,
   status: SubscriptionStatus,
-  trialEndDate?: Date | null
+  trialEndsAt?: Date | null
 ): number | null {
-  if (isPremium(tier, status, trialEndDate)) {
+  if (isPremium(tier, status, trialEndsAt)) {
     return null; // Unlimited
   }
   return 10; // Free users: top 10
@@ -163,7 +163,7 @@ export function isSubscriptionPastDue(status: SubscriptionStatus): boolean {
  * Check if subscription has expired
  */
 export function isSubscriptionExpired(
-  endDate: Date | null,
+  endsAt: Date | null,
   tier: SubscriptionTier
 ): boolean {
   // Lifetime never expires
@@ -177,27 +177,27 @@ export function isSubscriptionExpired(
   }
 
   // No end date means active subscription
-  if (!endDate) {
+  if (!endsAt) {
     return false;
   }
 
   // Check if end date is in the past
-  return new Date() > endDate;
+  return new Date() > endsAt;
 }
 
 /**
  * Get days until subscription expires (null if lifetime/free or no end date)
  */
 export function getDaysUntilExpiry(
-  endDate: Date | null,
+  endsAt: Date | null,
   tier: SubscriptionTier
 ): number | null {
-  if (tier === 'lifetime' || tier === 'free' || !endDate) {
+  if (tier === 'lifetime' || tier === 'free' || !endsAt) {
     return null;
   }
 
   const now = new Date();
-  const end = new Date(endDate);
+  const end = new Date(endsAt);
   const diffTime = end.getTime() - now.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 

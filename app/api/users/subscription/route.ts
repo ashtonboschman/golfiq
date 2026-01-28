@@ -20,9 +20,9 @@ export async function GET() {
       select: {
         subscriptionTier: true,
         subscriptionStatus: true,
-        subscriptionStartDate: true,
-        subscriptionEndDate: true,
-        trialEndDate: true,
+        subscriptionStartsAt: true,
+        subscriptionEndsAt: true,
+        trialEndsAt: true,
       },
     });
 
@@ -33,9 +33,9 @@ export async function GET() {
     return NextResponse.json({
       tier: user.subscriptionTier,
       status: user.subscriptionStatus,
-      startDate: user.subscriptionStartDate,
-      endDate: user.subscriptionEndDate,
-      trialEndDate: user.trialEndDate,
+      startsAt: user.subscriptionStartsAt,
+      endsAt: user.subscriptionEndsAt,
+      trialEndsAt: user.trialEndsAt,
     });
   } catch (error: any) {
     console.error('Error fetching subscription:', error);

@@ -63,8 +63,8 @@ async function grantLifetimeAccess(
         data: {
           subscriptionTier: 'lifetime',
           subscriptionStatus: 'active',
-          subscriptionStartDate: new Date(),
-          subscriptionEndDate: null, // Lifetime never expires
+          subscriptionStartsAt: new Date(),
+          subscriptionEndsAt: null, // Lifetime never expires
         },
       });
 

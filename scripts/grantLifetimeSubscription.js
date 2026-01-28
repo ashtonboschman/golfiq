@@ -22,16 +22,16 @@ async function grantLifetimeSubscription(userId) {
       data: {
         subscriptionTier: 'lifetime',
         subscriptionStatus: 'active',
-        subscriptionStartDate: new Date(),
-        subscriptionEndDate: null,
-        trialEndDate: null,
+        subscriptionStartsAt: new Date(),
+        subscriptionEndsAt: null,
+        trialEndsAt: null,
       },
     });
 
     console.log('✓ Lifetime subscription granted successfully!');
     console.log(`  Tier: ${updatedUser.subscriptionTier}`);
     console.log(`  Status: ${updatedUser.subscriptionStatus}`);
-    console.log(`  Start Date: ${updatedUser.subscriptionStartDate}`);
+    console.log(`  Start Date: ${updatedUser.subscriptionStartsAt}`);
   } catch (error) {
     console.error('Error granting lifetime subscription:', error);
     process.exit(1);

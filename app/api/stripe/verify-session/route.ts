@@ -90,9 +90,9 @@ export async function POST(req: NextRequest) {
         stripeSubscriptionId: subscriptionId,
         subscriptionTier: 'premium',
         subscriptionStatus: 'active',
-        subscriptionStartDate: new Date(),
-        subscriptionEndDate: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null,
-        trialEndDate: trialEnd ? new Date(trialEnd * 1000) : null,
+        subscriptionStartsAt: new Date(),
+        subscriptionEndsAt: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null,
+        trialEndsAt: trialEnd ? new Date(trialEnd * 1000) : null,
       },
     });
 
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         metadata: {
           checkoutSessionId: checkoutSession.id,
           subscriptionId,
-          trialEndDate: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+          trialEndsAt: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
           source: 'verify-session-fallback',
         },
       },
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
       message: 'Subscription activated successfully',
       status: 'activated',
       tier: 'premium',
-      trialEndDate: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+      trialEndsAt: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
     });
   } catch (error: any) {
     console.error('Verify session error:', error);
