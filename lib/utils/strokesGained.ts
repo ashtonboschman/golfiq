@@ -65,62 +65,115 @@ export async function calculateStrokesGained(
   const prevTier = currentTierIndex > 0 ? allBaselines[currentTierIndex - 1] : null;
   const nextTier = currentTierIndex < allBaselines.length - 1 ? allBaselines[currentTierIndex + 1] : null;
 
-  // Helper: Interpolate a baseline value based on handicap position
+ // Helper: Interpolate a baseline value based on handicap position
   const interpolateBaseline = (getValue: (tier: any) => number): number => {
-    const currentMin = Number(currentTier.handicapMin);
-    const currentMax = Number(currentTier.handicapMax);
-    const currentMid = (currentMin + currentMax) / 2;
-    const currentValue = getValue(currentTier);
+    const h = handicap;
 
-    // If at the midpoint or edges, return current tier value
-    if (Math.abs(handicap - currentMid) < 0.1) return currentValue;
+    const curMin = Number(currentTier.handicapMin);
+    const curMax = Number(currentTier.handicapMax);
+    const curValue = getValue(currentTier);
 
-    // Interpolate towards previous tier (lower handicap)
-    if (handicap < currentMid && prevTier) {
-      const prevMid = (Number(prevTier.handicapMin) + Number(prevTier.handicapMax)) / 2;
+    const isEliteTier = curMin <= -5 && curMax <= 1;
+
+    console.log("INTERPOLATION:", {
+      handicap: h,
+      tier: { min: curMin, max: curMax },
+      eliteLocked: isEliteTier,
+    });
+
+    /**
+     * 🔒 ELITE / SCRATCH LOCK
+     * Do NOT interpolate elite players toward worse tiers.
+     * They may only interpolate within the elite band.
+     */
+    if (isEliteTier) {
+      return curValue;
+    }
+
+    /**
+     * Interpolate toward LOWER handicap tier (better player)
+     */
+    if (h < curMin && prevTier) {
+      const prevMin = Number(prevTier.handicapMin);
+      const prevMax = Number(prevTier.handicapMax);
+
+      const ratio =
+        (curMin - h) / (curMin - prevMax); // normalize across boundary
+
       const prevValue = getValue(prevTier);
-      const ratio = (currentMid - handicap) / (currentMid - prevMid);
-      return currentValue + ratio * (prevValue - currentValue);
+
+      return curValue + ratio * (prevValue - curValue);
     }
 
-    // Interpolate towards next tier (higher handicap)
-    if (handicap > currentMid && nextTier) {
-      const nextMid = (Number(nextTier.handicapMin) + Number(nextTier.handicapMax)) / 2;
+    /**
+     * Interpolate toward HIGHER handicap tier (worse player)
+     */
+    if (h > curMax && nextTier) {
+      const nextMin = Number(nextTier.handicapMin);
+      const nextMax = Number(nextTier.handicapMax);
+
+      const ratio =
+        (h - curMax) / (nextMin - curMax); // normalize across boundary
+
       const nextValue = getValue(nextTier);
-      const ratio = (handicap - currentMid) / (nextMid - currentMid);
-      return currentValue + ratio * (nextValue - currentValue);
+
+      return curValue + ratio * (nextValue - curValue);
     }
 
-    // Fallback to current tier value
-    return currentValue;
+    /**
+     * Inside tier → return baseline
+     */
+    return curValue;
   };
 
-  // Interpolate baseline values
-  const baselineScore = interpolateBaseline((t) => Number(t.baselineScore));
+  // Interpolate baseline values (these are for 18-hole rounds)
+  const baselineScore18 = interpolateBaseline((t) => Number(t.baselineScore));
   const baselineFIR = interpolateBaseline((t) => Number(t.baselineFIRPct));
   const baselineGIR = interpolateBaseline((t) => Number(t.baselineGIRPct));
-  const baselinePutts = interpolateBaseline((t) => Number(t.baselinePutts));
-  const baselinePenalties = interpolateBaseline((t) => Number(t.baselinePenalties));
+  const baselinePutts18 = interpolateBaseline((t) => Number(t.baselinePutts));
+  const baselinePenalties18 = interpolateBaseline((t) => Number(t.baselinePenalties));
 
   const totalHoles = round.tee.numberOfHoles || 18;
   const nonPar3Holes = round.tee.nonPar3Holes;
   const courseRating = round.tee.courseRating !== null ? Number(round.tee.courseRating) : 72;
   const slope = round.tee.slopeRating || 113;
 
+  // Scale baselines for 9-hole rounds (database baselines are for 18 holes)
+  const holeScaling = totalHoles / 18;
+  const baselineScore = baselineScore18 * holeScaling;
+  const baselinePutts = baselinePutts18 * holeScaling;
+  const baselinePenalties = baselinePenalties18 * holeScaling;
+  // FIR% and GIR% don't scale - they're percentages
+
   // Course difficulty adjustment (based on how much harder/easier than neutral)
-  // Neutral course: par 72, rating 72, slope 113
-  const neutralRating = 72;
-  const coursePlayingHandicap = handicap * (slope / 113);
-  const courseExpectedScore = courseRating + coursePlayingHandicap;
-  const neutralExpectedScore = neutralRating + handicap;
-  const courseDiffAdj = courseExpectedScore - neutralExpectedScore;
+  // Neutral course: rating 72 for 18 holes (36 for 9), slope 113
+  const neutralRating = 72 * holeScaling;
+  const neutralSlope = 113;
+  const ratingWeight = Math.max(0.3, Math.min(1.0, (handicap + 5) / 10));
+
+  // Course difficulty adjustment components
+  // Difficulty = how much harder the course is than neutral
+  const ratingDelta = (courseRating - neutralRating) * ratingWeight;
+  const slopeDelta = handicap * ((slope / neutralSlope) - 1);
+  const courseDiffAdj = ratingDelta + slopeDelta;
+
+  // Course expected score (baseline + course adjustment)
+  const courseExpectedScore = baselineScore + courseDiffAdj;
 
   // Adjusted expected stats (baseline adjusted for course difficulty)
-  const adjScore = baselineScore + courseDiffAdj;
-  const adjFIR = ((baselineFIR - (courseDiffAdj * C.COURSE_DIFF_TO_FIR_PCT)) / 100) * nonPar3Holes;
-  const adjGIR = ((baselineGIR - (courseDiffAdj * C.COURSE_DIFF_TO_GIR_PCT)) / 100) * totalHoles;
+  const adjScore = courseExpectedScore;
+
+  // Calculate adjusted percentages with clamping (0-100)
+  const adjFIRPct = Math.max(0, Math.min(100, baselineFIR - (courseDiffAdj * C.COURSE_DIFF_TO_FIR_PCT)));
+  const adjGIRPct = Math.max(0, Math.min(100, baselineGIR - (courseDiffAdj * C.COURSE_DIFF_TO_GIR_PCT)));
+
+  // Convert percentages to hole counts
+  const adjFIR = (adjFIRPct / 100) * nonPar3Holes;
+  const adjGIR = (adjGIRPct / 100) * totalHoles;
+
+  // Adjusted putts and penalties
   const adjPutts = baselinePutts + courseDiffAdj * C.COURSE_DIFF_TO_PUTTS;
-  const adjPenalties = baselinePenalties + courseDiffAdj * C.COURSE_DIFF_TO_PENALTIES;
+  const adjPenalties = Math.max(0, baselinePenalties + courseDiffAdj * C.COURSE_DIFF_TO_PENALTIES);
 
   // Actual round stats
   const actualScore = round.score;
@@ -166,60 +219,106 @@ export async function calculateStrokesGained(
     .reduce((sum, v) => sum + v, 0);
   const sgResidual = sgTotal - knownSGSum;
 
-  // --- Confidence Calculation ---
+  // --- Overall Confidence Calculation ---
   const shortGameOpps = actualGIR !== null ? totalHoles - actualGIR : 0;
-  let confidence: "high" | "medium" | "low" = "high";
+  let confidence: "high" | "medium" | "low" = "low"; // default low
+  const essentialDataMissing =
+    actualGIR === null || actualPutts === null || actualPenalties === null;
 
-  if (actualGIR === null) {
+  if (essentialDataMissing) {
     confidence = "low";
-    messages.push("Missing GIR data reduces short game confidence");
-  } else if (
-    Math.abs(sgResidual) < C.CONFIDENCE_RESIDUAL_HIGH &&
-    shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_HIGH_PCT &&
-    Math.abs(sgComponentsMap.putting ?? 0) <= puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT
-  ) {
-    confidence = "high";
-  } else if (
-    Math.abs(sgResidual) >= C.CONFIDENCE_RESIDUAL_HIGH ||
-    (shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT &&
-      shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT) ||
-    (Math.abs(sgComponentsMap.putting ?? 0) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT &&
-      Math.abs(sgComponentsMap.putting ?? 0) <= puttingCap)
-  ) {
-    confidence = "medium";
-    messages.push("Short game estimate based on residual calculation - interpret with context");
-    if (
+    messages.push("Missing essential data reduces overall confidence");
+  } else {
+    const puttingValue = sgComponentsMap.putting ?? 0;
+
+    // Residual check
+    const residualHigh = Math.abs(sgResidual) < C.CONFIDENCE_RESIDUAL_HIGH;
+
+    // Short game opportunities check
+    const shortGameHigh = shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_HIGH_PCT;
+    const shortGameMedium =
       shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT &&
-      shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT
-    ) {
-      messages.push(`Only ${shortGameOpps} short game opportunities - moderate confidence`);
-    }
-    if (
-      Math.abs(sgComponentsMap.putting ?? 0) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT &&
-      Math.abs(sgComponentsMap.putting ?? 0) <= puttingCap
-    ) {
-      if ((sgComponentsMap.putting ?? 0) > 0) {
+      shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT;
+
+    // Putting check
+    const puttingHigh = Math.abs(puttingValue) <= puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT;
+    const puttingMedium =
+      Math.abs(puttingValue) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT &&
+      Math.abs(puttingValue) <= puttingCap;
+
+    // --- Determine confidence ---
+    if (residualHigh && shortGameHigh && puttingHigh) {
+      confidence = "high";
+    } else if (residualHigh || shortGameMedium || puttingMedium) {
+      confidence = "medium";
+      messages.push("Short game estimate based on residual calculation - interpret with context");
+
+      if (shortGameMedium) {
         messages.push(
-          `Strong putting performance (+${(sgComponentsMap.putting ?? 0).toFixed(2)}) may inflate short game results`
-        );
-      } else {
-        messages.push(
-          `Poor putting performance (${(sgComponentsMap.putting ?? 0).toFixed(2)}) likely contributed significantly to score`
+          `Only ${shortGameOpps} short game opportunities - moderate confidence`
         );
       }
+
+      if (puttingMedium) {
+        messages.push(
+          puttingValue > 0
+            ? `Strong putting performance (+${puttingValue.toFixed(
+                2
+              )}) may inflate short game results`
+            : `Poor putting performance (${puttingValue.toFixed(
+                2
+              )}) likely contributed significantly to score`
+        );
+      }
+    } else {
+      confidence = "low";
+      messages.push(
+        `Residual, putting, and short game opportunities indicate low confidence (${shortGameOpps} short game opportunities, putting ${puttingValue.toFixed(
+          2
+        )}, residual ${sgResidual.toFixed(2)})`
+      );
     }
-  } else if (
-    Math.abs(sgComponentsMap.putting ?? 0) > puttingCap ||
-    Math.abs(sgResidual) > (totalHoles / 18) * C.CONFIDENCE_RESIDUAL_HIGH ||
-    shortGameOpps < totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT
-  ) {
-    confidence = "low";
-    messages.push(
-      `Exceptional putting (±${(sgComponentsMap.putting ?? 0).toFixed(
-        2
-      )}) or limited opportunities (${shortGameOpps}) affect short game estimate`
-    );
   }
+
+  console.log("HANDICAP:", handicap);
+  console.log("TIER:", {
+    current: {
+      min: currentTier.handicapMin,
+      max: currentTier.handicapMax,
+    },
+    prev: prevTier
+      ? { min: prevTier.handicapMin, max: prevTier.handicapMax }
+      : null,
+    next: nextTier
+      ? { min: nextTier.handicapMin, max: nextTier.handicapMax }
+      : null,
+  });
+
+  console.log("RATING DELTA:", courseRating - neutralRating);
+  console.log("SLOPE DELTA:", slope - neutralSlope);
+  console.log("RATING WEIGHT:", ratingWeight);
+  console.log("COURSE DIFF ADJ:", courseDiffAdj);
+
+  console.log('Baseline score: ' + baselineScore)
+  console.log('Baseline fir: ' + baselineFIR)
+  console.log('Baseline gir: ' + baselineGIR)
+  console.log('Baseline putts: ' + baselinePutts)
+  console.log('Baseline penalties: ' + baselinePenalties)
+
+  console.log('Adj score: ' + adjScore)
+  console.log('Adj fir: ' + adjFIR)
+  console.log('Adj gir: ' + adjGIR)
+  console.log('Adj putts: ' + adjPutts)
+  console.log('Adj penalties: ' + adjPenalties)
+
+  console.log('Actual score: ' + actualScore)
+  console.log('Actual fir: ' + actualFIR)
+  console.log('Actual gir: ' + actualGIR)
+  console.log('Actual putts: ' + actualPutts)
+  console.log('Actual penalties: ' + actualPenalties)
+  console.log('Confidence: '+ confidence)
+  console.log('Partial analysis: '+ partialAnalysis)
+  console.log('Messages: '+ messages)
 
   // --- Round and return ---
   return {

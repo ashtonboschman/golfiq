@@ -7,33 +7,36 @@ datasource db {
 }
 
 model User {
-  id                     BigInt                @id @default(autoincrement())
-  username               String                @unique @db.VarChar(100)
-  email                  String                @unique @db.VarChar(100)
-  passwordHash           String                @map("password_hash") @db.VarChar(255)
-  active                 Boolean               @default(true)
-  emailVerified          Boolean               @default(false) @map("email_verified")
-  createdAt            DateTime                @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
-  stripeCustomerId       String?               @map("stripe_customer_id") @db.VarChar(255)
-  stripeSubscriptionId   String?               @map("stripe_subscription_id") @db.VarChar(255)
-  subscriptionEndDate    DateTime?             @map("subscription_end_date")
-  subscriptionStartDate  DateTime?             @map("subscription_start_date")
-  subscriptionStatus     SubscriptionStatus    @default(active) @map("subscription_status")
-  subscriptionTier       SubscriptionTier      @default(premium) @map("subscription_tier")
-  trialEndDate           DateTime?             @map("trial_end_date")
-  dataExports            DataExport[]
-  friendRequestsReceived FriendRequest[]       @relation("RecipientRelation")
-  friendRequestsSent     FriendRequest[]       @relation("RequesterRelation")
-  friendsReceived        Friend[]              @relation("FriendOfUser")
-  friendsInitiated       Friend[]              @relation("UserFriends")
-  lifetimeGrants         LifetimeGrant[]
-  rounds                 Round[]
-  subscriptionEvents     SubscriptionEvent[]
-  leaderboardStats       UserLeaderboardStats?
-  profile                UserProfile?
-  roundStrokesGaineds    RoundStrokesGained[]
-  RoundInsights          RoundInsight[]
+  id                        BigInt                     @id @default(autoincrement())
+  username                  String                     @unique @db.VarChar(100)
+  email                     String                     @unique @db.VarChar(100)
+  passwordHash              String                     @map("password_hash") @db.VarChar(255)
+  active                    Boolean                    @default(true)
+  emailVerified             Boolean                    @default(false) @map("email_verified")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  stripeCustomerId          String?                    @map("stripe_customer_id") @db.VarChar(255)
+  stripeSubscriptionId      String?                    @map("stripe_subscription_id") @db.VarChar(255)
+  subscriptionEndDate       DateTime?                  @map("subscription_end_date")
+  subscriptionStartDate     DateTime?                  @map("subscription_start_date") @db.Timestamptz(6)
+  subscriptionStatus        SubscriptionStatus         @default(active) @map("subscription_status")
+  subscriptionTier          SubscriptionTier           @default(premium) @map("subscription_tier")
+  trialEndDate              DateTime?                  @map("trial_end_date") @db.Timestamptz(6)
+  dataExports               DataExport[]
+  friendRequestsReceived    FriendRequest[]            @relation("RecipientRelation")
+  friendRequestsSent        FriendRequest[]            @relation("RequesterRelation")
+  friendsReceived           Friend[]                   @relation("FriendOfUser")
+  friendsInitiated          Friend[]                   @relation("UserFriends")
+  lifetimeGrants            LifetimeGrant[]
+  RoundInsights             RoundInsight[]
+  roundStrokesGaineds       RoundStrokesGained[]
+  rounds                    Round[]
+  subscriptionEvents        SubscriptionEvent[]
+  userAchievementEvents   UserAchievementEvent[]
+  userAchievementProgress UserAchievementProgress?
+  userAchievements        UserAchievement[]
+  leaderboardStats          UserLeaderboardStats?
+  profile                   UserProfile?
 
   @@index([subscriptionTier, subscriptionStatus], map: "idx_users_subscription")
   @@index([stripeCustomerId], map: "idx_users_stripe_customer")
@@ -51,13 +54,13 @@ model UserProfile {
   defaultTee          DefaultTee          @default(white) @map("default_tee")
   favoriteCourseId    BigInt?             @map("favorite_course_id")
   dashboardVisibility DashboardVisibility @default(friends) @map("dashboard_visibility")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   theme               String              @default("dark") @db.VarChar(50)
   timezone            String?             @db.VarChar(100)
+  showStrokesGained   Boolean             @default(false) @map("show_strokes_gained")
   favoriteCourse      Course?             @relation(fields: [favoriteCourseId], references: [id])
   user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  showStrokesGained   Boolean             @default(false) @map("show_strokes_gained")
 
   @@index([dashboardVisibility], map: "idx_dashboard_visibility")
   @@map("user_profiles")
@@ -70,7 +73,7 @@ model UserLeaderboardStats {
   averageScore Decimal? @map("average_score") @db.Decimal(5, 1)
   bestScore    Int?     @map("best_score") @db.SmallInt
   totalRounds  Int      @default(0) @map("total_rounds")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   averageToPar Decimal? @map("average_to_par") @db.Decimal(5, 1)
   bestToPar    Decimal? @map("best_to_par") @db.Decimal(5, 1)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -83,12 +86,12 @@ model UserLeaderboardStats {
 }
 
 model PasswordResetToken {
-  id          BigInt    @id @default(autoincrement())
-  email       String    @db.VarChar(100)
-  token       String    @unique @db.VarChar(255)
-  expiresAt   DateTime  @map("expires_at")
-  usedAt      DateTime? @map("used_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        BigInt    @id @default(autoincrement())
+  email     String    @db.VarChar(100)
+  token     String    @unique @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([email], map: "idx_password_reset_email")
   @@index([token], map: "idx_password_reset_token")
@@ -97,12 +100,12 @@ model PasswordResetToken {
 }
 
 model EmailVerificationToken {
-  id          BigInt    @id @default(autoincrement())
-  email       String    @db.VarChar(100)
-  token       String    @unique @db.VarChar(255)
-  expiresAt   DateTime  @map("expires_at")
-  usedAt      DateTime? @map("used_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        BigInt    @id @default(autoincrement())
+  email     String    @db.VarChar(100)
+  token     String    @unique @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([email], map: "idx_email_verification_email")
   @@index([token], map: "idx_email_verification_token")
@@ -114,8 +117,8 @@ model Course {
   id                 BigInt        @id @default(autoincrement())
   clubName           String        @map("club_name") @db.VarChar(255)
   courseName         String        @map("course_name") @db.VarChar(255)
-  createdAt          DateTime      @default(now()) @map("created_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   verified           Boolean       @default(false)
   location           Location?
   rounds             Round[]
@@ -127,17 +130,17 @@ model Course {
 }
 
 model Location {
-  id          BigInt   @id @default(autoincrement())
-  courseId    BigInt   @unique @map("course_id")
-  address     String?  @db.VarChar(255)
-  city        String?  @db.VarChar(100)
-  state       String?  @db.VarChar(50)
-  country     String?  @db.VarChar(50)
-  latitude    Decimal? @db.Decimal(10, 7)
-  longitude   Decimal? @db.Decimal(10, 7)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  id        BigInt   @id @default(autoincrement())
+  courseId  BigInt   @unique @map("course_id")
+  address   String?  @db.VarChar(255)
+  city      String?  @db.VarChar(100)
+  state     String?  @db.VarChar(50)
+  country   String?  @db.VarChar(50)
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@index([courseId], map: "idx_location_course_id")
   @@map("locations")
@@ -154,7 +157,6 @@ model Tee {
   totalYards        Int?      @map("total_yards")
   totalMeters       Int?      @map("total_meters")
   numberOfHoles     Int?      @map("number_of_holes")
-  nonPar3Holes      Int       @map("non_par3_holes")
   parTotal          Int?      @map("par_total")
   frontCourseRating Decimal?  @map("front_course_rating") @db.Decimal(5, 2)
   frontSlopeRating  Int?      @map("front_slope_rating")
@@ -162,8 +164,9 @@ model Tee {
   backCourseRating  Decimal?  @map("back_course_rating") @db.Decimal(5, 2)
   backSlopeRating   Int?      @map("back_slope_rating")
   backBogeyRating   Decimal?  @map("back_bogey_rating") @db.Decimal(5, 2)
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  nonPar3Holes      Int       @map("non_par3_holes")
   holes             Hole[]
   rounds            Round[]
   course            Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -173,45 +176,46 @@ model Tee {
 }
 
 model Hole {
-  id          BigInt      @id @default(autoincrement())
-  teeId       BigInt      @map("tee_id")
-  holeNumber  Int         @map("hole_number")
-  par         Int
-  yardage     Int
-  handicap    Int?
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  tee         Tee         @relation(fields: [teeId], references: [id], onDelete: Cascade)
-  roundHoles  RoundHole[]
+  id         BigInt      @id @default(autoincrement())
+  teeId      BigInt      @map("tee_id")
+  holeNumber Int         @map("hole_number")
+  par        Int
+  yardage    Int
+  handicap   Int?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tee        Tee         @relation(fields: [teeId], references: [id], onDelete: Cascade)
+  roundHoles RoundHole[]
 
   @@index([teeId], map: "idx_hole_tee_id")
   @@map("holes")
 }
 
 model Round {
-  id                  BigInt               @id @default(autoincrement())
-  userId              BigInt               @map("user_id")
-  courseId            BigInt               @map("course_id")
-  teeId               BigInt               @map("tee_id")
-  holeByHole          Boolean              @default(false) @map("hole_by_hole")
-  advancedStats       Boolean              @default(false) @map("advanced_stats")
-  date                DateTime             @db.Timestamptz(6)
-  score               Int
-  firHit              Int?                 @map("fir_hit")
-  girHit              Int?                 @map("gir_hit")
-  putts               Int?
-  penalties           Int?
-  notes               String?
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  toPar               Int?                 @map("to_par") @db.SmallInt
-  handicapAtRound     Decimal?             @map("handicap_at_round") @db.Decimal(4, 1)
-  roundHoles          RoundHole[]
-  course              Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  tee                 Tee                  @relation(fields: [teeId], references: [id])
-  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  roundStrokesGained  RoundStrokesGained?
-  RoundInsight        RoundInsight?
+  id                      BigInt                    @id @default(autoincrement())
+  userId                  BigInt                    @map("user_id")
+  courseId                BigInt                    @map("course_id")
+  teeId                   BigInt                    @map("tee_id")
+  holeByHole              Boolean                   @default(false) @map("hole_by_hole")
+  advancedStats           Boolean                   @default(false) @map("advanced_stats")
+  date                    DateTime                  @db.Timestamptz(6)
+  score                   Int
+  firHit                  Int?                      @map("fir_hit")
+  girHit                  Int?                      @map("gir_hit")
+  putts                   Int?
+  penalties               Int?
+  notes                   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  toPar                   Int?                      @map("to_par") @db.SmallInt
+  handicapAtRound         Decimal?                  @map("handicap_at_round") @db.Decimal(4, 1)
+  roundHoles              RoundHole[]
+  RoundInsight            RoundInsight?
+  roundStrokesGained      RoundStrokesGained?
+  course                  Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  tee                     Tee                       @relation(fields: [teeId], references: [id])
+  user                    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAchievementEvents   UserAchievementEvent[]
 
   @@index([userId], map: "idx_user_id")
   @@index([courseId], map: "idx_round_course_id")
@@ -220,18 +224,18 @@ model Round {
 }
 
 model RoundHole {
-  id          BigInt   @id @default(autoincrement())
-  roundId     BigInt   @map("round_id")
-  holeId      BigInt   @map("hole_id")
-  score       Int
-  firHit      Int?     @map("fir_hit")
-  girHit      Int?     @map("gir_hit")
-  putts       Int?
-  penalties   Int?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  hole        Hole     @relation(fields: [holeId], references: [id], onDelete: Cascade)
-  round       Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  id        BigInt   @id @default(autoincrement())
+  roundId   BigInt   @map("round_id")
+  holeId    BigInt   @map("hole_id")
+  score     Int
+  firHit    Int?     @map("fir_hit")
+  girHit    Int?     @map("gir_hit")
+  putts     Int?
+  penalties Int?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  hole      Hole     @relation(fields: [holeId], references: [id], onDelete: Cascade)
+  round     Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   @@unique([roundId, holeId], name: "unique_round_hole")
   @@index([roundId], map: "idx_round_id")
@@ -243,7 +247,7 @@ model FriendRequest {
   id          BigInt   @id @default(autoincrement())
   requesterId BigInt   @map("requester_id")
   recipientId BigInt   @map("recipient_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   recipient   User     @relation("RecipientRelation", fields: [recipientId], references: [id], onDelete: Cascade)
   requester   User     @relation("RequesterRelation", fields: [requesterId], references: [id], onDelete: Cascade)
 
@@ -254,12 +258,12 @@ model FriendRequest {
 }
 
 model Friend {
-  id          BigInt   @id @default(autoincrement())
-  userId      BigInt   @map("user_id")
-  friendId    BigInt   @map("friend_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  friend      User     @relation("FriendOfUser", fields: [friendId], references: [id], onDelete: Cascade)
-  user        User     @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  friendId  BigInt   @map("friend_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  friend    User     @relation("FriendOfUser", fields: [friendId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, friendId], name: "uq_friends_unique")
   @@index([userId], map: "idx_friends_user")
@@ -277,7 +281,7 @@ model SubscriptionEvent {
   newStatus     String?  @map("new_status") @db.VarChar(20)
   stripeEventId String?  @map("stripe_event_id") @db.VarChar(255)
   metadata      Json?
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_subscription_events_user")
@@ -287,12 +291,12 @@ model SubscriptionEvent {
 }
 
 model LifetimeGrant {
-  id          BigInt   @id @default(autoincrement())
-  userId      BigInt   @map("user_id")
-  grantedBy   String   @map("granted_by") @db.VarChar(255)
-  reason      String
-  createdAt   DateTime @default(now()) @map("created_at")
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  grantedBy String   @map("granted_by") @db.VarChar(255)
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_lifetime_grants_user")
   @@map("lifetime_grants")
@@ -303,7 +307,7 @@ model DataExport {
   userId      BigInt   @map("user_id")
   format      String   @db.VarChar(10)
   recordCount Int      @map("record_count")
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_data_exports_user")
@@ -312,51 +316,43 @@ model DataExport {
 }
 
 model ApiUsageLog {
-  id          BigInt   @id @default(autoincrement())
-  endpoint    String   @db.VarChar(100)
-  userId      BigInt?  @map("user_id")
-  ipAddress   String?  @map("ip_address") @db.VarChar(45)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id        BigInt   @id @default(autoincrement())
+  endpoint  String   @db.VarChar(100)
+  userId    BigInt?  @map("user_id")
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([endpoint, createdAt], map: "idx_api_usage_endpoint_date")
   @@index([userId, createdAt], map: "idx_api_usage_user_date")
   @@map("api_usage_logs")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model AllowedEmail {
-  id          BigInt   @id @default(autoincrement())
-  email       String   @unique @db.VarChar(255)
-  createdAt   DateTime @default(now()) @map("created_at")
-  addedBy     String?  @map("added_by") @db.VarChar(255)
-  notes       String?
+  id        BigInt   @id @default(autoincrement())
+  email     String   @unique @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  addedBy   String?  @map("added_by") @db.VarChar(255)
+  notes     String?
 
   @@index([email], map: "idx_allowed_emails_email")
   @@map("allowed_emails")
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model FeatureFlag {
   flagName    String   @id @map("flag_name") @db.VarChar(100)
   enabled     Boolean  @default(false)
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   description String?
 
   @@map("feature_flags")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Waitlist {
   id                BigInt   @id @default(autoincrement())
   email             String   @unique @db.VarChar(255)
   name              String?  @db.VarChar(255)
   handicap          String?  @db.VarChar(50)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   source            String   @default("landing_page") @db.VarChar(50)
   confirmed         Boolean  @default(false)
   confirmationToken String?  @unique @map("confirmation_token") @db.VarChar(255)
@@ -368,23 +364,21 @@ model Waitlist {
 }
 
 model RoundStrokesGained {
-  id                  BigInt        @id @default(autoincrement())
-  roundId             BigInt        @unique @map("round_id")
-  userId              BigInt        @map("user_id")
-  sgTotal             Decimal?      @map("sg_total") @db.Decimal(5, 2)
-  sgOffTee            Decimal?      @map("sg_off_tee") @db.Decimal(5, 2)
-  sgApproach          Decimal?      @map("sg_approach") @db.Decimal(5, 2)
-  sgPutting           Decimal?      @map("sg_putting") @db.Decimal(5, 2)
-  sgPenalties         Decimal?      @map("sg_penalties") @db.Decimal(5, 2)
-  sgResidual          Decimal?      @map("sg_residual") @db.Decimal(5, 2)
-  confidence          Confidence?   @map("confidence")
-  messages            Json?         @db.JsonB
-  partialAnalysis     Boolean       @map("partial_analysis")
-  createdAt           DateTime      @default(now()) @map("created_at")
-  updatedAt           DateTime?     @map("updated_at")
-
-  round Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              BigInt      @id @default(autoincrement())
+  roundId         BigInt      @unique @map("round_id")
+  userId          BigInt      @map("user_id")
+  sgTotal         Decimal?    @map("sg_total") @db.Decimal(5, 2)
+  sgOffTee        Decimal?    @map("sg_off_tee") @db.Decimal(5, 2)
+  sgApproach      Decimal?    @map("sg_approach") @db.Decimal(5, 2)
+  sgResidual      Decimal?    @map("sg_residual") @db.Decimal(5, 2)
+  sgPutting       Decimal?    @map("sg_putting") @db.Decimal(5, 2)
+  sgPenalties     Decimal?    @map("sg_penalties") @db.Decimal(5, 2)
+  confidence      Confidence? @map("confidence")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  messages        Json?
+  partialAnalysis Boolean?    @map("partial_analysis")
+  round           Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([roundId], map: "idx_round_strokes_gained_round")
   @@index([userId], map: "idx_round_strokes_gained_user")
@@ -401,27 +395,114 @@ model HandicapTierBaseline {
   baselineFIRPct    Decimal  @map("baseline_fir_pct") @db.Decimal(5, 1)
   baselinePutts     Decimal  @map("baseline_putts") @db.Decimal(5, 1)
   baselinePenalties Decimal  @map("baseline_penalties") @db.Decimal(5, 1)
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @default(now()) @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @map("updated_at") @db.Timestamptz(6)
 
   @@map("handicap_tier_baseline")
 }
 
 model RoundInsight {
-  id         BigInt    @id @default(autoincrement())
-  roundId    BigInt    @unique @map("round_id")
-  userId     BigInt    @map("user_id")
-  modelUsed  String    @default("gpt-5-mini") @map("model_used")
-  insights   Json      @db.JsonB
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime? @map("updated_at")
-
-  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        BigInt    @id @default(autoincrement())
+  roundId   BigInt    @unique @map("round_id")
+  userId    BigInt    @map("user_id")
+  modelUsed String    @default("gpt-5-mini") @map("model_used")
+  insights  Json
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @map("updated_at") @db.Timestamptz(6)
+  round     Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([roundId], map: "idx_round_insights_round")
   @@index([userId], map: "idx_round_insights_user")
   @@map("round_insights")
+}
+
+model AchievementTier {
+  id            BigInt      @id @default(autoincrement())
+  achievementId BigInt      @map("achievement_id")
+  tierId        BigInt      @map("tier_id")
+  threshold     Int         @db.SmallInt
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tier          TierLevel   @relation(fields: [tierId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([achievementId, tierId], map: "achievement_tiers_unique_achievement_tier")
+  @@map("achievement_tiers")
+}
+
+model Achievement {
+  id                    BigInt                 @id @default(autoincrement())
+  name                  String                 @db.VarChar
+  description           String?                @db.VarChar
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  achievementTiers      AchievementTier[]
+  userAchievementEvents UserAchievementEvent[]
+  userAchievements      UserAchievement[]
+
+  @@map("achievements")
+}
+
+model TierLevel {
+  id                    BigInt                 @id @default(autoincrement())
+  name                  Tier
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  achievementTiers      AchievementTier[]
+  userAchievementEvents UserAchievementEvent[]
+  userAchievements      UserAchievement[]
+
+  @@map("tiers")
+}
+
+model UserAchievementEvent {
+  id            BigInt      @id @default(autoincrement())
+  userId        BigInt      @map("user_id")
+  achievementId BigInt      @map("achievement_id")
+  tierId        BigInt      @map("tier_id")
+  roundId       BigInt      @map("round_id")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  round         Round       @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tier          TierLevel   @relation(fields: [tierId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([roundId], map: "idx_user_achievement_events_round")
+  @@index([userId, achievementId], map: "idx_user_achievement_events_user_achievement")
+  @@map("user_achievement_events")
+}
+
+model UserAchievementProgress {
+  id                    BigInt   @id @default(autoincrement())
+  userId                BigInt   @unique @map("user_id")
+  holeInOneCount        Int?     @map("hole_in_one_count") @db.SmallInt
+  albatrossCount        Int?     @map("albatross_count") @db.SmallInt
+  eagleCount            Int?     @map("eagle_count") @db.SmallInt
+  perfectRoundCount     Int?     @map("perfect_round_count") @db.SmallInt
+  penaltyFreeRoundCount Int?     @map("penalty_free_round_count") @db.SmallInt
+  puttMasterCount       Int?     @map("putt_master_count") @db.SmallInt
+  roundsPlayedCount     Int?     @map("rounds_played_count") @db.SmallInt
+  coursesPlayedCount    Int?     @map("courses_played_count") @db.SmallInt
+  bestScore             Int?     @map("best_score") @db.SmallInt
+  underParCount         Int?     @map("under_par_count") @db.SmallInt
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("user_achievement_progress")
+}
+
+model UserAchievement {
+  id            BigInt      @id @default(autoincrement())
+  userId        BigInt      @map("user_id")
+  achievementId BigInt      @map("achievement_id")
+  tierId        BigInt      @map("tier_id")
+  unlockedDate  DateTime?   @map("unlocked_date") @db.Timestamptz(6)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tier          TierLevel   @relation(fields: [tierId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, achievementId], map: "user_achievements_unique_user_achievement")
+  @@map("user_achievements")
 }
 
 enum SubscriptionTier {
@@ -462,7 +543,15 @@ enum TeeGender {
 }
 
 enum Confidence {
-  high
-  medium
   low
+  medium
+  high
+}
+
+enum Tier {
+  bronze
+  silver
+  gold
+  platinum
+  diamond
 }

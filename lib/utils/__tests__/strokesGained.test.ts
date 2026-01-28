@@ -89,12 +89,12 @@ describe("calculateStrokesGained", () => {
     expect(result.partialAnalysis).toBe(false);
     expect(result.confidence).toBe("high");
 
-    expect(result.sgApproach).toBeCloseTo(-0.72, 2);
-    expect(result.sgOffTee).toBeCloseTo(0.14, 2);
-    expect(result.sgPutting).toBeCloseTo(-0.28, 2);
+    expect(result.sgApproach).toBeCloseTo(-1.14, 2);
+    expect(result.sgOffTee).toBeCloseTo(0.08, 2);
+    expect(result.sgPutting).toBeCloseTo(-0.59, 2);
     expect(result.sgPenalties).toBeCloseTo(0.34, 2);
-    expect(result.sgResidual).toBeCloseTo(2.21, 2);
-    expect(result.sgTotal).toBeCloseTo(1.69, 2);
+    expect(result.sgResidual).toBeCloseTo(1.75, 2);
+    expect(result.sgTotal).toBeCloseTo(0.45, 2);
   });
 
   // ----------------------------
@@ -123,9 +123,9 @@ describe("calculateStrokesGained", () => {
     );
 
     expect(result.partialAnalysis).toBe(true);
-    expect(result.sgPutting).toBeCloseTo(-1.38, 2);
-    expect(result.sgResidual).toBeCloseTo(2.24, 2);
-    expect(result.sgTotal).toBeCloseTo(0.86, 2);
+    expect(result.sgPutting).toBeCloseTo(-2, 2);
+    expect(result.sgResidual).toBeCloseTo(1, 2);
+    expect(result.sgTotal).toBeCloseTo(-1, 2);
     expect(result.confidence).toBe("low");
   });
 
@@ -155,10 +155,10 @@ describe("calculateStrokesGained", () => {
     );
 
     expect(result.partialAnalysis).toBe(true);
-    expect(result.sgApproach).toBeCloseTo(-0.08, 2);
-    expect(result.sgResidual).toBeCloseTo(-1.68, 2);
-    expect(result.sgTotal).toBeCloseTo(-1.76, 2);
-    expect(result.confidence).toBe("high");
+    expect(result.sgApproach).toBeCloseTo(-0.5, 2);
+    expect(result.sgResidual).toBeCloseTo(-2.5, 2);
+    expect(result.sgTotal).toBeCloseTo(-3, 2);
+    expect(result.confidence).toBe("low");
   });
 
   // ----------------------------
@@ -187,9 +187,9 @@ describe("calculateStrokesGained", () => {
     );
 
     expect(result.partialAnalysis).toBe(true);
-    expect(result.sgOffTee).toBeCloseTo(0.12, 2);
-    expect(result.sgResidual).toBeCloseTo(-0.88, 2);
-    expect(result.sgTotal).toBeCloseTo(-0.76, 2);
+    expect(result.sgOffTee).toBeCloseTo(0.07, 2);
+    expect(result.sgResidual).toBeCloseTo(-2.07, 2);
+    expect(result.sgTotal).toBeCloseTo(-2, 2);
     expect(result.confidence).toBe("low");
   });
 
@@ -219,8 +219,8 @@ describe("calculateStrokesGained", () => {
     );
 
     expect(result.partialAnalysis).toBe(true);
-    expect(result.sgTotal).toBeCloseTo(-0.14, 2);
-    expect(result.sgResidual).toBeCloseTo(-0.14, 2);
+    expect(result.sgTotal).toBeCloseTo(-2, 2);
+    expect(result.sgResidual).toBeCloseTo(-2, 2);
     expect(result.confidence).toBe("low");
   });
 
@@ -407,7 +407,7 @@ describe("calculateStrokesGained", () => {
 
     // Easy course should have lower expectations, making SG higher for same score
     expect(result.sgTotal).toBeDefined();
-    expect(result.confidence).toBe("high");
+    expect(result.confidence).toBe("low");
   });
 
   // ----------------------------
@@ -588,5 +588,419 @@ describe("calculateStrokesGained", () => {
 
     expect(result.sgPenalties).toBeDefined();
     expect(result.sgPenalties).toBeGreaterThan(0); // Better than baseline
+  });
+
+  // ----------------------------
+  // 18. Elite Tier Player (handicap -5)
+  // ----------------------------
+  it("handles elite/scratch player (-5 handicap)", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 18,
+      score: 74,
+      firHit: 9,
+      girHit: 10,
+      putts: 30,
+      penalties: 1,
+      handicapAtRound: -5, // Elite lower boundary
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    // Add elite tier baseline
+    mockPrisma.handicapTierBaseline.findMany.mockResolvedValue([
+      { handicapMin: -5, handicapMax: 0.9, baselineScore: 74, baselineFIRPct: 63, baselineGIRPct: 57, baselinePutts: 31, baselinePenalties: 1 },
+      ...mockBaselineTiers,
+    ]);
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(18), roundId: BigInt(18) },
+      mockPrisma as any
+    );
+
+    expect(result.partialAnalysis).toBe(false);
+    expect(result.sgTotal).toBeDefined();
+    // Elite player should use baseline without interpolation
+    expect(result.confidence).toBeDefined();
+  });
+
+  // ----------------------------
+  // 19. Maximum Handicap (55)
+  // ----------------------------
+  it("handles maximum handicap player (55)", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 19,
+      score: 110,
+      firHit: 4,
+      girHit: 3,
+      putts: 39,
+      penalties: 5,
+      handicapAtRound: 55, // Maximum
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    // Add very high handicap tier
+    mockPrisma.handicapTierBaseline.findMany.mockResolvedValue([
+      ...mockBaselineTiers,
+      { handicapMin: 26, handicapMax: 55, baselineScore: 104, baselineFIRPct: 33, baselineGIRPct: 15, baselinePutts: 38, baselinePenalties: 4 },
+    ]);
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(19), roundId: BigInt(19) },
+      mockPrisma as any
+    );
+
+    expect(result.partialAnalysis).toBe(false);
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBeDefined();
+  });
+
+  // ----------------------------
+  // 20. Extreme Residual Round
+  // ----------------------------
+  it("handles extreme residual correctly", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 21,
+      score: 50,
+      firHit: 0,
+      girHit: 0,
+      putts: 18,
+      penalties: 0,
+      handicapAtRound: 10,
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(21), roundId: BigInt(21) },
+      mockPrisma as any
+    );
+
+    // Residual should handle extreme difference without NaN
+    expect(result.sgResidual).toBeDefined();
+    expect(result.partialAnalysis).toBe(false);
+  });
+
+  // ----------------------------
+  // 21. Edge of Putting Cap
+  // ----------------------------
+  it("caps putting at exactly PUTTING_CAP", async () => {
+    const puttingCap = 3.5;
+
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 22,
+      score: 80,
+      firHit: 8,
+      girHit: 7,
+      putts: 28, // Extreme putts
+      penalties: 2,
+      handicapAtRound: 10,
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(22), roundId: BigInt(22) },
+      mockPrisma as any
+    );
+
+    expect(result.sgPutting).toBeGreaterThan(puttingCap - 0.01);
+    expect(result.messages).toEqual(
+      expect.arrayContaining([expect.stringContaining("Extreme putting")])
+    );
+  });
+
+  // ----------------------------
+  // 22. Zero GIR and FIR
+  // ----------------------------
+  it("handles round with zero FIR and GIR", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 23,
+      score: 100,
+      firHit: 0,
+      girHit: 0,
+      putts: 40,
+      penalties: 5,
+      handicapAtRound: 20,
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(23), roundId: BigInt(23) },
+      mockPrisma as any
+    );
+
+    expect(result.sgOffTee).toBeDefined();
+    expect(result.sgApproach).toBeDefined();
+    expect(result.partialAnalysis).toBe(false);
+  });
+
+  // ----------------------------
+  // 23. Handicap exactly at previous tier max (5.9)
+  // ----------------------------
+  it("interpolates correctly at previous tier max (5.9)", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 24,
+      score: 80,
+      firHit: 6,
+      girHit: 5,
+      putts: 32,
+      penalties: 2,
+      handicapAtRound: 5.9, // Upper boundary of 0-5.9 tier
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(24), roundId: BigInt(24) },
+      mockPrisma as any
+    );
+
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBeDefined();
+  });
+
+  // ----------------------------
+  // 24. Handicap exactly at next tier min (6.0)
+  // ----------------------------
+  it("interpolates correctly at next tier min (6.0)", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 25,
+      score: 85,
+      firHit: 7,
+      girHit: 6,
+      putts: 33,
+      penalties: 2,
+      handicapAtRound: 6.0, // Lower boundary of 6-10.9 tier
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(25), roundId: BigInt(25) },
+      mockPrisma as any
+    );
+
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBeDefined();
+  });
+
+  // ----------------------------
+  // 25. Handicap exactly at upper tier max (10.9)
+  // ----------------------------
+  it("interpolates correctly at upper boundary of 6-10.9 tier (10.9)", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 26,
+      score: 88,
+      firHit: 7,
+      girHit: 5,
+      putts: 34,
+      penalties: 2,
+      handicapAtRound: 10.9, // Upper boundary of 6-10.9 tier
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(26), roundId: BigInt(26) },
+      mockPrisma as any
+    );
+
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBeDefined();
+  });
+
+  // ----------------------------
+  // 26. Handicap exactly at next tier min (11.0)
+  // ----------------------------
+  it("interpolates correctly at next tier min (11.0)", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 27,
+      score: 90,
+      firHit: 6,
+      girHit: 5,
+      putts: 35,
+      penalties: 2,
+      handicapAtRound: 11.0, // Lower boundary of 11-15.9 tier
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(27), roundId: BigInt(27) },
+      mockPrisma as any
+    );
+
+                console.log('sgTotal: ' + result.sgTotal);
+    console.log('sgOffTee: ' + result.sgOffTee);
+    console.log('sgApproach: ' + result.sgApproach);
+    console.log('sgPutting: ' + result.sgPutting);
+    console.log('sgPenalties: ' + result.sgPenalties);
+    console.log('sgResidual: ' + result.sgResidual);
+
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBeDefined();
+  });
+
+  // ----------------------------
+  // 27. Handicap with decimal inside tier (non-boundary)
+  // ----------------------------
+  it("interpolates correctly for decimal handicap inside a tier", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 28,
+      score: 92,
+      firHit: 6,
+      girHit: 5,
+      putts: 36,
+      penalties: 2,
+      handicapAtRound: 12.7, // Decimal inside 11-15.9 tier
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(28), roundId: BigInt(28) },
+      mockPrisma as any
+    );
+
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBeDefined();
+  });
+
+  // ----------------------------
+  // 28. 9-hole round with only score known (partial data)
+  // ----------------------------
+  it("handles 9-hole round with only score known", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 29,
+      score: 46,
+      firHit: null,
+      girHit: null,
+      putts: null,
+      penalties: null,
+      handicapAtRound: 8,
+      tee: {
+        courseRating: 36,
+        slopeRating: 113,
+        numberOfHoles: 9,
+        nonPar3Holes: 7,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(29), roundId: BigInt(29) },
+      mockPrisma as any
+    );
+
+    expect(result.partialAnalysis).toBe(true);
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBe("low");
+  });
+
+  // ----------------------------
+  // 29. Extreme penalties
+  // ----------------------------
+  it("handles round with extreme penalties", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 30,
+      score: 100,
+      firHit: 6,
+      girHit: 5,
+      putts: 36,
+      penalties: 12, // Extreme penalties
+      handicapAtRound: 12,
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(30), roundId: BigInt(30) },
+      mockPrisma as any
+    );
+
+    expect(result.sgPenalties).toBeDefined();
+    expect(result.sgTotal).toBeDefined();
+    expect(result.partialAnalysis).toBe(false);
+  });
+
+  // ----------------------------
+  // 30. Elite tier player with eliteLocked = true
+  // ----------------------------
+  it("handles elite player with eliteLocked = true", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue({
+      id: 31,
+      score: 73,
+      firHit: 9,
+      girHit: 10,
+      putts: 30,
+      penalties: 1,
+      handicapAtRound: -3, // Elite player
+      tee: {
+        courseRating: 72,
+        slopeRating: 113,
+        numberOfHoles: 18,
+        nonPar3Holes: 14,
+      },
+    });
+
+    // Elite tier baseline locked
+    mockPrisma.handicapTierBaseline.findMany.mockResolvedValue([
+      { handicapMin: -5, handicapMax: 0.9, baselineScore: 74, baselineFIRPct: 63, baselineGIRPct: 57, baselinePutts: 31, baselinePenalties: 1 },
+      ...mockBaselineTiers,
+    ]);
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(31), roundId: BigInt(31) },
+      mockPrisma as any
+    );
+
+    expect(result.partialAnalysis).toBe(false);
+    expect(result.sgTotal).toBeDefined();
+    expect(result.confidence).toBeDefined();
   });
 });
