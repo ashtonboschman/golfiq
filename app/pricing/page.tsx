@@ -137,7 +137,7 @@ export default function PricingPage() {
                     onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
                     disabled={loading !== null}
                   >
-                    {loading === 'month' ? 'Loading...' : 'Start 14-day free trial'}
+                    {loading === 'month' ? 'Loading...' : 'Start 14-Day Free Trial'}
                   </button>
                   <div>
                     <p className="price-subtext">
@@ -177,7 +177,7 @@ export default function PricingPage() {
                     onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
                     disabled={loading !== null}
                   >
-                    {loading === 'year' ? 'Loading...' : 'Subscribe annually'}
+                    {loading === 'year' ? 'Loading...' : 'Subscribe Annually'}
                   </button>
                   <div>
                     <p className="price-subtext">
@@ -213,7 +213,7 @@ export default function PricingPage() {
                     className="pricing-button current"
                     disabled
                   >
-                    Current plan
+                    Current Plan
                   </button>
                 </div>
               </div>

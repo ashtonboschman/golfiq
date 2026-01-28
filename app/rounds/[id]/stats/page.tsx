@@ -374,7 +374,7 @@ export default function RoundStatsPage() {
                   <div className="info-banner-text">
                     <h4>Handicap Required for Strokes Gained</h4>
                     <p>
-                      To see strokes gained statistics, you need to establish a handicap by logging more rounds. Keep playing and your handicap will be calculated automatically.
+                      To see strokes gained statistics, you need to establish a handicap by logging at least 3 rounds. Keep playing and your handicap will be calculated automatically.
                     </p>
                   </div>
                 </div>

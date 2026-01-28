@@ -698,7 +698,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
               onClick={() => router.push('/pricing')}
               className="btn btn-upgrade"
             >
-              Upgrade
+              Start 14-Day Free Trial
             </button>
         </div>
       )}

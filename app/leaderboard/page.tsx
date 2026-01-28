@@ -44,7 +44,7 @@ export default function LeaderboardPage() {
   const fetchLeaderboard = useCallback(async (pageToFetch: number, resetUsers = false) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/leaderboard?scope=${scope}&limit=50&page=${pageToFetch}`);
+      const res = await fetch(`/api/leaderboard?scope=${scope}&limit=25&page=${pageToFetch}`);
       const data = await res.json();
       if (data.type === 'success') {
         const newUsers = data.users || [];
@@ -176,7 +176,7 @@ export default function LeaderboardPage() {
               className="btn btn-upgrade"
               onClick={() => router.push('/pricing')}
             >
-              Upgrade
+              Start 14-Day Free Trial
             </button>
           </div>
         </div>

@@ -104,7 +104,7 @@ export default function UpgradeModal({
               className="btn btn-upgrade"
               onClick={handleUpgrade}
             >
-              Start 14-day free trial
+              Start 14-Day Free Trial
             </button>
             {showCloseButton && (
               <button

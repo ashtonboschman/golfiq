@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const userId = await requireAuth(request);
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get('scope') || 'global';
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = parseInt(searchParams.get('limit') || '25');
     const page = parseInt(searchParams.get('page') || '1');
 
     const skip = (page - 1) * limit;

@@ -59,7 +59,7 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
           className="btn btn-upgrade"
           onClick={() => router.push('/pricing')}
         >
-          Upgrade to Premium
+          Start 14-Day Free Trial
         </button>
         </div>
       </div>
