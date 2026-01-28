@@ -42,8 +42,8 @@ type CourseResponse = {
   id: number;
   club_name: string;
   course_name: string;
-  created_date: string;
-  updated_date: string;
+  created_at: string;
+  updated_at: string;
   location: {
     state: string;
     country: string;
@@ -126,8 +126,8 @@ async function buildCourseResponse(
     id: Number(course.id),
     club_name: course.clubName,
     course_name: course.courseName,
-    created_date: course.createdDate.toISOString(),
-    updated_date: course.updatedDate.toISOString(),
+    created_at: course.createdAt.toISOString(),
+    updated_at: course.updatedAt.toISOString(),
     location: {
       state: course.location?.state ?? 'Unknown',
       country: course.location?.country ?? 'Unknown',

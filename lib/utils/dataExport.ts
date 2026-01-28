@@ -36,7 +36,7 @@ export async function canUserExport(userId: bigint): Promise<{
   const exportsThisMonth = await prisma.dataExport.count({
     where: {
       userId,
-      createdDate: {
+      createdAt: {
         gte: firstDayOfMonth,
       },
     },
@@ -76,7 +76,7 @@ export async function recordDataExport(params: {
 export async function getUserExportHistory(userId: bigint, limit: number = 10) {
   return await prisma.dataExport.findMany({
     where: { userId },
-    orderBy: { createdDate: 'desc' },
+    orderBy: { createdAt: 'desc' },
     take: limit,
   });
 }
@@ -91,11 +91,11 @@ export async function getMonthlyExportStats(userId: bigint) {
   const exports = await prisma.dataExport.findMany({
     where: {
       userId,
-      createdDate: {
+      createdAt: {
         gte: firstDayOfMonth,
       },
     },
-    orderBy: { createdDate: 'desc' },
+    orderBy: { createdAt: 'desc' },
   });
 
   return {
@@ -103,7 +103,7 @@ export async function getMonthlyExportStats(userId: bigint) {
     exports: exports.map(e => ({
       format: e.format,
       recordCount: e.recordCount,
-      date: e.createdDate,
+      date: e.createdAt,
     })),
   };
 }

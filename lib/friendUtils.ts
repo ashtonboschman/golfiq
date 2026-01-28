@@ -5,7 +5,7 @@ export interface FriendUser {
   last_name: string;
   avatar_url: string;
   type: 'friend' | 'incoming' | 'outgoing' | 'none';
-  created_date?: string | null;
+  created_at?: string | null;
   handicap?: number | null;
   average_score?: number | null;
   best_score?: number | null;
@@ -24,7 +24,7 @@ export function normalizeFriend(user: Partial<FriendUser> & { type: string }): F
     last_name: user.last_name ?? '',
     avatar_url: user.avatar_url ?? '/avatars/default.png',
     type: user.type as FriendUser['type'],
-    created_date: user.created_date ?? null,
+    created_at: user.created_at ?? null,
     handicap: user.handicap ?? null,
     average_score: user.average_score ?? null,
     best_score: user.best_score ?? null,

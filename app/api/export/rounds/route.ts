@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       putts: round.putts,
       penalties: round.penalties,
       notes: round.notes || '',
-      created_date: round.createdDate.toISOString(),
+      created_at: round.createdAt.toISOString(),
     }));
 
     // Record the export

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
         username: true,
         email: true,
         emailVerified: true,
-        createdDate: true,
+        createdAt: true,
         profile: {
           select: {
             firstName: true,
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       username: user.username,
       email: user.email,
       email_verified: user.emailVerified,
-      created_date: user.createdDate,
+      created_at: user.createdAt,
       first_name: user.profile.firstName,
       last_name: user.profile.lastName,
       avatar_url: user.profile.avatarUrl,
@@ -121,7 +121,7 @@ export async function PUT(request: NextRequest) {
         username: updatedUser.username,
         email: updatedUser.email,
         email_verified: updatedUser.emailVerified,
-        created_date: updatedUser.createdDate,
+        created_at: updatedUser.createdAt,
         first_name: updatedProfile.firstName,
         last_name: updatedProfile.lastName,
         avatar_url: updatedProfile.avatarUrl,

@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
         first_name: recipient?.profile?.firstName,
         last_name: recipient?.profile?.lastName,
         avatar_url: recipient?.profile?.avatarUrl,
-        created_date: friendRequest.createdDate,
+        created_at: friendRequest.createdAt,
       },
     });
   } catch (error) {

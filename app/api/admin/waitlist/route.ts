@@ -16,22 +16,22 @@ export async function GET() {
     const [waitlist, allowedEmails] = await Promise.all([
       prisma.waitlist.findMany({
         where: { confirmed: true }, // Only show confirmed emails
-        orderBy: { createdDate: 'desc' },
+        orderBy: { createdAt: 'desc' },
       }),
-      prisma.allowedEmail.findMany({ orderBy: { createdDate: 'desc' } }),
+      prisma.allowedEmail.findMany({ orderBy: { createdAt: 'desc' } }),
     ]);
 
     // Serialize BigInt and Dates
     const serializedWaitlist = waitlist.map((w) => ({
       ...w,
       id: w.id.toString(),
-      createdDate: w.createdDate.toISOString(),
+      createdAt: w.createdAt.toISOString(),
     }));
 
     const serializedAllowedEmails = allowedEmails.map((a) => ({
       ...a,
       id: a.id.toString(),
-      createdDate: a.createdDate.toISOString(),
+      createdAt: a.createdAt.toISOString(),
     }));
 
     return NextResponse.json({ waitlist: serializedWaitlist, allowedEmails: serializedAllowedEmails });
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     const serializedAllowedEmail = {
       ...allowedEmail,
       id: allowedEmail.id.toString(),
-      createdDate: allowedEmail.createdDate.toISOString(),
+      createdAt: allowedEmail.createdAt.toISOString(),
     };
 
     return NextResponse.json({ type: 'success', allowedEmail: serializedAllowedEmail });
@@ -122,7 +122,7 @@ export async function DELETE(req: NextRequest) {
     const serializedDeleted = {
       ...deleted,
       id: deleted.id.toString(),
-      createdDate: deleted.createdDate.toISOString(),
+      createdAt: deleted.createdAt.toISOString(),
     };
 
     return NextResponse.json({ type: 'success', deleted: serializedDeleted });

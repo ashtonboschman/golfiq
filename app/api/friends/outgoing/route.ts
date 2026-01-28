@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       where: { requesterId: userId },
       select: {
         id: true,
-        createdDate: true,
+        createdAt: true,
         recipient: {
           select: {
             id: true,
@@ -33,12 +33,12 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { createdDate: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     const results = requests.map((req: any) => ({
       id: Number(req.id),
-      created_date: req.createdDate,
+      created_at: req.createdAt,
       user_id: Number(req.recipient.id),
       username: req.recipient.username,
       first_name: req.recipient.profile?.firstName,

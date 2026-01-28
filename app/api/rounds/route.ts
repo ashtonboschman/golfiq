@@ -21,8 +21,8 @@ type RoundWithRelations = {
   putts: number | null;
   penalties: number | null;
   notes: string | null;
-  createdDate: Date;
-  updatedDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
   course: {
     courseName: string;
     clubName: string;
@@ -54,8 +54,8 @@ function formatRoundRow(round: RoundWithRelations) {
     putts: round.putts === null ? null : Number(round.putts),
     penalties: round.penalties === null ? null : Number(round.penalties),
     notes: round.notes,
-    created_date: round.createdDate,
-    updated_date: round.updatedDate,
+    created_at: round.createdAt,
+    updated_at: round.updatedAt,
     course: {
       id: Number(round.courseId),
       course_name: round.course?.courseName || null,
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [
         { date: 'desc' },
-        { createdDate: 'desc' }
+        { createdAt: 'desc' }
       ],
       take: limit,
       skip,

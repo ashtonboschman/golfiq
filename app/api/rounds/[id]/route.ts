@@ -21,8 +21,8 @@ type RoundWithRelations = {
   putts: number | null;
   penalties: number | null;
   notes: string | null;
-  createdDate: Date;
-  updatedDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
   course: {
     courseName: string;
     clubName: string;
@@ -54,8 +54,8 @@ function formatRoundRow(round: RoundWithRelations) {
     putts: round.putts === null ? null : Number(round.putts),
     penalties: round.penalties === null ? null : Number(round.penalties),
     notes: round.notes,
-    created_date: round.createdDate,
-    updated_date: round.updatedDate,
+    created_at: round.createdAt,
+    updated_at: round.updatedAt,
     course: {
       id: Number(round.courseId),
       course_name: round.course?.courseName || null,
@@ -222,7 +222,7 @@ export async function PUT(
     const existingDate = new Date(existingRound.date);
 
     // Use UTC methods to avoid timezone issues
-    const updatedDate = new Date(Date.UTC(
+    const updatedAt = new Date(Date.UTC(
       year,
       month - 1,
       day,
@@ -249,7 +249,7 @@ export async function PUT(
       data: {
         courseId,
         teeId,
-        date: updatedDate,
+        date: updatedAt,
         holeByHole: data.hole_by_hole,
         advancedStats: data.advanced_stats,
         score: updateScore,

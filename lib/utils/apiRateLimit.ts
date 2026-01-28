@@ -17,7 +17,7 @@ export async function checkRateLimit(
   const callsToday = await prisma.apiUsageLog.count({
     where: {
       endpoint,
-      createdDate: {
+      createdAt: {
         gte: startOfDay,
       },
     },
@@ -65,7 +65,7 @@ export async function getApiUsageStats(
   const callsToday = await prisma.apiUsageLog.count({
     where: {
       endpoint,
-      createdDate: {
+      createdAt: {
         gte: startOfDay,
       },
     },
