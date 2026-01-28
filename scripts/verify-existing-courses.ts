@@ -36,9 +36,9 @@ async function verifyExistingCourses() {
         id: true,
         courseName: true,
         clubName: true,
-        createdDate: true
+        createdAt: true
       },
-      orderBy: { createdDate: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: 10
     });
 

@@ -20,7 +20,7 @@ async function listLifetimeUsers() {
         profile: true,
       },
       orderBy: {
-        createdDate: 'desc',
+        createdAt: 'desc',
       },
     });
 
@@ -36,7 +36,7 @@ async function listLifetimeUsers() {
       console.log(`\n${index + 1}. ${user.username} (${user.email})`);
       console.log(`   User ID: ${user.id}`);
       console.log(`   Status: ${user.subscriptionStatus}`);
-      console.log(`   Member since: ${user.createdDate.toLocaleDateString()}`);
+      console.log(`   Member since: ${user.createdAt.toLocaleDateString()}`);
 
       if (user.profile) {
         const name = [user.profile.firstName, user.profile.lastName]
@@ -57,7 +57,7 @@ async function listLifetimeUsers() {
           console.log(`      - Grant ID: ${grant.id}`);
           console.log(`        Granted by: ${grant.grantedBy}`);
           console.log(`        Reason: ${grant.reason}`);
-          console.log(`        Date: ${grant.createdDate.toLocaleDateString()}`);
+          console.log(`        Date: ${grant.createdAt.toLocaleDateString()}`);
         });
       } else {
         console.log(`\n   ⚠️  No grant records found (possible data migration)`);

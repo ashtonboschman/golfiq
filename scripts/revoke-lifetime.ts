@@ -44,7 +44,7 @@ async function revokeLifetimeAccess(email: string, reason: string) {
         console.log(`   - Grant ID: ${grant.id}`);
         console.log(`     Granted by: ${grant.grantedBy}`);
         console.log(`     Reason: ${grant.reason}`);
-        console.log(`     Date: ${grant.createdDate.toLocaleDateString()}`);
+        console.log(`     Date: ${grant.createdAt.toLocaleDateString()}`);
       });
     }
 
