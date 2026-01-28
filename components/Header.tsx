@@ -6,6 +6,7 @@ import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/context/ThemeContext';
+import { useMessage } from '@/app/providers';
 
 const LOGO_BY_THEME: Record<string, string> = {
   dark: '/logos/wordmark/golfiq-wordmark.png',
@@ -28,6 +29,7 @@ export default function Header() {
   const searchParams = useSearchParams();
   const { avatarUrl } = useAvatar();
   const { theme } = useTheme();
+  const { showConfirm } = useMessage();
   const logoSrc = LOGO_BY_THEME[theme] || '/logos/wordmark/golfiq-wordmark.png';
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -44,15 +46,18 @@ export default function Header() {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-    if (isOnAddEditPage) {
-      if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
-        router.push(path);
-      }
-    } else if (hasUnsavedChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-        sessionStorage.removeItem('profile-has-changes');
-        router.push(path);
-      }
+    if (isOnAddEditPage || hasUnsavedChanges) {
+      showConfirm({
+        message: isOnAddEditPage
+          ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
+          : 'You have unsaved changes. Are you sure you want to leave?',
+        onConfirm: () => {
+          if (hasUnsavedChanges) {
+            sessionStorage.removeItem('profile-has-changes');
+          }
+          router.push(path);
+        }
+      });
     } else {
       router.push(path);
     }
@@ -75,19 +80,25 @@ export default function Header() {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-    if (isOnAddEditPage) {
-      if (!window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
-        return;
-      }
-    } else if (hasUnsavedChanges) {
-      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-        return;
-      }
-      sessionStorage.removeItem('profile-has-changes');
+    if (isOnAddEditPage || hasUnsavedChanges) {
+      showConfirm({
+        message: isOnAddEditPage
+          ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
+          : 'You have unsaved changes. Are you sure you want to leave?',
+        onConfirm: async () => {
+          if (hasUnsavedChanges) {
+            sessionStorage.removeItem('profile-has-changes');
+          }
+          setDropdownOpen(false);
+          await signOut({ redirect: false });
+          router.replace('/login');
+        }
+      });
+    } else {
+      setDropdownOpen(false);
+      await signOut({ redirect: false });
+      router.replace('/login');
     }
-    setDropdownOpen(false);
-    await signOut({ redirect: false });
-    router.replace('/login');
   };
 
   const showBackButton =
@@ -114,38 +125,46 @@ export default function Header() {
     }
     // On round add page, warn before navigating away (same as cancel button)
     else if (pathname === '/rounds/add') {
-      if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
-        const from = searchParams.get('from') || 'rounds';
+      const from = searchParams.get('from') || 'rounds';
 
-        if (from.startsWith('/')) {
-          // Full URL path (e.g., /courses/123)
-          router.replace(from);
-        } else if (from === 'dashboard') {
-          router.replace('/dashboard');
-        } else {
-          router.replace('/rounds');
+      showConfirm({
+        message: 'Are you sure you want to leave? Any unsaved changes will be lost.',
+        onConfirm: () => {
+          if (from.startsWith('/')) {
+            router.replace(from);
+          } else if (from === 'dashboard') {
+            router.replace('/dashboard');
+          } else {
+            router.replace('/rounds');
+          }
         }
-      }
+      });
     }
     // On round edit page, warn before navigating away (same as cancel button)
     else if (pathname?.match(/^\/rounds\/edit\/\d+$/)) {
-      if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
-        const from = searchParams.get('from') || 'stats';
-        const roundId = pathname.split('/')[3];
+      const from = searchParams.get('from') || 'stats';
+      const roundId = pathname.split('/')[3];
 
-        if (from === 'rounds') {
-          router.replace('/rounds');
-        } else {
-          router.replace(`/rounds/${roundId}/stats`);
+      showConfirm({
+        message: 'Are you sure you want to leave? Any unsaved changes will be lost.',
+        onConfirm: () => {
+          if (from === 'rounds') {
+            router.replace('/rounds');
+          } else {
+            router.replace(`/rounds/${roundId}/stats`);
+          }
         }
-      }
+      });
     }
     // On profile with unsaved changes, warn before navigating away
     else if (hasUnsavedChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-        sessionStorage.removeItem('profile-has-changes');
-        window.history.back();
-      }
+      showConfirm({
+        message: 'You have unsaved changes. Are you sure you want to leave?',
+        onConfirm: () => {
+          sessionStorage.removeItem('profile-has-changes');
+          window.history.back();
+        }
+      });
     }
     // When viewing someone else's dashboard, go back to their profile
     else if (isViewingOthersDashboard) {

@@ -5,7 +5,7 @@ import { useMessage } from '@/app/providers';
 import { SquareCheck, TriangleAlert } from 'lucide-react';
 
 export default function Messages({ duration = 2000, mode = 'toast' }: { duration?: number; mode?: 'toast' | 'modal' }) {
-  const { message, type, clearMessage } = useMessage();
+  const { message, type, clearMessage, confirmDialog, clearConfirm } = useMessage();
   const lastMessageRef = useRef('');
 
   useEffect(() => {
@@ -24,6 +24,51 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
     }
   }, [message, duration, clearMessage, mode, type]);
 
+  // Render confirm dialog if present
+  if (confirmDialog) {
+    return (
+      <>
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            confirmDialog.onCancel?.();
+            clearConfirm();
+          }}
+        />
+
+        <div className="modal-container">
+          <div className="modal-content">
+            <div className="modal-icon warning">
+              <TriangleAlert size={50}/>
+            </div>
+            <h3 className="modal-title">Confirm Action</h3>
+            <p className="modal-message">{confirmDialog.message}</p>
+            <div className="modal-buttons">
+              <button
+                onClick={() => {
+                  confirmDialog.onCancel?.();
+                  clearConfirm();
+                }}
+                className="btn btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  clearConfirm();
+                }}
+                className="btn btn-save"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   if (!message) return null;
 
   const isError = type === 'error';
@@ -34,70 +79,21 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
     if (isError) {
       return (
         <>
-          {/* Backdrop */}
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 9998,
-            }}
-            onClick={clearMessage}
-          />
+          <div className="modal-backdrop" onClick={clearMessage} />
 
-          {/* Modal */}
-          <div style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '400px',
-            width: '90%',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-            zIndex: 9999,
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>
-                <TriangleAlert/>
+          <div className="modal-container">
+            <div className="modal-content">
+              <div className="modal-icon error">
+                <TriangleAlert size={50}/>
               </div>
-              <h3 style={{
-                margin: '0 0 12px 0',
-                fontSize: '20px',
-                fontWeight: 600,
-                color: '#dc3545',
-              }}>
-                Error
-              </h3>
-              <p style={{
-                margin: '0 0 24px 0',
-                fontSize: '16px',
-                color: '#333',
-                lineHeight: '1.5',
-              }}>
-                {message}
-              </p>
+              <h3 className="modal-title">Error</h3>
+              <p className="modal-message">{message}</p>
               <button
                 onClick={() => {
                   clearMessage();
                   lastMessageRef.current = '';
                 }}
-                style={{
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '10px 24px',
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  width: '100%',
-                }}
+                className="btn btn-save btn-single"
               >
                 OK
               </button>
@@ -115,12 +111,4 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
       </div>
     );
   }
-
-  // Toast mode (default)
-  return (
-    <div className={`message-toast ${isError ? 'error' : 'success'}`}>
-      <span className="message-emoji">{isError ? <TriangleAlert/> : <SquareCheck/>}</span>
-      <span>{message}</span>
-    </div>
-  );
 }

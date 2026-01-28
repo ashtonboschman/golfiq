@@ -54,7 +54,7 @@ function EditRoundContent() {
   const searchParams = useSearchParams();
   const from = searchParams.get('from') || 'stats'; // Default to stats if not specified
   const { data: session, status } = useSession();
-  const { showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage, showConfirm } = useMessage();
 
   const [round, setRound] = useState<Round>({
     date: getLocalDateString(), // Use local timezone instead of UTC
@@ -820,13 +820,16 @@ function EditRoundContent() {
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-                  if (from === 'rounds') {
-                    router.replace('/rounds');
-                  } else {
-                    router.replace(`/rounds/${id}/stats`);
+                showConfirm({
+                  message: 'Are you sure you want to cancel? Any unsaved changes will be lost.',
+                  onConfirm: () => {
+                    if (from === 'rounds') {
+                      router.replace('/rounds');
+                    } else {
+                      router.replace(`/rounds/${id}/stats`);
+                    }
                   }
-                }
+                });
               }}
               className="btn btn-cancel"
             >

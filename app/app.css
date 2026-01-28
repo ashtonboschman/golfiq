@@ -452,6 +452,77 @@ h1, h2, h3, h2, h1, .btn {
 }
 
 /* ===========================
+   Modal Dialogs
+=========================== */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+}
+
+.modal-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--color-primary-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 320px;
+  width: 70%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+}
+
+.modal-content {
+  text-align: center;
+}
+
+.modal-icon {
+  font-size: 48px;
+}
+
+.modal-icon.warning {
+  color: var(--color-warning);
+}
+
+.modal-icon.error {
+  color: var(--color-red);
+}
+
+.modal-title {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-primary-text);
+}
+
+.modal-message {
+  margin: 0 0 24px 0;
+  font-size: 16px;
+  color: var(--color-secondary-text);
+  line-height: 1.5;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-buttons .btn {
+  flex: 1;
+}
+
+.modal-buttons .btn-single {
+  width: 100%;
+}
+
+/* ===========================
    Cards (Base Styles)
 =========================== */
 .card {

@@ -72,7 +72,7 @@ export default function RoundStatsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const params = useParams();
-  const { showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage, showConfirm } = useMessage();
 
   const [stats, setStats] = useState<RoundStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,24 +163,27 @@ export default function RoundStatsPage() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this round?')) return;
+    showConfirm({
+      message: 'Are you sure you want to delete this round?',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/rounds/${roundId}`, {
+            method: 'DELETE',
+          });
 
-    try {
-      const res = await fetch(`/api/rounds/${roundId}`, {
-        method: 'DELETE',
-      });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.message || 'Error deleting round');
+          }
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Error deleting round');
+          showMessage('Round deleted successfully', 'success');
+          router.replace('/rounds');
+        } catch (error: any) {
+          console.error('Error deleting round:', error);
+          showMessage(error.message || 'Failed to delete round', 'error');
+        }
       }
-
-      showMessage('Round deleted successfully', 'success');
-      router.replace('/rounds');
-    } catch (error: any) {
-      console.error('Error deleting round:', error);
-      showMessage(error.message || 'Failed to delete round', 'error');
-    }
+    });
   };
 
   if (status === 'loading' || loading) {

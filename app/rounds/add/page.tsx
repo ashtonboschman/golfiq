@@ -53,7 +53,7 @@ function AddRoundContent() {
   const searchParams = useSearchParams();
   const from = searchParams.get('from') || 'rounds'; // Default to rounds if not specified
   const { data: session, status } = useSession();
-  const { showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage, showConfirm } = useMessage();
 
   // Helper to get the back URL based on 'from' parameter
   const getBackUrl = () => {
@@ -954,9 +954,12 @@ function AddRoundContent() {
             <button
               type="button"
               onClick={() => {
-                if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-                  router.replace(getBackUrl());
-                }
+                showConfirm({
+                  message: 'Are you sure you want to cancel? Any unsaved changes will be lost.',
+                  onConfirm: () => {
+                    router.replace(getBackUrl());
+                  }
+                });
               }}
               className="btn btn-cancel"
             >

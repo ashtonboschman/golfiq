@@ -33,7 +33,7 @@ interface CourseOption {
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage, showConfirm } = useMessage();
   const { updateAvatar } = useAvatar();
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
@@ -445,21 +445,29 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     if (hasChanges) {
-      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-        return;
-      }
-      sessionStorage.removeItem('profile-has-changes');
+      showConfirm({
+        message: 'You have unsaved changes. Are you sure you want to leave?',
+        onConfirm: async () => {
+          sessionStorage.removeItem('profile-has-changes');
+          await signOut({ redirect: false });
+          router.replace('/login');
+        }
+      });
+    } else {
+      await signOut({ redirect: false });
+      router.replace('/login');
     }
-    await signOut({ redirect: false });
-    router.replace('/login');
   };
 
   const handleNavigation = (path: string) => {
     if (hasChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-        sessionStorage.removeItem('profile-has-changes');
-        router.push(path);
-      }
+      showConfirm({
+        message: 'You have unsaved changes. Are you sure you want to leave?',
+        onConfirm: () => {
+          sessionStorage.removeItem('profile-has-changes');
+          router.push(path);
+        }
+      });
     } else {
       router.push(path);
     }

@@ -2,7 +2,8 @@
 import { useFriends } from '../context/FriendsContext';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { LayoutDashboard, LandPlot, MapPin, TrendingUp, Users2, Trophy } from 'lucide-react'
+import { LayoutDashboard, LandPlot, MapPin, TrendingUp, Users2, Trophy } from 'lucide-react';
+import { useMessage } from '@/app/providers';
 
 export default function Footer() {
   const { data: session } = useSession();
@@ -10,6 +11,7 @@ export default function Footer() {
   const router = useRouter();
   const pathname = usePathname();
   const { incomingRequests } = useFriends();
+  const { showConfirm } = useMessage();
 
   if (!user) return null;
 
@@ -21,15 +23,18 @@ export default function Footer() {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-    if (isOnAddEditPage) {
-      if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
-        router.push(path);
-      }
-    } else if (hasUnsavedChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-        sessionStorage.removeItem('profile-has-changes');
-        router.push(path);
-      }
+    if (isOnAddEditPage || hasUnsavedChanges) {
+      showConfirm({
+        message: isOnAddEditPage
+          ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
+          : 'You have unsaved changes. Are you sure you want to leave?',
+        onConfirm: () => {
+          if (hasUnsavedChanges) {
+            sessionStorage.removeItem('profile-has-changes');
+          }
+          router.push(path);
+        }
+      });
     } else {
       router.push(path);
     }

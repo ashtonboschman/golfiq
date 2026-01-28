@@ -29,7 +29,7 @@ interface Round {
 export default function RoundsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage, showConfirm } = useMessage();
 
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,28 +157,31 @@ export default function RoundsPage() {
   );
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this round?')) return;
+    showConfirm({
+      message: 'Are you sure you want to delete this round?',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/rounds/${id}`, {
+            method: 'DELETE',
+          });
 
-    try {
-      const res = await fetch(`/api/rounds/${id}`, {
-        method: 'DELETE',
-      });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.message || 'Error deleting round');
+          }
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Error deleting round');
+          showMessage('Round deleted successfully', 'success');
+          // Refetch the current page
+          setRounds([]);
+          setPage(1);
+          setHasMore(true);
+          fetchRounds(1, debouncedSearch, true);
+        } catch (err: any) {
+          console.error('Delete round error:', err);
+          showMessage(err.message || 'Error deleting round', 'error');
+        }
       }
-
-      showMessage('Round deleted successfully', 'success');
-      // Refetch the current page
-      setRounds([]);
-      setPage(1);
-      setHasMore(true);
-      fetchRounds(1, debouncedSearch, true);
-    } catch (err: any) {
-      console.error('Delete round error:', err);
-      showMessage(err.message || 'Error deleting round', 'error');
-    }
+    });
   };
 
   if (status === 'loading') return <p className="loading-text">Loading...</p>;
