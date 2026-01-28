@@ -868,13 +868,6 @@ describe("calculateStrokesGained", () => {
       mockPrisma as any
     );
 
-                console.log('sgTotal: ' + result.sgTotal);
-    console.log('sgOffTee: ' + result.sgOffTee);
-    console.log('sgApproach: ' + result.sgApproach);
-    console.log('sgPutting: ' + result.sgPutting);
-    console.log('sgPenalties: ' + result.sgPenalties);
-    console.log('sgResidual: ' + result.sgResidual);
-
     expect(result.sgTotal).toBeDefined();
     expect(result.confidence).toBeDefined();
   });

@@ -5,6 +5,9 @@ import { prisma } from '@/lib/db';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// In-flight generation lock to prevent duplicate OpenAI calls from concurrent requests
+const inFlightGenerations = new Map<string, Promise<any>>();
+
 async function getUserSession() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -33,7 +36,6 @@ export async function GET(
     const { id } = await params;
     const roundId = BigInt(id);
 
-    // Check if insights already exist
     const existingInsights = await prisma.roundInsight.findUnique({ where: { roundId } });
     if (existingInsights) return NextResponse.json({ insights: existingInsights.insights });
 
@@ -72,9 +74,151 @@ export async function POST(
   }
 }
 
+// ---------------------------------------------------------------------------
+// SG Selection Algorithm Types
+// ---------------------------------------------------------------------------
+
+type SGComponentName = 'off_tee' | 'approach' | 'putting' | 'penalties';
+
+interface SGComponent {
+  name: SGComponentName;
+  value: number;
+  label: string;
+}
+
+interface SGSelection {
+  best: SGComponent;
+  message2: SGComponent;
+  noWeaknessMode: boolean;
+  msg1Emoji: '🔥' | '✅';
+  msg2Emoji: '🔥' | '✅' | '⚠️';
+  residualNote: string | null;
+}
+
+const SG_LABELS: Record<SGComponentName, string> = {
+  off_tee: 'Off the Tee',
+  approach: 'Approach',
+  putting: 'Putting',
+  penalties: 'Penalties',
+};
+
+// ---------------------------------------------------------------------------
+// SG Selection Algorithm (server-side, deterministic)
+// ---------------------------------------------------------------------------
+
+function runSGSelection(
+  sgOffTee: number | null,
+  sgApproach: number | null,
+  sgPutting: number | null,
+  sgPenalties: number | null,
+  sgResidual: number | null,
+  sgTotal: number | null,
+): SGSelection | null {
+  // Build non-null component array (exclude residual)
+  const components: SGComponent[] = [];
+  if (sgOffTee != null) components.push({ name: 'off_tee', value: sgOffTee, label: SG_LABELS.off_tee });
+  if (sgApproach != null) components.push({ name: 'approach', value: sgApproach, label: SG_LABELS.approach });
+  if (sgPutting != null) components.push({ name: 'putting', value: sgPutting, label: SG_LABELS.putting });
+  if (sgPenalties != null) components.push({ name: 'penalties', value: sgPenalties, label: SG_LABELS.penalties });
+
+  if (components.length < 2) return null;
+
+  // Step 2: Find worst component (most negative < -1.0)
+  const negatives = components.filter(c => c.value < -1.0);
+  const noWeaknessMode = negatives.length === 0;
+  let worstComponent: SGComponent | null = null;
+  if (!noWeaknessMode) {
+    worstComponent = negatives.reduce((min, c) => c.value < min.value ? c : min, negatives[0]);
+  }
+
+  // Step 3: Find best component (exclude worst)
+  const remainingForBest = worstComponent
+    ? components.filter(c => c.name !== worstComponent!.name)
+    : components;
+  const bestComponent = remainingForBest.reduce((max, c) => c.value > max.value ? c : max, remainingForBest[0]);
+
+  // Step 4: Find second-best component (exclude best and worst)
+  const remainingForSecond = components.filter(
+    c => c.name !== bestComponent.name && (worstComponent ? c.name !== worstComponent.name : true)
+  );
+  const secondBestComponent = remainingForSecond.length > 0
+    ? remainingForSecond.reduce((max, c) => c.value > max.value ? c : max, remainingForSecond[0])
+    : null;
+
+  // Step 5: Assign messages
+  const message2Component = noWeaknessMode
+    ? (secondBestComponent ?? remainingForSecond[0])
+    : worstComponent!;
+
+  if (!message2Component) return null;
+
+  // Emoji logic
+  const totalSG = sgTotal != null ? sgTotal : 0;
+  const bestVal = bestComponent.value;
+
+  let msg1Emoji: '🔥' | '✅';
+  if (totalSG > 2.0 || bestVal > 2.0) {
+    msg1Emoji = '🔥';
+  } else {
+    msg1Emoji = '✅';
+  }
+  // Override: if total SG <= -2.0, never use 🔥
+  if (totalSG <= -2.0) {
+    msg1Emoji = '✅';
+  }
+
+  let msg2Emoji: '🔥' | '✅' | '⚠️';
+  if (!noWeaknessMode) {
+    msg2Emoji = '⚠️';
+  } else {
+    msg2Emoji = (totalSG > 2.0 || message2Component.value > 2.0) ? '🔥' : '✅';
+    if (totalSG <= -2.0) msg2Emoji = '✅';
+  }
+
+  // Residual note: only used in Message 3 when ALL other components are positive
+  let residualNote: string | null = null;
+  if (sgResidual != null && sgResidual < -1.0) {
+    const allOthersPositive = components.every(c => c.value >= 0);
+    if (allOthersPositive) {
+      residualNote = `Residual SG is ${sgResidual.toFixed(2)}, suggesting some scoring inefficiency outside the main categories.`;
+    }
+  }
+
+  return {
+    best: bestComponent,
+    message2: message2Component,
+    noWeaknessMode,
+    msg1Emoji,
+    msg2Emoji,
+    residualNote,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Main generate function
+// ---------------------------------------------------------------------------
+
 export async function generateInsights(roundId: bigint, userId: bigint) {
   if (!OPENAI_API_KEY) throw new Error('OpenAI API key not configured');
 
+  // Check if insights already exist
+  const existing = await prisma.roundInsight.findUnique({ where: { roundId } });
+  if (existing) return existing.insights;
+
+  // Deduplicate concurrent in-flight requests for the same round
+  const key = roundId.toString();
+  if (inFlightGenerations.has(key)) {
+    return inFlightGenerations.get(key);
+  }
+
+  const promise = generateInsightsInternal(roundId, userId).finally(() => {
+    inFlightGenerations.delete(key);
+  });
+  inFlightGenerations.set(key, promise);
+  return promise;
+}
+
+async function generateInsightsInternal(roundId: bigint, userId: bigint) {
   const round = await prisma.round.findUnique({
     where: { id: roundId },
     include: { tee: { include: { course: { include: { location: true } } } } },
@@ -82,22 +226,16 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
 
   if (!round) throw new Error('Round not found');
   if (round.userId !== userId) throw new Error('Unauthorized access to round');
+  if (round.userId !== userId) throw new Error('Unauthorized access to round');
 
   const sgComponents = await prisma.roundStrokesGained.findUnique({
-    where: { roundId }
+    where: { roundId },
   });
-
-  if (!sgComponents) throw new Error('Round not found');
-  if (sgComponents.userId !== userId) throw new Error('Unauthorized access to round');
 
   const leaderboardStats = await prisma.userLeaderboardStats.findUnique({
     where: { userId },
-    select: {
-      bestScore: true,
-      totalRounds: true
-    },
+    select: { bestScore: true, totalRounds: true },
   });
-
 
   const last5Rounds = await prisma.round.findMany({
     where: { userId, id: { not: roundId } },
@@ -106,39 +244,37 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
     include: { tee: true },
   });
 
-  // Current round's holes played (for scaling averages)
+  // ---- Calculate historical averages (normalized per hole, scaled to current round) ----
+
   const currentHolesPlayed = round.tee.numberOfHoles || 18;
 
-  // Averages (normalized per hole, then scaled to current round)
-  let avgScore = null,
-    avgToPar = null,
-    avgFirPct = null,
-    avgGirPct = null,
-    avgPutts = null,
-    avgPenalties = null,
-    avgSgTotal = null,
-    avgSgOffTee = null,
-    avgSgApproach = null,
-    avgSgPutting = null,
-    avgSgPenalties = null,
-    avgSgResidual = null;
+  let avgScore: number | null = null;
+  let avgToPar: number | null = null;
+  let avgFirPct: number | null = null;
+  let avgGirPct: number | null = null;
+  let avgPutts: number | null = null;
+  let avgPenalties: number | null = null;
+  let avgSgTotal: number | null = null;
+  let avgSgOffTee: number | null = null;
+  let avgSgApproach: number | null = null;
+  let avgSgPutting: number | null = null;
+  let avgSgPenalties: number | null = null;
+  let avgSgResidual: number | null = null;
 
   if (last5Rounds.length) {
-    // Calculate per-hole averages, then scale to current round's holes
     const avgScorePerHole = last5Rounds.reduce((sum, r) => {
-      const holesPlayed = r.tee.numberOfHoles || 18;
-      return sum + (r.score / holesPlayed);
+      const holes = r.tee.numberOfHoles || 18;
+      return sum + (r.score / holes);
     }, 0) / last5Rounds.length;
     avgScore = avgScorePerHole * currentHolesPlayed;
 
     const avgToParPerHole = last5Rounds.reduce((sum, r) => {
-      const holesPlayed = r.tee.numberOfHoles || 18;
+      const holes = r.tee.numberOfHoles || 18;
       const toPar = r.score - (r.tee.parTotal || 72);
-      return sum + (toPar / holesPlayed);
+      return sum + (toPar / holes);
     }, 0) / last5Rounds.length;
     avgToPar = avgToParPerHole * currentHolesPlayed;
 
-    // FIR % and GIR % are already normalized (percentages)
     const roundsWithFir = last5Rounds.filter((r) => r.firHit !== null && r.tee.nonPar3Holes);
     if (roundsWithFir.length)
       avgFirPct = roundsWithFir.reduce((sum, r) => sum + ((r.firHit || 0) / (r.tee.nonPar3Holes || 14)) * 100, 0) / roundsWithFir.length;
@@ -147,104 +283,126 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
     if (roundsWithGir.length)
       avgGirPct = roundsWithGir.reduce((sum, r) => sum + ((r.girHit || 0) / (r.tee.numberOfHoles || 18)) * 100, 0) / roundsWithGir.length;
 
-    // Normalize putts per hole, then scale to current round
     const roundsWithPutts = last5Rounds.filter((r) => r.putts !== null && r.tee.numberOfHoles);
     if (roundsWithPutts.length) {
       const avgPuttsPerHole = roundsWithPutts.reduce((sum, r) => {
-        const holesPlayed = r.tee.numberOfHoles || 18;
-        return sum + ((r.putts || 0) / holesPlayed);
+        const holes = r.tee.numberOfHoles || 18;
+        return sum + ((r.putts || 0) / holes);
       }, 0) / roundsWithPutts.length;
       avgPutts = avgPuttsPerHole * currentHolesPlayed;
     }
 
-    // Normalize penalties per hole, then scale to current round
     const roundsWithPenalties = last5Rounds.filter((r) => r.penalties !== null && r.tee.numberOfHoles);
     if (roundsWithPenalties.length) {
       const avgPenaltiesPerHole = roundsWithPenalties.reduce((sum, r) => {
-        const holesPlayed = r.tee.numberOfHoles || 18;
-        return sum + ((r.penalties || 0) / holesPlayed);
+        const holes = r.tee.numberOfHoles || 18;
+        return sum + ((r.penalties || 0) / holes);
       }, 0) / roundsWithPenalties.length;
       avgPenalties = avgPenaltiesPerHole * currentHolesPlayed;
     }
 
-    // Fetch strokes gained for last 5 rounds and normalize per hole
     const last5SGs = await prisma.roundStrokesGained.findMany({
       where: { roundId: { in: last5Rounds.map(r => r.id) } },
     });
 
-    // Create a map of roundId to holes played for SG normalization
-    const roundHolesMap = new Map(last5Rounds.map(r => [r.id, r.tee.numberOfHoles || 18]));
-
+    const roundHolesMap = new Map<bigint, number>(last5Rounds.map(r => [r.id, r.tee.numberOfHoles || 18]));
     const validSgResults = last5SGs.filter((sg) => sg && sg.sgTotal !== null);
 
     if (validSgResults.length) {
-      // Normalize each SG value by holes played, then scale to current round
-      const sumSGPerHole = (fn: (sg: any) => number) => {
+      const sumSGPerHole = (fn: (sg: typeof validSgResults[0]) => number) => {
         return validSgResults.reduce((sum, sg) => {
-          const holesPlayed = roundHolesMap.get(sg.roundId) || 18;
-          return sum + (fn(sg) / holesPlayed);
+          const holes: number = roundHolesMap.get(sg.roundId) ?? 18;
+          return sum + (fn(sg) / holes);
         }, 0) / validSgResults.length;
       };
 
-      avgSgTotal = sumSGPerHole((sg) => sg.sgTotal || 0) * currentHolesPlayed;
-      avgSgOffTee = sumSGPerHole((sg) => sg.sgOffTee || 0) * currentHolesPlayed;
-      avgSgApproach = sumSGPerHole((sg) => sg.sgApproach || 0) * currentHolesPlayed;
-      avgSgPutting = sumSGPerHole((sg) => sg.sgPutting || 0) * currentHolesPlayed;
-      avgSgPenalties = sumSGPerHole((sg) => sg.sgPenalties || 0) * currentHolesPlayed;
-      avgSgResidual = sumSGPerHole((sg) => sg.sgResidual || 0) * currentHolesPlayed;
+      avgSgTotal = sumSGPerHole((sg) => Number(sg.sgTotal) || 0) * currentHolesPlayed;
+      avgSgOffTee = sumSGPerHole((sg) => Number(sg.sgOffTee) || 0) * currentHolesPlayed;
+      avgSgApproach = sumSGPerHole((sg) => Number(sg.sgApproach) || 0) * currentHolesPlayed;
+      avgSgPutting = sumSGPerHole((sg) => Number(sg.sgPutting) || 0) * currentHolesPlayed;
+      avgSgPenalties = sumSGPerHole((sg) => Number(sg.sgPenalties) || 0) * currentHolesPlayed;
+      avgSgResidual = sumSGPerHole((sg) => Number(sg.sgResidual) || 0) * currentHolesPlayed;
     }
   }
 
-  const strokesGainedPayload: any = {};
-    if (sgComponents.sgTotal != null) strokesGainedPayload.total = sgComponents.sgTotal;
-    if (sgComponents.sgOffTee != null) strokesGainedPayload.off_tee = sgComponents.sgOffTee;
-    if (sgComponents.sgApproach != null) strokesGainedPayload.approach = sgComponents.sgApproach;
-    if (sgComponents.sgPutting != null) strokesGainedPayload.putting = sgComponents.sgPutting;
-    if (sgComponents.sgPenalties != null) strokesGainedPayload.penalties = sgComponents.sgPenalties;
-    if (sgComponents.sgResidual != null) strokesGainedPayload.residual = sgComponents.sgResidual;
+  // ---- Build strokes gained payload (only non-null values) ----
+
+  const strokesGainedPayload: Record<string, number> = {};
+  if (sgComponents?.sgTotal != null) strokesGainedPayload.total = Number(sgComponents.sgTotal);
+  if (sgComponents?.sgOffTee != null) strokesGainedPayload.off_tee = Number(sgComponents.sgOffTee);
+  if (sgComponents?.sgApproach != null) strokesGainedPayload.approach = Number(sgComponents.sgApproach);
+  if (sgComponents?.sgPutting != null) strokesGainedPayload.putting = Number(sgComponents.sgPutting);
+  if (sgComponents?.sgPenalties != null) strokesGainedPayload.penalties = Number(sgComponents.sgPenalties);
+  if (sgComponents?.sgResidual != null) strokesGainedPayload.residual = Number(sgComponents.sgResidual);
+
+  // ---- Run SG selection algorithm (server-side, deterministic) ----
+
+  const hasSGData = sgComponents && sgComponents.sgTotal != null;
+  const sgSelection = hasSGData
+    ? runSGSelection(
+        sgComponents.sgOffTee != null ? Number(sgComponents.sgOffTee) : null,
+        sgComponents.sgApproach != null ? Number(sgComponents.sgApproach) : null,
+        sgComponents.sgPutting != null ? Number(sgComponents.sgPutting) : null,
+        sgComponents.sgPenalties != null ? Number(sgComponents.sgPenalties) : null,
+        sgComponents.sgResidual != null ? Number(sgComponents.sgResidual) : null,
+        sgComponents.sgTotal != null ? Number(sgComponents.sgTotal) : null,
+      )
+    : null;
+
+  // ---- Determine confidence/partial analysis ----
+
+  const confidence = sgComponents?.confidence ?? null;
+  const partialAnalysis = sgComponents?.partialAnalysis ?? false;
+  const isLowConfidence = confidence === 'low' || confidence === 'medium';
+
+  // ---- Course difficulty context ----
+
+  const courseRating = round.tee.courseRating ? Number(round.tee.courseRating) : null;
+  const slopeRating = round.tee.slopeRating ?? null;
+  const mentionCourseDifficulty = (courseRating != null && courseRating > 73) || (slopeRating != null && slopeRating > 130);
+
+  // ---- Build payload for the LLM ----
+
+  const toPar = round.score - (round.tee.parTotal || 72);
+  const totalSG = strokesGainedPayload.total ?? null;
 
   const payload = {
-    context: { product: 'GolfIQ', insight_type: 'post_round', user_tier: 'premium' },
     round: {
       score: round.score,
-      to_par: round.score - (round.tee.parTotal || 72),
+      to_par: toPar,
       handicap_at_round: round.handicapAtRound ? Number(round.handicapAtRound) : null,
       course: {
         par: round.tee.parTotal || 72,
-        rating: round.tee.courseRating ? Number(round.tee.courseRating) : null,
-        slope: round.tee.slopeRating || null,
-        holes_played: round.tee.numberOfHoles || 18,
+        rating: courseRating,
+        slope: slopeRating,
+        holes_played: currentHolesPlayed,
         non_par3_holes: round.tee.nonPar3Holes || 14,
       },
-      stats: { 
-        fir_hit: round.firHit, 
-        gir_hit: round.girHit, 
-        putts: round.putts, 
-        penalties: round.penalties
+      stats: {
+        fir_hit: round.firHit,
+        gir_hit: round.girHit,
+        putts: round.putts,
+        penalties: round.penalties,
       },
-      strokes_gained: strokesGainedPayload,
-      confidence: {
-        overall: sgComponents.confidence,
-        diagnostics: sgComponents.messages,
-        partial_analysis: sgComponents.partialAnalysis,
-      },
+      strokes_gained: Object.keys(strokesGainedPayload).length > 0 ? strokesGainedPayload : null,
     },
     history: last5Rounds.length
       ? {
           last_5_rounds: {
-            average_score: avgScore,
-            average_to_par: avgToPar,
-            average_fir_pct: avgFirPct,
-            average_gir_pct: avgGirPct,
-            average_putts: avgPutts,
-            average_penalties: avgPenalties,
-            average_strokes_gained: {
-              total: avgSgTotal,
-              off_tee: avgSgOffTee,
-              approach: avgSgApproach,
-              putting: avgSgPutting,
-              penalties: avgSgPenalties,
-              residual: avgSgResidual,
+            count: last5Rounds.length,
+            average_score: avgScore != null ? Math.round(avgScore * 10) / 10 : null,
+            average_to_par: avgToPar != null ? Math.round(avgToPar * 10) / 10 : null,
+            average_fir_pct: avgFirPct != null ? Math.round(avgFirPct * 10) / 10 : null,
+            average_gir_pct: avgGirPct != null ? Math.round(avgGirPct * 10) / 10 : null,
+            average_putts: avgPutts != null ? Math.round(avgPutts * 10) / 10 : null,
+            average_penalties: avgPenalties != null ? Math.round(avgPenalties * 10) / 10 : null,
+            average_sg: {
+              total: avgSgTotal != null ? Math.round(avgSgTotal * 100) / 100 : null,
+              off_tee: avgSgOffTee != null ? Math.round(avgSgOffTee * 100) / 100 : null,
+              approach: avgSgApproach != null ? Math.round(avgSgApproach * 100) / 100 : null,
+              putting: avgSgPutting != null ? Math.round(avgSgPutting * 100) / 100 : null,
+              penalties: avgSgPenalties != null ? Math.round(avgSgPenalties * 100) / 100 : null,
+              residual: avgSgResidual != null ? Math.round(avgSgResidual * 100) / 100 : null,
             },
           },
           best_score: leaderboardStats?.bestScore ?? null,
@@ -255,338 +413,137 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
             .reverse(),
         }
       : null,
-    output_constraints: {
-      max_insights: 3,
-      tone: 'motivational',
-      avoid_hole_by_hole: true,
-      focus_on_actionable: true,
-      respect_confidence: true,
-    },
   };
 
-const systemPrompt = `You are a supportive golf performance analyst inside a consumer golf app, generating post-round insights for premium users.
+  // ---- Build message assignment instructions for the LLM ----
 
-ROLE & EXPECTATIONS:
-- Analyze rounds using only the provided, non-null data.
-- Be positive, encouraging, and motivational in tone, even for tough rounds.
-- Generate EXACTLY THREE insights in this order:
-  1. Best performing area (always positive in framing)
-  2. What is costing the most strokes OR the second-best strength
-  3. Actionable recommendation with real-life practice guidance (always encouraging)
+  let messageAssignments: string;
 
-🚨 OUTPUT FORMAT IS STRICT 🚨
-- Output EXACTLY 3 messages
-- Each message MUST:
-  - Start with an emoji (🔥, ✅, ⚠️, or ℹ️)
-  - Be plain text only
-- DO NOT include headings, labels, numbering, markdown, or explanations
-- Any format violation makes the output INVALID
+  if (sgSelection) {
+    const { best, message2, noWeaknessMode, msg1Emoji, msg2Emoji, residualNote } = sgSelection;
 
-EMOJI RULES (HARD CONSTRAINTS):
-- 🔥 = exceptional performance
-  - MUST be used in Message 1 if total strokes gained is STRICTLY greater than +2.0
-  - MUST be used in Message 1 if the best-performing individual SG component is STRICTLY greater than +2.0
+    messageAssignments = `MESSAGE ASSIGNMENTS (pre-computed, follow exactly):
+
+Message 1: ${msg1Emoji} about "${best.label}" (SG: ${best.value.toFixed(2)})
+- Tone: positive, motivational. This is the best-performing area.
+${msg1Emoji === '🔥' ? '- Use enthusiastic praise — this was exceptional.' : '- Acknowledge solid performance positively.'}
+
+Message 2: ${msg2Emoji} about "${message2.label}" (SG: ${message2.value.toFixed(2)})
+${!noWeaknessMode
+  ? `- Tone: constructive, identify this as costing strokes. This area needs improvement.
+- Frame it honestly but encouragingly — the player can improve here.`
+  : `- Tone: positive. This is the second-best performing area.
+- Frame as another strength worth celebrating.`}
+
+Message 3: ℹ️ Actionable recommendation
+- Provide a specific, real-life practice drill or habit.
+- Always motivational and encouraging.
+${!noWeaknessMode ? `- Focus the recommendation on improving "${message2.label}".` : '- Focus on maintaining strengths or improving consistency.'}
+${residualNote ? `- You may mention: ${residualNote}` : '- Do NOT mention residual strokes gained.'}`;
+
+  } else if (hasSGData && totalSG != null) {
+    // Has total SG but not enough individual components for algorithm
+    messageAssignments = `MESSAGE ASSIGNMENTS (limited SG data):
+
+Message 1: ${totalSG > 2.0 ? '🔥' : '✅'} about overall performance (Total SG: ${totalSG.toFixed(2)})
+- Focus on overall round quality and any available stats (FIR, GIR, putts).
+
+Message 2: ✅ about a secondary strength from raw stats
+- Highlight another positive stat area. Do NOT use ⚠️ since individual SG components are not available.
+- Encourage the user to log more detailed stats for deeper SG analysis.
+
+Message 3: ℹ️ Actionable recommendation
+- General practice tip based on the round's stats.
+- Encourage logging more stats for future insights.`;
+
+  } else {
+    // Minimal data — no SG at all
+    messageAssignments = `MESSAGE ASSIGNMENTS (minimal data, no strokes gained):
+
+Message 1: ✅ about the round score and overall performance
+- Comment on the score relative to par and the player's handicap if available.
+
+Message 2: ✅ about any available raw stats (FIR, GIR, putts, penalties)
+- If stats are available, highlight the strongest one positively.
+- If no stats, provide general encouragement.
+
+Message 3: ℹ️ Actionable recommendation
+- General practice tip. Encourage logging more stats for future SG analysis.`;
+  }
+
+  // ---- Confidence/partial analysis instructions ----
+
+  let confidenceInstructions = '';
+  if (partialAnalysis) {
+    confidenceInstructions = `\nCONFIDENCE NOTE: This round has partial analysis. Do NOT attribute specific performance differences to individual SG components. Focus on overall round trends. Gently note that some stats may be missing — "take these insights with a grain of salt and log more stats for a complete picture."`;
+  } else if (isLowConfidence) {
+    confidenceInstructions = `\nCONFIDENCE NOTE: Analysis confidence is ${confidence}. Gently mention that some stats may be incomplete — advise logging more stats for more accurate insights.`;
+  }
+
+  // ---- Course difficulty instructions ----
+
+  let courseDifficultyInstructions = '';
+  if (mentionCourseDifficulty) {
+    courseDifficultyInstructions = `\nCOURSE DIFFICULTY: This course has${courseRating && courseRating > 73 ? ` a rating of ${courseRating}` : ''}${courseRating && courseRating > 73 && slopeRating && slopeRating > 130 ? ' and' : ''}${slopeRating && slopeRating > 130 ? ` a slope of ${slopeRating}` : ''}, making it above-average difficulty. You may reference this to add context to the player's performance.`;
+  } else {
+    courseDifficultyInstructions = `\nCOURSE DIFFICULTY: Do NOT mention course rating or slope — they are within normal range.`;
+  }
+
+  // ---- Tough round guard ----
+
+  let toughRoundInstructions = '';
+  if (totalSG != null && totalSG <= -5.0) {
+    toughRoundInstructions = `\nTOUGH ROUND GUARD: Total SG is ${totalSG.toFixed(2)} (very negative). Do NOT praise raw stats like FIR, GIR, or putts. Keep tone encouraging but grounded. Message 2 MUST address the most negative SG component.`;
+  }
+
+  // ---- Build system prompt ----
+
+  const systemPrompt = `You are a supportive golf performance analyst inside GolfIQ, a consumer golf app. Generate post-round insights for a premium user.
+
+OUTPUT FORMAT (strict):
+- Output EXACTLY 3 messages, each on its own line
+- Each message starts with its assigned emoji (🔥, ✅, ⚠️, or ℹ️)
+- Each message is max 3 sentences
+- Plain text only — no markdown, no headings, no numbering, no labels
+- Do NOT repeat the same area across messages
+
+EMOJI RULES:
+- 🔥 = exceptional performance (only when total SG > +2.0 or individual component > +2.0)
 - ✅ = solid or encouraging performance
-  - MUST be used in Message 1 when total SG is LESS THAN OR EQUAL TO -2.0
-- ⚠️ = clear weakness
-  - MAY ONLY be used if at least one individual strokes gained component is STRICTLY less than -1.0
-  - If no such value exists, ⚠️ is FORBIDDEN anywhere
-- ℹ️ = actionable recommendation
-  - MUST be used for Message 3
+- ⚠️ = clear weakness (ONLY when an individual SG component < -1.0)
+- ℹ️ = actionable recommendation (Message 3 only)
+- 🔥 is FORBIDDEN when total SG ≤ -2.0
+- ⚠️ is FORBIDDEN when no individual SG < -1.0
 
-PRIMARY DECISION LOGIC (MANDATORY ALGORITHM):
-You MUST execute this selection algorithm to determine message content:
+TONE:
+- Always motivational, positive, and encouraging
+- For tough rounds, remain supportive but don't be over-enthusiastic
+- Never invent or exaggerate data — only use what's provided
+- Never reference residual strokes gained in any message
+- Use historical comparisons when meaningful (e.g., "better than your recent average of X")
+- SG values between -1.0 and +1.0 are expected variance — never frame as weakness${confidenceInstructions}${courseDifficultyInstructions}${toughRoundInstructions}`;
 
-1. EXTRACT COMPONENTS:
-   - Get array: [off_tee, approach, putting, penalties] from payload
-   - Exclude residual (NEVER use it)
-   - Exclude null values
+  // ---- Build user prompt ----
 
-2. FIND WORST COMPONENT (for Message 2 when weakness exists):
-   - Filter components where value < -1.0
-   - If no components < -1.0: NO_WEAKNESS_MODE = true, proceed to find BEST and SECOND_BEST
-   - If one or more < -1.0: Use Math.min() to find MOST NEGATIVE value
-     - Example: Math.min(-1.33, -3.28) = -3.28 ✓
-     - NOT: pick first negative, NOT: pick based on order
-     - GUARANTEE: This selects the component costing the MOST strokes
+  const userPrompt = `Generate 3 post-round insights for this round.
 
-3. FIND BEST COMPONENT (for Message 1):
-   - Exclude WORST_COMPONENT (if it exists)
-   - Use Math.max() on remaining components
-   - Example: Math.max(-0.4, -0.56, -1.33) = -0.4 ✓
-   - This is the best performing area
+${messageAssignments}
 
-4. FIND SECOND_BEST COMPONENT (for Message 2 when NO weakness):
-   - Exclude BEST_COMPONENT and WORST_COMPONENT
-   - Use Math.max() on remaining components
-   - Example: Math.max(-0.56, -1.33) = -0.56 ✓
-   - Only used when NO_WEAKNESS_MODE = true
-
-5. ASSIGN TO MESSAGES:
-   - Message 1 = BEST_COMPONENT (always positive tone)
-   - Message 2 = WORST_COMPONENT if exists, else SECOND_BEST_COMPONENT
-   - Message 3 = Actionable recommendation (always ℹ️)
-
-CRITICAL MATH OPERATIONS:
-- Math.min(-1.33, -3.28) = -3.28 (most negative, worst performance)
-- Math.max(-0.4, -0.56, +1.2) = +1.2 (best performance)
-- These operations GUARANTEE correct selection regardless of payload order
-
-SELECTION ALGORITHM (EXECUTE IN THIS EXACT ORDER):
-
-STEP 1: EXTRACT ALL SG COMPONENTS
-- Get: off_tee, approach, putting, penalties from payload
-- IGNORE residual completely
-- Create array: [off_tee, approach, putting, penalties] (only non-null values)
-
-STEP 2: IDENTIFY WORST COMPONENT
-- Filter array to values < -1.0
-- If filter result is EMPTY → NO_WEAKNESS_MODE = true
-- If filter result has values → Find component with Math.min() (most negative number)
-  → This is WORST_COMPONENT
-
-STEP 3: IDENTIFY BEST COMPONENT
-- From original array, exclude WORST_COMPONENT (if it exists)
-- Find component with Math.max() (largest number, most positive or least negative)
-- This is BEST_COMPONENT
-
-STEP 4: IDENTIFY SECOND BEST COMPONENT
-- From original array, exclude BEST_COMPONENT and WORST_COMPONENT
-- Find component with Math.max() (largest remaining number)
-- This is SECOND_BEST_COMPONENT
-
-STEP 5: ASSIGN TO MESSAGES
-- Message 1 = BEST_COMPONENT (always)
-  - Use 🔥 if total SG > +2.0 or BEST_COMPONENT > +2.0
-  - Use ✅ if total SG ≤ -2.0
-
-- Message 2 =
-  - If NO_WEAKNESS_MODE = true: SECOND_BEST_COMPONENT (use ✅ or 🔥, positive tone only)
-  - If NO_WEAKNESS_MODE = false: WORST_COMPONENT (use ⚠️)
-
-- Message 3 = Actionable recommendation (ℹ️)
-
-CRITICAL EXAMPLES:
-
-Example 1 - Multiple negatives < -1.0:
-- Components: off_tee (-0.4), approach (-0.56), putting (-1.33), penalties (-3.28)
-- Step 2: Filter < -1.0 → [putting (-1.33), penalties (-3.28)]
-  - Math.min(-1.33, -3.28) = -3.28 → WORST = penalties
-- Step 3: Exclude penalties → [off_tee (-0.4), approach (-0.56), putting (-1.33)]
-  - Math.max(-0.4, -0.56, -1.33) = -0.4 → BEST = off_tee
-- Step 4: Exclude off_tee and penalties → [approach (-0.56), putting (-1.33)]
-  - Math.max(-0.56, -1.33) = -0.56 → SECOND_BEST = approach
-- Result: Message 1 = off_tee (✅), Message 2 = penalties (⚠️)
-
-Example 2 - No negatives < -1.0:
-- Components: off_tee (+1.2), approach (-0.3), putting (+0.8), penalties (-0.5)
-- Step 2: Filter < -1.0 → [] (empty) → NO_WEAKNESS_MODE = true
-- Step 3: Math.max(+1.2, -0.3, +0.8, -0.5) = +1.2 → BEST = off_tee
-- Step 4: Exclude off_tee → Math.max(-0.3, +0.8, -0.5) = +0.8 → SECOND_BEST = putting
-- Result: Message 1 = off_tee (✅ or 🔥), Message 2 = putting (✅ or 🔥)
-
-MESSAGE 3 LOGIC (ACTIONABLE):
-- MUST use ℹ️.
-- Always encouraging.
-- May include practice drills, reinforcement, or maintenance guidance.
-- Must NOT imply poor performance unless Message 2 identified a true weakness (SG < -1.0).
-
-CRITICAL CONSTRAINTS:
-- MANDATORY: Use the selection algorithm (Math.min/Math.max) to guarantee correct component selection.
-- Never repeat the same area in Messages 1 and 2.
-- Never reference strokes gained residual in ANY message.
-- Residual is EXCLUDED from best/worst calculations.
-- Any SG value between -1.0 and +1.0 is expected variance and MUST NOT be framed as a weakness.
-- Do NOT provide coaching or cautionary language unless SG < -1.0.
-- Use course difficulty context only if rating > 73 or slope > 130.
-- If analysis confidence is medium or low, gently note possible data gaps.
-- Message 1 MUST NEVER use ⚠️.
-- Message 1 MUST always use 🔥 or ✅ only.
-- Message 2 MUST use ⚠️ ONLY when a component < -1.0 exists.
-- Message 2 MUST use ✅ or 🔥 when NO components < -1.0 exist (second-best stat).
-- If total strokes gained ≤ -5.0:
-  - Do NOT praise raw stats (FIR, GIR, putts).
-  - Message 2 MUST be the most costly strokes gained component (use Math.min to find it).
-
-ALGORITHM GUARANTEES:
-- Math.min() on filtered negatives < -1.0 ALWAYS finds the component costing the MOST strokes.
-- Math.max() on remaining components ALWAYS finds the BEST performing area.
-- Excluding used components prevents overlap between Message 1 and Message 2.
-- When NO_WEAKNESS_MODE = true, both messages are positive (best and second-best).
-
-FORBIDDEN:
-- Negative or cautionary language for any SG ≥ -1.0.
-- Using 🔥 when total SG ≤ -2.0.
-- Using ⚠️ when no individual SG < -1.0 exists.
-- Inventing, exaggerating, or guessing data.
-- Selecting anything other than the largest absolute negative SG for Message 2 when multiple negatives < -1.0 exist.
-
-🔥 is factual recognition of exceptional performance, not exaggeration. When thresholds are met, enthusiastic praise is REQUIRED.`;
-
-const userPrompt = `Generate post-round performance messages for a premium user.
-
-🚨 MANDATORY SELECTION ALGORITHM 🚨
-Execute this EXACT algorithm before writing any messages:
-
-ALGORITHM:
-1. Extract SG components: [off_tee, approach, putting, penalties] (exclude residual, exclude null values)
-
-2. Find WORST component:
-   - negatives = filter components where value < -1.0
-   - if negatives.length == 0:
-       WORST_COMPONENT = null
-       NO_WEAKNESS_MODE = true
-   - else:
-       WORST_COMPONENT = Math.min(...negatives)  // most negative number
-
-3. Find BEST component:
-   - remaining = all components (exclude WORST_COMPONENT if it exists)
-   - BEST_COMPONENT = Math.max(...remaining)  // largest number
-
-4. Find SECOND_BEST component:
-   - remaining = all components (exclude BEST_COMPONENT and WORST_COMPONENT)
-   - SECOND_BEST_COMPONENT = Math.max(...remaining)  // largest remaining
-
-5. Assign to messages:
-   - Message 1 = BEST_COMPONENT
-     - Use 🔥 if total SG > +2.0 OR BEST_COMPONENT > +2.0
-     - Use ✅ if total SG ≤ -2.0
-
-   - Message 2 =
-     - If NO_WEAKNESS_MODE: SECOND_BEST_COMPONENT (use ✅ or 🔥, positive tone)
-     - Else: WORST_COMPONENT (use ⚠️)
-
-   - Message 3 = Actionable recommendation (ℹ️)
-
-VERIFICATION EXAMPLES:
-
-Test Case 1:
-- off_tee: -0.4, approach: -0.56, putting: -1.33, penalties: -3.28
-- negatives < -1.0: [putting: -1.33, penalties: -3.28]
-- WORST = Math.min(-1.33, -3.28) = -3.28 (penalties) ✓
-- remaining for BEST = [-0.4, -0.56, -1.33]
-- BEST = Math.max(-0.4, -0.56, -1.33) = -0.4 (off_tee) ✓
-- Message 1: off_tee (✅)
-- Message 2: penalties (⚠️) ✓
-
-Test Case 2:
-- off_tee: +1.2, approach: -0.3, putting: +0.8, penalties: -0.5
-- negatives < -1.0: [] (empty)
-- NO_WEAKNESS_MODE = true
-- BEST = Math.max(+1.2, -0.3, +0.8, -0.5) = +1.2 (off_tee) ✓
-- remaining for SECOND_BEST = [-0.3, +0.8, -0.5]
-- SECOND_BEST = Math.max(-0.3, +0.8, -0.5) = +0.8 (putting) ✓
-- Message 1: off_tee (🔥 or ✅)
-- Message 2: putting (✅ or 🔥) ✓
-
-CRITICAL:
-- Math.min() finds MOST NEGATIVE (e.g., -3.28 < -1.33)
-- Math.max() finds LARGEST/BEST (e.g., +1.2 > +0.8 > -0.3)
-- NEVER use residual in calculations
-- NEVER pick same component for Message 1 and Message 2
-
-🚨 OUTPUT REMINDER 🚨
-- Output EXACTLY 3 messages
-- Each message MUST start with an emoji
-- Do NOT include headings, labels, numbering, or markdown
-
-INPUT STRUCTURE:
-- round.score = total score this round
-- round.to_par = score relative to par
-- round.stats.fir_hit = total fairways hit (not percentage)
-- round.stats.gir_hit = total greens in regulation (not percentage)
-- round.stats.putts = total putts
-- round.stats.penalties = total penalties
-- round.strokes_gained.* = strokes gained values for total, off_tee, approach, putting, penalties, residual
-- history.last_5_rounds.average_* = averages from last 5 rounds
-- round.course.rating, round.course.slope = course difficulty
-- round.confidence.overall = "high", "medium", "low", or null
-- round.confidence.partial_analysis = true/false
-
-NULL & MISSING DATA HANDLING:
-- Only reference strokes gained components present in the payload.
-- Do NOT reference residual in ANY message.
-- If total SG exists but individual components do not, focus on overall performance and encourage tracking more stats for deeper insights.
-- If partial_analysis = true, do NOT attribute specific performance to SG components; focus on overall round and encouragement.
-- If confidence.medium or low, mention that some stats may be inflated or missing.
-- Compare stats to last 5 rounds averages when it helps provide context or encouragement.
-- Always maintain positive and motivational language, even for tough rounds.
-
-INSIGHT RULES:
-- Generate exactly 3 messages in order:
-  1. BEST performing area (excluding component used in Message 2 if it's a weakness)
-  2. - IF one or more SG components < -1.0: highlight the SINGLE MOST NEGATIVE component (largest absolute negative value)
-     - ELSE: highlight another positive strength or solid performance
-     - Negative, cautionary, or improvement-oriented language is FORBIDDEN unless SG < -1.0
-  3. Actionable recommendation (may include general maintenance, skill reinforcement, or trend-based practice)
-- Actionable advice must not imply poor performance unless a true weakness (SG < -1.0) was identified.
-- Avoid repeating areas across messages.
-- Include course difficulty context when course rating > 73 or slope > 130 only. Do not mention course difficulty if these conditions are not met.
-- Use numbers/statistics moderately; when meaningful to context or comparison
-
-OUTPUT RULES:
-- Each message: max 3 sentences
-- Plain text only
-- No headings, labels, or formatting
-- Focus on clarity, encouragement, and actionable advice
-- Do NOT invent any missing data or exaggerate results
-
-WORKED EXAMPLE - APPLY THE ALGORITHM:
-Given payload:
-- SG Total = -0.85
-- SG Off Tee = -0.4
-- SG Approach = -0.56
-- SG Putting = -1.33
-- SG Penalties = -3.28
-- SG Residual = +4.72 (IGNORE)
-
-STEP 1: Extract components
-- Array: [off_tee: -0.4, approach: -0.56, putting: -1.33, penalties: -3.28]
-
-STEP 2: Find WORST
-- Filter < -1.0: [putting: -1.33, penalties: -3.28]
-- Math.min(-1.33, -3.28) = -3.28
-- WORST_COMPONENT = penalties (-3.28)
-- NO_WEAKNESS_MODE = false
-
-STEP 3: Find BEST
-- Exclude penalties: [off_tee: -0.4, approach: -0.56, putting: -1.33]
-- Math.max(-0.4, -0.56, -1.33) = -0.4
-- BEST_COMPONENT = off_tee (-0.4)
-
-STEP 4: Find SECOND_BEST
-- Exclude off_tee and penalties: [approach: -0.56, putting: -1.33]
-- Math.max(-0.56, -1.33) = -0.56
-- SECOND_BEST_COMPONENT = approach (-0.56)
-
-STEP 5: Assign messages
-- Message 1 = off_tee (-0.4) → ✅ (because total SG = -0.85, which is ≤ -2.0? No, > -2.0, so use ✅ or 🔥 based on context)
-- Message 2 = penalties (-3.28) → ⚠️ (NO_WEAKNESS_MODE = false)
-- Message 3 = Actionable → ℹ️
-
-CORRECT OUTPUT:
-✅ Message 1 about off_tee (best remaining after excluding penalties)
-⚠️ Message 2 about penalties (worst component, -3.28 is most negative)
-ℹ️ Message 3 actionable recommendation
-
-COMMON ERRORS TO AVOID:
-❌ Selecting putting for Message 2 because it appears first in payload
-❌ Selecting putting for Message 2 because "penalties belong in actionable tips"
-❌ Not using Math.min() to guarantee most negative selection
-❌ Using residual (+4.72) in any calculation
-❌ Repeating same component in Message 1 and Message 2
-
+ROUND DATA:
 ${JSON.stringify(payload, null, 2)}`;
 
+  // ---- Call OpenAI API ----
 
-  // Call OpenAI API
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-      max_tokens: 600,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 1200,
       temperature: 0.7,
     }),
   });
@@ -597,13 +554,23 @@ ${JSON.stringify(payload, null, 2)}`;
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
+  console.log('OpenAI usage:', JSON.stringify(data.usage, null, 2));
+  const choice = data.choices?.[0];
+  const content = choice?.message?.content;
 
   if (!content) {
-    throw new Error('No insights generated from OpenAI');
+    console.error('OpenAI response structure:', JSON.stringify({
+      id: data.id,
+      model: data.model,
+      finish_reason: choice?.finish_reason,
+      refusal: choice?.message?.refusal,
+      message: choice?.message,
+    }, null, 2));
+    throw new Error(`No insights generated from OpenAI (finish_reason: ${choice?.finish_reason ?? 'unknown'})`);
   }
 
-  // Parse the response into structured format
+  // ---- Parse response into structured format ----
+
   const lines = content
     .split('\n')
     .map((line: string) => line.trim())
@@ -616,7 +583,8 @@ ${JSON.stringify(payload, null, 2)}`;
     raw_payload: payload,
   };
 
-  // Store in database
+  // ---- Store in database ----
+
   const savedInsights = await prisma.roundInsight.upsert({
     where: { roundId },
     create: {

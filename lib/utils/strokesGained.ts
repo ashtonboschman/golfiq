@@ -75,12 +75,6 @@ export async function calculateStrokesGained(
 
     const isEliteTier = curMin <= -5 && curMax <= 1;
 
-    console.log("INTERPOLATION:", {
-      handicap: h,
-      tier: { min: curMin, max: curMax },
-      eliteLocked: isEliteTier,
-    });
-
     /**
      * 🔒 ELITE / SCRATCH LOCK
      * Do NOT interpolate elite players toward worse tiers.
@@ -279,46 +273,6 @@ export async function calculateStrokesGained(
       );
     }
   }
-
-  console.log("HANDICAP:", handicap);
-  console.log("TIER:", {
-    current: {
-      min: currentTier.handicapMin,
-      max: currentTier.handicapMax,
-    },
-    prev: prevTier
-      ? { min: prevTier.handicapMin, max: prevTier.handicapMax }
-      : null,
-    next: nextTier
-      ? { min: nextTier.handicapMin, max: nextTier.handicapMax }
-      : null,
-  });
-
-  console.log("RATING DELTA:", courseRating - neutralRating);
-  console.log("SLOPE DELTA:", slope - neutralSlope);
-  console.log("RATING WEIGHT:", ratingWeight);
-  console.log("COURSE DIFF ADJ:", courseDiffAdj);
-
-  console.log('Baseline score: ' + baselineScore)
-  console.log('Baseline fir: ' + baselineFIR)
-  console.log('Baseline gir: ' + baselineGIR)
-  console.log('Baseline putts: ' + baselinePutts)
-  console.log('Baseline penalties: ' + baselinePenalties)
-
-  console.log('Adj score: ' + adjScore)
-  console.log('Adj fir: ' + adjFIR)
-  console.log('Adj gir: ' + adjGIR)
-  console.log('Adj putts: ' + adjPutts)
-  console.log('Adj penalties: ' + adjPenalties)
-
-  console.log('Actual score: ' + actualScore)
-  console.log('Actual fir: ' + actualFIR)
-  console.log('Actual gir: ' + actualGIR)
-  console.log('Actual putts: ' + actualPutts)
-  console.log('Actual penalties: ' + actualPenalties)
-  console.log('Confidence: '+ confidence)
-  console.log('Partial analysis: '+ partialAnalysis)
-  console.log('Messages: '+ messages)
 
   // --- Round and return ---
   return {
