@@ -621,7 +621,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       {isOwnDashboard && (
         <button
           className="btn btn-add"
-          onClick={() => router.push('/rounds/add')}
+          onClick={() => router.push('/rounds/add?from=dashboard')}
         >
           <Plus/> Add Round
         </button>

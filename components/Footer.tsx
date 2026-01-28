@@ -9,6 +9,7 @@ export default function Footer() {
   const user = session?.user;
   const router = useRouter();
   const pathname = usePathname();
+  const { incomingRequests } = useFriends();
 
   if (!user) return null;
 
@@ -49,7 +50,6 @@ export default function Footer() {
     return pathname.startsWith(path);
   };
 
-  const { incomingRequests } = useFriends();
   const hasIncomingRequests = incomingRequests.length > 0;
 
   return (

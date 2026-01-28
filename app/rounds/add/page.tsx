@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, Suspense } from 'react';
 import { GroupBase } from 'react-select';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -48,11 +48,27 @@ interface TeeOption {
   teeObj?: any;
 }
 
-export default function AddRoundPage() {
+function AddRoundContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const from = searchParams.get('from') || 'rounds'; // Default to rounds if not specified
   const { data: session, status } = useSession();
   const { showMessage, clearMessage } = useMessage();
+
+  // Helper to get the back URL based on 'from' parameter
+  const getBackUrl = () => {
+    if (from.startsWith('/')) {
+      // Full URL path (e.g., /courses/123)
+      return from;
+    }
+    switch (from) {
+      case 'dashboard':
+        return '/dashboard';
+      case 'rounds':
+      default:
+        return '/rounds';
+    }
+  };
 
   const [round, setRound] = useState<Round>({
     date: getLocalDateString(), // Use local timezone instead of UTC
@@ -603,7 +619,7 @@ export default function AddRoundPage() {
 
       // Keep loading state true during navigation to prevent flash
       // Replace history so back button goes to rounds page, not add page
-      router.replace(`/rounds/${data.roundId}/stats`);
+      router.replace(`/rounds/${data.roundId}/stats?from=rounds`);
     } catch (err: any) {
       console.error(err);
       showMessage(err.message || 'Error saving round', 'error');
@@ -939,7 +955,7 @@ export default function AddRoundPage() {
               type="button"
               onClick={() => {
                 if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-                  router.replace('/rounds');
+                  router.replace(getBackUrl());
                 }
               }}
               className="btn btn-cancel"
@@ -953,5 +969,13 @@ export default function AddRoundPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function AddRoundPage() {
+  return (
+    <Suspense fallback={<p className="loading-text">Loading...</p>}>
+      <AddRoundContent />
+    </Suspense>
   );
 }

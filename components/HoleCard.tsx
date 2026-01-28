@@ -244,7 +244,7 @@ const HoleCard = memo(({
               className="btn btn-accent btn-accordion-next"
               onClick={handleCommit}
             >
-              Next
+              Next Hole
             </button>
           )}
         </div>

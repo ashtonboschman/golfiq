@@ -142,8 +142,9 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
             break;
           }
 
+          // Preserve stats from the original friend object (extra parameter)
+          // API doesn't return stats, so we must explicitly preserve them
           const normalized = normalizeFriend({
-            ...request,
             id: request.id,
             user_id: request.user_id,
             first_name: request.first_name,
@@ -151,6 +152,11 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
             avatar_url: request.avatar_url,
             type: 'outgoing',
             created_at: request.created_at,
+            // Preserve stats from extra (the original friend card data)
+            handicap: extra?.handicap ?? null,
+            average_score: extra?.average_score ?? null,
+            best_score: extra?.best_score ?? null,
+            total_rounds: extra?.total_rounds ?? null,
           });
 
           setOutgoingRequests((prev) => [normalized, ...prev]);

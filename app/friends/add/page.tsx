@@ -87,6 +87,11 @@ export default function AddFriendsPage() {
       first_name: user.first_name,
       last_name: user.last_name,
       avatar_url: user.avatar_url,
+      // Include stats so they're preserved in FriendsContext
+      handicap: user.handicap,
+      average_score: user.average_score,
+      best_score: user.best_score,
+      total_rounds: user.total_rounds,
     });
   };
 

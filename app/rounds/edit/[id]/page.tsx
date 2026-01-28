@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo, useRef, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import { AsyncPaginate } from 'react-select-async-paginate';
@@ -47,10 +47,12 @@ interface TeeOption {
   teeObj?: any;
 }
 
-export default function EditRoundPage() {
+function EditRoundContent() {
   const params = useParams();
   const id = params?.id as string;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const from = searchParams.get('from') || 'stats'; // Default to stats if not specified
   const { data: session, status } = useSession();
   const { showMessage, clearMessage } = useMessage();
 
@@ -499,7 +501,8 @@ export default function EditRoundPage() {
 
       // Keep loading state true during navigation to prevent flash
       // Replace history so back button doesn't return to edit page
-      router.replace(`/rounds/${id}/stats`);
+      // Always go to stats page after save, with from=rounds so back button works correctly
+      router.replace(`/rounds/${id}/stats?from=rounds`);
     } catch (err: any) {
       console.error(err);
       showMessage(err.message || 'Error saving round', 'error');
@@ -818,7 +821,11 @@ export default function EditRoundPage() {
               type="button"
               onClick={() => {
                 if (window.confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
-                  router.replace('/rounds');
+                  if (from === 'rounds') {
+                    router.replace('/rounds');
+                  } else {
+                    router.replace(`/rounds/${id}/stats`);
+                  }
                 }
               }}
               className="btn btn-cancel"
@@ -832,5 +839,13 @@ export default function EditRoundPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function EditRoundPage() {
+  return (
+    <Suspense fallback={<p className="loading-text">Loading...</p>}>
+      <EditRoundContent />
+    </Suspense>
   );
 }

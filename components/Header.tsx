@@ -112,17 +112,32 @@ export default function Header() {
     else if (pathname === '/reset-password') {
       router.push('/login');
     }
-    // On round add page, warn before navigating away
+    // On round add page, warn before navigating away (same as cancel button)
     else if (pathname === '/rounds/add') {
       if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
-        router.push('/rounds');
+        const from = searchParams.get('from') || 'rounds';
+
+        if (from.startsWith('/')) {
+          // Full URL path (e.g., /courses/123)
+          router.replace(from);
+        } else if (from === 'dashboard') {
+          router.replace('/dashboard');
+        } else {
+          router.replace('/rounds');
+        }
       }
     }
-    // On round edit page, warn before navigating away
+    // On round edit page, warn before navigating away (same as cancel button)
     else if (pathname?.match(/^\/rounds\/edit\/\d+$/)) {
       if (window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')) {
+        const from = searchParams.get('from') || 'stats';
         const roundId = pathname.split('/')[3];
-        router.push(`/rounds/${roundId}/stats`);
+
+        if (from === 'rounds') {
+          router.replace('/rounds');
+        } else {
+          router.replace(`/rounds/${roundId}/stats`);
+        }
       }
     }
     // On profile with unsaved changes, warn before navigating away

@@ -185,7 +185,7 @@ export default function RoundsPage() {
 
   return (
     <div className="page-stack">
-      <button onClick={() => router.push('/rounds/add')} className="btn btn-add">
+      <button onClick={() => router.push('/rounds/add?from=rounds')} className="btn btn-add">
         <Plus/> Add Round
       </button>
 
@@ -218,7 +218,7 @@ export default function RoundsPage() {
               <div key={round.id} ref={isLast ? lastRoundRef : null}>
                 <RoundCard
                   round={round}
-                  onEdit={(id) => router.push(`/rounds/edit/${id}`)}
+                  onEdit={(id) => router.push(`/rounds/edit/${id}?from=rounds`)}
                   onDelete={handleDelete}
                   showAdvanced={true}
                 />
