@@ -10,11 +10,10 @@ interface RoundInsightsProps {
 }
 
 export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps) {
+  const router = useRouter();
   const [insights, setInsights] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const router = useRouter();
 
   useEffect(() => {
     if (!isPremium) {
@@ -26,11 +25,7 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
       try {
         const res = await fetch(`/api/rounds/${roundId}/insights`);
         const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.message || 'Failed to fetch insights');
-        }
-
+        if (!res.ok) throw new Error(data.message || 'Failed to fetch insights');
         setInsights(data.insights?.messages || []);
       } catch (err: any) {
         console.error('Error fetching insights:', err);
@@ -43,79 +38,69 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
     fetchInsights();
   }, [roundId, isPremium]);
 
+  const Header = () => (
+    <div className="insights-header">
+      <div className="insights-title">
+        <Sparkles size={20} />
+        <h3>AI Performance Insights</h3>
+      </div>
+      {isPremium && <span className="insights-badge">Premium</span>}
+    </div>
+  );
+
+  if (loading) return (
+    <div className="card insights-card">
+      <Header />
+      <div className="insights-loading">
+        <p>Analyzing your round...</p>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="card insights-card">
+      <Header />
+      <div className="insights-error">
+        <p>Unable to load insights: {error}</p>
+      </div>
+    </div>
+  );
+
+  // -------------------------
+  // FREE USER VIEW
+  // -------------------------
   if (!isPremium) {
     return (
       <div className="card insights-card">
-        <div className="insights-header">
-          <div className="insights-title">
-            <Sparkles size={20} />
-            <h3>AI Performance Insights</h3>
-          </div>
-        </div>
+        <Header />
         <div className="premium-gate">
-          <Lock size={32} />
-          <p>Upgrade to Premium to unlock AI-powered post-round insights</p>
-          <button
-          className="btn btn-upgrade"
-          onClick={() => router.push('/pricing')}
-        >
-          Start 14-Day Free Trial
-        </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="card insights-card">
-        <div className="insights-header">
-          <div className="insights-title">
-            <Sparkles size={20} />
-            <h3>AI Performance Insights</h3>
+          <div className="premium-gate-top">
+            <Lock size={28} />
+            <p>Want to find out <strong>exactly</strong> what’s costing you strokes?</p>
           </div>
-        </div>
-        <div className="insights-loading">
-          <p>Analyzing your round...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="card insights-card">
-        <div className="insights-header">
-          <div className="insights-title">
-            <Sparkles size={20} />
-            <h3>AI Performance Insights</h3>
+          <div className="premium-gate-bottom">
+            <p>Unlock AI insights to see your strengths, mistakes, and quick tips to lower your score.</p>
           </div>
-        </div>
-        <div className="insights-error">
-          <p>Unable to generate insights: {error}</p>
+          
+          <button className="btn btn-upgrade" onClick={() => router.push('/pricing')}>
+            Unlock My Insights
+          </button>
         </div>
       </div>
     );
   }
 
-  if (!insights || insights.length === 0) {
-    return null;
-  }
+  // -------------------------
+  // PREMIUM VIEW
+  // -------------------------
+  if (!insights || insights.length === 0) return null;
 
   return (
     <div className="card insights-card">
-      <div className="insights-header">
-        <div className="insights-title">
-          <Sparkles size={20} />
-          <h3>AI Performance Insights</h3>
-        </div>
-        <span className="insights-badge">Premium</span>
-      </div>
+      <Header />
       <div className="insights-content">
         {insights.map((message, idx) => (
-          <div key={idx} className="insight-message">
-            {message}
-          </div>
+          <div key={idx} className="insight-message">{message}</div>
         ))}
       </div>
     </div>

@@ -7,23 +7,23 @@ export async function GET(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
     const { searchParams } = new URL(request.url);
+
     const scope = searchParams.get('scope') || 'global';
     const limit = parseInt(searchParams.get('limit') || '25');
     const page = parseInt(searchParams.get('page') || '1');
-
     const skip = (page - 1) * limit;
 
     type WhereClause = {
       totalRounds: { gt: number };
-      userId?: { in: bigint[] };
+      userId?: { in: bigint[] } | bigint;
     };
 
     const whereClause: WhereClause = {
       totalRounds: { gt: 0 },
     };
 
+    // Friends scope
     if (scope === 'friends') {
-      // Get user's friend IDs
       const friendships = await prisma.friend.findMany({
         where: {
           OR: [
@@ -33,133 +33,93 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const friendIds = friendships.map((f: any) =>
-        f.userId === userId ? f.friendId : f.userId
-      );
-
-      // Include user + friends
-      whereClause.userId = {
-        in: [...friendIds, userId],
-      };
+      const friendIds = friendships.map(f => (f.userId === userId ? f.friendId : f.userId));
+      whereClause.userId = { in: [...friendIds, userId] };
     }
 
-    // Get user's subscription tier
+    // Check if current user is premium
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { subscriptionTier: true },
     });
     const isPremium = user ? isPremiumUser(user) : false;
 
-    // Get total count for metadata
-    const totalCount = await prisma.userLeaderboardStats.count({
-      where: whereClause,
-    });
+    // Total count for metadata
+    const totalCount = await prisma.userLeaderboardStats.count({ where: whereClause });
 
-    // For free users on global leaderboard, we need special handling
+    // ----------------------------
+    // FREE USER GLOBAL LEADERBOARD
+    // ----------------------------
     if (scope === 'global' && !isPremium) {
-      // Get all users for ranking purposes (needed to find user's position)
+      const TOP_N = 100;
+
+      // Fetch all users sorted by handicap
       const allStats = await prisma.userLeaderboardStats.findMany({
         where: whereClause,
         include: {
-          user: {
-            select: {
-              profile: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  avatarUrl: true,
-                },
-              },
-            },
-          },
+          user: { select: { profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
         },
-        orderBy: [
-          { handicap: 'asc' },
-        ],
+        orderBy: [{ handicap: 'asc' }],
       });
 
-      const allUsers = allStats.map((s: any) => ({
+      // Map users with actual global rank
+      const allUsers = allStats.map((s, index) => ({
+        rank: index + 1, // real global rank
         user_id: Number(s.userId),
-        handicap: s.handicap ? Number(s.handicap) : null,
-        average_score: s.averageToPar ? Number(s.averageToPar) : null,
+        handicap: s.handicap ?? null,
+        average_score: s.averageToPar ?? null,
         best_score: s.bestToPar,
         total_rounds: s.totalRounds,
-        first_name: s.user.profile?.firstName,
-        last_name: s.user.profile?.lastName,
-        avatar_url: s.user.profile?.avatarUrl,
+        first_name: s.user.profile?.firstName ?? null,
+        last_name: s.user.profile?.lastName ?? null,
+        avatar_url: s.user.profile?.avatarUrl ?? undefined,
       }));
 
-      // Find user's rank
-      const userIndex = allUsers.findIndex((u: any) => BigInt(u.user_id) === userId);
+      // Find current user
+      const currentUser = allUsers.find(u => BigInt(u.user_id) === userId);
 
-      // Get top 100 + user context
-      const top100 = allUsers.slice(0, 100);
-      let finalUsers = top100;
+      // Take top N users
+      let finalUsers = allUsers.slice(0, TOP_N);
 
-      if (userIndex > 99) {
-        // User is outside top 100, include their context (±5)
-        const contextStart = Math.max(0, userIndex - 5);
-        const contextEnd = Math.min(allUsers.length, userIndex + 6);
-        const userContext = allUsers.slice(contextStart, contextEnd);
-
-        // Merge top 100 with user context, remove duplicates
-        const seen = new Set(top100.map((u: any) => u.user_id));
-        const unique = [...top100];
-
-        for (const u of userContext) {
-          if (!seen.has(u.user_id)) {
-            unique.push(u);
-            seen.add(u.user_id);
-          }
-        }
-
-        finalUsers = unique;
+      // Include current user if not in top N
+      if (currentUser && !finalUsers.some(u => u.user_id === currentUser.user_id)) {
+        finalUsers.push(currentUser);
       }
 
-      // Apply pagination to the filtered result
-      const paginatedUsers = finalUsers.slice(skip, skip + limit);
+      // Sort by actual rank so the current user appears in correct order
+      finalUsers.sort((a, b) => a.rank - b.rank);
 
       return successResponse({
-        users: paginatedUsers,
+        users: finalUsers,      // frontend should display rank using `rank` field
         isPremium,
         totalUsers: allUsers.length,
-        showingLimited: allUsers.length > 100,
-        hasMore: skip + limit < finalUsers.length,
+        showingLimited: true,
+        hasMore: false,
       });
     }
 
-    // Premium users or friends scope: use regular pagination
+    // ----------------------------
+    // PREMIUM USERS OR FRIENDS
+    // ----------------------------
     const stats = await prisma.userLeaderboardStats.findMany({
       where: whereClause,
       include: {
-        user: {
-          select: {
-            profile: {
-              select: {
-                firstName: true,
-                lastName: true,
-                avatarUrl: true,
-              },
-            },
-          },
-        },
+        user: { select: { profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
       },
-      orderBy: [
-        { handicap: 'asc' },
-      ],
+      orderBy: [{ handicap: 'asc' }],
       take: limit,
       skip,
     });
 
-    const users = stats.map((s: any) => ({
+    const users = stats.map(s => ({
       user_id: Number(s.userId),
-      handicap: s.handicap ? Number(s.handicap) : null,
-      average_score: s.averageToPar ? Number(s.averageToPar) : null,
+      handicap: s.handicap ?? null,
+      average_score: s.averageToPar ?? null,
       best_score: s.bestToPar,
       total_rounds: s.totalRounds,
-      first_name: s.user.profile?.firstName,
-      last_name: s.user.profile?.lastName,
-      avatar_url: s.user.profile?.avatarUrl,
+      first_name: s.user.profile?.firstName ?? null,
+      last_name: s.user.profile?.lastName ?? null,
+      avatar_url: s.user.profile?.avatarUrl ?? undefined,
     }));
 
     return successResponse({
@@ -173,7 +133,6 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return errorResponse('Unauthorized', 401);
     }
-
     console.error('GET /api/leaderboard error:', error);
     return errorResponse('Database error', 500);
   }

@@ -686,9 +686,9 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           <div className="info-banner-content">
             <div className="info-banner-icon"><TriangleAlert size='45'/></div>
             <div className="info-banner-text">
-              <h4>Viewing Limited Stats</h4>
+              <h4>Limited Stats View</h4>
               <p>
-                You have {stats.totalRoundsInDb} rounds, but stats are calculated from your most recent 20 rounds only. Upgrade to Premium to unlock unlimited analytics history.
+                You’ve logged {stats.totalRoundsInDb} rounds, but we’re showing stats from your most recent 20 rounds. Upgrade to Premium for full history and unlimited insights.
               </p>
             </div>
             
@@ -698,7 +698,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
               onClick={() => router.push('/pricing')}
               className="btn btn-upgrade"
             >
-              Start 14-Day Free Trial
+              Unlock Full Stats
             </button>
         </div>
       )}

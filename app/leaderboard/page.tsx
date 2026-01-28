@@ -16,6 +16,7 @@ interface LeaderboardUser {
   average_score: number | null;
   best_score: number | null;
   total_rounds: number;
+  rank: number;
 }
 
 export default function LeaderboardPage() {
@@ -139,7 +140,7 @@ export default function LeaderboardPage() {
 
   const usersWithRank = sortedUsers.map((user, index) => ({
     ...user,
-    _rank: index + 1,
+    _rank: user.rank,
   }));
 
   if (status === 'loading') return <p className="loading-text">Loading...</p>;
@@ -162,21 +163,21 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Premium upgrade CTA for limited leaderboard */}
-      {scope === 'global' && showingLimited && (
+      {scope === 'global' && true && (
         <div className="info-banner warning">
           <div className="info-banner-content">
             <div className="info-banner-icon"><Crown size='45'/></div>
             <div className="info-banner-text">
-              <h4>Limited Leaderboard View</h4>
+              <h4>Want the full picture?</h4>
               <p>
-                Viewing top 100 players + your position. {totalUsers} total players on the leaderboard. Upgrade to Premium to see the full global leaderboard.
+                Currently showing top 100 players out of {totalUsers}. Upgrade to Premium to see the entire global leaderboard and your true ranking.
               </p>
             </div>
             <button
               className="btn btn-upgrade"
               onClick={() => router.push('/pricing')}
             >
-              Start 14-Day Free Trial
+              See Full Leaderboard
             </button>
           </div>
         </div>

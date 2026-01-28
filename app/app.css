@@ -3259,6 +3259,7 @@ input[type='date'].form-input {
   align-items: center;
   gap: var(--gap);
   flex-wrap: wrap;
+  margin-bottom: var(--gap);
 }
 
 .info-banner-icon {
@@ -4819,22 +4820,46 @@ input[type='date'].form-input {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 32px;
+  gap: var(--gap);
+  padding: var(--gap);
   text-align: center;
   background: var(--color-secondary-surface);
   border-radius: var(--border-radius);
   border: 2px solid var(--color-border);
 }
 
-.premium-gate svg {
+.premium-gate-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap);
+  text-align: center;
+  margin: 0;
+}
+
+.premium-gate-bottom {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--gap);
+  text-align: center;
+  margin-bottom: var(--gap);
+}
+
+.premium-gate-top svg {
+  color: var(--color-primary-text);
+  flex-shrink: 0;
+}
+
+.premium-gate-top p {
+  margin: 0;
   color: var(--color-primary-text);
 }
 
-.premium-gate p {
+.premium-gate-bottom p {
   margin: 0;
-  color: var(--color-primary-text);
-  max-width: 300px;
+  color: var(--color-secondary-text);
+  font-size: 0.85rem;
 }
 
 .insights-loading,
