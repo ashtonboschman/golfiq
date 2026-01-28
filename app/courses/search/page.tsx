@@ -120,11 +120,6 @@ export default function CourseSearchPage() {
         showMessage('Course added successfully!', 'success');
         setSearchResults([]);
         setSearchQuery('');
-
-        // Delay redirect so user can see success message
-        setTimeout(() => {
-          router.push('/courses');
-        }, 1500);
       }
     } catch (err: any) {
       showMessage(err.message || 'Failed to add course', 'error');
@@ -136,9 +131,9 @@ export default function CourseSearchPage() {
   return (
     <div className="page-stack">
       <div className="card">
-        <div style={{ marginBottom: '12px', padding: '12px', background: '#e3f2fd', borderRadius: '4px', border: '1px solid #2196f3' }}>
+        <div style={{ padding: '10px', background: '#e3f2fd', borderRadius: '8px', border: '2px solid #2196f3' }}>
           <strong style={{ color: '#1976d2' }}>Search Tips:</strong>
-          <ul style={{ marginLeft: '20px', marginTop: '8px', marginBottom: '0', fontSize: '0.9rem', color: '#555' }}>
+          <ul style={{ marginLeft: '0', marginTop: '8px', marginBottom: '0', paddingLeft: 20, fontSize: '0.9rem', color: '#555' }}>
             <li>Use complete course names (e.g., "Pebble" not "Peb")</li>
             <li>Try searching by city name if course name doesn't work</li>
             <li>Search requires exact or close matches - partial names may not work</li>
@@ -247,8 +242,7 @@ export default function CourseSearchPage() {
           <li>All valid tees will be imported automatically</li>
           <li>The course will be available for everyone to use!</li>
         </ol>
-
-        <div style={{ marginTop: '16px', padding: '12px', background: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+        <div style={{ padding: '10px', background: '#fff3cd', borderRadius: '8px', border: '2px solid #ffc107' }}>
           <strong>Note:</strong> All users share a limit of 200 course searches per day. Invalid tees (tees with "Combo", "-", or "/") are automatically excluded.
         </div>
       </div>

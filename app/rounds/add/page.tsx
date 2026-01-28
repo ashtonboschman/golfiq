@@ -9,6 +9,7 @@ import { AsyncPaginate } from 'react-select-async-paginate';
 import { selectStyles } from '@/lib/selectStyles';
 import HoleCard from '@/components/HoleCard';
 import { getLocalDateString } from '@/lib/dateUtils';
+import { Plus } from 'lucide-react';
 
 interface Round {
   date: string;
@@ -765,29 +766,42 @@ function AddRoundContent() {
 
           <div className="form-row">
             <label className="form-label">Course</label>
-            <AsyncPaginate
-              value={selectedCourse}
-              loadOptions={loadCourseOptions}
-              onChange={async (option) => {
-                setSelectedCourse(option);
-                setSelectedTee(null);
-                setRound((prev) => ({ ...prev, course_id: option?.value.toString() ?? '', tee_id: '' }));
-                setHoles([]);
-                setHoleScores([]);
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+              <div style={{ flex: 1 }}>
+                <AsyncPaginate
+                  value={selectedCourse}
+                  loadOptions={loadCourseOptions}
+                  onChange={async (option) => {
+                    setSelectedCourse(option);
+                    setSelectedTee(null);
+                    setRound((prev) => ({ ...prev, course_id: option?.value.toString() ?? '', tee_id: '' }));
+                    setHoles([]);
+                    setHoleScores([]);
 
-                // Fetch tees and auto-select based on user profile
-                if (option?.value) {
-                  const fetchedTees = await fetchTees(option.value);
-                  if (fetchedTees.length > 0) {
-                    autoSelectTee(fetchedTees);
-                  }
-                }
-              }}
-              additional={{ page: 1 }}
-              placeholder="Select Course"
-              isClearable
-              styles={selectStyles}
-            />
+                    // Fetch tees and auto-select based on user profile
+                    if (option?.value) {
+                      const fetchedTees = await fetchTees(option.value);
+                      if (fetchedTees.length > 0) {
+                        autoSelectTee(fetchedTees);
+                      }
+                    }
+                  }}
+                  additional={{ page: 1 }}
+                  placeholder="Select Course"
+                  isClearable
+                  styles={selectStyles}
+                  noOptionsMessage={() => "Course not found. Use + button to add course."}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push('/courses/search')}
+                className="btn btn-accent btn-add-course"
+                title="Search Global Database"
+              >
+                <Plus/>
+              </button>
+            </div>
           </div>
 
           <div className="form-row">
