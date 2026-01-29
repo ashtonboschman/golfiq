@@ -9,7 +9,7 @@ export const SG_COEFFICIENTS = {
   COURSE_DIFF_TO_FIR_PCT: 0.10,    // % FIR per stroke harder
   COURSE_DIFF_TO_GIR_PCT: 0.22,    // % GIR per stroke harder
   COURSE_DIFF_TO_PUTTS: 0.12,      // putts per stroke harder
-  COURSE_DIFF_TO_PENALTIES: 0.10,  // penalties per stroke harder
+  COURSE_DIFF_TO_PENALTIES: 0.60,  // penalties per stroke harder
 
   // --- Putting caps ---
   PUTTING_CAP: 3.5,

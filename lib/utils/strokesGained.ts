@@ -49,75 +49,47 @@ export async function calculateStrokesGained(
 
   // Fetch all baselines for interpolation
   const allBaselines = await prisma.handicapTierBaseline.findMany({
-    orderBy: { handicapMin: "asc" },
+    orderBy: { handicap: "asc" },
   });
   if (!allBaselines.length) throw new Error("No baseline tiers found");
 
   const handicap = Number(round.handicapAtRound);
 
-  // Find current tier and adjacent tiers
-  const currentTierIndex = allBaselines.findIndex(
-    (b) => handicap >= Number(b.handicapMin) && handicap <= Number(b.handicapMax)
-  );
-  if (currentTierIndex === -1) throw new Error("Baseline not found for handicap tier");
-
-  const currentTier = allBaselines[currentTierIndex];
-  const prevTier = currentTierIndex > 0 ? allBaselines[currentTierIndex - 1] : null;
-  const nextTier = currentTierIndex < allBaselines.length - 1 ? allBaselines[currentTierIndex + 1] : null;
-
- // Helper: Interpolate a baseline value based on handicap position
-  const interpolateBaseline = (getValue: (tier: any) => number): number => {
-    const h = handicap;
-
-    const curMin = Number(currentTier.handicapMin);
-    const curMax = Number(currentTier.handicapMax);
-    const curValue = getValue(currentTier);
-
-    const isEliteTier = curMin <= -5 && curMax <= 1;
-
-    /**
-     * 🔒 ELITE / SCRATCH LOCK
-     * Do NOT interpolate elite players toward worse tiers.
-     * They may only interpolate within the elite band.
-     */
-    if (isEliteTier) {
-      return curValue;
+  // Helper: Interpolate a baseline value using linear interpolation between two handicap points
+  const interpolateBaseline = (getValue: (baseline: any) => number): number => {
+    // Handle edge cases: cap at boundaries
+    if (handicap <= Number(allBaselines[0].handicap)) {
+      // Use lowest handicap baseline (-8)
+      return getValue(allBaselines[0]);
+    }
+    if (handicap >= Number(allBaselines[allBaselines.length - 1].handicap)) {
+      // Use highest handicap baseline (54)
+      return getValue(allBaselines[allBaselines.length - 1]);
     }
 
-    /**
-     * Interpolate toward LOWER handicap tier (better player)
-     */
-    if (h < curMin && prevTier) {
-      const prevMin = Number(prevTier.handicapMin);
-      const prevMax = Number(prevTier.handicapMax);
+    // Find the two baselines that bracket the user's handicap
+    let lowerBaseline = allBaselines[0];
+    let upperBaseline = allBaselines[1];
 
-      const ratio =
-        (curMin - h) / (curMin - prevMax); // normalize across boundary
+    for (let i = 0; i < allBaselines.length - 1; i++) {
+      const current = allBaselines[i];
+      const next = allBaselines[i + 1];
 
-      const prevValue = getValue(prevTier);
-
-      return curValue + ratio * (prevValue - curValue);
+      if (handicap >= Number(current.handicap) && handicap <= Number(next.handicap)) {
+        lowerBaseline = current;
+        upperBaseline = next;
+        break;
+      }
     }
 
-    /**
-     * Interpolate toward HIGHER handicap tier (worse player)
-     */
-    if (h > curMax && nextTier) {
-      const nextMin = Number(nextTier.handicapMin);
-      const nextMax = Number(nextTier.handicapMax);
+    const lowerHandicap = Number(lowerBaseline.handicap);
+    const upperHandicap = Number(upperBaseline.handicap);
+    const lowerValue = getValue(lowerBaseline);
+    const upperValue = getValue(upperBaseline);
 
-      const ratio =
-        (h - curMax) / (nextMin - curMax); // normalize across boundary
-
-      const nextValue = getValue(nextTier);
-
-      return curValue + ratio * (nextValue - curValue);
-    }
-
-    /**
-     * Inside tier → return baseline
-     */
-    return curValue;
+    // Linear interpolation formula
+    const ratio = (handicap - lowerHandicap) / (upperHandicap - lowerHandicap);
+    return lowerValue + (upperValue - lowerValue) * ratio;
   };
 
   // Interpolate baseline values (these are for 18-hole rounds)
@@ -134,25 +106,20 @@ export async function calculateStrokesGained(
 
   // Scale baselines for 9-hole rounds (database baselines are for 18 holes)
   const holeScaling = totalHoles / 18;
-  const baselineScore = baselineScore18 * holeScaling;
   const baselinePutts = baselinePutts18 * holeScaling;
   const baselinePenalties = baselinePenalties18 * holeScaling;
   // FIR% and GIR% don't scale - they're percentages
 
   // Course difficulty adjustment (based on how much harder/easier than neutral)
-  // Neutral course: rating 72 for 18 holes (36 for 9), slope 113
-  const neutralRating = 72 * holeScaling;
-  const neutralSlope = 113;
-  const ratingWeight = Math.max(0.3, Math.min(1.0, (handicap + 5) / 10));
+  const coursePar = round.tee.parTotal || 72;
 
-  // Course difficulty adjustment components
-  // Difficulty = how much harder the course is than neutral
-  const ratingDelta = (courseRating - neutralRating) * ratingWeight;
-  const slopeDelta = handicap * ((slope / neutralSlope) - 1);
-  const courseDiffAdj = ratingDelta + slopeDelta;
+  // Correct approach
+  const baselineScoreOnCourse = baselineScore18 * (coursePar / 72);
+  const baselineScoreScaled = baselineScoreOnCourse * holeScaling;
 
-  // Course expected score (baseline + course adjustment)
-  const courseExpectedScore = baselineScore + courseDiffAdj;
+  // Now expected score is baselineScoreScaled plus small course difficulty adjustment
+  const courseDiffAdj = courseRating - coursePar; // small delta if course is harder/easier than par
+  const courseExpectedScore = baselineScoreScaled + courseDiffAdj;
 
   // Adjusted expected stats (baseline adjusted for course difficulty)
   const adjScore = courseExpectedScore;
@@ -167,7 +134,7 @@ export async function calculateStrokesGained(
 
   // Adjusted putts and penalties
   const adjPutts = baselinePutts + courseDiffAdj * C.COURSE_DIFF_TO_PUTTS;
-  const adjPenalties = Math.max(0, baselinePenalties + courseDiffAdj * C.COURSE_DIFF_TO_PENALTIES);
+  const adjPenalties = Math.max(0, baselinePenalties + Math.tanh(courseDiffAdj / 6) * C.COURSE_DIFF_TO_PENALTIES);
 
   // Actual round stats
   const actualScore = round.score;
@@ -182,11 +149,12 @@ export async function calculateStrokesGained(
     actualFIR === null || actualGIR === null || actualPutts === null || actualPenalties === null;
 
   const puttingCap = (totalHoles / 18) * C.PUTTING_CAP;
+  const girStrokeValue = C.STROKES_PER_GIR * Math.max(0.7, 1 - handicap / 80);
 
   // --- Compute each SG component if data exists ---
   const sgComponentsMap: Record<string, number | null> = {
     offTee: actualFIR !== null ? (actualFIR - adjFIR) * C.STROKES_PER_FIR : null,
-    approach: actualGIR !== null ? (actualGIR - adjGIR) * C.STROKES_PER_GIR : null,
+    approach: actualGIR !== null ? (actualGIR - adjGIR) * girStrokeValue : null,
     putting:
       actualPutts !== null
         ? (() => {
