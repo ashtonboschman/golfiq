@@ -103,26 +103,18 @@ export async function calculateStrokesGained(
   const nonPar3Holes = round.tee.nonPar3Holes;
   const courseRating = round.tee.courseRating !== null ? Number(round.tee.courseRating) : 72;
   const slope = round.tee.slopeRating || 113;
-
   // Scale baselines for 9-hole rounds (database baselines are for 18 holes)
   const holeScaling = totalHoles / 18;
   const baselinePutts = baselinePutts18 * holeScaling;
   const baselinePenalties = baselinePenalties18 * holeScaling;
   // FIR% and GIR% don't scale - they're percentages
 
-  // Course difficulty adjustment (based on how much harder/easier than neutral)
-  const coursePar = round.tee.parTotal || 72;
-
-  // Correct approach
-  const baselineScoreOnCourse = baselineScore18 * (coursePar / 72);
-  const baselineScoreScaled = baselineScoreOnCourse * holeScaling;
-
-  // Now expected score is baselineScoreScaled plus small course difficulty adjustment
-  const courseDiffAdj = courseRating - coursePar; // small delta if course is harder/easier than par
-  const courseExpectedScore = baselineScoreScaled + courseDiffAdj;
-
-  // Adjusted expected stats (baseline adjusted for course difficulty)
-  const adjScore = courseExpectedScore;
+  const normalizedCourseRating = courseRating * (18 / totalHoles);
+  // Course difficulty adjustment using USGA course handicap formula
+  // Baseline scores are for a neutral par 72 / rating 72 / slope 113 course
+  // Additional strokes = how much harder THIS course is vs neutral for this handicap
+  const courseDiffAdj = handicap * ((slope / 113) - 1) + (normalizedCourseRating - 72);
+  const adjScore = (baselineScore18 + courseDiffAdj) * holeScaling;
 
   // Calculate adjusted percentages with clamping (0-100)
   const adjFIRPct = Math.max(0, Math.min(100, baselineFIR - (courseDiffAdj * C.COURSE_DIFF_TO_FIR_PCT)));
