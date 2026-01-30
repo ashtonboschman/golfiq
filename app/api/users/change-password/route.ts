@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(1, 'New password is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters long').max(100, 'Password is too long'),
 });
 
 export async function PUT(request: NextRequest) {
@@ -16,7 +16,8 @@ export async function PUT(request: NextRequest) {
 
     const result = changePasswordSchema.safeParse(body);
     if (!result.success) {
-      return errorResponse('Current and new passwords are required', 400);
+      const message = result.error.issues[0]?.message || 'Invalid input';
+      return errorResponse(message, 400);
     }
 
     const { currentPassword, newPassword } = result.data;

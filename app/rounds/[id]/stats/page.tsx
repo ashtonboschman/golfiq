@@ -37,6 +37,8 @@ interface RoundStats {
   round_id: string;
   course_name: string;
   tee_name: string;
+  course_rating: number | null;
+  slope_rating: number | null;
   date: string;
   number_of_holes: number;
   total_score: number;
@@ -237,6 +239,13 @@ export default function RoundStatsPage() {
               <p className={`tee-tag stats-tee-tag tee-${stats.tee_name.toLowerCase()}`}>
                 {stats.tee_name}
               </p>
+              {(stats.course_rating || stats.slope_rating) && (
+                <p className="round-holes-tag">
+                  {stats.course_rating && `${stats.course_rating}`}
+                  {stats.course_rating && stats.slope_rating && ' / '}
+                  {stats.slope_rating && `${stats.slope_rating}`}
+                </p>
+              )}
             </div>
           </div>          
           <div style={{ display: 'flex', gap: '10px' }}>

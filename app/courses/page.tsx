@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '../providers';
 import CourseCard from '@/components/CourseCard';
+import PullToRefresh from '@/components/PullToRefresh';
 
 interface Location {
   city?: string | null;
@@ -191,9 +192,17 @@ export default function CoursesPage() {
     [loading, hasMore, page, debouncedSearch]
   );
 
+  const handleRefresh = useCallback(async () => {
+    setCourses([]);
+    setPage(1);
+    setHasMore(true);
+    await fetchCourses(1, debouncedSearch, true);
+  }, [fetchCourses, debouncedSearch]);
+
   if (status === 'loading' || !locationChecked) return <p className="loading-text">Loading...</p>;
 
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       <input
         type="text"
@@ -249,5 +258,6 @@ export default function CoursesPage() {
 
       {loading && <p className='loading-text'>Loading courses...</p>}
     </div>
+    </PullToRefresh>
   );
 }

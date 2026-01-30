@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import RoundCard from '@/components/RoundCard';
+import PullToRefresh from '@/components/PullToRefresh';
 import { Plus } from 'lucide-react';
 
 interface Round {
@@ -184,35 +185,45 @@ export default function RoundsPage() {
     });
   };
 
-  if (status === 'loading') return <p className="loading-text">Loading...</p>;
+  const handleRefresh = useCallback(async () => {
+    setRounds([]);
+    setPage(1);
+    setHasMore(true);
+    await fetchRounds(1, debouncedSearch, true);
+  }, [fetchRounds, debouncedSearch]);
 
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
-      <button onClick={() => router.push('/rounds/add?from=rounds')} className="btn btn-add">
-        <Plus/> Add Round
-      </button>
+      {status !== 'loading' && (
+        <>
+          <button onClick={() => router.push('/rounds/add?from=rounds')} className="btn btn-add">
+            <Plus/> Add Round
+          </button>
 
-      <input
-        type="text"
-        placeholder="Search Rounds"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        onFocus={(e) => {
-          const len = e.target.value.length;
-          e.target.setSelectionRange(len, len);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.currentTarget.blur();
-          }
-        }}
-        enterKeyHint="search"
-        className="form-input"
-        max={250}
-      />
+          <input
+            type="text"
+            placeholder="Search Rounds"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            enterKeyHint="search"
+            className="form-input"
+            max={250}
+          />
+        </>
+      )}
 
       {rounds.length === 0 && !loading ? (
-        <p className='secondary-text'>No rounds found.</p>
+        status !== 'loading' && <p className='secondary-text'>No rounds found.</p>
       ) : (
         <div className="grid grid-1">
           {rounds.map((round, index) => {
@@ -233,5 +244,6 @@ export default function RoundsPage() {
 
       {loading && <p className='loading-text'>Loading rounds...</p>}
     </div>
+    </PullToRefresh>
   );
 }

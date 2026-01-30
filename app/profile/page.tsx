@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '../providers';
@@ -8,6 +8,7 @@ import { AsyncPaginate } from 'react-select-async-paginate';
 import Select from 'react-select';
 import { useUploadThing } from '@/lib/uploadthing';
 import { useAvatar } from '@/context/AvatarContext';
+import PullToRefresh from '@/components/PullToRefresh';
 import { Mail, SquarePen, Trash2, Upload, Eye, EyeOff } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 
@@ -55,6 +56,7 @@ export default function ProfilePage() {
   const [originalFavoriteCourseOption, setOriginalFavoriteCourseOption] = useState<CourseOption | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwords, setPasswords] = useState({
     currentPassword: '',
@@ -165,7 +167,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [status, router]);
+  }, [status, router, refreshKey]);
 
   // Close avatar menu when clicking outside
   useEffect(() => {
@@ -326,6 +328,18 @@ export default function ProfilePage() {
       return;
     }
 
+    if (newPassword.length < 8) {
+      showMessage('Password must be at least 8 characters long', 'error');
+      return;
+    }
+    if (newPassword.length > 100) {
+      showMessage('Password is too long (maximum 100 characters)', 'error');
+      return;
+    }
+    if (newPassword.includes(' ')) {
+      showMessage('Password cannot contain spaces', 'error');
+      return;
+    }
     if (newPassword !== confirmPassword) {
       showMessage('New passwords do not match', 'error');
       return;
@@ -473,9 +487,14 @@ export default function ProfilePage() {
     }
   };
 
+  const handleRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
   if (status === 'loading') return <p className="loading-text">Loading...</p>;
 
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       {/* Email Verification Banner */}
       {profile.email_verified === false && (
@@ -876,5 +895,6 @@ export default function ProfilePage() {
         </button>
       </div>
     </div>
+    </PullToRefresh>
   );
 }

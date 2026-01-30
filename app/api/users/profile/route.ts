@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest) {
         bio,
         gender,
         defaultTee: default_tee,
-        favoriteCourseId: favorite_course_id ? Number(favorite_course_id) : null,
+        favoriteCourseId: favorite_course_id ? BigInt(favorite_course_id) : null,
         dashboardVisibility: dashboard_visibility,
         theme,
         showStrokesGained: show_strokes_gained,

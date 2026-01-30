@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import LeaderboardCard from '@/components/LeaderboardCard';
 import LeaderboardHeader from '@/components/LeaderboardHeader';
+import PullToRefresh from '@/components/PullToRefresh';
 import { Crown } from 'lucide-react';
 
 interface LeaderboardUser {
@@ -28,6 +29,7 @@ export default function LeaderboardPage() {
   const [sortBy, setSortBy] = useState<'handicap' | 'average_score' | 'best_score'>('handicap');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [scope, setScope] = useState<'global' | 'friends'>('global');
+  const [refreshKey, setRefreshKey] = useState(0);
   const [showingLimited, setShowingLimited] = useState(false);
   const [totalUsers, setTotalUsers] = useState(0);
   const [page, setPage] = useState(1);
@@ -78,7 +80,7 @@ export default function LeaderboardPage() {
     setPage(1);
     setHasMore(true);
     fetchLeaderboard(1, true);
-  }, [status, scope, sortBy, sortOrder]);
+  }, [status, scope, sortBy, sortOrder, refreshKey]);
 
   // infinite scroll observer
   const lastUserRef = useCallback(
@@ -171,9 +173,14 @@ export default function LeaderboardPage() {
     return result;
   })();
 
+  const handleRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
   if (status === 'loading') return <p className="loading-text">Loading...</p>;
 
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       <div className="stats-tabs">
         <button className={`stats-tab ${scope === 'global' ? 'active' : ''}`} onClick={() => setScope('global')}>Global</button>
@@ -217,6 +224,7 @@ export default function LeaderboardPage() {
 
       {loading && <p className="loading-text">Loading more users...</p>}
     </div>
+    </PullToRefresh>
   );
 }
 

@@ -1,15 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFriends } from '@/context/FriendsContext';
 import FriendCard from '@/components/FriendCard';
+import PullToRefresh from '@/components/PullToRefresh';
 import { Plus } from 'lucide-react';
 
 export default function FriendsPage() {
-  const { friends, incomingRequests, outgoingRequests, loading, handleAction } = useFriends();
+  const { friends, incomingRequests, outgoingRequests, loading, handleAction, fetchAll } = useFriends();
   const [search, setSearch] = useState('');
   const router = useRouter();
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
 
   // Combine all friends and requests for search
   const allUsers = [...friends, ...incomingRequests, ...outgoingRequests];
@@ -27,7 +32,12 @@ export default function FriendsPage() {
   const filteredOutgoing = filteredUsers.filter((u) => u.type === 'outgoing');
   const filteredFriends = filteredUsers.filter((u) => u.type === 'friend');
 
+  const handleRefresh = useCallback(async () => {
+    await fetchAll();
+  }, [fetchAll]);
+
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       <div className="flex space-between">
         <button className="btn btn-add" onClick={() => router.push('/friends/add')}>
@@ -73,5 +83,6 @@ export default function FriendsPage() {
         </>
       )}
     </div>
+    </PullToRefresh>
   );
 }

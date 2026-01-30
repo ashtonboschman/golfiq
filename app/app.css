@@ -4968,3 +4968,32 @@ input[type='date'].form-input {
 .insights-error {
   color: var(--color-warning);
 }
+
+/* Pull-to-refresh indicator */
+.pull-to-refresh-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--color-secondary-text);
+  transition: height 0.15s ease-out;
+}
+
+@keyframes ptr-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ptr-spinning {
+  animation: ptr-spin 0.8s linear infinite;
+}
+
+/* Disable react-select option hover/focus highlight on touch devices */
+@media (hover: none) {
+  [class*="-option"] {
+    background-color: var(--color-secondary-surface) !important;
+  }
+  [class*="-option"][aria-selected="true"] {
+    background-color: var(--color-primary-surface) !important;
+  }
+}

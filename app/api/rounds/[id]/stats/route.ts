@@ -150,6 +150,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       course_name: courseName,
       number_of_holes: round.tee.numberOfHoles,
       tee_name: round.tee.teeName,
+      course_rating: round.tee.courseRating ? Number(round.tee.courseRating) : null,
+      slope_rating: round.tee.slopeRating ?? null,
       date: round.date,
       total_score: round.score,
       total_par: totalPar,
