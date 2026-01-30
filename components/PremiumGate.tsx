@@ -70,16 +70,18 @@ export default function PremiumGate({
 
     // Full card version
     return (
-        <div className="premium-gate">
+      <div className="premium-gate">
+        <div className="premium-gate-top">
           <Lock size={50} />
           <p>{featureName} is available exclusively for Premium members.</p>
-          <button
+        </div>          
+        <button
           className="btn btn-upgrade"
           onClick={() => router.push('/pricing')}
         >
           Start 14-Day Free Trial
         </button>
-        </div>
+      </div>
     );
   }  
   return <>{children}</>;

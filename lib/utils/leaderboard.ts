@@ -13,6 +13,7 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
       girHit: true,
       putts: true,
       penalties: true,
+      date: true,
       tee: {
         select: {
           numberOfHoles: true,
@@ -22,6 +23,7 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
         },
       },
     },
+    orderBy: { date: 'asc' },
   });
 
   if (!rounds.length) {

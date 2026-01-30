@@ -100,7 +100,23 @@ export async function calculateStrokesGained(
   const baselinePenalties18 = interpolateBaseline((t) => Number(t.baselinePenalties));
 
   const totalHoles = round.tee.numberOfHoles || 18;
-  const nonPar3Holes = round.tee.nonPar3Holes;
+
+  // Guard: model only supports 9 or 18 hole rounds
+  if (!round.tee.numberOfHoles || totalHoles < 9) {
+    return {
+      sgTotal: null,
+      sgOffTee: null,
+      sgApproach: null,
+      sgPutting: null,
+      sgPenalties: null,
+      sgResidual: null,
+      confidence: null,
+      partialAnalysis: true,
+      messages: ["Round has fewer than 9 holes — strokes gained not applicable"],
+    };
+  }
+
+  const nonPar3Holes = round.tee.nonPar3Holes ?? 0;
   const courseRating = round.tee.courseRating !== null ? Number(round.tee.courseRating) : 72;
   const slope = round.tee.slopeRating || 113;
   // Scale baselines for 9-hole rounds (database baselines are for 18 holes)
@@ -113,20 +129,23 @@ export async function calculateStrokesGained(
   // Course difficulty adjustment using USGA course handicap formula
   // Baseline scores are for a neutral par 72 / rating 72 / slope 113 course
   // Additional strokes = how much harder THIS course is vs neutral for this handicap
-  const courseDiffAdj = handicap * ((slope / 113) - 1) + (normalizedCourseRating - 72);
+  const ratingDelta = normalizedCourseRating - 72;           // absolute difficulty (affects everyone)
+  const slopeDelta = handicap * ((slope / 113) - 1);         // dispersion multiplier (handicap-weighted)
+  const courseDiffAdj = slopeDelta + ratingDelta;
   const adjScore = (baselineScore18 + courseDiffAdj) * holeScaling;
 
-  // Calculate adjusted percentages with clamping (0-100)
-  const adjFIRPct = Math.max(0, Math.min(100, baselineFIR - (courseDiffAdj * C.COURSE_DIFF_TO_FIR_PCT)));
-  const adjGIRPct = Math.max(0, Math.min(100, baselineGIR - (courseDiffAdj * C.COURSE_DIFF_TO_GIR_PCT)));
+  // FIR & GIR split rating vs slope: rating affects everyone equally,
+  // slope penalizes higher handicaps more (dispersion effect)
+  const adjFIRPct = Math.max(0, Math.min(100, baselineFIR - ratingDelta * C.RATING_TO_FIR_PCT - slopeDelta * C.SLOPE_TO_FIR_PCT));
+  const adjGIRPct = Math.max(0, Math.min(100, baselineGIR - ratingDelta * C.RATING_TO_GIR_PCT - slopeDelta * C.SLOPE_TO_GIR_PCT));
 
   // Convert percentages to hole counts
   const adjFIR = (adjFIRPct / 100) * nonPar3Holes;
   const adjGIR = (adjGIRPct / 100) * totalHoles;
 
-  // Adjusted putts and penalties
-  const adjPutts = baselinePutts + courseDiffAdj * C.COURSE_DIFF_TO_PUTTS;
-  const adjPenalties = Math.max(0, baselinePenalties + Math.tanh(courseDiffAdj / 6) * C.COURSE_DIFF_TO_PENALTIES);
+  // Adjusted putts and penalties (scale adjustment by holeScaling since baselines are already scaled)
+  const adjPutts = baselinePutts + courseDiffAdj * C.COURSE_DIFF_TO_PUTTS * holeScaling;
+  const adjPenalties = Math.max(0, baselinePenalties + Math.tanh(courseDiffAdj / 6) * C.COURSE_DIFF_TO_PENALTIES * holeScaling);
 
   // Actual round stats
   const actualScore = round.score;
@@ -141,7 +160,7 @@ export async function calculateStrokesGained(
     actualFIR === null || actualGIR === null || actualPutts === null || actualPenalties === null;
 
   const puttingCap = (totalHoles / 18) * C.PUTTING_CAP;
-  const girStrokeValue = C.STROKES_PER_GIR * Math.max(0.7, 1 - handicap / 80);
+  const girStrokeValue = C.STROKES_PER_GIR * Math.max(0.70, 1 - handicap / 80);
 
   // --- Compute each SG component if data exists ---
   const sgComponentsMap: Record<string, number | null> = {

@@ -4930,7 +4930,7 @@ input[type='date'].form-input {
   align-items: center;
   gap: var(--gap);
   text-align: center;
-  margin: 0;
+  margin-top: var(--gap-small);
 }
 
 .premium-gate-bottom {
