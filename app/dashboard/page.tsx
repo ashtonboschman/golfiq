@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import PullToRefresh from '@/components/PullToRefresh';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
@@ -313,7 +312,6 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [statsMode, setStatsMode] = useState('combined');
   const [dateFilter, setDateFilter] = useState('all');
@@ -438,7 +436,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     };
 
     fetchStats();
-  }, [status, statsMode, dateFilter, requestedUserId, router, showMessage, clearMessage, refreshKey]);
+  }, [status, statsMode, dateFilter, requestedUserId, router, showMessage, clearMessage]);
 
   const isOwnDashboard = parseInt(requestedUserId?.toString() || '0') === parseInt(session?.user?.id || '0');
 
@@ -478,10 +476,6 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     // Mark that we've shown the modal for this round count in this session
     sessionStorage.setItem(`upgrade-modal-shown-${totalRoundsForModal}`, 'true');
   };
-
-  const handleRefresh = useCallback(() => {
-    setRefreshKey(k => k + 1);
-  }, []);
 
   if (loading) return <p className="loading-text">Loading dashboard...</p>;
   if (error) return <p className="error-text">{error}</p>;
@@ -617,7 +611,6 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
   };
 
   return (
-    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       {!isOwnDashboard && stats.user && (
         <h2 className="dashboard-user-header">
@@ -832,6 +825,5 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
         ]}
       />
     </div>
-    </PullToRefresh>
   );
 }

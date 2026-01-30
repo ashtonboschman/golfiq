@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import RoundCard from '@/components/RoundCard';
-import PullToRefresh from '@/components/PullToRefresh';
 import { Plus } from 'lucide-react';
 
 interface Round {
@@ -185,15 +184,7 @@ export default function RoundsPage() {
     });
   };
 
-  const handleRefresh = useCallback(async () => {
-    setRounds([]);
-    setPage(1);
-    setHasMore(true);
-    await fetchRounds(1, debouncedSearch, true);
-  }, [fetchRounds, debouncedSearch]);
-
   return (
-    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       {status !== 'loading' && (
         <>
@@ -244,6 +235,5 @@ export default function RoundsPage() {
 
       {loading && <p className='loading-text'>Loading rounds...</p>}
     </div>
-    </PullToRefresh>
   );
 }
