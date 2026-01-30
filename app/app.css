@@ -1304,10 +1304,23 @@ select option {
 =========================== */
 .roundcard-header {
   display: flex;
-  position: relative;
-  gap: var(--gap);
   flex-direction: row;
-  align-items: flex-start;
+  align-items: start;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--gap-small);
+}
+
+.roundcard-header-left {
+  flex: 1;
+}
+
+.roundcard-header-right {
+  display: flex;
+  flex-direction: row;
+  gap: var(--gap-small);
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .roundcard-header-text {
@@ -1388,20 +1401,16 @@ select option {
 .tee-tag {
   display: inline-block;
   align-self: flex-start;
-  padding: 2px 6px;
+  padding: 4px 10px;
   border-radius: 999px;
   font-size: 0.75rem;
+  font-weight: bold;
   margin: 0;
   text-transform: uppercase;
   background-color: var(--color-gray);
   color: var(--color-white-text);
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.stats-tee-tag {
-  padding: 4px 10px;
-  font-weight: bold;
   opacity: 0.9;
 }
 

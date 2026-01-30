@@ -9,6 +9,8 @@ interface RoundCardProps {
     city?: string;
     state?: string;
     tee_name?: string;
+    number_of_holes?: number;
+    net_score?: number | null;
     date: string;
     score: number | null;
     par?: number | null;
@@ -18,25 +20,21 @@ interface RoundCardProps {
     penalties?: number | null;
     notes?: string | null;
   };
-  onEdit?: (id: number) => void;
-  onDelete?: (id: number) => void;
-  showActions?: boolean;
+  showHoles?: boolean;
   showAdvanced?: boolean;
   disableClick?: boolean;
 }
 
 export default function RoundCard({
   round,
-  onEdit,
-  onDelete,
-  showActions = true,
   showAdvanced = false,
+  showHoles = false,
   disableClick = false,
 }: RoundCardProps) {
   const formatValue = (val: number | null | undefined) => val ?? '-';
 
-  const formatToPar = (score: number | null, par: number | null | undefined) => {
-    if (score === null || par === null || par === undefined) return '-';
+  const formatToPar = (score: number | null | undefined, par: number | null | undefined) => {
+    if (score === null || score === undefined || par === null || par === undefined) return '-';
     const diff = score - par;
     if (diff > 0) return `+${diff}`;
     if (diff < 0) return `${diff}`;
@@ -64,53 +62,44 @@ export default function RoundCard({
   const teeName = round.tee_name || 'default';
   const par = round.par ?? null;
 
-  const handleButtonClick = (e: React.MouseEvent, callback: (id: number) => void) => {
-    e.preventDefault();
-    e.stopPropagation();
-    callback(round.id);
-  };
+  console.log('round', round);
 
   const cardContent = (
     <>
       {/* Header */}
-      <div className="roundcard-header">
+      <div>
+        <div className="roundcard-header">
+          <div className="roundcard-header-left">
+            <h3 className="roundcard-course-name">
+              {round.club_name === round.course_name
+                ? round.course_name
+                : `${round.club_name} - ${round.course_name}` || '-'}
+            </h3>
+          </div>
 
-        <div className="roundcard-header-text">
-          <h3 className="roundcard-course-name">{round.club_name == round.course_name ? round.course_name : round.club_name + ' - ' + round.course_name || '-'}</h3>
-          <div className="roundcard-header-info">
-            <h5 className="roundcard-city"><MapPin size='14'/> {round.city + ', ' + round.state || '-'}</h5>
-            <span className="round-date">{formatDate(round.date)}</span>
+          <div className="roundcard-header-right flex-row gap-small">
+            <p className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</p>
+            {showHoles && (
+              <p className="round-holes-tag">{round.number_of_holes} Holes</p>
+            )}
           </div>
         </div>
-
-        {showActions && onEdit && onDelete && (
-          <div className="roundcard-button-group">
-            <button
-              onClick={(e) => handleButtonClick(e, onEdit)}
-              className="btn btn-edit"
-            >
-              <Edit/>
-            </button>
-            <button
-              onClick={(e) => handleButtonClick(e, onDelete)}
-              className="btn btn-cancel"
-            >
-              <Trash2/>
-            </button>
-          </div>
-        )}
+        <div className="roundcard-header-info">
+          <h5 className="roundcard-city"><MapPin size='14'/> {round.city + ', ' + round.state || '-'}</h5>
+          <span className="round-date">{formatDate(round.date)}</span>
+        </div>
       </div>
       <div className='roundcard-bottom'>
         {/* Info Grid */}
         <div className="grid grid-4">
           <div className="roundcard-info-row">
-            <span className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</span>
+            <strong>Score</strong> {formatValue(round.score)}
           </div>
           <div className="roundcard-info-row">
             <strong>To Par</strong> {formatToPar(round.score, par)}
           </div>
           <div className="roundcard-info-row">
-            <strong>Score</strong> {formatValue(round.score)}
+            <strong>Net</strong> {formatToPar(round.net_score, par)}
           </div>
           <div className="roundcard-info-row">
             <strong>Par</strong> {formatValue(par)}

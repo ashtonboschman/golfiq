@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
+import { calculateNetScore } from '@/lib/utils/handicap';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { z } from 'zod';
@@ -16,6 +17,7 @@ type RoundWithRelations = {
   advancedStats: boolean;
   date: Date;
   score: number;
+  netScore: number | null,
   firHit: number | null;
   girHit: number | null;
   putts: number | null;
@@ -36,6 +38,7 @@ type RoundWithRelations = {
     teeName: string;
     gender: string;
     parTotal: number | null;
+    numberOfHoles: number | null;
   };
 };
 
@@ -49,6 +52,7 @@ function formatRoundRow(round: RoundWithRelations) {
     advanced_stats: round.advancedStats ? 1 : 0,
     date: round.date,
     score: round.score === null ? null : Number(round.score),
+    net_score: round.netScore === null ? null : Number(round.netScore),
     fir_hit: round.firHit === null ? null : Number(round.firHit),
     gir_hit: round.girHit === null ? null : Number(round.girHit),
     putts: round.putts === null ? null : Number(round.putts),
@@ -66,6 +70,7 @@ function formatRoundRow(round: RoundWithRelations) {
       tee_name: round.tee?.teeName || null,
       gender: round.tee?.gender || null,
       par_total: round.tee?.parTotal ?? null,
+      number_of_holes: round.tee?.numberOfHoles ?? null,
     },
     location: {
       city: round.course?.location?.city || '-',
@@ -212,7 +217,12 @@ export async function POST(request: NextRequest) {
     // Get tee's par_total to calculate toPar
     const tee = await prisma.tee.findUnique({
       where: { id: teeId },
-      select: { parTotal: true },
+      select: { 
+        parTotal: true, 
+        numberOfHoles: true,
+        courseRating: true,
+        slopeRating: true,
+      },
     });
 
     const toPar = tee?.parTotal ? insertScore - tee.parTotal : null;
@@ -222,6 +232,27 @@ export async function POST(request: NextRequest) {
       select: { handicap: true },
     });
 
+    let netScore: number | null = null;
+    let netToPar: number | null = null;
+
+    if (
+      insertScore !== null &&
+      userStats?.handicap !== null &&
+      tee?.parTotal &&
+      tee?.courseRating &&
+      tee?.slopeRating
+    ) {
+      const result = calculateNetScore(
+        insertScore,
+        Number(userStats?.handicap),
+        tee.parTotal,
+        Number(tee.courseRating),
+        tee.slopeRating
+      );
+      netScore = result.netScore;
+      netToPar = result.netToPar;
+    }
+    
     // Create round
     const round = await prisma.round.create({
       data: {
@@ -232,7 +263,9 @@ export async function POST(request: NextRequest) {
         advancedStats: data.advanced_stats,
         date: roundDate,
         score: insertScore,
+        netScore,
         toPar,
+        netToPar,
         firHit: insertFir,
         girHit: insertGir,
         putts: insertPutts,
@@ -319,37 +352,51 @@ async function triggerInsightsGeneration(roundId: bigint, userId: bigint): Promi
 
 // Helper to recalculate round totals from hole-by-hole data
 async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promise<void> {
-  const holes = await prisma.roundHole.findMany({
-    where: { roundId },
-    select: {
-      score: true,
-      firHit: true,
-      girHit: true,
-      putts: true,
-      penalties: true,
-    },
-  });
-
-  if (!holes.length) return;
-
-  const totalScore = holes.reduce((sum: any, h: any) => sum + h.score, 0);
-
-  // Get round's tee to calculate toPar
   const round = await prisma.round.findUnique({
     where: { id: roundId },
     select: {
       teeId: true,
-      tee: {
-        select: { parTotal: true },
-      },
+      tee: { select: { parTotal: true, courseRating: true, slopeRating: true } },
+      userId: true,
     },
   });
+  if (!round) return;
 
-  const toPar = round?.tee?.parTotal ? totalScore - round.tee.parTotal : null;
+  const holes = await prisma.roundHole.findMany({
+    where: { roundId },
+    select: { score: true, firHit: true, girHit: true, putts: true, penalties: true },
+  });
+  if (!holes.length) return;
+
+  const totalScore = holes.reduce((sum, h) => sum + h.score, 0);
+
+  const userStats = await prisma.userLeaderboardStats.findUnique({
+    where: { userId: round.userId },
+    select: { handicap: true },
+  });
+
+  let netScore: number | null = null;
+  let netToPar: number | null = null;
+
+  if (userStats?.handicap !== null && round.tee?.parTotal && round.tee?.courseRating && round.tee?.slopeRating) {
+    const result = calculateNetScore(
+      totalScore,
+      Number(userStats?.handicap),
+      round.tee.parTotal,
+      Number(round.tee.courseRating),
+      round.tee.slopeRating
+    );
+    netScore = result.netScore;
+    netToPar = result.netToPar;
+  }
+
+  const toPar = round.tee?.parTotal ? totalScore - round.tee.parTotal : null;
 
   const totals: {
     score: number;
     toPar: number | null;
+    netScore: number | null;
+    netToPar: number | null;
     firHit: number | null;
     girHit: number | null;
     putts: number | null;
@@ -357,6 +404,8 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
   } = {
     score: totalScore,
     toPar,
+    netScore,
+    netToPar,
     firHit: null,
     girHit: null,
     putts: null,
@@ -365,18 +414,14 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 
   if (advancedStats) {
     const sumField = (field: keyof typeof holes[0]) => {
-      const values = holes.map((h: any) => h[field]).filter((v: any): v is number => v !== null);
-      return values.length ? values.reduce((a: any, b: any) => a + b, 0) : null;
+      const values = holes.map(h => h[field]).filter((v): v is number => v !== null);
+      return values.length ? values.reduce((a, b) => a + b, 0) : null;
     };
-
     totals.firHit = sumField('firHit');
     totals.girHit = sumField('girHit');
     totals.putts = sumField('putts');
     totals.penalties = sumField('penalties');
   }
 
-  await prisma.round.update({
-    where: { id: roundId },
-    data: totals,
-  });
+  await prisma.round.update({ where: { id: roundId }, data: totals });
 }

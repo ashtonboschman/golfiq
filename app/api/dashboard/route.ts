@@ -129,17 +129,9 @@ export async function GET(request: NextRequest) {
     });
     const isPremium = user ? isPremiumUser(user) : false;
 
-    // Free users: limit to last 20 rounds (most recent)
-    let roundsToAnalyze = rounds;
-    if (!isPremium) {
-      // Sort by date descending (most recent first), then take last 20
-      const sortedRounds = [...rounds].sort((a: any, b: any) => b.date.getTime() - a.date.getTime());
-      roundsToAnalyze = sortedRounds.slice(0, 20);
-    }
-
     // Transform rounds to format expected by handicap utils
-    const allRounds = roundsToAnalyze.map((r: any) => {
-      const firTotal = r.tee.nonPar3Holes ?? (r.tee.holes.filter((h: any) => h.par !== 3).length);
+    const allRoundsUncapped = rounds.map((r: any) => {
+      const firTotal = r.tee.nonPar3Holes ?? r.tee.holes.filter((h: any) => h.par !== 3).length;
       const girTotal = r.tee.holes.length;
       const par = r.tee.parTotal ?? 72;
       const to_par = r.toPar ?? (r.score ? r.score - par : null);
@@ -149,6 +141,7 @@ export async function GET(request: NextRequest) {
         date: r.date,
         holes: r.tee.numberOfHoles ?? r.tee.holes.length ?? 18,
         score: r.score ?? 0,
+        net_score: r.netScore,
         to_par,
         fir_hit: r.advancedStats ? r.firHit : null,
         gir_hit: r.advancedStats ? r.girHit : null,
@@ -176,10 +169,20 @@ export async function GET(request: NextRequest) {
     });
 
     // Normalize rounds by mode
-    const modeRounds = normalizeRoundsByMode(allRounds, statsMode);
-    const handicap = calculateHandicap(modeRounds);
+    const modeRoundsUncapped = normalizeRoundsByMode(allRoundsUncapped, statsMode);
+    const totalRounds = modeRoundsUncapped.length;
 
-    const roundIds = modeRounds.map((r: any) => BigInt(r.id));
+     // Free users: limit to last 20 rounds (most recent)
+    let roundsForStats = modeRoundsUncapped;
+    if (!isPremium) {
+      roundsForStats = [...modeRoundsUncapped]
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .slice(0, 20);
+    }
+
+    const handicap = calculateHandicap(roundsForStats);
+
+    const roundIds = roundsForStats.map((r: any) => BigInt(r.id));
 
     if (roundIds.length === 0) {
       return successResponse({
@@ -248,7 +251,7 @@ export async function GET(request: NextRequest) {
 
     let hbhRoundCount = 0;
 
-    modeRounds.forEach((r: any) => {
+    roundsForStats.forEach((r: any) => {
       if (!r.hole_by_hole) return;
       const weight = 1;
       const holes = roundHoles.filter((rh: any) => rh.roundId === BigInt(r.id));
@@ -285,23 +288,22 @@ export async function GET(request: NextRequest) {
     };
 
     // Calculate aggregate stats
-    const totalRounds = modeRounds.length;
-    const bestScore = totalRounds ? Math.min(...modeRounds.map((r: any) => r.score)) : null;
-    const worstScore = totalRounds ? Math.max(...modeRounds.map((r: any) => r.score)) : null;
-    const averageScore = totalRounds ? modeRounds.reduce((s: any, r: any) => s + r.score, 0) / totalRounds : null;
+    const bestScore = totalRounds ? Math.min(...roundsForStats.map((r: any) => r.score)) : null;
+    const worstScore = totalRounds ? Math.max(...roundsForStats.map((r: any) => r.score)) : null;
+    const averageScore = totalRounds ? roundsForStats.reduce((s: any, r: any) => s + r.score, 0) / totalRounds : null;
 
     // Calculate to_par stats (only for rounds with to_par values)
-    const roundsWithToPar = (modeRounds as any[]).filter((r: any) => r.to_par !== null && r.to_par !== undefined);
+    const roundsWithToPar = (roundsForStats as any[]).filter((r: any) => r.to_par !== null && r.to_par !== undefined);
     const bestToPar = roundsWithToPar.length ? Math.min(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
     const worstToPar = roundsWithToPar.length ? Math.max(...roundsWithToPar.map((r: any) => r.to_par!)) : null;
     const averageToPar = roundsWithToPar.length
       ? roundsWithToPar.reduce((s: any, r: any) => s + r.to_par!, 0) / roundsWithToPar.length
       : null;
 
-    const firRounds = modeRounds.filter((r: any) => r.fir_hit != null && r.fir_total != null);
-    const girRounds = modeRounds.filter((r: any) => r.gir_hit != null && r.gir_total != null);
-    const puttsRounds = modeRounds.filter((r: any) => r.putts != null);
-    const penaltiesRounds = modeRounds.filter((r: any) => r.penalties != null);
+    const firRounds = roundsForStats.filter((r: any) => r.fir_hit != null && r.fir_total != null);
+    const girRounds = roundsForStats.filter((r: any) => r.gir_hit != null && r.gir_total != null);
+    const puttsRounds = roundsForStats.filter((r: any) => r.putts != null);
+    const penaltiesRounds = roundsForStats.filter((r: any) => r.penalties != null);
 
     const fir_avg = firRounds.length
       ? (firRounds.reduce((sum: any, r: any) => sum + (r.fir_hit || 0), 0) /
@@ -331,7 +333,7 @@ export async function GET(request: NextRequest) {
       worst_to_par: worstToPar,
       average_to_par: averageToPar,
       handicap,
-      all_rounds: modeRounds,
+      all_rounds: roundsForStats,
       fir_avg,
       gir_avg,
       avg_putts,

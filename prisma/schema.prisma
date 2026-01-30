@@ -200,6 +200,7 @@ model Round {
   advancedStats         Boolean                @default(false) @map("advanced_stats")
   date                  DateTime               @db.Timestamptz(6)
   score                 Int
+  netScore              Int?                   @map("net_score")
   firHit                Int?                   @map("fir_hit")
   girHit                Int?                   @map("gir_hit")
   putts                 Int?
@@ -208,6 +209,7 @@ model Round {
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
   toPar                 Int?                   @map("to_par") @db.SmallInt
+  netToPar              Int?                   @map("net_to_par") @db.SmallInt
   handicapAtRound       Decimal?               @map("handicap_at_round") @db.Decimal(4, 1)
   roundHoles            RoundHole[]
   RoundInsight          RoundInsight?

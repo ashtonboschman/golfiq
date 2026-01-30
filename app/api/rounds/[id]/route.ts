@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
+import { calculateNetScore } from '@/lib/utils/handicap';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { z } from 'zod';
@@ -36,6 +37,7 @@ type RoundWithRelations = {
     teeName: string;
     gender: string;
     parTotal: number | null;
+    numberOfHoles: number | null;
   };
 };
 
@@ -66,6 +68,7 @@ function formatRoundRow(round: RoundWithRelations) {
       tee_name: round.tee?.teeName || null,
       gender: round.tee?.gender || null,
       par_total: round.tee?.parTotal ?? null,
+      number_of_holes: round.tee?.numberOfHoles ?? null,
     },
     location: {
       city: round.course?.location?.city || '-',
@@ -185,17 +188,16 @@ export async function PUT(
     const roundId = BigInt(id);
     const body = await request.json();
 
+    // Validate body
     const result = updateRoundSchema.safeParse(body);
     if (!result.success) {
-      const firstError = result.error.issues[0];
-      return errorResponse(firstError?.message || 'Validation failed', 400);
+      return errorResponse(result.error.issues[0]?.message || 'Validation failed', 400);
     }
-
     const data = result.data;
     const courseId = BigInt(data.course_id);
     const teeId = BigInt(data.tee_id);
 
-    // Validate score is provided if not hole-by-hole mode
+    // Quick score requires score
     if (!data.hole_by_hole && (data.score === null || data.score === undefined)) {
       return errorResponse('Score is required in Quick Score mode', 400);
     }
@@ -206,22 +208,15 @@ export async function PUT(
     const updatePutts = !data.hole_by_hole && data.advanced_stats ? data.putts ?? null : null;
     const updatePenalties = !data.hole_by_hole && data.advanced_stats ? data.penalties ?? null : null;
 
-    // Fetch existing round to preserve time portion of date
+    // Fetch existing round to preserve time
     const existingRound = await prisma.round.findFirst({
       where: { id: roundId, userId },
       select: { date: true },
     });
+    if (!existingRound) return errorResponse('Round not found or not authorized', 404);
 
-    if (!existingRound) {
-      return errorResponse('Round not found or not authorized', 404);
-    }
-
-    // Preserve the time portion from existing date, only update the date part
-    // Input format: "YYYY-MM-DD" from frontend
     const [year, month, day] = data.date.split('-').map(Number);
     const existingDate = new Date(existingRound.date);
-
-    // Use UTC methods to avoid timezone issues
     const updatedAt = new Date(Date.UTC(
       year,
       month - 1,
@@ -232,20 +227,9 @@ export async function PUT(
       existingDate.getUTCMilliseconds()
     ));
 
-    // Get tee's par_total to calculate toPar
-    const tee = await prisma.tee.findUnique({
-      where: { id: teeId },
-      select: { parTotal: true },
-    });
-
-    const toPar = tee?.parTotal ? updateScore - tee.parTotal : null;
-
-    // Update round
-    const round = await prisma.round.updateMany({
-      where: {
-        id: roundId,
-        userId,
-      },
+    // Update round (initial update without netScore/netToPar)
+    await prisma.round.update({
+      where: { id: roundId },
       data: {
         courseId,
         teeId,
@@ -253,7 +237,6 @@ export async function PUT(
         holeByHole: data.hole_by_hole,
         advancedStats: data.advanced_stats,
         score: updateScore,
-        toPar,
         firHit: updateFir,
         girHit: updateGir,
         putts: updatePutts,
@@ -262,21 +245,15 @@ export async function PUT(
       },
     });
 
-    if (round.count === 0) {
-      return errorResponse('Round not found or not authorized', 404);
-    }
-
-    // Update hole-by-hole data
+    // Handle hole-by-hole data
     if (data.hole_by_hole && data.round_holes) {
       // Delete existing holes
-      await prisma.roundHole.deleteMany({
-        where: { roundId },
-      });
+      await prisma.roundHole.deleteMany({ where: { roundId } });
 
       // Create new holes
       if (data.round_holes.length) {
         await prisma.roundHole.createMany({
-          data: data.round_holes.map((h: any) => ({
+          data: data.round_holes.map(h => ({
             roundId,
             holeId: BigInt(h.hole_id),
             score: h.score ?? 0,
@@ -288,14 +265,52 @@ export async function PUT(
         });
       }
 
-      // Recalculate totals
+      // Recalculate totals for hole-by-hole rounds
       await recalcRoundTotals(roundId, data.advanced_stats);
     }
 
-    const sg = await calculateStrokesGained({ userId, roundId }, prisma);
+    // Fetch tee info (needed for net score calculation)
+    const tee = await prisma.tee.findUnique({
+      where: { id: teeId },
+      select: { parTotal: true, courseRating: true, slopeRating: true },
+    });
 
-    // Update existing SG record if it exists
-    const updated = await prisma.roundStrokesGained.updateMany({
+    // Fetch updated round totals (after recalcRoundTotals if hole-by-hole)
+    const updatedRound = await prisma.round.findUnique({
+      where: { id: roundId },
+      select: { score: true, teeId: true, handicapAtRound: true },
+    });
+
+    // Recalculate netScore/netToPar using handicapAtRound (do NOT update handicapAtRound itself)
+    let netScore: number | null = null;
+    let netToPar: number | null = null;
+
+    if (
+      updatedRound?.score !== null &&
+      updatedRound?.handicapAtRound !== null &&
+      tee?.parTotal &&
+      tee?.courseRating &&
+      tee?.slopeRating
+    ) {
+      const result = calculateNetScore(
+        Number(updatedRound?.score),
+        Number(updatedRound?.handicapAtRound),
+        tee.parTotal,
+        Number(tee.courseRating),
+        tee.slopeRating
+      );
+      netScore = result.netScore;
+      netToPar = result.netToPar;
+
+      await prisma.round.update({
+        where: { id: roundId },
+        data: { netScore, netToPar },
+      });
+    }
+
+    // Calculate strokes gained
+    const sg = await calculateStrokesGained({ userId, roundId }, prisma);
+    const updatedSG = await prisma.roundStrokesGained.updateMany({
       where: { roundId },
       data: {
         sgTotal: sg.sgTotal,
@@ -308,45 +323,22 @@ export async function PUT(
         messages: sg.messages,
       },
     });
-
-    // If no rows were updated, create it
-    if (updated.count === 0) {
-      await prisma.roundStrokesGained.create({
-        data: {
-          roundId,
-          userId,
-          sgTotal: sg.sgTotal,
-          sgOffTee: sg.sgOffTee,
-          sgApproach: sg.sgApproach,
-          sgPutting: sg.sgPutting,
-          sgPenalties: sg.sgPenalties,
-          sgResidual: sg.sgResidual,
-          confidence: sg.confidence,
-          messages: sg.messages,
-          partialAnalysis: sg.partialAnalysis,
-        },
-      });
+    if (updatedSG.count === 0) {
+      await prisma.roundStrokesGained.create({ data: { roundId, userId, ...sg } });
     }
 
-    // Update leaderboard
+    // Recalculate leaderboard
     await recalcLeaderboard(userId);
 
-    // Delete existing insights so user doesn't see stale data
-    await prisma.roundInsight.deleteMany({
-      where: { roundId },
-    });
-
-    // Trigger insights regeneration asynchronously (don't await)
-    triggerInsightsGeneration(roundId, userId).catch((error: any) => {
-      console.error('Failed to regenerate insights:', error);
-    });
+    // Trigger insights asynchronously
+    await prisma.roundInsight.deleteMany({ where: { roundId } });
+    triggerInsightsGeneration(roundId, userId).catch(console.error);
 
     return successResponse({ message: 'Round updated' });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return errorResponse('Unauthorized', 401);
     }
-
     console.error('PUT /api/rounds/:id error:', error);
     return errorResponse('Database error', 500);
   }

@@ -45,6 +45,7 @@ interface RoundStats {
   total_par: number;
   score_to_par: number;
   score_to_par_formatted: string;
+  net_to_par_formatted: string;
   handicap_at_round: number | null;
   greens_in_regulation: number | null;
   gir_percentage: string | null;
@@ -236,7 +237,7 @@ export default function RoundStatsPage() {
               <p className="round-holes-tag">
                 {stats.number_of_holes} Holes
               </p>
-              <p className={`tee-tag stats-tee-tag tee-${stats.tee_name.toLowerCase()}`}>
+              <p className={`tee-tag tee-${stats.tee_name.toLowerCase()}`}>
                 {stats.tee_name}
               </p>
               {(stats.course_rating || stats.slope_rating) && (
@@ -280,7 +281,12 @@ export default function RoundStatsPage() {
                 {stats.score_to_par_formatted}
               </div>
               <div className="stats-score-label">
-                vs Par {stats.total_par}
+                vs Par {stats.total_par} {stats.net_to_par_formatted != null && (
+                  <>
+                    <br />
+                    ({stats.net_to_par_formatted} Net)
+                  </>
+                )}
               </div>
             </div>
             <div>
@@ -304,7 +310,12 @@ export default function RoundStatsPage() {
                 {stats.putts_per_hole ?? '-'}
               </div>
               <div className="stats-score-label">
-                Putts/Hole {stats.total_putts !== null ? `(${stats.total_putts} total)` : ''}
+                Putts/Hole {stats.total_putts !== null && (
+                  <>
+                    <br />
+                    ({stats.total_putts} Total)
+                  </>
+                )}
               </div>
             </div>
             <div>

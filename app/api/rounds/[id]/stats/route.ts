@@ -48,16 +48,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Helper to format score to par consistently
-    const formatScoreToPar = (diff: number) => {
+    const formatScoreToPar = (diff: number | null) => {
+      if (diff === null) return null;
       if (diff > 0) return `+${diff}`;
       if (diff < 0) return `${diff}`;
       return 'E';
     };
 
     // Calculate statistics
-    const totalPar = round.tee.parTotal || 0;
-    const scoreToPar = round.score - totalPar;
+    const totalPar = round.tee.parTotal ?? 0;
+    const scoreToPar = round.toPar ?? null;
+    const netToPar = round.netToPar ?? null;
     const scoreToParFormatted = formatScoreToPar(scoreToPar);
+    const netToParFormatted = formatScoreToPar(netToPar);
 
     // Get totals from Round table (only if advanced stats were tracked)
     const hasAdvancedStats = round.advancedStats;
@@ -157,7 +160,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       total_par: totalPar,
       score_to_par: scoreToPar,
       score_to_par_formatted: scoreToParFormatted,
-      handicap_at_round: round.handicapAtRound ? Number(round.handicapAtRound) : null,
+      net_to_par_formatted: netToParFormatted,
+      handicap_at_round: round.handicapAtRound !== null ? Number(round.handicapAtRound) : null,
 
       // Overall stats
       greens_in_regulation: totalGIR,

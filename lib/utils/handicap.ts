@@ -93,3 +93,30 @@ export function calculateHandicap(rounds: Round[]): number | null {
 
   return Math.min(Math.round(handicap * 10) / 10, 54.0);
 }
+
+export function calculateNetScore(
+  grossScore: number,
+  handicapIndex: number | null,
+  parTotal: number | null,
+  courseRating: number | null,
+  slopeRating: number | null
+) {
+  if (
+    handicapIndex === null ||
+    parTotal === null ||
+    courseRating === null ||
+    slopeRating === null
+  ) {
+    return { netScore: null, netToPar: null };
+  }
+
+  const courseHandicap = Math.round(
+    handicapIndex * (slopeRating / 113) + (courseRating - parTotal)
+  );
+
+  const netScore = grossScore - courseHandicap;
+  const netToPar = netScore - parTotal;
+
+  return { netScore, netToPar };
+}
+

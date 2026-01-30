@@ -596,7 +596,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
   const getModalMessage = () => {
     const rounds = totalRoundsForModal;
     if (rounds === 3) {
-      return "You've logged 3 rounds! Upgrade to Premium to unlock Insights, advanced stats, and an ad-free experience.";
+      return "You've logged 3 rounds! Upgrade to Premium to unlock AI Insights and advanced trends.";
     } else if (rounds === 10) {
       return "10 rounds played! Premium gives you detailed trends and analytics to improve faster.";
     } else if (rounds === 15) {
@@ -606,7 +606,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     } else if (rounds > 20 && rounds % 5 === 0) {
       return `${rounds} rounds logged! Unlock Premium to analyze all your rounds and track long-term performance.`;
     } else {
-      return `You've logged ${rounds} rounds! Upgrade to Premium for unlimited analytics, Insights, and an ad-free experience.`;
+      return `You've logged ${rounds} rounds! Upgrade to Premium for unlimited analytics and AI Insights.`;
     }
   };
 
@@ -688,7 +688,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             <div className="info-banner-text">
               <h4>Limited Stats View</h4>
               <p>
-                You’ve logged {stats.totalRoundsInDb} rounds, but we’re showing stats from your most recent 20 rounds. Upgrade to Premium for full history and unlimited insights.
+                Stats are based on your most recent 20 of {stats.totalRoundsInDb} rounds. Upgrade to Premium for full-history insights.
               </p>
             </div>
             
@@ -760,8 +760,6 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
               <RoundCard
                 key={round.id}
                 round={round}
-                showAdvanced={showAdvanced}
-                showActions={false}
                 disableClick={!isOwnDashboard}
               />
             ))}

@@ -25,7 +25,7 @@ interface UpgradeModalProps {
  *   onClose={() => setShowModal(false)}
  *   title="Unlock AI-Powered Insights"
  *   message="You've logged 3 rounds! Upgrade to Premium to get AI-powered coaching and predictions."
- *   features={['AI Coach Analysis', 'Unlimited Analytics', 'Ad-Free Experience']}
+ *   features={['AI Coach Analysis', 'Unlimited Analytics']}
  * />
  * ```
  */

@@ -24,6 +24,8 @@ interface Round {
   tee_name: string;
   notes: string | null;
   hole_by_hole: boolean | null;
+  number_of_holes: number;
+  net_score: number | null;
 }
 
 export default function RoundsPage() {
@@ -94,6 +96,8 @@ export default function RoundsPage() {
         tee_name: r.tee?.tee_name ?? '-',
         notes: r.notes ?? null,
         hole_by_hole: r.hole_by_hole ?? null,
+        number_of_holes: r.tee?.number_of_holes ?? null,
+        net_score: r.net_score ?? null
       }));
 
       setRounds((prev) => {
@@ -223,8 +227,7 @@ export default function RoundsPage() {
               <div key={round.id} ref={isLast ? lastRoundRef : null}>
                 <RoundCard
                   round={round}
-                  onEdit={(id) => router.push(`/rounds/edit/${id}?from=rounds`)}
-                  onDelete={handleDelete}
+                  showHoles={true}
                   showAdvanced={true}
                 />
               </div>
