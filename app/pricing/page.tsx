@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { PRICING } from '@/lib/subscription';
 import { Check, X } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useMessage } from '@/app/providers';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
 
@@ -14,9 +15,9 @@ export default function PricingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<PlanTab>('monthly');
   const { isPremium, loading: subscriptionLoading } = useSubscription();
+  const { showMessage } = useMessage();
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -33,13 +34,13 @@ export default function PricingPage() {
 
   useEffect(() => {
     if (searchParams.get('cancelled')) {
-      setMessage({ text: 'Checkout cancelled. No charges were made.', type: 'error' });
+      showMessage('Checkout cancelled. No charges were made.','error' );
     }
   }, [searchParams]);
 
   const handleSubscribe = async (priceId: string, interval: 'month' | 'year') => {
     setLoading(interval);
-    setMessage(null);
+    // setMessage(null);
 
     try {
       const res = await fetch('/api/stripe/checkout', {
@@ -60,7 +61,8 @@ export default function PricingPage() {
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
-      setMessage({ text: error.message || 'Failed to start checkout', type: 'error' });
+      showMessage(error.message || 'Failed to start checkout', 'error');
+
       setLoading(null);
     }
   };
@@ -80,12 +82,6 @@ export default function PricingPage() {
 
   return (
     <div className="page-stack">
-          {message && (
-            <div className={`message ${message.type}`}>
-              {message.text}
-            </div>
-          )}
-
           {/* Plan Tabs */}
           <div className="pricing-tabs">
             <button
