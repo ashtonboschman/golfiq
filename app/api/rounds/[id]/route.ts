@@ -245,6 +245,24 @@ export async function PUT(
       },
     });
 
+    if (!data.hole_by_hole) {
+      const tee = await prisma.tee.findUnique({
+        where: { id: teeId },
+        select: { parTotal: true },
+      });
+      
+      if(tee) {
+        const toPar =
+          tee?.parTotal !== null && updateScore !== null
+            ? updateScore - tee.parTotal
+            : null;
+            await prisma.round.update({
+          where: { id: roundId },
+          data: { toPar },
+        });
+      }      
+    }
+
     // Handle hole-by-hole data
     if (data.hole_by_hole && data.round_holes) {
       // Delete existing holes
@@ -413,7 +431,7 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
     },
   });
 
-  const toPar = round?.tee?.parTotal ? totalScore - round.tee.parTotal : null;
+  const toPar = round?.tee?.parTotal != null ? totalScore - round.tee.parTotal : null;
 
   const totals: {
     score: number;
