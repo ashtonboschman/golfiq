@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
 
     const netResult = calculateNetScore(
       insertScore,
-      userStats?.handicap !== undefined ? Number(userStats?.handicap) : null,
+      userStats?.handicap != null ? Number(userStats.handicap) : null,
       ctx
     );
     const netScore = netResult.netScore;
@@ -380,7 +380,7 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 
   const netResult = calculateNetScore(
     totalScore,
-    userStats?.handicap !== undefined ? Number(userStats?.handicap) : null,
+    userStats?.handicap != null ? Number(userStats.handicap) : null,
     ctx
   );
   const netScore = netResult.netScore;

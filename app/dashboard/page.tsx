@@ -629,12 +629,12 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       <div className="dashboard-filters">
         <Select
-          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Hole' : '18 Hole' }}
+          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
           onChange={(option) => option && setStatsMode(option.value)}
           options={[
             { value: 'combined', label: 'Combined' },
-            { value: '9', label: '9 Hole' },
-            { value: '18', label: '18 Hole' },
+            { value: '9', label: '9 Holes' },
+            { value: '18', label: '18 Holes' },
           ]}
           isSearchable={false}
           styles={selectStyles}
