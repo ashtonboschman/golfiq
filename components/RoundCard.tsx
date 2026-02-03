@@ -62,8 +62,6 @@ export default function RoundCard({
   const teeName = round.tee_name || 'default';
   const par = round.par ?? null;
 
-  console.log('round', round);
-
   const cardContent = (
     <>
       {/* Header */}

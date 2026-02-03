@@ -761,6 +761,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
                 key={round.id}
                 round={round}
                 disableClick={!isOwnDashboard}
+                showAdvanced={showAdvanced}
               />
             ))}
           </div>

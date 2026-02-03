@@ -1,6 +1,7 @@
 // lib/utils/strokesGained.ts
 import { Prisma, PrismaClient } from "@prisma/client";
 import { SG_COEFFICIENTS as C } from "./strokesGainedCoefficients";
+import { resolveTeeContext, type TeeSegment } from "@/lib/tee/resolveTeeContext";
 
 export type SGComponents = {
   sgTotal: number | null;
@@ -29,7 +30,7 @@ export async function calculateStrokesGained(
   // Fetch round data
   const round = await prisma.round.findUnique({
     where: { id: roundId },
-    include: { tee: true },
+    include: { tee: { include: { holes: { orderBy: { holeNumber: 'asc' } } } } },
   });
   if (!round) throw new Error("Round not found");
 
@@ -99,10 +100,13 @@ export async function calculateStrokesGained(
   const baselinePutts18 = interpolateBaseline((t) => Number(t.baselinePutts));
   const baselinePenalties18 = interpolateBaseline((t) => Number(t.baselinePenalties));
 
-  const totalHoles = round.tee.numberOfHoles || 18;
+  // Resolve tee context using canonical resolver
+  const teeSegment = (round.teeSegment ?? 'full') as TeeSegment;
+  const ctx = resolveTeeContext(round.tee, teeSegment);
+  const totalHoles = ctx.holes;
 
   // Guard: model only supports 9 or 18 hole rounds
-  if (!round.tee.numberOfHoles || totalHoles < 9) {
+  if (totalHoles < 9) {
     return {
       sgTotal: null,
       sgOffTee: null,
@@ -116,9 +120,9 @@ export async function calculateStrokesGained(
     };
   }
 
-  const nonPar3Holes = round.tee.nonPar3Holes ?? 0;
-  const courseRating = round.tee.courseRating !== null ? Number(round.tee.courseRating) : 72;
-  const slope = round.tee.slopeRating || 113;
+  const nonPar3Holes = ctx.nonPar3Holes;
+  const courseRating = ctx.courseRating;
+  const slope = ctx.slopeRating;
   // Scale baselines for 9-hole rounds (database baselines are for 18 holes)
   const holeScaling = totalHoles / 18;
   const baselinePutts = baselinePutts18 * holeScaling;

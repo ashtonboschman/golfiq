@@ -37,6 +37,18 @@ export default function PricingPage() {
     }
   }, [searchParams]);
 
+  // Clear loading state when page becomes visible (handles iOS popup X button)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && loading !== null) {
+        setLoading(null);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [loading]);
+
   const handleSubscribe = async (priceId: string, interval: 'month' | 'year') => {
     setLoading(interval);
     setMessage(null);

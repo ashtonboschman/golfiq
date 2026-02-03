@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
+import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -28,11 +29,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
           include: {
             hole: true,
           },
-          orderBy: {
-            hole: {
-              holeNumber: 'asc',
-            },
-          },
+          orderBy: [
+            { pass: 'asc' },
+            { hole: { holeNumber: 'asc' } },
+          ] as any,
         },
         roundStrokesGained: true
       },
@@ -55,8 +55,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return 'E';
     };
 
+    // Resolve tee context
+    const teeSegment = (round.teeSegment ?? 'full') as TeeSegment;
+    const ctx = resolveTeeContext(round.tee, teeSegment);
+
     // Calculate statistics
-    const totalPar = round.tee.parTotal ?? 0;
+    const totalPar = ctx.parTotal;
     const scoreToPar = round.toPar ?? null;
     const netToPar = round.netToPar ?? null;
     const scoreToParFormatted = formatScoreToPar(scoreToPar);
@@ -79,6 +83,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // Hole-by-hole details (only for display purposes - totals come from Round table)
     const holeDetails = round.roundHoles.map((rh: any) => {
       const hole = rh.hole;
+      const isPass2 = rh.pass === 2;
+      const displayHoleNumber = isPass2 ? hole.holeNumber + 9 : hole.holeNumber;
+      const displayHandicap = isPass2 && hole.handicap != null ? hole.handicap + 9 : hole.handicap;
       const scoreDiff = rh.score - hole.par;
       const scoreDiffFormatted = formatScoreToPar(scoreDiff);
 
@@ -90,10 +97,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       }
 
       return {
-        hole_number: hole.holeNumber,
+        hole_number: displayHoleNumber,
         par: hole.par,
         yardage: hole.yardage,
-        handicap: hole.handicap,
+        handicap: displayHandicap,
         score: rh.score,
         score_to_par: scoreDiff,
         score_to_par_formatted: scoreDiffFormatted,
@@ -105,14 +112,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     });
 
     // Calculate percentages (only if advanced stats were tracked)
-    // Use the tee's hole count for totals
-    const totalHoles = round.tee.numberOfHoles ?? (round.tee.holes?.length || 0);
+    const totalHoles = ctx.holes;
     const girPercentage = hasAdvancedStats && totalGIR !== null && totalHoles > 0
       ? ((totalGIR / totalHoles) * 100).toFixed(1)
       : null;
 
-    // FIR only applies to par 4s and 5s - count from tee holes
-    const totalFIRHoles = round.tee.nonPar3Holes ?? round.tee.holes?.reduce((count, h) => (h.par !== 3 ? count + 1 : count), 0) ?? 0;
+    // FIR only applies to par 4s and 5s - use resolved context
+    const totalFIRHoles = ctx.nonPar3Holes;
     const firPercentage = hasAdvancedStats && totalFIR !== null && totalFIRHoles > 0
       ? ((totalFIR / totalFIRHoles) * 100).toFixed(1)
       : null;
@@ -151,10 +157,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const stats = {
       round_id: round.id.toString(),
       course_name: courseName,
-      number_of_holes: round.tee.numberOfHoles,
+      number_of_holes: ctx.holes,
       tee_name: round.tee.teeName,
-      course_rating: round.tee.courseRating ? Number(round.tee.courseRating) : null,
-      slope_rating: round.tee.slopeRating ?? null,
+      course_rating: ctx.courseRating,
+      slope_rating: ctx.slopeRating,
       date: round.date,
       total_score: round.score,
       total_par: totalPar,

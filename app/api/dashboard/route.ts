@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { normalizeRoundsByMode, calculateHandicap } from '@/lib/utils/handicap';
 import { isPremiumUser } from '@/lib/subscription';
+import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 
 export async function GET(request: NextRequest) {
   try {
@@ -129,17 +130,17 @@ export async function GET(request: NextRequest) {
     });
     const isPremium = user ? isPremiumUser(user) : false;
 
-    // Transform rounds to format expected by handicap utils
+    // Transform rounds to format expected by handicap utils via resolveTeeContext
     const allRoundsUncapped = rounds.map((r: any) => {
-      const firTotal = r.tee.nonPar3Holes ?? r.tee.holes.filter((h: any) => h.par !== 3).length;
-      const girTotal = r.tee.holes.length;
-      const par = r.tee.parTotal ?? 72;
-      const to_par = r.toPar ?? (r.score ? r.score - par : null);
+      const teeSegment = (r.teeSegment ?? 'full') as TeeSegment;
+      const ctx = resolveTeeContext(r.tee, teeSegment);
+      const to_par = r.toPar ?? (r.score ? r.score - ctx.parTotal : null);
 
       return {
         id: Number(r.id),
         date: r.date,
-        holes: r.tee.numberOfHoles ?? r.tee.holes.length ?? 18,
+        holes: ctx.holes,
+        number_of_holes: ctx.holes,
         score: r.score ?? 0,
         net_score: r.netScore,
         to_par,
@@ -147,11 +148,11 @@ export async function GET(request: NextRequest) {
         gir_hit: r.advancedStats ? r.girHit : null,
         putts: r.advancedStats ? r.putts : null,
         penalties: r.advancedStats ? r.penalties : null,
-        fir_total: firTotal,
-        gir_total: girTotal,
-        rating: Number(r.tee.courseRating) ?? 72,
-        slope: r.tee.slopeRating ?? 113,
-        par,
+        fir_total: ctx.nonPar3Holes,
+        gir_total: ctx.holes,
+        rating: ctx.courseRating,
+        slope: ctx.slopeRating,
+        par: ctx.parTotal,
         advanced_stats: r.advancedStats,
         hole_by_hole: r.holeByHole,
         tee: {

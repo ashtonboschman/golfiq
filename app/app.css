@@ -2429,7 +2429,7 @@ input[type='date'].form-input {
   gap: var(--gap);
 }
 
-.form-row input,
+.form-row input:not([class*="css-"]),
 .form-row select {
   background-color: var(--color-secondary-surface);
   border: 2px solid var(--color-border);
@@ -4997,12 +4997,19 @@ input[type='date'].form-input {
   animation: ptr-spin 0.8s linear infinite;
 }
 
-/* Disable react-select option hover/focus highlight on touch devices */
+/* Disable all react-select hover/focus highlights on touch devices */
 @media (hover: none) {
   [class*="-option"] {
     background-color: var(--color-secondary-surface) !important;
   }
   [class*="-option"][aria-selected="true"] {
     background-color: var(--color-primary-surface) !important;
+  }
+  [class*="-control"] {
+    border-color: var(--color-border) !important;
+    box-shadow: none !important;
+  }
+  [class*="-indicatorContainer"] {
+    color: var(--color-secondary-text) !important;
   }
 }

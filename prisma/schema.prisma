@@ -211,6 +211,8 @@ model Round {
   toPar                 Int?                   @map("to_par") @db.SmallInt
   netToPar              Int?                   @map("net_to_par") @db.SmallInt
   handicapAtRound       Decimal?               @map("handicap_at_round") @db.Decimal(4, 1)
+  teeSegment            String                 @default("full") @map("tee_segment")
+  holesPlayed           Int                    @default(18) @map("holes_played")
   roundHoles            RoundHole[]
   RoundInsight          RoundInsight?
   roundStrokesGained    RoundStrokesGained?
@@ -229,6 +231,7 @@ model RoundHole {
   id        BigInt   @id @default(autoincrement())
   roundId   BigInt   @map("round_id")
   holeId    BigInt   @map("hole_id")
+  pass      Int      @default(1) @map("pass") @db.SmallInt
   score     Int
   firHit    Int?     @map("fir_hit")
   girHit    Int?     @map("gir_hit")
@@ -239,7 +242,7 @@ model RoundHole {
   hole      Hole     @relation(fields: [holeId], references: [id], onDelete: Cascade)
   round     Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
-  @@unique([roundId, holeId], name: "unique_round_hole")
+  @@unique([roundId, holeId, pass], name: "unique_round_hole_pass")
   @@index([roundId], map: "idx_round_id")
   @@index([holeId], map: "idx_hole_id")
   @@map("round_holes")

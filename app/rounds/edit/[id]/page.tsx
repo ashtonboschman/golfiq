@@ -9,11 +9,33 @@ import { selectStyles } from '@/lib/selectStyles';
 import HoleCard from '@/components/HoleCard';
 import { getLocalDateString } from '@/lib/dateUtils';
 import { Plus } from 'lucide-react';
+import Select from 'react-select';
+import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSegment } from '@/lib/tee/resolveTeeContext';
+
+// Map API tee object (snake_case) to TeeForResolver (camelCase)
+function apiTeeToResolver(tee: any): TeeForResolver {
+  return {
+    numberOfHoles: tee.number_of_holes,
+    courseRating: tee.course_rating,
+    slopeRating: tee.slope_rating,
+    bogeyRating: tee.bogey_rating,
+    parTotal: tee.par_total,
+    nonPar3Holes: (tee.holes || []).filter((h: any) => h.par !== 3).length,
+    frontCourseRating: tee.front_course_rating,
+    frontSlopeRating: tee.front_slope_rating,
+    frontBogeyRating: tee.front_bogey_rating,
+    backCourseRating: tee.back_course_rating,
+    backSlopeRating: tee.back_slope_rating,
+    backBogeyRating: tee.back_bogey_rating,
+    holes: (tee.holes || []).map((h: any) => ({ holeNumber: h.hole_number, par: h.par })),
+  };
+}
 
 interface Round {
   date: string;
   course_id: string;
   tee_id: string;
+  tee_segment: TeeSegment;
   hole_by_hole: number;
   score: number | null;
   notes: string;
@@ -29,6 +51,7 @@ interface Round {
 interface HoleScore {
   hole_id: number;
   hole_number: number;
+  pass: number;
   par: number | null;
   score: number | null;
   fir_hit: number | null;
@@ -61,6 +84,7 @@ function EditRoundContent() {
     date: getLocalDateString(), // Use local timezone instead of UTC
     course_id: '',
     tee_id: '',
+    tee_segment: 'full',
     hole_by_hole: 0,
     score: null,
     notes: '',
@@ -71,6 +95,8 @@ function EditRoundContent() {
     round_holes: [],
     advanced_stats: 0,
   });
+
+  const [segmentOptions, setSegmentOptions] = useState<{ value: TeeSegment; label: string }[]>([]);
 
   const [tees, setTees] = useState<any[]>([]);
   const [holes, setHoles] = useState<any[]>([]);
@@ -83,6 +109,24 @@ function EditRoundContent() {
   const [expandedHole, setExpandedHole] = useState<number>(1);
   const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set());
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+
+  // Update segment options when a tee is selected
+  const updateSegmentOptions = (teeObj: any, currentSegment?: TeeSegment) => {
+    if (!teeObj) {
+      setSegmentOptions([]);
+      setRound(prev => ({ ...prev, tee_segment: 'full' }));
+      return;
+    }
+    const resolver = apiTeeToResolver(teeObj);
+    const segments = getValidTeeSegments(resolver);
+    setSegmentOptions(segments);
+    // Keep current segment if valid, otherwise default to 'full'
+    if (currentSegment && segments.some(s => s.value === currentSegment)) {
+      setRound(prev => ({ ...prev, tee_segment: currentSegment }));
+    } else {
+      setRound(prev => ({ ...prev, tee_segment: 'full' }));
+    }
+  };
 
   const isHBH = round.hole_by_hole === 1;
   const hasAdvanced = round.advanced_stats === 1;
@@ -134,22 +178,24 @@ function EditRoundContent() {
       ...round,
       course_id: Number(round.course_id),
       tee_id: Number(round.tee_id),
+      tee_segment: round.tee_segment,
     };
     if (isHBH) {
-      payload.round_holes = holeScores.map((h) => ({
+      payload.round_holes = filteredHoleScores.map((h) => ({
         hole_id: h.hole_id,
+        pass: h.pass,
         score: h.score,
         fir_hit: hasAdvanced ? h.fir_hit : null,
         gir_hit: hasAdvanced ? h.gir_hit : null,
         putts: hasAdvanced ? h.putts : null,
         penalties: hasAdvanced ? h.penalties : null,
       }));
-      payload.score = getTotalScore(holeScores);
+      payload.score = getTotalScore(filteredHoleScores);
 
       if (hasAdvanced) {
         ['fir_hit', 'gir_hit', 'putts', 'penalties'].forEach(
           (f) =>
-            (payload[f] = holeScores.reduce(
+            (payload[f] = filteredHoleScores.reduce(
               (s, h) => s + ((h[f as keyof HoleScore] as number) ?? 0),
               0
             ))
@@ -222,6 +268,7 @@ function EditRoundContent() {
           acc[genderKey].push({
             label: `${tee.tee_name} ${tee.total_yards ?? 0} yds (${tee.course_rating ?? 0}/${tee.slope_rating ?? 0}) ${tee.number_of_holes ?? 0} holes`,
             value: tee.id,
+            teeObj: tee,
           });
           return acc;
         }, {})
@@ -261,7 +308,7 @@ function EditRoundContent() {
     }
   };
 
-  const fetchHoles = async (teeId: number, existingRoundHoles: any[] = []) => {
+  const fetchHoles = async (teeId: number, existingRoundHoles: any[] = [], segment?: TeeSegment) => {
     if (!teeId) return [];
     try {
       const res = await fetch(`/api/tees/${teeId}/holes`);
@@ -270,19 +317,57 @@ function EditRoundContent() {
       const holesArray = data.holes || [];
       setHoles(holesArray);
 
-      const initScores = holesArray.map((hole: any) => {
-        const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id);
-        return {
-          hole_id: hole.id,
-          hole_number: hole.hole_number,
-          par: hole.par,
-          score: existing?.score ?? null,
-          fir_hit: existing?.fir_hit ?? null,
-          gir_hit: existing?.gir_hit ?? null,
-          putts: existing?.putts ?? null,
-          penalties: existing?.penalties ?? null,
-        };
-      });
+      let initScores: HoleScore[];
+
+      if (segment === 'double9') {
+        // Use only real holes 1-9 (filter out any legacy synthetic holes 10+)
+        const realHoles = holesArray.filter((h: any) => h.hole_number <= 9);
+        const pass1 = realHoles.map((hole: any) => {
+          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 1);
+          return {
+            hole_id: hole.id,
+            hole_number: hole.hole_number,
+            pass: 1,
+            par: hole.par,
+            score: existing?.score ?? null,
+            fir_hit: existing?.fir_hit ?? null,
+            gir_hit: existing?.gir_hit ?? null,
+            putts: existing?.putts ?? null,
+            penalties: existing?.penalties ?? null,
+          };
+        });
+        const pass2 = realHoles.map((hole: any) => {
+          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 2);
+          return {
+            hole_id: hole.id,
+            hole_number: hole.hole_number + 9,
+            pass: 2,
+            par: hole.par,
+            score: existing?.score ?? null,
+            fir_hit: existing?.fir_hit ?? null,
+            gir_hit: existing?.gir_hit ?? null,
+            putts: existing?.putts ?? null,
+            penalties: existing?.penalties ?? null,
+          };
+        });
+        initScores = [...pass1, ...pass2];
+      } else {
+        initScores = holesArray.map((hole: any) => {
+          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id);
+          return {
+            hole_id: hole.id,
+            hole_number: hole.hole_number,
+            pass: 1,
+            par: hole.par,
+            score: existing?.score ?? null,
+            fir_hit: existing?.fir_hit ?? null,
+            gir_hit: existing?.gir_hit ?? null,
+            putts: existing?.putts ?? null,
+            penalties: existing?.penalties ?? null,
+          };
+        });
+      }
+
       setHoleScores(initScores);
       return holesArray;
     } catch (err) {
@@ -303,10 +388,11 @@ function EditRoundContent() {
         const result = await res.json();
         const data = result.round;
 
-        const roundData = {
-          date: data.date?.split('T')[0] ?? getLocalDateString(), // Use local timezone instead of UTC
+        const roundData: Round = {
+          date: data.date?.split('T')[0] ?? getLocalDateString(),
           course_id: data.course_id?.toString() ?? '',
           tee_id: data.tee_id?.toString() ?? '',
+          tee_segment: data.tee_segment ?? 'full',
           hole_by_hole: data.hole_by_hole === 1 ? 1 : 0,
           score: data.score ?? null,
           notes: data.notes ?? '',
@@ -344,9 +430,10 @@ function EditRoundContent() {
                 value: foundTee.id,
                 teeObj: foundTee,
               });
+              updateSegmentOptions(foundTee, roundData.tee_segment);
 
               if (roundData.tee_id) {
-                await fetchHoles(Number(roundData.tee_id), roundData.round_holes || []);
+                await fetchHoles(Number(roundData.tee_id), roundData.round_holes || [], roundData.tee_segment);
               }
             }
           }
@@ -364,16 +451,43 @@ function EditRoundContent() {
     fetchRound();
   }, [id, status]);
 
-  // Calculate max FIR (non-par-3 holes) and max GIR (total holes) dynamically
+  // Calculate max FIR (non-par-3 holes) and max GIR (total holes) — segment-aware
   const maxFir = useMemo(() => {
-    if (holes.length === 0) return 14; // Default fallback
+    if (selectedTee?.teeObj) {
+      try {
+        const resolver = apiTeeToResolver(selectedTee.teeObj);
+        const ctx = resolveTeeContext(resolver, round.tee_segment);
+        return ctx.nonPar3Holes;
+      } catch { /* fall through */ }
+    }
+    if (holes.length === 0) return 14;
     return holes.filter((h: any) => h.par !== 3).length;
-  }, [holes]);
+  }, [holes, selectedTee, round.tee_segment]);
 
   const maxGir = useMemo(() => {
-    if (holes.length === 0) return 18; // Default fallback
+    if (selectedTee?.teeObj) {
+      try {
+        const resolver = apiTeeToResolver(selectedTee.teeObj);
+        const ctx = resolveTeeContext(resolver, round.tee_segment);
+        return ctx.holes;
+      } catch { /* fall through */ }
+    }
+    if (holes.length === 0) return 18;
     return holes.length;
-  }, [holes]);
+  }, [holes, selectedTee, round.tee_segment]);
+
+  // Filter holeScores based on current segment's holeRange
+  const filteredHoleScores = useMemo(() => {
+    if (!selectedTee?.teeObj || holeScores.length === 0) return holeScores;
+    try {
+      const resolver = apiTeeToResolver(selectedTee.teeObj);
+      const ctx = resolveTeeContext(resolver, round.tee_segment);
+      const holeRange = new Set(ctx.holeRange);
+      return holeScores.filter(hs => holeRange.has(hs.hole_number));
+    } catch {
+      return holeScores;
+    }
+  }, [holeScores, selectedTee, round.tee_segment]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -422,17 +536,14 @@ function EditRoundContent() {
     setExpandedHole((prev) => (prev === holeNumber ? -1 : holeNumber));
   };
 
-  const handleNext = (currentHoleIndex: number) => {
-    // Mark current hole as completed
-    const currentHoleNumber = holeScores[currentHoleIndex].hole_number;
+  const handleNext = (currentFilteredIndex: number) => {
+    const currentHoleNumber = filteredHoleScores[currentFilteredIndex].hole_number;
     setCompletedHoles((prev) => new Set(prev).add(currentHoleNumber));
 
-    // Auto-advance to next hole
-    if (currentHoleIndex < holeScores.length - 1) {
-      const nextHoleNumber = holeScores[currentHoleIndex + 1].hole_number;
+    if (currentFilteredIndex < filteredHoleScores.length - 1) {
+      const nextHoleNumber = filteredHoleScores[currentFilteredIndex + 1].hole_number;
       setExpandedHole(nextHoleNumber);
     } else {
-      // Last hole - collapse all (user can review totals)
       setExpandedHole(-1);
     }
   };
@@ -441,19 +552,55 @@ function EditRoundContent() {
     setRound((prev) => {
       const newHBH = prev.hole_by_hole === 1 ? 0 : 1;
       if (newHBH === 1) {
-        const fresh = holes.map((h: any) => {
-          const existing = holeScores.find((hs) => hs.hole_id === h.id);
-          return {
-            hole_id: h.id,
-            hole_number: h.hole_number,
-            par: h.par,
-            score: existing?.score ?? null,
-            fir_hit: existing?.fir_hit ?? null,
-            gir_hit: existing?.gir_hit ?? null,
-            putts: existing?.putts ?? null,
-            penalties: existing?.penalties ?? null,
-          };
-        });
+        let fresh: HoleScore[];
+        if (prev.tee_segment === 'double9') {
+          // Filter to real holes 1-9 only (exclude any synthetic holes 10+)
+          const realHoles = holes.filter((h: any) => h.hole_number <= 9);
+          const pass1 = realHoles.map((h: any) => {
+            const existing = holeScores.find((hs) => hs.hole_id === h.id && hs.pass === 1);
+            return {
+              hole_id: h.id,
+              hole_number: h.hole_number,
+              pass: 1,
+              par: h.par,
+              score: existing?.score ?? null,
+              fir_hit: existing?.fir_hit ?? null,
+              gir_hit: existing?.gir_hit ?? null,
+              putts: existing?.putts ?? null,
+              penalties: existing?.penalties ?? null,
+            };
+          });
+          const pass2 = realHoles.map((h: any) => {
+            const existing = holeScores.find((hs) => hs.hole_id === h.id && hs.pass === 2);
+            return {
+              hole_id: h.id,
+              hole_number: h.hole_number + 9,
+              pass: 2,
+              par: h.par,
+              score: existing?.score ?? null,
+              fir_hit: existing?.fir_hit ?? null,
+              gir_hit: existing?.gir_hit ?? null,
+              putts: existing?.putts ?? null,
+              penalties: existing?.penalties ?? null,
+            };
+          });
+          fresh = [...pass1, ...pass2];
+        } else {
+          fresh = holes.map((h: any) => {
+            const existing = holeScores.find((hs) => hs.hole_id === h.id);
+            return {
+              hole_id: h.id,
+              hole_number: h.hole_number,
+              pass: 1,
+              par: h.par,
+              score: existing?.score ?? null,
+              fir_hit: existing?.fir_hit ?? null,
+              gir_hit: existing?.gir_hit ?? null,
+              putts: existing?.putts ?? null,
+              penalties: existing?.penalties ?? null,
+            };
+          });
+        }
         setHoleScores(fresh);
         // Keep the current score when switching to HBH mode instead of nulling it
         return { ...prev, hole_by_hole: 1 };
@@ -480,7 +627,7 @@ function EditRoundContent() {
     }
 
     if (isHBH) {
-      const incomplete = holeScores.find((h) => h.score === null);
+      const incomplete = filteredHoleScores.find((h) => h.score === null);
       if (incomplete) {
         showMessage(`Please enter a score for hole ${incomplete.hole_number}.`, 'error');
         return;
@@ -517,7 +664,7 @@ function EditRoundContent() {
   const calculateTotals = () => {
     const totals = { score: 0, par: 0, fir_hit: 0, gir_hit: 0, putts: 0, penalties: 0 };
     let hasScore = false;
-    holeScores.forEach((h) => {
+    filteredHoleScores.forEach((h) => {
       if (h.score !== null) {
         totals.score += h.score;
         hasScore = true;
@@ -548,13 +695,14 @@ function EditRoundContent() {
 
     return (
       <div>
-        {holeScores.map((h, idx) => {
+        {filteredHoleScores.map((h, filteredIdx) => {
+          const actualIdx = holeScores.findIndex(hs => hs.hole_id === h.hole_id && hs.pass === h.pass);
           const isExpanded = expandedHole === h.hole_number;
           const isCompleted = completedHoles.has(h.hole_number);
 
           return (
             <div
-              key={h.hole_id}
+              key={`${h.hole_id}-${h.pass}`}
               ref={(el) => {
                 holeCardRefs.current[h.hole_number] = el;
               }}
@@ -570,15 +718,15 @@ function EditRoundContent() {
                 hasAdvanced={hasAdvanced}
                 isExpanded={isExpanded}
                 isCompleted={isCompleted}
-                onChange={(_, field, value) => handleHoleScoreChange(idx, field, value)}
+                onChange={(_, field, value) => handleHoleScoreChange(actualIdx, field, value)}
                 onToggleExpand={handleToggleExpand}
-                onNext={() => handleNext(idx)}
+                onNext={() => handleNext(filteredIdx)}
               />
             </div>
           );
         })}
 
-        {holeScores.length > 0 && (
+        {filteredHoleScores.length > 0 && (
           <div className="card hole-card-total">
             <div className="hole-header">Totals</div>
             <div className="hole-card-grid">
@@ -682,6 +830,7 @@ function EditRoundContent() {
                 setSelectedTee(option);
                 const teeId = option?.value ?? '';
                 setRound((prev) => ({ ...prev, tee_id: teeId.toString() }));
+                updateSegmentOptions(option?.teeObj);
 
                 if (teeId) {
                   const holesData = await fetchHoles(teeId, round.round_holes);
@@ -696,6 +845,38 @@ function EditRoundContent() {
               styles={selectStyles}
             />
           </div>
+
+          {segmentOptions.length > 1 && (
+            <div className="form-row">
+              <label className="form-label">Round Type</label>
+              <Select
+                value={segmentOptions.find(o => o.value === round.tee_segment) || segmentOptions[0]}
+                options={segmentOptions}
+                onChange={async (option: any) => {
+                  if (option) {
+                    const newSegment = option.value as TeeSegment;
+                    if (selectedTee?.teeObj) {
+                      try {
+                        const resolver = apiTeeToResolver(selectedTee.teeObj);
+                        const ctx = resolveTeeContext(resolver, newSegment);
+                        setRound(prev => ({ ...prev, tee_segment: newSegment, par_total: ctx.parTotal }));
+                      } catch {
+                        setRound(prev => ({ ...prev, tee_segment: newSegment }));
+                      }
+                    } else {
+                      setRound(prev => ({ ...prev, tee_segment: newSegment }));
+                    }
+                    // Re-fetch holes (double9 duplicates client-side)
+                    if (round.tee_id) {
+                      await fetchHoles(Number(round.tee_id), [], newSegment);
+                    }
+                  }
+                }}
+                styles={selectStyles}
+                isSearchable={false}
+              />
+            </div>
+          )}
 
           {initialized && (
             <>

@@ -1,6 +1,7 @@
 // app/lib/utils/leaderboard.ts
 import { prisma } from '@/lib/db';
 import { normalizeRoundsByMode, calculateHandicap } from './handicap';
+import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 
 export async function recalcLeaderboard(userId: bigint): Promise<void> {
   // Fetch all rounds for the user
@@ -14,12 +15,22 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
       putts: true,
       penalties: true,
       date: true,
+      teeSegment: true,
       tee: {
         select: {
           numberOfHoles: true,
           courseRating: true,
           slopeRating: true,
+          bogeyRating: true,
           parTotal: true,
+          nonPar3Holes: true,
+          frontCourseRating: true,
+          frontSlopeRating: true,
+          frontBogeyRating: true,
+          backCourseRating: true,
+          backSlopeRating: true,
+          backBogeyRating: true,
+          holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' as const } },
         },
       },
     },
@@ -51,21 +62,22 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
     return;
   }
 
-  // Map rounds to format expected by handicap utils
+  // Map rounds to format expected by handicap utils via resolveTeeContext
   const roundsWithHoles = rounds.map((r: any) => {
-    const par = r.tee.parTotal ?? 72;
-    const to_par = r.toPar ?? (r.score ? r.score - par : null);
+    const teeSegment = (r.teeSegment ?? 'full') as TeeSegment;
+    const ctx = resolveTeeContext(r.tee, teeSegment);
+    const to_par = r.toPar ?? (r.score ? r.score - ctx.parTotal : null);
     return {
-      holes: r.tee.numberOfHoles ?? 18,
+      holes: ctx.holes,
       score: r.score,
       to_par,
-      rating: r.tee.courseRating ? Number(r.tee.courseRating) : 72,
-      slope: r.tee.slopeRating ?? 113,
-      par,
+      rating: ctx.courseRating,
+      slope: ctx.slopeRating,
+      par: ctx.parTotal,
       fir_hit: r.firHit,
-      fir_total: 14, // Typical FIR holes
+      fir_total: ctx.nonPar3Holes,
       gir_hit: r.girHit,
-      gir_total: 18,
+      gir_total: ctx.holes,
       putts: r.putts,
       penalties: r.penalties,
     };

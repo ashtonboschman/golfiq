@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { canUserExport, recordDataExport } from '@/lib/utils/dataExport';
+import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 
 /**
  * Export user's rounds data
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
             location: true,
           },
         },
-        tee: true,
+        tee: { include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } },
         roundHoles: {
           include: {
             hole: true,
@@ -50,30 +51,35 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
-    // Transform data for export
-    const exportData = rounds.map((round: any) => ({
-      id: Number(round.id),
-      date: round.date.toISOString().split('T')[0],
-      course_name: round.course.courseName,
-      club_name: round.course.clubName,
-      city: round.course.location?.city || '',
-      state: round.course.location?.state || '',
-      tee_name: round.tee.teeName,
-      tee_gender: round.tee.gender,
-      tee_rating: round.tee.courseRating ? Number(round.tee.courseRating) : null,
-      tee_slope: round.tee.slopeRating || null,
-      tee_par: round.tee.parTotal || null,
-      holes_played: round.tee.numberOfHoles || 18,
-      score: round.score,
-      hole_by_hole: round.holeByHole,
-      advanced_stats: round.advancedStats,
-      fir_hit: round.firHit,
-      gir_hit: round.girHit,
-      putts: round.putts,
-      penalties: round.penalties,
-      notes: round.notes || '',
-      created_at: round.createdAt.toISOString(),
-    }));
+    // Transform data for export via resolveTeeContext
+    const exportData = rounds.map((round: any) => {
+      const teeSegment = (round.teeSegment ?? 'full') as TeeSegment;
+      const ctx = resolveTeeContext(round.tee, teeSegment);
+      return {
+        id: Number(round.id),
+        date: round.date.toISOString().split('T')[0],
+        course_name: round.course.courseName,
+        club_name: round.course.clubName,
+        city: round.course.location?.city || '',
+        state: round.course.location?.state || '',
+        tee_name: round.tee.teeName,
+        tee_gender: round.tee.gender,
+        tee_rating: ctx.courseRating,
+        tee_slope: ctx.slopeRating,
+        tee_par: ctx.parTotal,
+        holes_played: ctx.holes,
+        tee_segment: teeSegment,
+        score: round.score,
+        hole_by_hole: round.holeByHole,
+        advanced_stats: round.advancedStats,
+        fir_hit: round.firHit,
+        gir_hit: round.girHit,
+        putts: round.putts,
+        penalties: round.penalties,
+        notes: round.notes || '',
+        created_at: round.createdAt.toISOString(),
+      };
+    });
 
     // Record the export
     await recordDataExport({

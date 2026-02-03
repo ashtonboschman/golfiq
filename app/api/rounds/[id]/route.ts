@@ -5,6 +5,7 @@ import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { calculateNetScore } from '@/lib/utils/handicap';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
+import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { z } from 'zod';
 
 // Helper to format round data
@@ -15,8 +16,12 @@ type RoundWithRelations = {
   teeId: bigint;
   holeByHole: boolean;
   advancedStats: boolean;
+  holesPlayed: number;
+  toPar: number | null;
+  teeSegment: string;
   date: Date;
   score: number;
+  netScore: number | null;
   firHit: number | null;
   girHit: number | null;
   putts: number | null;
@@ -67,8 +72,10 @@ function formatRoundRow(round: RoundWithRelations) {
       id: Number(round.teeId),
       tee_name: round.tee?.teeName || null,
       gender: round.tee?.gender || null,
-      par_total: round.tee?.parTotal ?? null,
-      number_of_holes: round.tee?.numberOfHoles ?? null,
+      par_total: (round.toPar !== null && round.score !== null)
+        ? round.score - round.toPar
+        : round.tee?.parTotal ?? null,
+      number_of_holes: round.holesPlayed ?? round.tee?.numberOfHoles ?? null,
     },
     location: {
       city: round.course?.location?.city || '-',
@@ -109,9 +116,10 @@ export async function GET(
 
     const formatted = formatRoundRow(round);
 
-    // Include hole-by-hole data if applicable
-    const response: ReturnType<typeof formatRoundRow> & { round_holes: Array<{
+    // Include hole-by-hole data and tee_segment if applicable
+    const response: ReturnType<typeof formatRoundRow> & { tee_segment: string; round_holes: Array<{
       hole_id: number;
+      pass: number;
       score: number | null;
       fir_hit: number | null;
       gir_hit: number | null;
@@ -119,17 +127,19 @@ export async function GET(
       penalties: number | null;
     }> } = {
       ...formatted,
+      tee_segment: (round as any).teeSegment ?? 'full',
       round_holes: [],
     };
 
     if (round.holeByHole) {
       const holes = await prisma.roundHole.findMany({
         where: { roundId },
-        orderBy: { holeId: 'asc' },
+        orderBy: [{ pass: 'asc' }, { holeId: 'asc' }],
       });
 
       response.round_holes = holes.map((h: any) => ({
         hole_id: Number(h.holeId),
+        pass: h.pass,
         score: h.score,
         fir_hit: h.firHit,
         gir_hit: h.girHit,
@@ -166,10 +176,12 @@ const updateRoundSchema = z.object({
   putts: z.number().nullable().optional(),
   penalties: z.number().nullable().optional(),
   notes: z.string().optional().default(''),
+  tee_segment: z.enum(['full', 'front9', 'back9', 'double9']).optional().default('full'),
   hole_by_hole: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
   advanced_stats: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
   round_holes: z.array(z.object({
     hole_id: z.union([z.string(), z.number()]),
+    pass: z.number().optional().default(1),
     score: z.number().nullable(),
     fir_hit: z.number().nullable().optional(),
     gir_hit: z.number().nullable().optional(),
@@ -227,12 +239,24 @@ export async function PUT(
       existingDate.getUTCMilliseconds()
     ));
 
+    // Fetch tee for resolveTeeContext
+    const teeForCtx = await prisma.tee.findUnique({
+      where: { id: teeId },
+      include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } },
+    });
+    if (!teeForCtx) return errorResponse('Tee not found', 404);
+
+    const teeSegment = data.tee_segment as TeeSegment;
+    const ctx = resolveTeeContext(teeForCtx, teeSegment);
+
     // Update round (initial update without netScore/netToPar)
     await prisma.round.update({
       where: { id: roundId },
       data: {
         courseId,
         teeId,
+        teeSegment,
+        holesPlayed: ctx.holes,
         date: updatedAt,
         holeByHole: data.hole_by_hole,
         advancedStats: data.advanced_stats,
@@ -246,21 +270,11 @@ export async function PUT(
     });
 
     if (!data.hole_by_hole) {
-      const tee = await prisma.tee.findUnique({
-        where: { id: teeId },
-        select: { parTotal: true },
+      const toPar = updateScore - ctx.parTotal;
+      await prisma.round.update({
+        where: { id: roundId },
+        data: { toPar },
       });
-      
-      if(tee) {
-        const toPar =
-          tee?.parTotal !== null && updateScore !== null
-            ? updateScore - tee.parTotal
-            : null;
-            await prisma.round.update({
-          where: { id: roundId },
-          data: { toPar },
-        });
-      }      
     }
 
     // Handle hole-by-hole data
@@ -274,6 +288,7 @@ export async function PUT(
           data: data.round_holes.map(h => ({
             roundId,
             holeId: BigInt(h.hole_id),
+            pass: h.pass ?? 1,
             score: h.score ?? 0,
             firHit: data.advanced_stats ? h.fir_hit ?? null : null,
             girHit: data.advanced_stats ? h.gir_hit ?? null : null,
@@ -287,42 +302,24 @@ export async function PUT(
       await recalcRoundTotals(roundId, data.advanced_stats);
     }
 
-    // Fetch tee info (needed for net score calculation)
-    const tee = await prisma.tee.findUnique({
-      where: { id: teeId },
-      select: { parTotal: true, courseRating: true, slopeRating: true },
-    });
-
     // Fetch updated round totals (after recalcRoundTotals if hole-by-hole)
     const updatedRound = await prisma.round.findUnique({
       where: { id: roundId },
       select: { score: true, teeId: true, handicapAtRound: true },
     });
 
-    // Recalculate netScore/netToPar using handicapAtRound (do NOT update handicapAtRound itself)
-    let netScore: number | null = null;
-    let netToPar: number | null = null;
-
-    if (
-      updatedRound?.score !== null &&
-      updatedRound?.handicapAtRound !== null &&
-      tee?.parTotal &&
-      tee?.courseRating &&
-      tee?.slopeRating
-    ) {
-      const result = calculateNetScore(
+    // Recalculate netScore/netToPar using handicapAtRound and resolved tee context
+    if (updatedRound?.score !== null) {
+      const netResult = calculateNetScore(
         Number(updatedRound?.score),
-        Number(updatedRound?.handicapAtRound),
-        tee.parTotal,
-        Number(tee.courseRating),
-        tee.slopeRating
+        updatedRound?.handicapAtRound !== null && updatedRound?.handicapAtRound !== undefined
+          ? Number(updatedRound.handicapAtRound) : null,
+        ctx
       );
-      netScore = result.netScore;
-      netToPar = result.netToPar;
 
       await prisma.round.update({
         where: { id: roundId },
-        data: { netScore, netToPar },
+        data: { netScore: netResult.netScore, netToPar: netResult.netToPar },
       });
     }
 
@@ -420,18 +417,18 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 
   const totalScore = holes.reduce((sum: any, h: any) => sum + h.score, 0);
 
-  // Get round's tee to calculate toPar
+  // Get round's tee to calculate toPar via resolveTeeContext
   const round = await prisma.round.findUnique({
     where: { id: roundId },
     select: {
-      teeId: true,
-      tee: {
-        select: { parTotal: true },
-      },
+      teeSegment: true,
+      tee: { include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } },
     },
   });
 
-  const toPar = round?.tee?.parTotal != null ? totalScore - round.tee.parTotal : null;
+  const segment = (round?.teeSegment ?? 'full') as TeeSegment;
+  const teeCtx = round?.tee ? resolveTeeContext(round.tee, segment) : null;
+  const toPar = teeCtx ? totalScore - teeCtx.parTotal : null;
 
   const totals: {
     score: number;

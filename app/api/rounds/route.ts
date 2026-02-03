@@ -5,6 +5,7 @@ import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { calculateNetScore } from '@/lib/utils/handicap';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
+import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { z } from 'zod';
 
 // Helper to format round data
@@ -15,6 +16,9 @@ type RoundWithRelations = {
   teeId: bigint;
   holeByHole: boolean;
   advancedStats: boolean;
+  holesPlayed: number;
+  toPar: number | null;
+  teeSegment: string;
   date: Date;
   score: number;
   netScore: number | null,
@@ -69,8 +73,10 @@ function formatRoundRow(round: RoundWithRelations) {
       id: Number(round.teeId),
       tee_name: round.tee?.teeName || null,
       gender: round.tee?.gender || null,
-      par_total: round.tee?.parTotal ?? null,
-      number_of_holes: round.tee?.numberOfHoles ?? null,
+      par_total: (round.toPar !== null && round.score !== null)
+        ? round.score - round.toPar
+        : round.tee?.parTotal ?? null,
+      number_of_holes: round.holesPlayed ?? round.tee?.numberOfHoles ?? null,
     },
     location: {
       city: round.course?.location?.city || '-',
@@ -162,10 +168,12 @@ const createRoundSchema = z.object({
   putts: z.number().nullable().optional(),
   penalties: z.number().nullable().optional(),
   notes: z.string().optional().default(''),
+  tee_segment: z.enum(['full', 'front9', 'back9', 'double9']).optional().default('full'),
   hole_by_hole: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
   advanced_stats: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
   round_holes: z.array(z.object({
     hole_id: z.union([z.string(), z.number()]),
+    pass: z.number().optional().default(1),
     score: z.number().nullable(),
     fir_hit: z.number().nullable().optional(),
     gir_hit: z.number().nullable().optional(),
@@ -214,44 +222,32 @@ export async function POST(request: NextRequest) {
       now.getUTCMilliseconds()
     ));
 
-    // Get tee's par_total to calculate toPar
+    // Get tee with all fields needed for resolveTeeContext
     const tee = await prisma.tee.findUnique({
       where: { id: teeId },
-      select: { 
-        parTotal: true, 
-        numberOfHoles: true,
-        courseRating: true,
-        slopeRating: true,
-      },
+      include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } },
     });
 
-    const toPar = tee?.parTotal ? insertScore - tee.parTotal : null;
+    if (!tee) {
+      return errorResponse('Tee not found', 404);
+    }
+
+    const teeSegment = data.tee_segment as TeeSegment;
+    const ctx = resolveTeeContext(tee, teeSegment);
+    const toPar = insertScore - ctx.parTotal;
 
     const userStats = await prisma.userLeaderboardStats.findUnique({
       where: { userId },
       select: { handicap: true },
     });
 
-    let netScore: number | null = null;
-    let netToPar: number | null = null;
-
-    if (
-      insertScore !== null &&
-      userStats?.handicap !== null &&
-      tee?.parTotal &&
-      tee?.courseRating &&
-      tee?.slopeRating
-    ) {
-      const result = calculateNetScore(
-        insertScore,
-        Number(userStats?.handicap),
-        tee.parTotal,
-        Number(tee.courseRating),
-        tee.slopeRating
-      );
-      netScore = result.netScore;
-      netToPar = result.netToPar;
-    }
+    const netResult = calculateNetScore(
+      insertScore,
+      userStats?.handicap !== undefined ? Number(userStats?.handicap) : null,
+      ctx
+    );
+    const netScore = netResult.netScore;
+    const netToPar = netResult.netToPar;
     
     // Create round
     const round = await prisma.round.create({
@@ -259,6 +255,8 @@ export async function POST(request: NextRequest) {
         userId,
         courseId,
         teeId,
+        teeSegment,
+        holesPlayed: ctx.holes,
         holeByHole: data.hole_by_hole,
         advancedStats: data.advanced_stats,
         date: roundDate,
@@ -283,6 +281,7 @@ export async function POST(request: NextRequest) {
         data: data.round_holes.map((h: any) => ({
           roundId,
           holeId: BigInt(h.hole_id),
+          pass: h.pass ?? 1,
           score: h.score ?? 0,
           firHit: data.advanced_stats ? h.fir_hit ?? null : null,
           girHit: data.advanced_stats ? h.gir_hit ?? null : null,
@@ -356,7 +355,8 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
     where: { id: roundId },
     select: {
       teeId: true,
-      tee: { select: { parTotal: true, courseRating: true, slopeRating: true } },
+      teeSegment: true,
+      tee: { include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } },
       userId: true,
     },
   });
@@ -370,27 +370,23 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 
   const totalScore = holes.reduce((sum, h) => sum + h.score, 0);
 
+  const segment = (round.teeSegment ?? 'full') as TeeSegment;
+  const ctx = resolveTeeContext(round.tee, segment);
+
   const userStats = await prisma.userLeaderboardStats.findUnique({
     where: { userId: round.userId },
     select: { handicap: true },
   });
 
-  let netScore: number | null = null;
-  let netToPar: number | null = null;
+  const netResult = calculateNetScore(
+    totalScore,
+    userStats?.handicap !== undefined ? Number(userStats?.handicap) : null,
+    ctx
+  );
+  const netScore = netResult.netScore;
+  const netToPar = netResult.netToPar;
 
-  if (userStats?.handicap !== null && round.tee?.parTotal && round.tee?.courseRating && round.tee?.slopeRating) {
-    const result = calculateNetScore(
-      totalScore,
-      Number(userStats?.handicap),
-      round.tee.parTotal,
-      Number(round.tee.courseRating),
-      round.tee.slopeRating
-    );
-    netScore = result.netScore;
-    netToPar = result.netToPar;
-  }
-
-  const toPar = round.tee?.parTotal ? totalScore - round.tee.parTotal : null;
+  const toPar = totalScore - ctx.parTotal;
 
   const totals: {
     score: number;

@@ -10,9 +10,10 @@ export async function GET(
   try {
     await requireAuth(request);
     const { id } = await params;
+    const teeId = BigInt(id);
 
     const holes = await prisma.hole.findMany({
-      where: { teeId: BigInt(id) },
+      where: { teeId },
       orderBy: { holeNumber: 'asc' },
     });
 

@@ -61,6 +61,10 @@ export const selectStyles = {
       backgroundColor: 'var(--color-primary-surface)',
     },
   }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: '0 8px',
+  }),
   singleValue: (base: any) => ({
     ...base,
     color: 'var(--color-secondary-text)',

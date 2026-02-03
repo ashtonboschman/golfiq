@@ -1,9 +1,11 @@
 // Handicap calculation utilities
+import type { ResolvedTeeContext } from '@/lib/tee/resolveTeeContext';
 
 type Round = {
   holes: number;
   score: number;
   to_par?: number | null;
+  net_score?: number | null;
   rating: number;
   slope: number;
   fir_hit?: number | null;
@@ -48,11 +50,13 @@ export function normalizeRoundsByMode<T extends Round>(
   return rounds.map(r => {
     if (r.holes === 9) {
       const doubled_to_par = r.to_par != null ? r.to_par * 2 : null;
+      const doubled_net_score = r.net_score != null ? r.net_score * 2 : null;
       return {
         ...r,
         holes: 18,
         score: r.score * 2,
         to_par: doubled_to_par,
+        net_score: doubled_net_score,
         fir_hit: r.fir_hit != null ? r.fir_hit * 2 : null,
         fir_total: r.fir_total * 2,
         gir_hit: r.gir_hit != null ? r.gir_hit * 2 : null,
@@ -94,13 +98,41 @@ export function calculateHandicap(rounds: Round[]): number | null {
   return Math.min(Math.round(handicap * 10) / 10, 54.0);
 }
 
+/**
+ * Calculate net score using resolved tee context.
+ * Uses the generalized course handicap formula:
+ *   courseHandicap = handicapIndex * (slopeRating / 113) * (holes / 18) + (courseRating - parTotal)
+ */
 export function calculateNetScore(
+  grossScore: number,
+  handicapIndex: number | null,
+  ctx: ResolvedTeeContext
+): { netScore: number | null; netToPar: number | null } {
+  if (handicapIndex === null) {
+    return { netScore: null, netToPar: null };
+  }
+
+  const courseHandicap = Math.round(
+    handicapIndex * (ctx.slopeRating / 113) * (ctx.holes / 18) + (ctx.courseRating - ctx.parTotal)
+  );
+
+  const netScore = grossScore - courseHandicap;
+  const netToPar = netScore - ctx.parTotal;
+
+  return { netScore, netToPar };
+}
+
+/**
+ * @deprecated Use calculateNetScore(grossScore, handicapIndex, ctx) instead.
+ * Legacy signature kept temporarily for migration.
+ */
+export function calculateNetScoreLegacy(
   grossScore: number,
   handicapIndex: number | null,
   parTotal: number | null,
   courseRating: number | null,
   slopeRating: number | null
-) {
+): { netScore: number | null; netToPar: number | null } {
   if (
     handicapIndex === null ||
     parTotal === null ||
@@ -119,4 +151,3 @@ export function calculateNetScore(
 
   return { netScore, netToPar };
 }
-

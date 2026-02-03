@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -221,7 +222,7 @@ export async function generateInsights(roundId: bigint, userId: bigint) {
 async function generateInsightsInternal(roundId: bigint, userId: bigint) {
   const round = await prisma.round.findUnique({
     where: { id: roundId },
-    include: { tee: { include: { course: { include: { location: true } } } } },
+    include: { tee: { include: { course: { include: { location: true } }, holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } } },
   });
 
   if (!round) throw new Error('Round not found');
@@ -241,12 +242,14 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
     where: { userId, id: { not: roundId } },
     orderBy: { date: 'desc' },
     take: 5,
-    include: { tee: true },
+    include: { tee: { include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } } },
   });
 
   // ---- Calculate historical averages (normalized per hole, scaled to current round) ----
 
-  const currentHolesPlayed = round.tee.numberOfHoles || 18;
+  const currentTeeSegment = ((round as any).teeSegment ?? 'full') as TeeSegment;
+  const currentCtx = resolveTeeContext(round.tee, currentTeeSegment);
+  const currentHolesPlayed = currentCtx.holes;
 
   let avgScore: number | null = null;
   let avgToPar: number | null = null;
@@ -261,42 +264,44 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
   let avgSgPenalties: number | null = null;
   let avgSgResidual: number | null = null;
 
+  // Pre-resolve tee contexts for historical rounds
+  const last5Contexts = last5Rounds.map(r => {
+    const seg = ((r as any).teeSegment ?? 'full') as TeeSegment;
+    return resolveTeeContext(r.tee, seg);
+  });
+
   if (last5Rounds.length) {
-    const avgScorePerHole = last5Rounds.reduce((sum, r) => {
-      const holes = r.tee.numberOfHoles || 18;
-      return sum + (r.score / holes);
+    const avgScorePerHole = last5Rounds.reduce((sum, r, i) => {
+      return sum + (r.score / last5Contexts[i].holes);
     }, 0) / last5Rounds.length;
     avgScore = avgScorePerHole * currentHolesPlayed;
 
-    const avgToParPerHole = last5Rounds.reduce((sum, r) => {
-      const holes = r.tee.numberOfHoles || 18;
-      const toPar = r.score - (r.tee.parTotal || 72);
-      return sum + (toPar / holes);
+    const avgToParPerHole = last5Rounds.reduce((sum, r, i) => {
+      const toPar = r.score - last5Contexts[i].parTotal;
+      return sum + (toPar / last5Contexts[i].holes);
     }, 0) / last5Rounds.length;
     avgToPar = avgToParPerHole * currentHolesPlayed;
 
-    const roundsWithFir = last5Rounds.filter((r) => r.firHit !== null && r.tee.nonPar3Holes);
+    const roundsWithFir = last5Rounds.map((r, i) => ({ r, ctx: last5Contexts[i] })).filter(({ r, ctx }) => r.firHit !== null && ctx.nonPar3Holes > 0);
     if (roundsWithFir.length)
-      avgFirPct = roundsWithFir.reduce((sum, r) => sum + ((r.firHit || 0) / (r.tee.nonPar3Holes || 14)) * 100, 0) / roundsWithFir.length;
+      avgFirPct = roundsWithFir.reduce((sum, { r, ctx }) => sum + ((r.firHit || 0) / ctx.nonPar3Holes) * 100, 0) / roundsWithFir.length;
 
-    const roundsWithGir = last5Rounds.filter((r) => r.girHit !== null && r.tee.numberOfHoles);
+    const roundsWithGir = last5Rounds.map((r, i) => ({ r, ctx: last5Contexts[i] })).filter(({ r, ctx }) => r.girHit !== null && ctx.holes > 0);
     if (roundsWithGir.length)
-      avgGirPct = roundsWithGir.reduce((sum, r) => sum + ((r.girHit || 0) / (r.tee.numberOfHoles || 18)) * 100, 0) / roundsWithGir.length;
+      avgGirPct = roundsWithGir.reduce((sum, { r, ctx }) => sum + ((r.girHit || 0) / ctx.holes) * 100, 0) / roundsWithGir.length;
 
-    const roundsWithPutts = last5Rounds.filter((r) => r.putts !== null && r.tee.numberOfHoles);
+    const roundsWithPutts = last5Rounds.map((r, i) => ({ r, ctx: last5Contexts[i] })).filter(({ r }) => r.putts !== null);
     if (roundsWithPutts.length) {
-      const avgPuttsPerHole = roundsWithPutts.reduce((sum, r) => {
-        const holes = r.tee.numberOfHoles || 18;
-        return sum + ((r.putts || 0) / holes);
+      const avgPuttsPerHole = roundsWithPutts.reduce((sum, { r, ctx }) => {
+        return sum + ((r.putts || 0) / ctx.holes);
       }, 0) / roundsWithPutts.length;
       avgPutts = avgPuttsPerHole * currentHolesPlayed;
     }
 
-    const roundsWithPenalties = last5Rounds.filter((r) => r.penalties !== null && r.tee.numberOfHoles);
+    const roundsWithPenalties = last5Rounds.map((r, i) => ({ r, ctx: last5Contexts[i] })).filter(({ r }) => r.penalties !== null);
     if (roundsWithPenalties.length) {
-      const avgPenaltiesPerHole = roundsWithPenalties.reduce((sum, r) => {
-        const holes = r.tee.numberOfHoles || 18;
-        return sum + ((r.penalties || 0) / holes);
+      const avgPenaltiesPerHole = roundsWithPenalties.reduce((sum, { r, ctx }) => {
+        return sum + ((r.penalties || 0) / ctx.holes);
       }, 0) / roundsWithPenalties.length;
       avgPenalties = avgPenaltiesPerHole * currentHolesPlayed;
     }
@@ -305,7 +310,7 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
       where: { roundId: { in: last5Rounds.map(r => r.id) } },
     });
 
-    const roundHolesMap = new Map<bigint, number>(last5Rounds.map(r => [r.id, r.tee.numberOfHoles || 18]));
+    const roundHolesMap = new Map<bigint, number>(last5Rounds.map((r, i) => [r.id, last5Contexts[i].holes]));
     const validSgResults = last5SGs.filter((sg) => sg && sg.sgTotal !== null);
 
     if (validSgResults.length) {
@@ -357,13 +362,13 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
 
   // ---- Course difficulty context ----
 
-  const courseRating = round.tee.courseRating ? Number(round.tee.courseRating) : null;
-  const slopeRating = round.tee.slopeRating ?? null;
+  const courseRating = currentCtx.courseRating;
+  const slopeRating = currentCtx.slopeRating;
   const mentionCourseDifficulty = (courseRating != null && courseRating > 73) || (slopeRating != null && slopeRating > 130);
 
   // ---- Build payload for the LLM ----
 
-  const toPar = round.score - (round.tee.parTotal || 72);
+  const toPar = round.score - currentCtx.parTotal;
   const totalSG = strokesGainedPayload.total ?? null;
 
   const payload = {
@@ -372,11 +377,11 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
       to_par: toPar,
       handicap_at_round: round.handicapAtRound ? Number(round.handicapAtRound) : null,
       course: {
-        par: round.tee.parTotal || 72,
+        par: currentCtx.parTotal,
         rating: courseRating,
         slope: slopeRating,
         holes_played: currentHolesPlayed,
-        non_par3_holes: round.tee.nonPar3Holes || 14,
+        non_par3_holes: currentCtx.nonPar3Holes,
       },
       stats: {
         fir_hit: round.firHit,

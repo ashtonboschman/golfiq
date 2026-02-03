@@ -89,9 +89,17 @@ const HoleCard = memo(({
     } else if (field === 'putts' && currentValue === null) {
       // Wake-up logic for putts: first + goes to 2, first - goes to 1
       newValue = delta > 0 ? 2 : 1;
+    } else if (field === 'putts' && currentValue === 0 && delta < 0) {
+      // Allow minus at 0 to return to null
+      setValue(null);
+      return;
     } else if (field === 'penalties' && currentValue === null) {
       // Wake-up logic for penalties: goes to 0 then can increment/decrement
       newValue = Math.max(0, delta);
+    } else if (field === 'penalties' && currentValue === 0 && delta < 0) {
+      // Allow minus at 0 to return to null
+      setValue(null);
+      return;
     } else if (currentValue === null) {
       newValue = Math.max(0, delta);
     } else {
@@ -195,7 +203,6 @@ const HoleCard = memo(({
                     type="button"
                     className="stepper-btn stepper-minus"
                     onClick={() => handleStepperChange('putts', -1)}
-                    disabled={localPutts !== null && localPutts <= 0}
                   >
                     –
                   </button>
@@ -219,7 +226,6 @@ const HoleCard = memo(({
                     type="button"
                     className="stepper-btn stepper-minus"
                     onClick={() => handleStepperChange('penalties', -1)}
-                    disabled={localPenalties !== null && localPenalties <= 0}
                   >
                     –
                   </button>
