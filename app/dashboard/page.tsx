@@ -629,12 +629,12 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       <div className="dashboard-filters">
         <Select
-          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9-Hole Only' : '18-Hole Only' }}
+          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Hole' : '18 Hole' }}
           onChange={(option) => option && setStatsMode(option.value)}
           options={[
             { value: 'combined', label: 'Combined' },
-            { value: '9', label: '9-Hole Only' },
-            { value: '18', label: '18-Hole Only' },
+            { value: '9', label: '9 Hole' },
+            { value: '18', label: '18 Hole' },
           ]}
           isSearchable={false}
           styles={selectStyles}
@@ -677,7 +677,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
         />
       </div>
       {statsMode === 'combined' && (
-        <p className="combined-note">9-hole rounds are doubled to approximate 18-hole stats.</p>
+        <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
 
       {/* Premium upgrade CTA for limited users */}
