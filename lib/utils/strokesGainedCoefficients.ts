@@ -17,7 +17,7 @@ export const SG_COEFFICIENTS = {
   PUTTING_CAP: 3.5,
 
   // --- Confidence thresholds ---
-  CONFIDENCE_RESIDUAL_HIGH: 3.0,                  // sgResidual below this → high confidence
+  CONFIDENCE_RESIDUAL_HIGH: 3.0,                  // sgResidual below this -> high confidence
   CONFIDENCE_SHORTGAME_HIGH_PCT: 0.44,            // min short game opportunities for high confidence
   CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT: 0.28,      // min for medium confidence
   CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT: 0.39,      // max for medium confidence

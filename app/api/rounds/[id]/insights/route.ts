@@ -6,6 +6,53 @@ import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// ---------------------------------------------------------------------------
+// Thresholds and Constants
+// ---------------------------------------------------------------------------
+
+/** SG threshold below which a component is considered a weakness */
+const SG_WEAKNESS_THRESHOLD = -1.0;
+
+/** SG threshold for a "large" weakness requiring ⚠️ emoji */
+const SG_LARGE_WEAKNESS_THRESHOLD = -2.0;
+
+/** SG threshold for short-game attribution from residual */
+const SG_SHORT_GAME_THRESHOLD = -2.5;
+
+/** Total SG threshold for a "tough" round */
+const SG_TOUGH_ROUND_THRESHOLD = -5.0;
+
+/** Total SG threshold for "below expectations" (not disastrous) */
+const SG_BELOW_EXPECTATIONS_THRESHOLD = -2.0;
+
+/** Total SG threshold for "above expectations" */
+const SG_ABOVE_EXPECTATIONS_THRESHOLD = 2.0;
+
+/** Total SG threshold for exceptional performance (🔥 emoji) */
+const SG_EXCEPTIONAL_THRESHOLD = 5.0;
+
+/** Individual component SG threshold for exceptional performance */
+const SG_EXCEPTIONAL_COMPONENT_THRESHOLD = 4.0;
+
+/** Course slope rating threshold for "above-average difficulty" */
+const HIGH_SLOPE_THRESHOLD = 130;
+
+/** FIR percentage threshold for "very low" triggering override */
+const VERY_LOW_FIR_PCT = 25;
+
+/** GIR percentage threshold for "very low" triggering override */
+const VERY_LOW_GIR_PCT = 20;
+
+
+/** Baseline difference threshold for stat comparisons (e.g., FIR/GIR 8% below baseline) */
+const BASELINE_DIFFERENCE_THRESHOLD = 8;
+
+/** OpenAI model temperature for generation (higher = more variation) */
+const OPENAI_TEMPERATURE = 0.65;
+
+/** OpenAI model to use */
+const OPENAI_MODEL = 'gpt-4o-mini';
+
 // In-flight generation lock to prevent duplicate OpenAI calls from concurrent requests
 const inFlightGenerations = new Map<string, Promise<any>>();
 
@@ -80,7 +127,6 @@ export async function POST(
 // ---------------------------------------------------------------------------
 
 type SGComponentName = 'off_tee' | 'approach' | 'putting' | 'penalties' | 'short_game';
-type LeakageOverrideName = 'off_tee' | 'approach' | null;
 
 interface SGComponent {
   name: SGComponentName;
@@ -95,7 +141,6 @@ interface SGSelection {
   msg1Emoji: '🔥' | '✅';
   msg2Emoji: '🔥' | '✅' | '⚠️';
   residualNote: string | null;
-  leakageOverride: LeakageOverrideName;
 }
 
 const SG_LABELS: Record<SGComponentName, string> = {
@@ -128,19 +173,19 @@ function runSGSelection(
 
   const shouldUseShortGame =
     sgResidual != null &&
-    sgResidual <= -2.5 &&
-    (sgOffTee ?? 0) >= -1.0 &&
-    (sgApproach ?? 0) >= -1.0 &&
-    (sgPutting ?? 0) >= -1.0 &&
-    (sgPenalties ?? 0) >= -1.0;
+    sgResidual <= SG_SHORT_GAME_THRESHOLD &&
+    (sgOffTee ?? 0) >= SG_WEAKNESS_THRESHOLD &&
+    (sgApproach ?? 0) >= SG_WEAKNESS_THRESHOLD &&
+    (sgPutting ?? 0) >= SG_WEAKNESS_THRESHOLD &&
+    (sgPenalties ?? 0) >= SG_WEAKNESS_THRESHOLD;
   if (shouldUseShortGame) {
     components.push({ name: 'short_game', value: sgResidual, label: SG_LABELS.short_game });
   }
 
   if (components.length < 2) return null;
 
-  // Step 2: Find worst component (most negative < -1.0)
-  const negatives = components.filter(c => c.value < -1.0);
+  // Step 2: Find worst component (most negative < threshold)
+  const negatives = components.filter(c => c.value < SG_WEAKNESS_THRESHOLD);
   const noWeaknessMode = negatives.length === 0;
   let worstComponent: SGComponent | null = null;
   if (!noWeaknessMode) {
@@ -151,7 +196,7 @@ function runSGSelection(
   const remainingForBest = worstComponent
     ? components.filter(c => c.name !== worstComponent!.name)
     : components;
-  const bestComponent = remainingForBest.reduce((max, c) => c.value > max.value ? c : max, remainingForBest[0]);
+  let bestComponent = remainingForBest.reduce((max, c) => c.value > max.value ? c : max, remainingForBest[0]);
 
   // Step 4: Find second-best component (exclude best and worst)
   const remainingForSecond = components.filter(
@@ -160,6 +205,11 @@ function runSGSelection(
   const secondBestComponent = remainingForSecond.length > 0
     ? remainingForSecond.reduce((max, c) => c.value > max.value ? c : max, remainingForSecond[0])
     : null;
+
+  // Step 4b: If best is penalties, use second-best for display (we don't want to praise penalties in Message 1)
+  if (bestComponent.name === 'penalties' && secondBestComponent) {
+    bestComponent = secondBestComponent;
+  }
 
   // Step 5: Assign messages
   const message2Component = noWeaknessMode
@@ -173,23 +223,23 @@ function runSGSelection(
   const bestVal = bestComponent.value;
 
   let msg1Emoji: '🔥' | '✅';
-  if (totalSG >= 5.0 || bestVal >= 4.0) {
+  if (totalSG >= SG_EXCEPTIONAL_THRESHOLD || bestVal >= SG_EXCEPTIONAL_COMPONENT_THRESHOLD) {
     msg1Emoji = '🔥';
   } else {
     msg1Emoji = '✅';
   }
-  // Override: if total SG <= -2.0, never use 🔥
-  if (totalSG <= -2.0) {
+  // Override: if total SG <= below expectations threshold, never use 🔥
+  if (totalSG <= SG_BELOW_EXPECTATIONS_THRESHOLD) {
     msg1Emoji = '✅';
   }
 
   let msg2Emoji: '🔥' | '✅' | '⚠️';
   if (!noWeaknessMode) {
-    // Only use ⚠️ for very large weaknesses
+    // Only use ⚠️ for large weaknesses
     msg2Emoji = message2Component.value <= largeWeaknessThreshold ? '⚠️' : '✅';
   } else {
-    msg2Emoji = (totalSG >= 5.0 || message2Component.value >= 4.0) ? '🔥' : '✅';
-    if (totalSG <= -2.0) msg2Emoji = '✅';
+    msg2Emoji = (totalSG >= SG_EXCEPTIONAL_THRESHOLD || message2Component.value >= SG_EXCEPTIONAL_COMPONENT_THRESHOLD) ? '🔥' : '✅';
+    if (totalSG <= SG_BELOW_EXPECTATIONS_THRESHOLD) msg2Emoji = '✅';
   }
 
   // Residual note: only used in Message 3 when short-game attribution is active
@@ -198,9 +248,6 @@ function runSGSelection(
     residualNote = 'Some shots around the green likely contributed today.';
   }
 
-  // Default: no leakage override (stat-based overrides applied later)
-  const leakageOverride: LeakageOverrideName = null;
-
   return {
     best: bestComponent,
     message2: message2Component,
@@ -208,7 +255,6 @@ function runSGSelection(
     msg1Emoji,
     msg2Emoji,
     residualNote,
-    leakageOverride,
   };
 }
 
@@ -244,7 +290,6 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
 
   if (!round) throw new Error('Round not found');
   if (round.userId !== userId) throw new Error('Unauthorized access to round');
-  if (round.userId !== userId) throw new Error('Unauthorized access to round');
 
   const sgComponents = await prisma.roundStrokesGained.findUnique({
     where: { roundId },
@@ -259,7 +304,8 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
     orderBy: { handicap: 'asc' },
   });
 
-  const interpolateBaseline = (handicap: number, getValue: (t: any) => number): number | null => {
+  type BaselineTier = (typeof baselineTiers)[number];
+  const interpolateBaseline = (handicap: number, getValue: (t: BaselineTier) => number): number | null => {
     if (!baselineTiers.length) return null;
     if (handicap <= Number(baselineTiers[0].handicap)) {
       return getValue(baselineTiers[0]);
@@ -389,6 +435,42 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
     }
   }
 
+  // ---- Detect special scenarios ----
+
+  const isPersonalBest = leaderboardStats?.bestScore != null && round.score <= leaderboardStats.bestScore;
+
+  // First round at this course
+  const priorRoundsAtCourse = await prisma.round.count({
+    where: { userId, courseId: round.tee.course.id, id: { not: roundId } },
+  });
+  const isFirstAtCourse = priorRoundsAtCourse === 0;
+
+  // Returning after a break (no rounds in last 14 days before this one)
+  const twoWeeksAgo = new Date(round.date);
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+  const recentRoundsBeforeThis = await prisma.round.count({
+    where: { userId, date: { gte: twoWeeksAgo, lt: round.date }, id: { not: roundId } },
+  });
+  const isReturnAfterBreak = recentRoundsBeforeThis === 0 && (leaderboardStats?.totalRounds ?? 0) > 3;
+
+  // Handicap trend (compare last 3 handicaps)
+  let handicapTrend: 'improving' | 'declining' | 'stable' | null = null;
+  const handicapHistory = last5Rounds
+    .slice(0, 3)
+    .map((r) => (r.handicapAtRound != null ? Number(r.handicapAtRound) : null))
+    .filter((h): h is number => h !== null);
+
+  if (handicapHistory.length >= 2 && handicapAtRound != null) {
+    const avgPrior = handicapHistory.reduce((a, b) => a + b, 0) / handicapHistory.length;
+    const diff = handicapAtRound - avgPrior;
+    if (diff <= -1.5) handicapTrend = 'improving';
+    else if (diff >= 1.5) handicapTrend = 'declining';
+    else handicapTrend = 'stable';
+  }
+
+  // Determine if we should nudge stats tracking (random ~25% of the time)
+  const shouldNudgeStats = (Number(roundId) % 4) === 0;
+
   // ---- Build strokes gained payload (only non-null values) ----
 
   const strokesGainedPayload: Record<string, number> = {};
@@ -404,7 +486,7 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
   const hasSGData = sgComponents && sgComponents.sgTotal != null;
   const totalRounds = leaderboardStats?.totalRounds ?? null;
   const isEarlyRounds = totalRounds !== null && totalRounds <= 3;
-  const largeWeaknessThreshold = -2.0;
+  const largeWeaknessThreshold = SG_LARGE_WEAKNESS_THRESHOLD;
   const sgSelection = hasSGData
     ? runSGSelection(
         sgComponents.sgOffTee != null ? Number(sgComponents.sgOffTee) : null,
@@ -428,7 +510,7 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
   const courseRating = currentCtx.courseRating;
   const slopeRating = currentCtx.slopeRating;
   const ratingThreshold = currentHolesPlayed === 9 ? currentCtx.parTotal + 0.5 : currentCtx.parTotal + 1;
-  const mentionCourseDifficulty = (courseRating != null && courseRating > ratingThreshold) || (slopeRating != null && slopeRating > 130);
+  const mentionCourseDifficulty = (courseRating != null && courseRating > ratingThreshold) || (slopeRating != null && slopeRating > HIGH_SLOPE_THRESHOLD);
 
   // ---- Build payload for the LLM ----
 
@@ -482,6 +564,12 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
             .reverse(),
         }
       : null,
+    scenarios: {
+      is_personal_best: isPersonalBest,
+      is_first_at_course: isFirstAtCourse,
+      is_return_after_break: isReturnAfterBreak,
+      handicap_trend: handicapTrend,
+    },
   };
 
   // ---- Build message assignment instructions for the LLM ----
@@ -492,179 +580,205 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
   if (round.advancedStats && round.putts === null) missingStats.push('putts');
   if (round.advancedStats && round.penalties === null) missingStats.push('penalties');
 
-  const missingStatsNoteParts: string[] = [];
-  if (!round.advancedStats) {
-    missingStatsNoteParts.push('Suggest enabling Advanced Stats next time for more precise insights.');
+  // Build stats nudge (only show ~25% of the time)
+  let statsNudge = '';
+  if (shouldNudgeStats) {
+    const missingStatsNoteParts: string[] = [];
+    if (!round.advancedStats) {
+      missingStatsNoteParts.push('Consider mentioning that Advanced Stats unlocks deeper analysis.');
+    }
+    const shouldSuggestHBH = !round.holeByHole && totalRounds !== null && totalRounds % 4 === 0;
+    if (shouldSuggestHBH) {
+      missingStatsNoteParts.push('You may suggest Hole-by-Hole tracking for richer data.');
+    }
+    if (missingStats.length) {
+      missingStatsNoteParts.push(`Consider noting that tracking ${missingStats.join(', ')} next time could sharpen insights.`);
+    }
+    statsNudge = missingStatsNoteParts.length ? `\nSTATS TRACKING (optional, vary phrasing): ${missingStatsNoteParts.join(' ')}` : '';
   }
-  const shouldSuggestHBH = !round.holeByHole && totalRounds !== null && totalRounds % 4 === 0;
-  if (shouldSuggestHBH) {
-    missingStatsNoteParts.push('Optionally suggest trying Hole-by-Hole tracking for deeper insights.');
-  }
-  if (missingStats.length) {
-    missingStatsNoteParts.push(`If appropriate, nudge tracking ${missingStats.join(', ')} next time since they were missing.`);
-  }
-
-  const missingStatsNote = missingStatsNoteParts.length
-    ? missingStatsNoteParts.join(' ')
-    : '';
-  const confidenceNote = '';
 
   const drillLibrary: Record<SGComponentName | 'general', string[]> = {
     off_tee: [
-      'Try a fairway-finder drill: place two alignment sticks 10-15 yards apart and hit 8-10 balls focusing on start line and balance.',
-      'Play a 3-shot window: pick a target and hit 3 balls with the same club, each finishing within a fairway-width band.',
-      'Do a tempo check: hit 5 drives at 70 percent effort, then 5 at 85 percent, keeping the same start line.',
-      'Use a tee-height check: hit 6 drives with consistent tee height and focus on center-face contact.',
-      'Pick a fairway target and hit 10 balls, scoring 1 point for in-play and 2 points for center. Try to beat your score.',
-      'Hit 6 drives with a 3-second hold on the finish to reinforce balance and a repeatable strike.',
-      'Aim at the edge of the fairway you fear less and commit to that line for a full bucket.',
-      'Alternate driver and 3-wood to build control: 5 of each with the same target line.',
-      'Use a narrow target: visualize a 20-yard fairway and score your accuracy over 10 shots.',
-      'Hit 5 shots with a lower tee and 5 with a normal tee to learn your best strike window.',
-      'Do a start-line drill: place an alignment stick 10 yards ahead and start 8 of 10 shots on that line.',
-      'Practice a safe miss: aim for the widest landing area and accept the same-side miss.',
+      'Fairway-finder drill with alignment sticks',
+      '3-shot window to a target',
+      'Tempo check at 70% and 85% effort',
+      'Tee-height consistency drill',
+      'Accuracy scoring game (1 point in-play, 2 points center)',
+      'Finish-hold drill for balance',
+      'Driver/3-wood alternating drill',
+      'Narrow-target visualization',
+      'Start-line drill with alignment stick',
+      'Safe-miss commitment practice',
     ],
     approach: [
-      'Use a distance ladder drill: pick 3 targets (short, mid, long) and hit 3 balls to each, focusing on solid contact and start line.',
-      'Do a 9-ball flight drill: hit 3 fades, 3 straight, 3 draws to the same target to improve control.',
-      'Play a 3-2-1 challenge: hit 3 shots to a large target, 2 to a medium target, 1 to a small target.',
-      'Work the middle: aim every approach at the center of the green for a full practice bucket.',
-      'Hit to the front edge only: practice landing 10 shots on the front third to improve distance control.',
-      'Pick two clubs for the same distance and alternate to learn how far each actually flies.',
-      'Do a dispersion drill: mark a 20-yard-wide target and hit 10 balls, tracking left-right misses.',
-      'Use a clock drill: hit 5 shots at 50 yards, 5 at 75, 5 at 100 to groove partial swings.',
-      'Practice the safe target: always aim for the middle of the green, even if the pin is tucked.',
-      'Hit 5 shots with a smooth tempo, then 5 with a slightly faster tempo to find the most consistent contact.',
-      'Focus on low point control: place a towel 2 inches behind the ball and avoid hitting it.',
-      'Do a green-section drill: pick left, middle, right sections and hit 3 balls to each.',
+      'Distance ladder drill (short/mid/long targets)',
+      '9-ball flight drill (fade/straight/draw)',
+      '3-2-1 target challenge',
+      'Center-of-green focus drill',
+      'Front-edge landing practice',
+      'Two-club distance comparison',
+      'Dispersion tracking drill',
+      'Clock drill (50/75/100 yards)',
+      'Low-point control with towel',
+      'Green-section targeting drill',
     ],
     putting: [
-      'Do a 3-6-9 putting ladder: make 3 in a row from each distance before moving back to build pace control.',
-      'Use a gate drill: set two tees just wider than the putter head and roll 10 putts through the gate.',
-      'Speed control ladder: putt to a line 3 feet past the hole from 20, 30, and 40 feet.',
-      'Circle drill: place 8 balls in a 3-foot circle and make all 8 before moving to 4 feet.',
-      'Lag drill: roll 10 putts from 30-40 feet and try to finish inside a 3-foot circle.',
-      'One-putt game: drop 10 balls at 6 feet and try to make 7 or more.',
-      'Tee gate start-line drill: set two tees just wider than the ball and roll 10 putts through.',
-      'Distance control with one ball: hit 5 putts to 10 feet, then 5 to 20 feet, tracking finish distance.',
-      'Downhill control: practice 10 downhill putts and focus on stopping them inside 2 feet past.',
-      'Uphill confidence: practice 10 uphill putts and aim to finish 1 foot past the hole.',
-      'Three-foot pressure: make 10 in a row from 3 feet before leaving.',
-      'Two-ball race: putt two balls to the same target and try to stop them within 1 foot of each other.',
+      '3-6-9 ladder drill',
+      'Gate drill with tees',
+      'Speed control ladder (20/30/40 feet)',
+      'Circle drill from 3-4 feet',
+      'Lag putting to 3-foot circle',
+      '6-foot one-putt challenge',
+      'Start-line gate drill',
+      'Distance control practice',
+      'Downhill/uphill specialty work',
+      'Three-foot pressure drill',
     ],
     penalties: [
-      'Play a "smart target" habit: pick the widest landing area off the tee and aim there for a full round to reduce penalty risk.',
-      'Use a pre-shot rule: if you are between clubs, take the safer club and aim to the middle of the green.',
-      'Pick a miss: decide your safe miss before every approach and commit to that target.',
-      'Avoid the hero shot: when in trouble, choose the easiest route back to the fairway.',
-      'Adopt a 1-club safety rule: if water or OB is in play, take one more club and aim to the safe side.',
-      'Build a layup habit: if the risk is high, advance the ball to a comfortable yardage instead of forcing it.',
-      'Use a safe-side aim: always favor the side with the largest bailout area.',
-      'Commit to a punch-out: if blocked, take the easy route to the fairway and reset.',
-      'Do a 2-shot plan: pick targets for both the tee shot and next shot before you swing.',
-      'Set a penalty-free goal: aim for zero penalty strokes and accept conservative targets.',
-      'Use a hazard buffer: aim 10 yards away from trouble when possible.',
-      'Practice a low-traffic route: choose targets that remove the biggest miss from play.',
+      'Smart target selection habit',
+      'Pre-shot club safety rule',
+      'Safe-miss decision practice',
+      'Punch-out commitment drill',
+      '2-shot planning routine',
+      'Penalty-free round goal',
+      'Hazard buffer targeting',
+      'Conservative line practice',
     ],
     general: [
-      'Use a simple pre-shot routine on every swing to build consistency and cut down on avoidable mistakes.',
-      'Set a single focus per shot (start line, tempo, or balance) and keep it for the whole round.',
-      'Do a 5-ball reflection: after every 5 shots on the range, reset and pick one adjustment.',
-      'Play a "boring golf" practice round: aim for center targets and avoid risky lines.',
-      'Use a breathing reset: take one deep breath before every shot to slow down.',
-      'Pick a conservative target for the entire front nine and see how it affects scoring.',
-      'Track one stat for a full round and reflect on it after the round.',
-      'Do a 3-shot routine: chip, pitch, and putt before every range session to stay balanced.',
-      'Use a tempo count: say "one-two" on the backswing and downswing for smoother rhythm.',
-      'Play a two-ball scramble on a few holes to practice decision-making under pressure.',
-      'Commit to a finish hold: freeze your finish for 2 seconds on every full swing.',
-      'Choose one swing key for the day and stick with it for every shot.',
+      'Pre-shot routine consistency',
+      'Single focus per shot drill',
+      '5-ball reflection practice',
+      'Conservative targeting round',
+      'Breathing reset routine',
+      'Tempo count drill',
+      'Finish-hold commitment',
+      'One swing key for the day',
     ],
     short_game: [
-      'Landing spot drill: place a towel 3 yards onto the green and land 10 chips on it.',
-      'Up-and-down challenge: drop 5 balls around a green and try to get 3 up-and-downs.',
-      'Bump-and-run reps: hit 10 chips with an 8-iron and focus on consistent rollout.',
-      'Pitch ladder: hit 5 pitch shots to 20 yards, then 25, then 30 to dial distance control.',
-      'One-club short game: use a wedge only and play 10 shots with different trajectories.',
-      'Par-save practice: simulate a missed green and try to get down in 2 from various lies.',
-      'Low-point control: place a tee just ahead of the ball and clip it after impact.',
-      'Fringe-only drill: chip from the fringe and aim to finish inside 6 feet.',
-      'Three-landing drill: pick three landing spots (short/mid/long) and hit 3 balls to each.',
-      'Pressure up-and-downs: do 10 reps and track how many you save; try to beat your score next time.',
-      'Soft hands drill: hit 10 chips focusing on quiet wrists and smooth tempo.',
-      'Trajectory ladder: hit 3 low, 3 medium, 3 high chips to the same target.',
+      'Landing spot drill with towel',
+      'Up-and-down challenge',
+      'Bump-and-run consistency drill',
+      'Pitch distance ladder',
+      'One-club trajectory variety',
+      'Par-save simulation',
+      'Three-landing drill',
+      'Pressure up-and-down tracking',
     ],
   };
 
-  const buildDrillTip = (area: SGComponentName | 'general', seed: number): string => {
+  const getSampleDrills = (area: SGComponentName | 'general', seed: number, count: number = 2): string[] => {
     const list = drillLibrary[area] || drillLibrary.general;
-    const idx = Math.abs(seed) % list.length;
-    return list[idx];
+    const results: string[] = [];
+    for (let i = 0; i < count && i < list.length; i++) {
+      const idx = Math.abs(seed + i) % list.length;
+      if (!results.includes(list[idx])) {
+        results.push(list[idx]);
+      }
+    }
+    return results;
   };
 
-  let messageAssignments: string;
-
+  // ---- Build drill suggestions for the prompt ----
   const minuteSeed = new Date().getUTCDate() * 1440 + new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
   const drillSeed = totalRounds !== null
     ? totalRounds + minuteSeed
     : Number(roundId % BigInt(997)) + minuteSeed;
 
+  // ---- Build scenario context ----
+  let scenarioContext = '';
+
+  if (isPersonalBest) {
+    scenarioContext += '\nSPECIAL: PERSONAL BEST! This is the player\'s best score ever. Celebrate this accomplishment enthusiastically in Message 1. Use strong positive language.';
+  }
+
+  if (isFirstAtCourse) {
+    scenarioContext += '\nSPECIAL: First round at this course. Acknowledge this milestone briefly (e.g., "first round at this course").';
+  }
+
+  if (isReturnAfterBreak) {
+    scenarioContext += '\nSPECIAL: Returning after a break (14+ days since last round). Welcome them back to the course warmly.';
+  }
+
+  if (handicapTrend === 'improving') {
+    scenarioContext += '\nHANDICAP TREND: The player\'s handicap has been dropping. You may mention this positive trend briefly.';
+  } else if (handicapTrend === 'declining') {
+    scenarioContext += '\nHANDICAP TREND: The player\'s handicap has risen recently. Do NOT mention this - focus on positives and improvement areas.';
+  }
+
+  // ---- Build message assignments ----
+  let messageAssignments: string;
+
   if (isEarlyRounds) {
+    // Onboarding rounds (1-3) - consistent structure, varied language
     const lastRound = last5Rounds[0];
-    const comparison =
-      lastRound && round.score != null && lastRound.score != null
-        ? round.score < lastRound.score
-          ? 'Better than last time — that\'s progress worth celebrating.'
-          : round.score > lastRound.score
-            ? 'A little higher than last time, but you\'re building a baseline.'
-            : 'Right in line with last time — a consistent foundation so far.'
-        : 'Solid start to building your baseline.';
+    let comparisonContext = '';
+    if (lastRound && round.score != null && lastRound.score != null) {
+      if (round.score < lastRound.score) {
+        comparisonContext = 'This score is better than their last round - acknowledge this progress.';
+      } else if (round.score > lastRound.score) {
+        comparisonContext = 'This score is a bit higher than their last round - frame as building a baseline.';
+      } else {
+        comparisonContext = 'This score matches their last round - frame as consistency.';
+      }
+    }
+
+    const drillSuggestions = getSampleDrills('general', drillSeed, 2);
 
     if (totalRounds === 1) {
-      messageAssignments = `MESSAGE ASSIGNMENTS (Round 1 onboarding):
+      messageAssignments = `MESSAGE ASSIGNMENTS (Round 1 - First round onboarding):
 
-Message 1: ✅ Congratulate the user on logging their first round.
-- Do NOT label the round as "challenging" or "tough" since no baseline exists yet.
-- Include at least one concrete stat from this round if available (e.g., total putts, penalties, score to par).
-${comparison}
+Message 1: ✅ Welcome and congratulate the user on logging their FIRST round.
+- Celebrate this milestone warmly but not excessively.
+- Do NOT label the round as "challenging" or "tough" - no baseline exists yet.
+- Include at least one concrete stat from this round (score, to-par, putts, etc.).
+- Vary your phrasing - don't always start with "Congrats" or "Welcome."
 
-Message 2: ✅ Encourage logging more rounds to unlock a handicap and deeper insights.
-${missingStatsNote}
-${confidenceNote}
+Message 2: ✅ Encourage logging more rounds to unlock a handicap.
+- Explain that 3 rounds unlocks their handicap and deeper insights.
+- Keep it motivational and forward-looking.
+${statsNudge}
 
 Message 3: ℹ️ Actionable recommendation
-- Provide a simple, specific drill to take into the next round.
-${buildDrillTip('general', drillSeed)}`;
+- Suggest a simple practice drill or habit to take into the next round.
+- Drill inspiration (customize or create your own): ${drillSuggestions.join(', ')}`;
+
     } else if (totalRounds === 2) {
-      messageAssignments = `MESSAGE ASSIGNMENTS (Round 2 onboarding):
+      messageAssignments = `MESSAGE ASSIGNMENTS (Round 2 - Second round onboarding):
 
-Message 1: ✅ Positive summary and compare gently to the first round (no numbers).
-- Include at least one concrete stat from this round if available (e.g., total putts, penalties, score to par).
-${comparison}
+Message 1: ✅ Positive summary of this round.
+- ${comparisonContext}
+- Include at least one concrete stat from this round.
+- Vary your phrasing - don't repeat the same structure as typical first-round messages.
 
-Message 2: ✅ Encourage one more round to unlock a handicap and deeper insights.
-${missingStatsNote}
-${confidenceNote}
+Message 2: ✅ Encourage one more round to unlock their handicap.
+- Build anticipation for the handicap calculation.
+- Keep it brief and motivational.
+${statsNudge}
 
 Message 3: ℹ️ Actionable recommendation
-- Provide a simple, specific drill to take into the next round.
-${buildDrillTip('general', drillSeed)}`;
+- Suggest a simple practice drill or habit.
+- Drill inspiration (customize or create your own): ${drillSuggestions.join(', ')}`;
+
     } else {
-      messageAssignments = `MESSAGE ASSIGNMENTS (Round 3 onboarding):
+      messageAssignments = `MESSAGE ASSIGNMENTS (Round 3 - Handicap unlocked!):
 
-Message 1: ✅ Congratulate the user — they now have a handicap.
-- Encourage them to check the dashboard for their new handicap and trends.
-- Include at least one concrete stat from this round if available (e.g., total putts, penalties, score to par).
+Message 1: ✅ Congratulate the user - they now have a handicap!
+- This is a milestone worth celebrating.
+- Encourage them to check the dashboard for their new handicap.
+- Include at least one concrete stat from this round.
 
-Message 2: ✅ Explain that insights will get sharper with more rounds and richer stats.
-${missingStatsNote}
-${confidenceNote}
+Message 2: ✅ Explain that insights will improve with more data.
+- Brief note about how more rounds = more personalized analysis.
+- Keep it encouraging and forward-looking.
+${statsNudge}
 
 Message 3: ℹ️ Actionable recommendation
-- Provide a simple, specific drill to build momentum.
-${buildDrillTip('general', drillSeed)}`;
+- Suggest a practice drill to build momentum.
+- Drill inspiration (customize or create your own): ${drillSuggestions.join(', ')}`;
     }
+
   } else if (sgSelection) {
+    // Standard round with SG data
     let { best, message2, noWeaknessMode, msg1Emoji, msg2Emoji, residualNote } = sgSelection;
 
     const firPct = round.firHit != null && currentCtx.nonPar3Holes > 0
@@ -674,113 +788,110 @@ ${buildDrillTip('general', drillSeed)}`;
       ? (round.girHit / currentCtx.holes) * 100
       : null;
 
+    // FIR/GIR override suggestions (strong hint but LLM has flexibility)
+    let statOverrideHint = '';
     const offTeeLeak = firPct != null
       && message2.name !== 'off_tee'
       && (
-        (baselineFirPct != null && firPct <= baselineFirPct - 8)
-        || firPct <= 25
+        (baselineFirPct != null && firPct <= baselineFirPct - BASELINE_DIFFERENCE_THRESHOLD)
+        || firPct <= VERY_LOW_FIR_PCT
       );
     const approachLeak = girPct != null
       && message2.name !== 'approach'
       && (
-        (baselineGirPct != null && girPct <= baselineGirPct - 8)
-        || girPct <= 20
+        (baselineGirPct != null && girPct <= baselineGirPct - BASELINE_DIFFERENCE_THRESHOLD)
+        || girPct <= VERY_LOW_GIR_PCT
       );
 
     if (offTeeLeak) {
+      statOverrideHint = '\nSTRONG SUGGESTION: FIR was notably low this round. Consider focusing Message 2 on off-the-tee improvement instead of or in addition to the SG-based area.';
       message2 = { name: 'off_tee', value: -2.0, label: SG_LABELS.off_tee };
       msg2Emoji = '⚠️';
     } else if (approachLeak) {
+      statOverrideHint = '\nSTRONG SUGGESTION: GIR was notably low this round. Consider focusing Message 2 on approach play improvement instead of or in addition to the SG-based area.';
       message2 = { name: 'approach', value: -2.0, label: SG_LABELS.approach };
       msg2Emoji = '⚠️';
     }
 
-    messageAssignments = `MESSAGE ASSIGNMENTS (pre-computed, follow exactly):
+    const drillArea = !noWeaknessMode ? message2.name : 'general';
+    const drillSuggestions = getSampleDrills(drillArea, drillSeed, 2);
+
+    // Short game special instructions
+    let shortGameInstructions = '';
+    if (message2.name === 'short_game') {
+      shortGameInstructions = `
+- SHORT GAME FOCUS: This is an inference from scoring patterns, not a directly measured stat.
+- Phrase it as "short-game touch was likely the area to sharpen" (vary the exact wording).
+- Do NOT compare to past rounds or averages (we don't have direct short-game data).
+- Do NOT mention "overall performance," "score," or "residual."
+- Keep the tone constructive - this is a fine-tuning opportunity.`;
+    }
+
+    messageAssignments = `MESSAGE ASSIGNMENTS (Standard round with SG analysis):
 
 Message 1: ${msg1Emoji} about "${best.label}"
-- Tone: positive, motivational. This is the best-performing area.
-- Include at least one concrete stat from this round if available (e.g., score to par, total putts, FIR/GIR). Avoid penalties in Message 1.
-- If the best area is Penalties, do NOT focus Message 1 on penalties; use overall performance or another available stat instead.
-- If total SG is <= -5, describe any positives as "bright spots" and avoid strong praise like "solid ball-striking" or "excellent."
-- Do NOT mention penalties in Message 1 under any circumstance.
-- For tough rounds, avoid phrases like "solid foundation," "back on track in no time," or anything that sounds overly optimistic.
-- For tough rounds, use supportive phrasing like: "bright spots," "building blocks," "one round doesn't define you," "reset and move forward," "focus on one small improvement."
-- For tough rounds, avoid: "solid foundation," "back on track in no time," "great to see," "overall performance was solid."
-${msg1Emoji === '🔥' ? '- Use enthusiastic praise — this was exceptional.' : '- Acknowledge solid performance positively and coach-like.'}
+- This was the strongest area of the round.
+- Tone: ${msg1Emoji === '🔥' ? 'enthusiastic praise - this was exceptional!' : 'positive and encouraging'}
+- Include at least one concrete stat (score, to-par, putts, FIR, GIR).
+- CRITICAL: Do NOT mention penalties in Message 1, even if penalties is the best SG component. If penalties is the best area, focus on FIR, putts, or score instead.
+- Vary your phrasing - don't always use the same sentence structures.
+${scenarioContext}
 
 Message 2: ${msg2Emoji} about "${message2.label}"
 ${!noWeaknessMode
-  ? `- Tone: constructive or neutral depending on severity. This area needs improvement.
-- Frame it honestly but encouragingly — the player can improve here.`
-  : `- Tone: positive. This is the second-best performing area.
-- Frame as another strength worth celebrating.`}
-- If last-5 averages are available, compare qualitatively (better/worse/around your recent average). Do NOT compare short game to recent averages.
-- If the area is Short Game, describe it as "short-game touch was the likely area to sharpen based on scoring patterns." Do NOT mention residual or "overall performance/score." Avoid the phrase "scoring leakage." Use this exact phrase (no variants).
-- If the area is Short Game, avoid phrases like "compared to your recent rounds/average."
-- If the area is Short Game, do NOT compare it to past rounds in any way (no "past rounds" or "shown before" language).
-- If the area is Short Game, do NOT mention "overall performance" or "overall score" in Message 2 (including phrases like "support your overall performance").
-- If the area is Short Game, avoid phrases like "overall game" or "overall play" in any message.
-- If the area is Short Game, do NOT use the word "overall" anywhere.
-- If the area is Short Game, avoid phrases like "lower your score," "usual standard," or "not at your level."
-- If the area is Short Game, do NOT mention "scoring leakage" anywhere.
-- If the area is Short Game, avoid phrases like "save strokes" or "score" in Message 2.
-- If the area is Short Game, avoid phrases like "scoring potential."
-- If the area is Short Game, avoid phrases like "missed strokes."
-- If the area is Short Game, avoid "significant difference" phrasing; keep it fine-tuning.
-- If the area is Short Game, avoid mentioning "recent average" or "past rounds" in any form.
-- If the area is Short Game, avoid phrases like "better scoring" or "scoring in future rounds."
-- If the area is Short Game, avoid phrases like "needs attention" or "overall scoring ability."
-- If the area is Short Game, avoid phrases like "better outcomes in future rounds" or "make a difference."
-- If the area is Short Game, do NOT include the residual note in Message 2 (only Message 3).
-- Do NOT imply trend improvement (e.g., "more fairways," "on the right track") unless explicitly comparing to recent averages.
-${missingStatsNote ? `- ${missingStatsNote}` : ''}
-${confidenceNote ? `- ${confidenceNote}` : ''}
+  ? `- This area needs improvement. Tone: constructive and encouraging.
+- Frame as an opportunity to gain strokes, not a failure.`
+  : `- This is another strength worth acknowledging.
+- Frame as continued solid performance.`}
+- Compare to recent averages when meaningful (better/worse/similar).${shortGameInstructions}${statOverrideHint}
+${statsNudge}
 
 Message 3: ℹ️ Actionable recommendation
-- Provide a specific, real-life practice drill or habit.
-- Always motivational and encouraging.
-- Suggested drill: ${!noWeaknessMode ? buildDrillTip(message2.name, drillSeed) : buildDrillTip('general', drillSeed)}
-${!noWeaknessMode ? `- Focus the recommendation on improving "${message2.label}".` : '- Focus on maintaining strengths or improving consistency.'}
-${residualNote ? `- You may mention: ${residualNote}` : '- Do NOT mention residual strokes gained.'}`;
+- Provide a specific, practical drill or habit.
+- ${!noWeaknessMode ? `Focus on improving "${message2.label}".` : 'Focus on maintaining strengths or overall consistency.'}
+- Drill inspiration (customize or create your own): ${drillSuggestions.join(', ')}
+${residualNote ? `- You may reference short-game touch if relevant.` : ''}`;
 
   } else if (hasSGData && totalSG != null) {
-    // Has total SG but not enough individual components for algorithm
-    messageAssignments = `MESSAGE ASSIGNMENTS (limited SG data):
+    // Limited SG data
+    const drillSuggestions = getSampleDrills('general', drillSeed, 2);
+
+    messageAssignments = `MESSAGE ASSIGNMENTS (Limited SG data):
 
 Message 1: ${totalSG >= 5.0 ? '🔥' : '✅'} about overall performance
-- Focus on overall round quality and any available stats (FIR, GIR, putts).
-- Include at least one concrete stat from this round if available (e.g., score to par, total putts, FIR/GIR). Avoid penalties in Message 1.
+- Focus on overall round quality and any available stats.
+- Include at least one concrete stat (score, to-par, putts, FIR, GIR).
+${scenarioContext}
 
-Message 2: ✅ about a secondary strength from raw stats
-- Highlight another positive stat area or a neutral area to improve gently. Do NOT use ⚠️ since individual SG components are not available.
-- Encourage the user to log more detailed stats for deeper SG analysis.
-- If last-5 averages are available, compare qualitatively (better/worse/around your recent average).
-${missingStatsNote ? `- ${missingStatsNote}` : ''}
-${confidenceNote ? `- ${confidenceNote}` : ''}
+Message 2: ✅ about available raw stats or general encouragement
+- Highlight a positive stat area if available.
+- Do NOT use ⚠️ since individual SG components aren't available.
+- Compare to recent averages when meaningful.
+${statsNudge}
 
 Message 3: ℹ️ Actionable recommendation
-- General practice tip based on the round's stats.
-- Suggested drill: ${buildDrillTip('general', drillSeed)}
-- Encourage logging more stats for future insights.`;
+- General practice tip based on available stats.
+- Drill inspiration (customize or create your own): ${drillSuggestions.join(', ')}`;
 
   } else {
-    // Minimal data — no SG at all
-    messageAssignments = `MESSAGE ASSIGNMENTS (minimal data, no strokes gained):
+    // Minimal data - no SG
+    const drillSuggestions = getSampleDrills('general', drillSeed, 2);
 
-Message 1: ✅ about the round score and overall performance
-- Comment on the score relative to par and the player's handicap if available.
-- Include at least one concrete stat from this round if available (e.g., score to par, total putts, FIR/GIR). Avoid penalties in Message 1.
+    messageAssignments = `MESSAGE ASSIGNMENTS (Minimal data - no SG analysis):
 
-Message 2: ✅ about any available raw stats (FIR, GIR, putts, penalties) or a gentle nudge to log more stats
-- If stats are available, highlight the strongest one positively.
-- If no stats, provide general encouragement.
-- If last-5 averages are available, compare qualitatively (better/worse/around your recent average).
-${missingStatsNote ? `- ${missingStatsNote}` : ''}
-${confidenceNote ? `- ${confidenceNote}` : ''}
+Message 1: ✅ about the round score
+- Comment on the score relative to par and handicap if available.
+- Include any available stats positively.
+${scenarioContext}
+
+Message 2: ✅ about available stats or general encouragement
+- Highlight the strongest available stat positively.
+- If no detailed stats, provide general encouragement.
+${statsNudge}
 
 Message 3: ℹ️ Actionable recommendation
-- General practice tip. Encourage logging more stats for future SG analysis.
-- Suggested drill: ${buildDrillTip('general', drillSeed)}`;
+- General practice tip.
+- Drill inspiration (customize or create your own): ${drillSuggestions.join(', ')}`;
   }
 
   // ---- Confidence/partial analysis instructions ----
@@ -796,46 +907,47 @@ Message 3: ℹ️ Actionable recommendation
 
   let courseDifficultyInstructions = '';
   if (mentionCourseDifficulty) {
-    courseDifficultyInstructions = `\nCOURSE DIFFICULTY: This course has${courseRating && courseRating > ratingThreshold ? ` a rating of ${courseRating}` : ''}${courseRating && courseRating > ratingThreshold && slopeRating && slopeRating > 130 ? ' and' : ''}${slopeRating && slopeRating > 130 ? ` a slope of ${slopeRating}` : ''}, making it above-average difficulty. You may reference this to add context to the player's performance.`;
+    courseDifficultyInstructions = `\nCOURSE DIFFICULTY: This course has${courseRating && courseRating > ratingThreshold ? ` a rating of ${courseRating}` : ''}${courseRating && courseRating > ratingThreshold && slopeRating && slopeRating > HIGH_SLOPE_THRESHOLD ? ' and' : ''}${slopeRating && slopeRating > HIGH_SLOPE_THRESHOLD ? ` a slope of ${slopeRating}` : ''}, making it above-average difficulty. You may reference this to add context to the player's performance.`;
   } else {
     courseDifficultyInstructions = `\nCOURSE DIFFICULTY: Do NOT mention course rating or slope — they are within normal range.`;
   }
 
-  // ---- Tough round guard ----
+  // ---- Performance band instructions ----
 
-  let toughRoundInstructions = '';
-  if (totalSG != null && totalSG <= -5.0) {
-    toughRoundInstructions = `\nTOUGH ROUND GUARD: This was a very tough round (well below expectations). Message 1 should acknowledge the tough day and encourage a bounce-back. Do NOT over-praise raw stats like FIR, GIR, putts, or penalties. Do NOT mention penalties at all in Message 1. Avoid saying the overall performance was solid or resilient. Keep tone encouraging but grounded. Message 2 should acknowledge the biggest struggle and suggest a path forward.`;
-  }
-
-  let belowExpectationsInstructions = '';
-  if (totalSG != null && totalSG > -5.0 && totalSG <= -2.0) {
-    belowExpectationsInstructions = `\nBELOW EXPECTATIONS TONE: This round was below expectations but not disastrous. Keep Message 1 clearly positive about the score, but avoid "solid/commendable/strong" descriptors (e.g., "solid round/effort/performance"), "respectable round," "great step forward," "still in touch with your game," or "strong foundation." Avoid words like "struggle" or "challenge" in any message; frame improvements as fine-tuning to shave 1-2 strokes. Avoid phrases like "solid foundation," "fantastic accomplishment," or "commendable round." Avoid "one round doesn't define you" in this band (save that for very tough rounds). Avoid claiming "good approach play" or "approach play was on point" or "ball-striking was steady" unless explicitly comparing to recent averages. Avoid phrases like "capability to play well."`;
-  }
-
-  let withinExpectationsInstructions = '';
-  if (totalSG != null && totalSG > -2.0 && totalSG <= 2.0) {
-    const anyBigComponent = [
-      sgComponents?.sgOffTee,
-      sgComponents?.sgApproach,
-      sgComponents?.sgPutting,
-      sgComponents?.sgPenalties,
-    ].some((v) => v != null && Number(v) >= 2.0);
-    const praiseGuard = anyBigComponent
-      ? 'Avoid overusing superlatives; "impressive" is allowed only if it matches the clearly strong component.'
-      : 'Avoid heavy praise (no "standout/stood out," "impressive," "fantastic," "great building block," or "solid overall performance").';
-
-    withinExpectationsInstructions = `\nWITHIN EXPECTATIONS TONE: This round was within expectations. Keep Message 1 balanced and positive. ${praiseGuard} Avoid "bright spot," "positive highlight," "highlight," "standout," "shined," "impressive," "great to see," "strong performance," "strong point," "solid performance," "solid play," "solid foundation," "solid putting performance," "reliable area," "reliable aspect," "reliable," "overall performance," "strength," "positive aspect," "strong putting touch," "solid touch," "key area to rely on," "positive strides," "keep up the good work," "encouraging," "encouraging to see," or "level of performance" if it sounds overly glowing. Do NOT use the word "highlight" or "standout" in Message 1. Prefer muted phrasing like "steady," "consistent," or "nice" instead. Do NOT describe the course as challenging unless the course difficulty flag allows it. In Message 2, keep wording light and focused on fine-tuning; avoid phrases like "didn't meet your usual standard" or "needs attention." Avoid "significantly," "significant gains," "overall play," or "lower your score" phrasing in Message 2. If comparing to recent averages, keep it subdued (e.g., "around your recent average") and do not over-celebrate. Message 1 should follow this safe pattern (2-3 sentences max): "Your putting was steady today with 30 putts, and that consistency is something you can keep leaning on. Keep leaning on that consistency." Optional add-on sentence: "That kind of steady touch is useful to carry into the next round." Message 2 (short game) must be exactly these two sentences and nothing else: "This is a good area to fine-tune with a little focused practice. A few reps here can help your touch around the greens."`;
-  }
-
-  let aboveExpectationsInstructions = '';
-  if (totalSG != null && totalSG > 2.0 && totalSG < 5.0) {
-    aboveExpectationsInstructions = `\nABOVE EXPECTATIONS TONE: This round was above expectations. Keep Message 1 clearly positive and validating — the user should feel proud. Strong praise is OK (e.g., "highlight," "strong," "impressive"), but avoid extreme hype like "exceptional," "historic," "perfect," or "game-changer." Do NOT use "overall performance" or "overall play" in Message 2. If comparing to recent averages, numeric stats are ok (putts/FIR/GIR/score) but do NOT mention any SG numbers. Message 2 (short game) must be exactly these two sentences and nothing else: "This is a good area to fine-tune with a little focused practice. A few reps here can help your touch around the greens."`;
-  }
-
-  let highTotalWithWeakComponentInstructions = '';
-  if (totalSG != null && totalSG > 2.0 && totalSG < 5.0 && sgSelection && !sgSelection.noWeaknessMode && sgSelection.message2.value <= -2.0) {
-    highTotalWithWeakComponentInstructions = `\nHIGH TOTAL + WEAK COMPONENT: Total SG is strong but there is one clear weakness. Keep Message 1 positive but grounded; avoid "impressive," "highlight," "solid performance," "significantly," "showcasing your skill," "great foundation," or "strength" wording that might feel overstated. In Message 2, avoid "needs attention," "stood out," or "significantly higher/worse" phrasing; use calm, constructive language like "an area to tighten up" or "a good place to focus next."`;
+  let performanceBandInstructions = '';
+  if (totalSG != null && totalSG <= SG_TOUGH_ROUND_THRESHOLD) {
+    performanceBandInstructions = `\nPERFORMANCE BAND: TOUGH ROUND
+- This was a difficult day. Acknowledge it honestly but supportively.
+- Look for one genuine bright spot to mention in Message 1.
+- Avoid phrases like "solid foundation" or "back on track in no time."
+- Use supportive phrases like "one round doesn't define you" or "focus on one small thing."
+- Message 2 should acknowledge the main struggle constructively.`;
+  } else if (totalSG != null && totalSG > SG_TOUGH_ROUND_THRESHOLD && totalSG <= SG_BELOW_EXPECTATIONS_THRESHOLD) {
+    performanceBandInstructions = `\nPERFORMANCE BAND: BELOW EXPECTATIONS
+- This round was below typical but not disastrous.
+- Keep Message 1 balanced - avoid enthusiastic praise or strong descriptors.
+- Use neutral positive language like "held up," "one area that worked," or "something to build on."
+- Frame improvements as fine-tuning opportunities, not dramatic changes.
+- Don't over-praise individual stats when the overall was underwhelming.
+- AVOID in Message 1: "great job," "excellent," "fantastic," "impressive," "solid," "solid performance," "solid touch," "solid foundation," "strong," "really well," "positive step," "highlight," "stood out," "contributing positively."
+- AVOID in Message 2: "significant difference," "major impact," "dramatically improve."
+- PREFER: "steady," "held up," "one bright spot," "something to build on," "room to gain strokes."`;
+  } else if (totalSG != null && totalSG > SG_BELOW_EXPECTATIONS_THRESHOLD && totalSG <= SG_ABOVE_EXPECTATIONS_THRESHOLD) {
+    performanceBandInstructions = `\nPERFORMANCE BAND: WITHIN EXPECTATIONS
+- This was a typical round - not exceptional, not poor.
+- Use balanced language: "steady," "consistent," "nice" rather than superlatives.
+- Keep comparisons to averages subdued.
+- Message 2 should frame improvement areas as fine-tuning, not problems.`;
+  } else if (totalSG != null && totalSG > SG_ABOVE_EXPECTATIONS_THRESHOLD && totalSG < SG_EXCEPTIONAL_THRESHOLD) {
+    performanceBandInstructions = `\nPERFORMANCE BAND: ABOVE EXPECTATIONS
+- This was a good round - the user should feel proud.
+- Strong positive language is appropriate.
+- Still acknowledge improvement areas constructively in Message 2.`;
+  } else if (totalSG != null && totalSG >= SG_EXCEPTIONAL_THRESHOLD) {
+    performanceBandInstructions = `\nPERFORMANCE BAND: EXCEPTIONAL
+- This was an outstanding round! Full celebration is appropriate.
+- Use enthusiastic language in Message 1.
+- Message 2 can still mention an area to maintain or fine-tune.`;
   }
 
   // ---- Build system prompt ----
@@ -845,9 +957,14 @@ Message 3: ℹ️ Actionable recommendation
 OUTPUT FORMAT (strict):
 - Output EXACTLY 3 messages, each on its own line
 - Each message starts with its assigned emoji (🔥, ✅, ⚠️, or ℹ️)
-- Each message is exactly 3 sentences
+- Each message is EXACTLY 3 sentences - no more, no less
 - Plain text only — no markdown, no headings, no numbering, no labels
 - Message 3 should align with Message 2's focus; repetition between 2 and 3 is allowed
+
+CRITICAL RULES:
+- NEVER mention penalties in Message 1, even if penalties was the strongest SG component
+- If penalties is the best area, talk about FIR, putts, or overall score instead in Message 1
+- Each message MUST be exactly 3 sentences (not 2, not 4+)
 
 EMOJI RULES:
 - 🔥 = exceptional performance (only when total SG >= +5.0 or individual component >= +5.0)
@@ -870,7 +987,8 @@ TONE:
 - Include at least one concrete round stat (score, to-par, putts, FIR/GIR, penalties) in Message 1 or 2 when available
 - Compare to last-5 averages when present. Numeric comparisons are OK for round stats (score, putts, FIR/GIR), but NEVER use numeric strokes gained values.
 - Do NOT mention penalties in Message 1; use score/to-par, FIR/GIR, or putts instead
-- SG values between -1.0 and +1.0 are expected variance — never frame as weakness${confidenceInstructions}${courseDifficultyInstructions}${toughRoundInstructions}${belowExpectationsInstructions}${withinExpectationsInstructions}${aboveExpectationsInstructions}${highTotalWithWeakComponentInstructions}`;
+- SG values between -1.0 and +1.0 are expected variance — never frame as weakness
+- IMPORTANT: Vary your phrasing across rounds. Don't use the same sentence structures repeatedly.${confidenceInstructions}${courseDifficultyInstructions}${performanceBandInstructions}`;
 
   // ---- Build user prompt ----
 
@@ -887,13 +1005,13 @@ ${JSON.stringify(payload, null, 2)}`;
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: OPENAI_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
       max_tokens: 1200,
-      temperature: 0.7,
+      temperature: OPENAI_TEMPERATURE,
     }),
   });
 
@@ -924,234 +1042,48 @@ ${JSON.stringify(payload, null, 2)}`;
     .map((line: string) => line.trim())
     .filter((line: string) => line.length > 0);
 
+  // ---- Post-processing helpers ----
+
   const stripEmDashes = (text: string) => text.replace(/[—–]/g, '-');
 
-  const applyPostRoundOverrides = (lines: string[]) => {
-  const withinExpectationsShortGame = totalSG != null
-    && totalSG > -2.0
-    && totalSG <= 2.0
-    && sgSelection?.message2.name === 'short_game'
-    && lines.length >= 2;
-
-  if (withinExpectationsShortGame) {
-    const msg2Emoji = sgSelection?.msg2Emoji ?? '⚠️';
-    lines[1] = `${msg2Emoji} Your short-game touch was the likely area to sharpen based on scoring patterns. This is a good area to fine-tune with a little focused practice. A few reps here can help your touch around the greens.`;
-  }
-
-  const noWeaknessMode = sgSelection?.noWeaknessMode && lines.length >= 2;
-  if (noWeaknessMode) {
-    if (totalSG != null && totalSG > -2.0 && totalSG <= 2.0) {
-      const msg1Emoji = sgSelection?.msg1Emoji ?? '✅';
-      const scoreLine = round.score != null ? ` You posted a score of ${round.score}.` : '';
-      const statLine = round.putts != null
-        ? ` With ${round.putts} putts, you kept things steady on the greens.`
-        : (round.girHit != null ? ` Hitting ${round.girHit} greens shows steady approach play.` : '');
-      lines[0] = `${msg1Emoji} You put together a steady round overall.${scoreLine}${statLine}`;
+  // Replace banned phrases that LLM might still use despite AVOID instructions
+  const replaceBannedPhrases = (text: string) => {
+    const replacements: [RegExp, string][] = [
+      // "solid" variations
+      [/\bsolid foundation\b/gi, 'something to build on'],
+      [/\bgreat foundation\b/gi, 'something to build on'],
+      [/\bsolid performance\b/gi, 'steady effort'],
+      [/\bsolid touch\b/gi, 'good feel'],
+      [/\bsolid control\b/gi, 'good control'],
+      [/\bsolid effort\b/gi, 'steady effort'],
+      [/\bsolid round\b/gi, 'decent round'],
+      // Overly positive phrases
+      [/\bgreat job\b/gi, 'nice work'],
+      [/\bcontributing positively\b/gi, 'helping'],
+      [/\ba highlight\b/gi, 'a bright spot'],
+      [/\bwas a highlight\b/gi, 'held up well'],
+      [/\bstood out\b/gi, 'held up'],
+      // "significantly" variations (too dramatic for below-expectations)
+      [/\bsignificantly enhance\b/gi, 'help improve'],
+      [/\bsignificantly improve\b/gi, 'help improve'],
+      [/\bsignificant improvement\b/gi, 'some improvement'],
+      [/\bsignificant difference\b/gi, 'a difference'],
+    ];
+    let result = text;
+    for (const [pattern, replacement] of replacements) {
+      result = result.replace(pattern, replacement);
     }
-
-    const msg2Emoji = '✅';
-    const areaLabel = sgSelection?.message2.label ?? 'Another area';
-    const verb = areaLabel.toLowerCase() === 'penalties' ? 'were' : 'was';
-    lines[1] = `${msg2Emoji} ${areaLabel} ${verb} another steady part of your round. Keep building on that consistency. It’s a good signal that your game is trending in the right direction.`;
-
-    const msg3Emoji = 'ℹ️';
-    const areaName = sgSelection?.message2.name ?? 'general';
-    const tip = buildDrillTip(areaName, drillSeed);
-    lines[2] = `${msg3Emoji} ${tip}`;
-  }
-
-  const firPct = round.firHit != null && currentCtx.nonPar3Holes > 0
-    ? (round.firHit / currentCtx.nonPar3Holes) * 100
-    : null;
-  const girPct = round.girHit != null && currentCtx.holes > 0
-    ? (round.girHit / currentCtx.holes) * 100
-    : null;
-
-  const veryLowFIR = firPct != null && firPct <= 25 && lines.length >= 2;
-  if (veryLowFIR) {
-    const firLine = round.firHit != null && currentCtx.nonPar3Holes > 0
-      ? ` Hitting ${round.firHit} fairways out of ${currentCtx.nonPar3Holes} gives you a clear place to improve.`
-      : '';
-    lines[1] = `⚠️ Off the tee was the main area to tighten up today.${firLine} A simple fairway-target drill can help you find more fairways.`;
-    lines[2] = `ℹ️ ${buildDrillTip('off_tee', drillSeed)}`;
-  }
-
-  const veryLowGIR = girPct != null
-    && lines.length >= 2
-    && (
-      (baselineGirPct != null && girPct <= baselineGirPct - 8)
-      || girPct <= 20
-    );
-  if (veryLowGIR && !veryLowFIR) {
-    const girLine = round.girHit != null && currentCtx.holes > 0
-      ? ` Hitting ${round.girHit} greens out of ${currentCtx.holes} gives you a clear place to improve.`
-      : '';
-    lines[1] = `⚠️ Approach play was the main area to tighten up today.${girLine} A few focused reps can help you find more greens.`;
-    lines[2] = `ℹ️ ${buildDrillTip('approach', drillSeed)}`;
-  }
-
-  const withinExpectationsPuttingLeak = totalSG != null
-    && totalSG > -2.0
-    && totalSG <= 2.0
-    && sgSelection?.message2.name === 'putting'
-    && sgSelection?.message2.value <= -2.0
-    && lines.length >= 2;
-
-  if (withinExpectationsPuttingLeak) {
-    const msg2Emoji = sgSelection?.msg2Emoji ?? '⚠️';
-    lines[1] = `${msg2Emoji} Putting was the main area to fine-tune today. A few focused reps can help you feel more confident on the greens. It’s a good spot to focus next round.`;
-  }
-
-  const belowExpectationsApproachLeak = totalSG != null
-    && totalSG > -5.0
-    && totalSG <= -2.0
-    && sgSelection?.message2.name === 'approach'
-    && sgSelection?.message2.value <= -2.0
-    && lines.length >= 2;
-
-  if (belowExpectationsApproachLeak) {
-    const msg1Emoji = sgSelection?.msg1Emoji ?? '✅';
-    const scoreLine = round.score != null ? ` You posted a score of ${round.score}.` : '';
-    const girLine = round.girHit != null ? ` Hitting ${round.girHit} greens gives you a clear baseline to build from.` : '';
-    lines[0] = `${msg1Emoji} It was a challenging round, but there were still some usable takeaways.${scoreLine}${girLine}`;
-
-    const msg2Emoji = sgSelection?.msg2Emoji ?? '⚠️';
-    lines[1] = `${msg2Emoji} Approach play was the main area to tighten up today. A few focused reps with mid‑irons can help you find more greens. It’s a good spot to focus next round.`;
-  }
-
-  const aboveExpectationsShortGame = totalSG != null
-    && totalSG > 2.0
-    && totalSG < 5.0
-    && sgSelection?.message2.name === 'short_game'
-    && lines.length >= 2;
-
-  if (aboveExpectationsShortGame) {
-    const msg2Emoji = sgSelection?.msg2Emoji ?? '⚠️';
-    lines[1] = `${msg2Emoji} Your short-game touch was the likely area to sharpen based on scoring patterns. This is a good area to fine-tune with a little focused practice. A few reps here can help your touch around the greens.`;
-  }
-
-  const highTotalWeakComponent = totalSG != null
-    && totalSG > 2.0
-    && totalSG < 5.0
-    && sgSelection
-    && !sgSelection.noWeaknessMode
-    && sgSelection.message2.value <= -2.0
-    && lines.length >= 2;
-
-  if (highTotalWeakComponent) {
-    const msg1Emoji = sgSelection?.msg1Emoji ?? '✅';
-    const scoreLine = round.score != null ? ` You posted a score of ${round.score}.` : '';
-    const puttsLine = round.putts != null ? ` With ${round.putts} putts, you kept things steady on the greens.` : '';
-    lines[0] = `${msg1Emoji} You put together a strong round overall.${scoreLine}${puttsLine}`;
-
-    const msg2Emoji = sgSelection?.msg2Emoji ?? '⚠️';
-    const areaLabel = sgSelection?.message2.label ?? 'This area';
-    const verb = areaLabel.toLowerCase() === 'penalties' ? 'were' : 'was';
-    lines[1] = `${msg2Emoji} ${areaLabel} ${verb} the main area to tighten up today. A few focused reps here can help you feel more in control. It’s a good spot to focus next round.`;
-  }
-
-  const toughRoundOffTeeLeak = totalSG != null
-    && totalSG <= -5.0
-    && round.firHit != null
-    && currentCtx.nonPar3Holes > 0
-    && (round.firHit / currentCtx.nonPar3Holes) * 100 <= 35
-    && lines.length >= 2;
-
-  if (toughRoundOffTeeLeak) {
-    const msg1Emoji = sgSelection?.msg1Emoji ?? '✅';
-    const scoreLine = round.score != null ? ` You posted a score of ${round.score}.` : '';
-    const firLine = ` Hitting ${round.firHit} fairways gives you a clear baseline to build from.`;
-    lines[0] = `${msg1Emoji} It was a tough round, but there were still some usable takeaways.${scoreLine}${firLine}`;
-
-    lines[1] = `⚠️ Off the tee was the main area to tighten up today. A few focused reps can help you find more fairways. It’s a good spot to focus next round.`;
-  }
-
-  const quickScoreOnly = !round.advancedStats
-    && round.firHit == null
-    && round.girHit == null
-    && round.putts == null
-    && round.penalties == null
-    && lines.length >= 2;
-
-  if (quickScoreOnly) {
-    const msg1Emoji = sgSelection?.msg1Emoji ?? '✅';
-    const scoreLine = round.score != null ? ` You posted a score of ${round.score}.` : '';
-    if (totalRounds === 1) {
-      lines[0] = `${msg1Emoji} Congrats on logging your first round!${scoreLine} Keep your focus on the next round.`;
-    } else if (totalRounds === 2) {
-      const lastRound = last5Rounds[0];
-      let comparison =
-        lastRound && round.score != null && lastRound.score != null
-          ? round.score < lastRound.score
-            ? 'You posted a score of X, better than last time, and that is progress worth celebrating.'
-            : round.score > lastRound.score
-              ? 'You posted a score of X, a little higher than last time, and you’re building a baseline.'
-              : 'You posted a score of X, right in line with last time.'
-          : 'Solid progress as you build your baseline.';
-      if (round.score != null) {
-        comparison = comparison.replace('X', String(round.score));
-      }
-      lines[0] = `${msg1Emoji} Nice work getting your second round logged. ${comparison} One more round unlocks your handicap.`;
-    } else if (totalRounds === 3) {
-      lines[0] = `${msg1Emoji} Congrats — you’ve logged your third round and now have a handicap.${scoreLine} Check your dashboard to see it.`;
-    } else {
-      const toughPrefix = totalSG != null && totalSG <= -5.0 ? 'It was a challenging round, but one score doesn’t define you.' : 'Nice work getting a round logged in.';
-      lines[0] = `${msg1Emoji} ${toughPrefix}${scoreLine} Keep your focus on the next round.`;
-    }
-
-    lines[1] = `✅ Logging a few extra stats next time will unlock more precise insights. Consider enabling Advanced Stats so we can highlight strengths and opportunities with more detail. It only takes a few moments and pays off quickly.`;
-  }
-
-  // Note: keep Round 2 message to exactly 3 sentences; no extra append here.
-
-  const missingFirWithHBH = round.holeByHole
-    && round.advancedStats
-    && round.firHit == null
-    && lines.length >= 2;
-
-  if (missingFirWithHBH) {
-    const msg1Emoji = totalSG != null && totalSG <= -5.0 ? '✅' : (sgSelection?.msg1Emoji ?? '✅');
-    const scoreLine = round.score != null ? ` You posted a score of ${round.score}.` : '';
-    const girLine = round.girHit != null ? ` Hitting ${round.girHit} greens gives you a clear baseline to build from.` : '';
-    lines[0] = `${msg1Emoji} It was a tough round, but there were still some usable takeaways.${scoreLine}${girLine}`;
-
-    const msg2Emoji = sgSelection?.msg2Emoji ?? '⚠️';
-    const areaLabel = sgSelection?.message2.label ?? 'This area';
-    lines[1] = `${msg2Emoji} ${areaLabel} was the main area to tighten up today. A few focused reps can help you feel more in control. Also, tracking FIR next time will sharpen these insights.`;
-  }
-
-
-  const shortGameInference = sgSelection?.message2.name === 'short_game'
-    && sgSelection?.message2.value <= -2.5
-    && lines.length >= 2;
-
-  if (shortGameInference) {
-    const msg2Emoji = sgSelection?.msg2Emoji ?? '⚠️';
-    lines[1] = `${msg2Emoji} Your short-game touch was the likely area to sharpen based on scoring patterns. This is a good area to fine-tune with a little focused practice. A few reps here can help your touch around the greens.`;
-
-    if (totalSG != null && totalSG <= -2.0) {
-      const msg1Emoji = sgSelection?.msg1Emoji ?? '✅';
-      const scoreLine = round.score != null ? ` You posted a score of ${round.score}.` : '';
-      const girLine = round.girHit != null ? ` Hitting ${round.girHit} greens gives you a clear baseline to build from.` : '';
-      lines[0] = `${msg1Emoji} It was a tough round, but there were still some usable takeaways.${scoreLine}${girLine}`;
-    }
-  }
-
-  const round3Onboarding = totalRounds === 3 && lines.length >= 3;
-  if (round3Onboarding) {
-    lines[0] = `✅ Congrats - you have logged your third round and now have a handicap. You posted a score of ${round.score}. Check your dashboard to see it.`;
-    lines[1] = `✅ As you log more rounds, the insights will get sharper and more personalized. More data helps us spot trends and strengths. Keep tracking your rounds to build a clearer baseline.`;
-    lines[2] = `ℹ️ ${buildDrillTip('general', drillSeed)}`;
-  }
-
-    return lines.map(stripEmDashes);
+    return result;
   };
 
-  const overriddenLines = applyPostRoundOverrides(lines);
-
   const splitSentences = (text: string) => {
-    const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
-    return (parts ?? [text]).map(p => p.trim()).filter(Boolean);
+    // Replace decimal numbers temporarily to avoid splitting on decimal points
+    const placeholder = '\u0000DEC\u0000';
+    const decimalPattern = /(\d)\.(\d)/g;
+    const protected_ = text.replace(decimalPattern, `$1${placeholder}$2`);
+    const parts = protected_.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+    // Restore decimal points
+    return (parts ?? [text]).map(p => p.replace(new RegExp(placeholder, 'g'), '.').trim()).filter(Boolean);
   };
 
   const normalizeEmoji = (line: string) => {
@@ -1254,27 +1186,35 @@ ${JSON.stringify(payload, null, 2)}`;
       if (matchedKeyword) seenKeywords.add(matchedKeyword);
     }
     let fillerIndex = 0;
+    let attempts = 0;
+    const maxAttempts = fillers.length * 2; // Safeguard against infinite loop
     const existingList = normalized.map(s => s.toLowerCase());
-    while (normalized.length < 3) {
+    while (normalized.length < 3 && attempts < maxAttempts) {
       const candidate = fillers[fillerIndex % fillers.length];
       fillerIndex += 1;
+      attempts += 1;
       const candidateLower = candidate.toLowerCase();
       if (existingList.some(existing => isTooSimilar(existing, candidateLower))) continue;
       if (skipPhrases.some(p => candidateLower.includes(p))) continue;
       normalized.push(candidate);
       existingList.push(candidateLower);
     }
+    // Force-add fillers if similarity check rejected all of them
+    while (normalized.length < 3) {
+      normalized.push(fillers[(normalized.length - 1) % fillers.length]);
+    }
 
     const rebuilt = normalized.join(' ').replace(/\s+/g, ' ').trim();
     return `${emoji} ${rebuilt}`;
   };
 
-  const normalizedLines = overriddenLines.slice(0, 3).map((line, i) => ensureThreeSentences(line, i));
+  const processedLines = lines.slice(0, 3).map(stripEmDashes).map(replaceBannedPhrases);
+  const normalizedLines = processedLines.map((line: string, i: number) => ensureThreeSentences(line, i));
 
   const insightsData = {
     messages: normalizedLines,
     generated_at: new Date().toISOString(),
-    model: 'gpt-4o-mini',
+    model: OPENAI_MODEL,
     raw_payload: payload,
   };
 
@@ -1285,7 +1225,7 @@ ${JSON.stringify(payload, null, 2)}`;
     create: {
       roundId,
       userId,
-      modelUsed: 'gpt-4o-mini',
+      modelUsed: OPENAI_MODEL,
       insights: insightsData,
     },
     update: {

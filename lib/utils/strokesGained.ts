@@ -116,7 +116,7 @@ export async function calculateStrokesGained(
       sgResidual: null,
       confidence: null,
       partialAnalysis: true,
-      messages: ["Round has fewer than 9 holes — strokes gained not applicable"],
+      messages: ["Round has fewer than 9 holes - strokes gained not applicable"],
     };
   }
 
@@ -176,7 +176,7 @@ export async function calculateStrokesGained(
             const diff = adjPutts - actualPutts;
             if (Math.abs(diff) > puttingCap) {
               messages.push(
-                `Extreme putting (capped at ±${puttingCap.toFixed(2)} strokes)`
+                `Extreme putting (capped at +/-${puttingCap.toFixed(2)} strokes)`
               );
               return Math.sign(diff) * (puttingCap + (Math.abs(diff) - puttingCap) * 0.5);
             }

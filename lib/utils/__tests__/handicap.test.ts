@@ -1,52 +1,10 @@
 // lib/utils/__tests__/handicap.test.ts
-import { calculateHandicap, normalizeRoundsByMode } from "../handicap";
+import { calculateHandicap, calculateNetScore, calculateNetScoreLegacy, normalizeRoundsByMode } from "../handicap";
+import { createRound, mock18HoleRound, mock9HoleRound, type RoundFixture } from "../__fixtures__/handicapFixtures";
 
-type Round = {
-  holes: number;
-  score: number;
-  to_par?: number | null;
-  rating: number;
-  slope: number;
-  fir_hit?: number | null;
-  fir_total: number;
-  gir_hit?: number | null;
-  gir_total: number;
-  putts?: number | null;
-  penalties?: number | null;
-  par: number;
-};
+type Round = RoundFixture;
 
 describe("normalizeRoundsByMode", () => {
-  const mock18HoleRound: Round = {
-    holes: 18,
-    score: 85,
-    to_par: 13,
-    rating: 72,
-    slope: 113,
-    fir_hit: 7,
-    fir_total: 14,
-    gir_hit: 6,
-    gir_total: 18,
-    putts: 32,
-    penalties: 2,
-    par: 72,
-  };
-
-  const mock9HoleRound: Round = {
-    holes: 9,
-    score: 42,
-    to_par: 6,
-    rating: 36,
-    slope: 113,
-    fir_hit: 3,
-    fir_total: 7,
-    gir_hit: 3,
-    gir_total: 9,
-    putts: 16,
-    penalties: 1,
-    par: 36,
-  };
-
   // ----------------------------
   // Combined Mode Tests
   // ----------------------------
@@ -58,6 +16,7 @@ describe("normalizeRoundsByMode", () => {
       expect(result[0].holes).toBe(18);
       expect(result[0].score).toBe(84); // 42 * 2
       expect(result[0].to_par).toBe(12); // 6 * 2
+      expect(result[0].net_score).toBe(80); // 40 * 2
       expect(result[0].fir_hit).toBe(6); // 3 * 2
       expect(result[0].fir_total).toBe(14); // 7 * 2
       expect(result[0].gir_hit).toBe(6); // 3 * 2
@@ -73,6 +32,14 @@ describe("normalizeRoundsByMode", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(mock18HoleRound);
+    });
+
+    it("preserves net_score for 18-hole rounds", () => {
+      const roundWithNet: Round = { ...mock18HoleRound, net_score: 80 };
+      const result = normalizeRoundsByMode([roundWithNet], "combined");
+
+      expect(result).toHaveLength(1);
+      expect(result[0].net_score).toBe(80);
     });
 
     it("handles mixed 9 and 18 hole rounds", () => {
@@ -177,22 +144,6 @@ describe("normalizeRoundsByMode", () => {
 
 describe("calculateHandicap", () => {
   // Helper to create a round with specific differential
-  const createRound = (diff: number): Round => {
-    const rating = 72;
-    const slope = 113;
-    const score = rating + diff; // Simplified: diff = (score - rating) * 113 / slope
-
-    return {
-      holes: 18,
-      score,
-      rating,
-      slope,
-      fir_total: 14,
-      gir_total: 18,
-      par: 72,
-    };
-  };
-
   // ----------------------------
   // Insufficient Rounds
   // ----------------------------
@@ -497,5 +448,190 @@ describe("calculateHandicap", () => {
     // First round: (85 - 72) * 113 / 113 = 13.0
     // Should treat undefined rating as 72
     expect(result).toBeDefined();
+  });
+});
+
+describe("calculateNetScore", () => {
+  it("returns nulls when handicap is null", () => {
+    const ctx = {
+      holes: 18,
+      slopeRating: 113,
+      courseRating: 72,
+      parTotal: 72,
+    };
+
+    expect(calculateNetScore(85, null, ctx)).toEqual({ netScore: null, netToPar: null });
+  });
+
+  it("calculates net score for 18 holes", () => {
+    const ctx = {
+      holes: 18,
+      slopeRating: 113,
+      courseRating: 72,
+      parTotal: 72,
+    };
+
+    const result = calculateNetScore(85, 10, ctx);
+    expect(result.netScore).toBe(75);
+    expect(result.netToPar).toBe(3);
+  });
+
+  it("scales course handicap for 9-hole rounds", () => {
+    const ctx = {
+      holes: 9,
+      slopeRating: 113,
+      courseRating: 36,
+      parTotal: 36,
+    };
+
+    const result = calculateNetScore(40, 10, ctx);
+    expect(result.netScore).toBe(35);
+    expect(result.netToPar).toBe(-1);
+  });
+
+  it("applies slope and rating adjustments for 18 holes", () => {
+    const ctx = {
+      holes: 18,
+      slopeRating: 130,
+      courseRating: 74,
+      parTotal: 72,
+    };
+
+    const result = calculateNetScore(90, 12, ctx);
+
+    // courseHandicap = round(12 * (130/113) + (74 - 72)) = round(15.81) = 16
+    // netScore = 90 - 16 = 74, netToPar = 74 - 72 = 2
+    expect(result.netScore).toBe(74);
+    expect(result.netToPar).toBe(2);
+  });
+
+  it("applies slope and rating adjustments for 9 holes", () => {
+    const ctx = {
+      holes: 9,
+      slopeRating: 120,
+      courseRating: 36.5,
+      parTotal: 36,
+    };
+
+    const result = calculateNetScore(44, 18, ctx);
+
+    // courseHandicap = round(18 * (120/113) * 0.5 + (36.5 - 36)) = round(10.06) = 10
+    // netScore = 44 - 10 = 34, netToPar = 34 - 36 = -2
+    expect(result.netScore).toBe(34);
+    expect(result.netToPar).toBe(-2);
+  });
+
+  it("handles negative handicap indexes", () => {
+    const ctx = {
+      holes: 18,
+      slopeRating: 113,
+      courseRating: 72,
+      parTotal: 72,
+    };
+
+    const result = calculateNetScore(70, -2.4, ctx);
+
+    // courseHandicap = round(-2.4) = -2
+    // netScore = 70 - (-2) = 72, netToPar = 0
+    expect(result.netScore).toBe(72);
+    expect(result.netToPar).toBe(0);
+  });
+});
+
+describe("calculateNetScoreLegacy", () => {
+  it("matches calculateNetScore for 18-hole inputs", () => {
+    const ctx = {
+      holes: 18,
+      slopeRating: 113,
+      courseRating: 72,
+      parTotal: 72,
+    };
+
+    const legacy = calculateNetScoreLegacy(85, 10, 72, 72, 113);
+    const modern = calculateNetScore(85, 10, ctx);
+
+    expect(legacy).toEqual(modern);
+  });
+
+  it("returns nulls when any input is null", () => {
+    expect(calculateNetScoreLegacy(85, null, 72, 72, 113)).toEqual({
+      netScore: null,
+      netToPar: null,
+    });
+    expect(calculateNetScoreLegacy(85, 10, null, 72, 113)).toEqual({
+      netScore: null,
+      netToPar: null,
+    });
+    expect(calculateNetScoreLegacy(85, 10, 72, null, 113)).toEqual({
+      netScore: null,
+      netToPar: null,
+    });
+    expect(calculateNetScoreLegacy(85, 10, 72, 72, null)).toEqual({
+      netScore: null,
+      netToPar: null,
+    });
+  });
+});
+
+describe("integration-style checks", () => {
+  it("calculates handicap for a realistic round set (golden test)", () => {
+    const rounds: Round[] = [
+      { holes: 18, score: 92, rating: 71.1, slope: 125, fir_total: 14, gir_total: 18, par: 72 },
+      { holes: 18, score: 88, rating: 69.2, slope: 117, fir_total: 14, gir_total: 18, par: 72 },
+      { holes: 18, score: 95, rating: 72.4, slope: 130, fir_total: 14, gir_total: 18, par: 72 },
+      { holes: 18, score: 90, rating: 70.0, slope: 118, fir_total: 14, gir_total: 18, par: 72 },
+      { holes: 18, score: 86, rating: 69.2, slope: 117, fir_total: 14, gir_total: 18, par: 72 },
+    ];
+
+    const result = calculateHandicap(rounds);
+
+    // Diffs (approx): 19.0, 18.2, 20.0, 19.2, 16.2
+    // 5 rounds => lowest 1, adjustment 0 => 16.2
+    expect(result).toBeCloseTo(16.2, 1);
+  });
+
+  it("computes net score with real tee context values", () => {
+    const ctx = {
+      holes: 18,
+      slopeRating: 117,
+      courseRating: 69.2,
+      parTotal: 72,
+    };
+
+    const result = calculateNetScore(90, 14.2, ctx);
+
+    // courseHandicap = round(14.2 * (117/113) + (69.2 - 72)) = round(11.9) = 12
+    // netScore = 90 - 12 = 78, netToPar = 78 - 72 = 6
+    expect(result.netScore).toBe(78);
+    expect(result.netToPar).toBe(6);
+  });
+
+  it("rounds course handicap at .5 boundaries", () => {
+    const ctx = {
+      holes: 18,
+      slopeRating: 113,
+      courseRating: 72,
+      parTotal: 72,
+    };
+
+    // courseHandicap = round(10.5) = 11
+    const result = calculateNetScore(85, 10.5, ctx);
+    expect(result.netScore).toBe(74);
+    expect(result.netToPar).toBe(2);
+  });
+
+  it("normalizes 9-hole rounds before handicap calculation", () => {
+    const rounds: Round[] = [
+      { holes: 9, score: 44, rating: 36, slope: 113, fir_total: 7, gir_total: 9, par: 36 },
+      { holes: 9, score: 42, rating: 36, slope: 113, fir_total: 7, gir_total: 9, par: 36 },
+      { holes: 9, score: 40, rating: 36, slope: 113, fir_total: 7, gir_total: 9, par: 36 },
+    ];
+
+    const normalized = normalizeRoundsByMode(rounds, "combined");
+    const result = calculateHandicap(normalized);
+
+    // Scores become 88, 84, 80 with rating 72
+    // Diffs: 16, 12, 8 -> lowest 1 (8) with -2 adjustment => 6.0
+    expect(result).toBeCloseTo(6.0, 1);
   });
 });
