@@ -915,34 +915,34 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
     if (totalRounds === 1) {
       messageAssignments = `MESSAGE ASSIGNMENTS (Round 1 onboarding)
 
-Message 1 ✅ Welcome insight for their first round.
-- Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
-- Do not use sentence fragments or run-on sentences.
-- Sentence 1: welcome them to GolfIQ and acknowledge their first round is logged.
-- Sentence 2: include ONLY the total score (e.g., "You posted an 85."). Do not mention par, course par, or to-par. Do not say "to_par", "to par", or "par phrase".
-- Sentence 3: explain what these post-round insights do at a high level (what happened, why it mattered, and one next-round focus).
-- If stats are missing, you may add a short clause that tracking FIR, GIR, putts, and penalties makes future insights more specific (no nagging).
-- Do not label the round as tough or great. There is no baseline yet.
-- A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
-- If stats are missing, acknowledge they were not tracked (no shaming).
-- Do not say or imply this is their first time playing this course. At most you may say it is their first round logged in GolfIQ.
+ Message 1 ✅ Welcome insight for their first round.
+ - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
+ - Do not use sentence fragments or run-on sentences.
+ - Sentence 1: welcome them to GolfIQ and acknowledge their first round is logged.
+ - Sentence 2: include ONLY the total score (e.g., "You posted an 85."). Do not mention par, course par, or to-par. Do not say "to_par", "to par", or "par phrase".
+ - Sentence 3: explain what these post-round insights do at a high level (what happened, why it mattered, and one next-round focus).
+ - Keep it golf-centric. Avoid app-y phrasing like "tracked in your history", "summary", or "post-round insights show".
+ - Do not label the round as tough or great. There is no baseline yet.
+ - A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
+ - If stats are missing, acknowledge they were not tracked (no shaming).
+ - Do not say or imply this is their first time playing this course. At most you may say it is their first round logged in GolfIQ.
 
-Message 2 ✅ Handicap unlock message ONLY.
-- Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
-- Sentence 1: MUST say exactly: "Log 2 more rounds to unlock your handicap."
-- Sentence 2: say where to see it after round 3 (dashboard).
-- Sentence 3: say that logging more rounds improves personalization/trend detection (short, factual).
-- Keep it concise and non-repetitive. Do not restate the same handicap fact twice.
-- Do NOT mention weaknesses, "opportunities to gain strokes", or "tighten up scoring" in this message.
-- Do NOT guess at untracked stats.
+ Message 2 ✅ Handicap unlock message ONLY.
+ - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
+ - Sentence 1: MUST say exactly: "Log 2 more rounds to unlock your handicap."
+ - Sentence 2: say where to see it after round 3 (dashboard).
+ - Sentence 3: say that logging more rounds improves personalization/trend detection (short, factual).
+ - Keep it concise and non-repetitive. Do not restate the same handicap fact twice.
+ - Do NOT mention weaknesses, "opportunities to gain strokes", or "tighten up scoring" in this message.
+ - Do NOT guess at untracked stats.
 
-Message 3 ℹ️ Recommendation for the next round.
-- Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
-- Sentence 1: give ONE simple next-round focus (a concrete action they can do on the course).
-- Sentence 2: tell them exactly how to do it in one short step.
-- Sentence 3: tell them what to watch for after the round (a simple check), without repeating sentence 1.
-- Do NOT explain how insights work here (no meta like "Round insights help you..."). This must be an actionable tip.
-- Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
+ Message 3 ℹ️ Recommendation for the next round.
+ - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
+ - This should feel like golf feedback, not app documentation.
+ - Sentence 1: suggest tracking ONE stat next round (choose one of FIR, GIR, putts, penalties).
+ - Sentence 2: tell them exactly what to record (keep it simple).
+ - Sentence 3: explain what that stat will help identify next time (one short sentence, no hype, no internal terms).
+ - Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
 
     } else if (totalRounds === 2) {
       messageAssignments = `MESSAGE ASSIGNMENTS (Round 2 onboarding)
@@ -1285,6 +1285,10 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       [/\bto_par\b/gi, ''],
       [/\btoPar\b/g, ''],
       [/\bpar phrase\b/gi, 'par'],
+      // App-documentation-y phrasing (keep it golf-centric)
+      [/\btracked in your history\b/gi, 'saved'],
+      [/\bis now tracked\b/gi, 'is saved'],
+      [/\bthis summary captures\b/gi, 'this highlights'],
       // "solid" variations
       [/\bsolid foundation\b/gi, 'something to build on'],
       [/\bgreat foundation\b/gi, 'something to build on'],
@@ -1621,6 +1625,20 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       } else {
         normalized.push(normalizeSentence('Log another round to add context.'));
       }
+    }
+
+    // Enforce required onboarding sentence so the UI stays consistent even when the model drifts.
+    if (totalRounds === 1 && index === 1) {
+      const required = normalizeSentence('Log 2 more rounds to unlock your handicap.');
+      const existingIndex = normalized.findIndex((s) => stripTrailingTerminator(s).toLowerCase() === stripTrailingTerminator(required).toLowerCase());
+      if (existingIndex === -1) {
+        normalized.unshift(required);
+      } else if (existingIndex !== 0) {
+        const [moved] = normalized.splice(existingIndex, 1);
+        normalized.unshift(moved);
+      }
+      // Keep exactly 3 sentences.
+      while (normalized.length > 3) normalized.pop();
     }
 
     // If we somehow have more than 3, merge extras into the 3rd sentence without
