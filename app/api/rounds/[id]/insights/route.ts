@@ -1173,6 +1173,7 @@ CRITICAL RULES:
 ${isScoreOnlyRound ? `SCORE-ONLY ROUND RULES:
 - The user did NOT track FIR, GIR, putts, or penalties for this round.
 - Do NOT claim anything about ball striking, course management, consistency/steady play, strengths, weaknesses, or specific areas of the game.
+- Avoid characterizing the round as "steady" or "consistent" when you only have the total score.
 - You MAY interpret the score and use it to frame a baseline/starting point.
 - You MAY mention progression milestones (handicap after enough rounds) and suggest tracking ONE stat next round.
 ` : ''}
@@ -1548,8 +1549,8 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
         'That baseline helps us compare future rounds against clearer expectations for your game.',
       ],
       2: [
-        'Track it for the full round so the next feedback can be more specific.',
-        'This single stat helps us spot scoring patterns and target the next focus.',
+        'This single stat helps reveal scoring patterns and where strokes add up.',
+        'Use it to guide a simple putting focus for the next round.',
       ],
     };
 
@@ -1678,6 +1679,57 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       }
     }
 
+    // For score-only rounds, strip any accidental "steady/consistent" characterization and
+    // avoid repeating the baseline concept across multiple sentences.
+    if (isScoreOnlyRound && totalRounds <= 3) {
+      const stripSteady = (s: string) =>
+        normalizeSentence(stripTrailingTerminator(s)
+          .replace(/\bsteady\b/gi, '')
+          .replace(/\bconsistent\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim());
+
+      for (let i = 0; i < normalized.length; i += 1) {
+        normalized[i] = stripSteady(normalized[i]);
+      }
+
+      if (index === 0) {
+        const baselinePhrases = [
+          /\bbaseline\b/gi,
+          /\breference point\b/gi,
+          /\bstarting point\b/gi,
+          /\bbenchmark\b/gi,
+          /\bfoundation\b/gi,
+        ];
+
+        const hasScore = (s: string) => /\d+\s*\([+-]?\d+\)/.test(s);
+        let keepIdx = normalized.findIndex((s) => hasScore(s));
+        if (keepIdx === -1) keepIdx = 0;
+
+        let keptOne = false;
+        for (let i = 0; i < normalized.length; i += 1) {
+          if (i === keepIdx) continue;
+          let s = stripTrailingTerminator(normalized[i]);
+          for (const re of baselinePhrases) {
+            if (re.test(s)) {
+              if (!keptOne) {
+                keptOne = true;
+              } else {
+                s = s.replace(re, '');
+              }
+            }
+          }
+          // Clean up double spaces and dangling "to build from"/"to build on" phrasing.
+          s = s
+            .replace(/\bto build (from|on)\b/gi, '')
+            .replace(/\s+/g, ' ')
+            .replace(/\s+\./g, '.')
+            .trim();
+          normalized[i] = normalizeSentence(s);
+        }
+      }
+    }
+
     // After any rewriting/merging, de-dupe again. Rewrites can accidentally make
     // two sentences too similar (e.g., "Record total putts..." twice).
     for (let i = 0; i < normalized.length; i += 1) {
@@ -1686,6 +1738,14 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
           normalized.splice(j, 1);
           j -= 1;
         }
+      }
+    }
+
+    // If Message 3 still repeats sentence 2, replace sentence 3 with a fallback.
+    if (index === 2 && normalized.length >= 3 && isTooSimilar(normalized[1], normalized[2])) {
+      const candidate = normalizeSentence('This single stat helps reveal scoring patterns and where strokes add up');
+      if (!isTooSimilar(normalized[1], candidate)) {
+        normalized[2] = candidate;
       }
     }
 
@@ -1798,11 +1858,14 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       .replace(/\bsteady score\b/gi, 'score')
       .replace(/\bsteady overall score\b/gi, 'score')
       .replace(/\bsteady overall\b/gi, 'overall')
+      .replace(/\bsteady scoring\b/gi, 'score')
+      .replace(/\bconsistent scoring\b/gi, 'score')
       .replace(/\bball[- ]?striking\b/gi, '')
       .replace(/\bcourse management\b/gi, '')
       .replace(/\bgame management\b/gi, '')
       .replace(/\bconsistency\b/gi, '')
       .replace(/\bconsistent\b/gi, '')
+      .replace(/\bfoundation\b/gi, 'baseline')
       .replace(/\bstrengths?\b/gi, '')
       .replace(/\bweakness(?:es)?\b/gi, '')
       .replace(/\boff[- ]the[- ]tee\b/gi, '')
