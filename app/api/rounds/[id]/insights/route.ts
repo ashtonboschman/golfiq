@@ -920,7 +920,8 @@ Message 1 ✅ Welcome insight for their first round.
 - Do not use sentence fragments or run-on sentences.
 - Sentence 1: welcome them to GolfIQ and acknowledge their first round is logged.
 - Sentence 2: include ONLY the total score (e.g., "You posted an 85."). Do not mention par, course par, or to-par. Do not say "to_par", "to par", or "par phrase".
-- Sentence 3: explain what these post-round insights do at a high level (what happened, why it mattered, and one next-round focus), based on what the user tracks.
+- Sentence 3: explain what these post-round insights do at a high level (what happened, why it mattered, and one next-round focus).
+- If stats are missing, you may add a short clause that tracking FIR, GIR, putts, and penalties makes future insights more specific (no nagging).
 - Do not label the round as tough or great. There is no baseline yet.
 - A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
 - If stats are missing, acknowledge they were not tracked (no shaming).
@@ -928,16 +929,19 @@ Message 1 ✅ Welcome insight for their first round.
 
 Message 2 ✅ Handicap unlock message ONLY.
 - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
-- Sentence 1: state that logging 2 more rounds unlocks their handicap.
+- Sentence 1: MUST say exactly: "Log 2 more rounds to unlock your handicap."
 - Sentence 2: say where to see it after round 3 (dashboard).
 - Sentence 3: say that logging more rounds improves personalization/trend detection (short, factual).
 - Keep it concise and non-repetitive. Do not restate the same handicap fact twice.
 - Do NOT mention weaknesses, "opportunities to gain strokes", or "tighten up scoring" in this message.
 - Do NOT guess at untracked stats.
-${statsNudge}
 
 Message 3 ℹ️ Recommendation for the next round.
-- Suggest one simple on course focus or practice idea.
+- Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
+- Sentence 1: give ONE simple next-round focus (a concrete action they can do on the course).
+- Sentence 2: tell them exactly how to do it in one short step.
+- Sentence 3: tell them what to watch for after the round (a simple check), without repeating sentence 1.
+- Do NOT explain how insights work here (no meta like "Round insights help you..."). This must be an actionable tip.
 - Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
 
     } else if (totalRounds === 2) {
@@ -1430,6 +1434,11 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       let out = stripBannedPunctuation(s);
       out = out.replace(/^\s*[-,]+\s*/g, '').trim();
       if (!out) return '';
+
+      // Fix common fragment patterns (keep it minimal and generic).
+      // Example bad output: "Guide where to focus next round."
+      out = out.replace(/^guide where\b/i, 'Use this to guide where');
+      out = out.replace(/^guide\b/i, 'Use this to guide');
 
       // Normalize "aim ..." -> "Aim ..."
       out = out.replace(/^([a-z])/, (m) => m.toUpperCase());
