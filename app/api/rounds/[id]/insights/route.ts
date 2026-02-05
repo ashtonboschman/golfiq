@@ -922,6 +922,7 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  - Sentence 2: include ONLY the total score (e.g., "You posted an 85."). Do not mention par, course par, or to-par. Do not say "to_par", "to par", or "par phrase".
  - Sentence 3: explain what these post-round insights do at a high level (what happened, why it mattered, and one next-round focus).
  - Keep it golf-centric. Avoid app-y phrasing like "tracked in your history", "summary", or "post-round insights show".
+ - Avoid meta phrasing like "These insights show...". Prefer golf framing like "This gives us a starting point" or "This sets a baseline we can build on".
  - Do not label the round as tough or great. There is no baseline yet.
  - A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
  - If stats are missing, acknowledge they were not tracked (no shaming).
@@ -1289,6 +1290,8 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       [/\btracked in your history\b/gi, 'saved'],
       [/\bis now tracked\b/gi, 'is saved'],
       [/\bthis summary captures\b/gi, 'this highlights'],
+      [/\bthese insights show\b/gi, 'this gives us a starting point'],
+      [/\bpost[- ]round insights\b/gi, 'feedback'],
       // "solid" variations
       [/\bsolid foundation\b/gi, 'something to build on'],
       [/\bgreat foundation\b/gi, 'something to build on'],
