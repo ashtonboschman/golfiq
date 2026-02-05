@@ -921,9 +921,9 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
  - Do not use sentence fragments or run-on sentences.
  - Do NOT greet the user or mention the app name (no "Welcome", no "GolfIQ", no "logged").
- - Sentence 1: interpret the performance in a grounded way as a starting point (no hype, no shaming).
- - Sentence 2: include the score using the compact format (e.g., "85 (+13)") and one short interpretation phrase (baseline/starting point).
- - Sentence 3: explain what this establishes (a reference point to measure improvement), without repeating sentence 2.
+ - Sentence 1: interpret the performance in a grounded way as a starting point (no hype, no shaming). Keep it tight.
+ - Sentence 2: include the score using the compact format (e.g., "85 (+13)"). Do NOT restate that it is a baseline here.
+ - Sentence 3: explain what this establishes (a reference point to measure improvement), without repeating sentence 1 or 2.
  - Keep it golf-centric. Avoid app-y phrasing like "tracked in your history", "summary", or "post-round insights show".
  - Do not label the round as tough or great. There is no baseline yet.
  - A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
@@ -933,9 +933,10 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  Message 2 ✅ Handicap unlock message ONLY.
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
  - Keep this as a progression signal, not onboarding.
- - Sentence 1: say their profile is starting to form (one short sentence).
- - Sentence 2: say that after two more rounds their handicap will be calculated and shown on the dashboard.
- - Sentence 3: say that future rounds can be compared against clearer expectations once that baseline exists.
+ - Do NOT use the words "profile", "dashboard", or "unlock".
+ - Sentence 1: say their performance baseline is forming (one short sentence).
+ - Sentence 2: say that after two more rounds their handicap will be calculated.
+ - Sentence 3: say that future rounds can be compared against clearer expectations for their game once that baseline exists.
  - Keep it concise and non-repetitive. Do not restate the same handicap fact twice.
  - Do NOT mention weaknesses, "opportunities to gain strokes", or "tighten up scoring" in this message.
  - Do NOT guess at untracked stats.
@@ -944,7 +945,8 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
  - Sentence 1: "Next round focus" and suggest tracking ONE stat next round (choose one of FIR, GIR, putts, penalties).
  - Sentence 2: tell them exactly what to record (keep it simple and specific).
- - Sentence 3: explain what that stat will help identify next time (one short sentence, golf-centric, no internal terms).
+ - Sentence 3: explain what that stat will help identify next time (one short sentence, golf-centric, confident, no internal terms).
+ - Avoid tentative language like "try it once" or "see if it changes the result".
  - Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
 
     } else if (totalRounds === 2) {
@@ -1294,6 +1296,8 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       [/\bthis summary captures\b/gi, 'this highlights'],
       [/\bthese insights show\b/gi, 'this gives us a starting point'],
       [/\bpost[- ]round insights\b/gi, 'feedback'],
+      [/\bthe score shows\b/gi, 'you shot'],
+      [/\ba solid base\b/gi, 'a starting point'],
       // "solid" variations
       [/\bsolid foundation\b/gi, 'something to build on'],
       [/\bgreat foundation\b/gi, 'something to build on'],
@@ -1528,8 +1532,8 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
         'Tracking FIR, GIR, putts, and penalties can make these insights more precise.',
       ],
       2: [
-        'Try it once on the course next round and see if it changes the result.',
-        'Do one short session before the next round and keep the target consistent.',
+        'Do this next round and write down the result after you finish.',
+        'Track it for the full round so the next feedback can be more specific.',
       ],
     };
 
