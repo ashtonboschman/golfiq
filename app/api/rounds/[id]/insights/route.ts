@@ -744,6 +744,8 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
     if (payloadForLLM.round.course) {
       delete payloadForLLM.round.course.par;
     }
+    // Provide a single, user-facing scoring string without exposing internal key names.
+    payloadForLLM.round.score_compact = `${round.score} (${formatToParShort(toPar)})`;
   }
   if (payloadForLLM?.history?.last_5_rounds) {
     delete payloadForLLM.history.last_5_rounds.average_to_par;
@@ -918,11 +920,11 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  Message 1 ✅ Welcome insight for their first round.
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
  - Do not use sentence fragments or run-on sentences.
- - Sentence 1: welcome them to GolfIQ and acknowledge their first round is logged.
- - Sentence 2: include ONLY the total score (e.g., "You posted an 85."). Do not mention par, course par, or to-par. Do not say "to_par", "to par", or "par phrase".
- - Sentence 3: explain what these post-round insights do at a high level (what happened, why it mattered, and one next-round focus).
+ - Do NOT greet the user or mention the app name (no "Welcome", no "GolfIQ", no "logged").
+ - Sentence 1: interpret the performance in a grounded way as a starting point (no hype, no shaming).
+ - Sentence 2: include the score using the compact format (e.g., "85 (+13)") and one short interpretation phrase (baseline/starting point).
+ - Sentence 3: explain what this establishes (a reference point to measure improvement), without repeating sentence 2.
  - Keep it golf-centric. Avoid app-y phrasing like "tracked in your history", "summary", or "post-round insights show".
- - Avoid meta phrasing like "These insights show...". Prefer golf framing like "This gives us a starting point" or "This sets a baseline we can build on".
  - Do not label the round as tough or great. There is no baseline yet.
  - A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
  - If stats are missing, acknowledge they were not tracked (no shaming).
@@ -930,19 +932,19 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
 
  Message 2 ✅ Handicap unlock message ONLY.
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
- - Sentence 1: MUST say exactly: "Log 2 more rounds to unlock your handicap."
- - Sentence 2: say where to see it after round 3 (dashboard).
- - Sentence 3: say that logging more rounds improves personalization/trend detection (short, factual).
+ - Keep this as a progression signal, not onboarding.
+ - Sentence 1: say their profile is starting to form (one short sentence).
+ - Sentence 2: say that after two more rounds their handicap will be calculated and shown on the dashboard.
+ - Sentence 3: say that future rounds can be compared against clearer expectations once that baseline exists.
  - Keep it concise and non-repetitive. Do not restate the same handicap fact twice.
  - Do NOT mention weaknesses, "opportunities to gain strokes", or "tighten up scoring" in this message.
  - Do NOT guess at untracked stats.
 
  Message 3 ℹ️ Recommendation for the next round.
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
- - This should feel like golf feedback, not app documentation.
- - Sentence 1: suggest tracking ONE stat next round (choose one of FIR, GIR, putts, penalties).
- - Sentence 2: tell them exactly what to record (keep it simple).
- - Sentence 3: explain what that stat will help identify next time (one short sentence, no hype, no internal terms).
+ - Sentence 1: "Next round focus" and suggest tracking ONE stat next round (choose one of FIR, GIR, putts, penalties).
+ - Sentence 2: tell them exactly what to record (keep it simple and specific).
+ - Sentence 3: explain what that stat will help identify next time (one short sentence, golf-centric, no internal terms).
  - Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
 
     } else if (totalRounds === 2) {
@@ -1176,7 +1178,7 @@ TONE:
 - Do NOT include any strokes gained numbers
 - Use historical comparisons only when meaningful
 - Include at least one concrete round stat (score, score vs par, putts, FIR/GIR, penalties) in Message 1 or 2 when available
-- In Round 1 onboarding, prefer the total score only. Par and to-par are already shown in the UI.
+ - In Round 1 onboarding, prefer the compact score format like "85 (+13)" and keep interpretation short.
 - Numeric comparisons are OK for round stats (score, putts, FIR/GIR, penalties), but NEVER use numeric strokes gained values
 - Do NOT mention penalties in Message 1; use score/to-par, FIR/GIR, or putts instead
 - If referencing short game from residual, label it as inferred or suggested, not certain
@@ -1630,19 +1632,8 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       }
     }
 
-    // Enforce required onboarding sentence so the UI stays consistent even when the model drifts.
-    if (totalRounds === 1 && index === 1) {
-      const required = normalizeSentence('Log 2 more rounds to unlock your handicap.');
-      const existingIndex = normalized.findIndex((s) => stripTrailingTerminator(s).toLowerCase() === stripTrailingTerminator(required).toLowerCase());
-      if (existingIndex === -1) {
-        normalized.unshift(required);
-      } else if (existingIndex !== 0) {
-        const [moved] = normalized.splice(existingIndex, 1);
-        normalized.unshift(moved);
-      }
-      // Keep exactly 3 sentences.
-      while (normalized.length > 3) normalized.pop();
-    }
+    // Note: we intentionally do not hard-force a specific handicap sentence anymore.
+    // Round 1/Message 2 is now framed as progression (not setup), so we rely on prompt constraints.
 
     // If we somehow have more than 3, merge extras into the 3rd sentence without
     // turning it into multiple sentences.
