@@ -16,14 +16,19 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isPremium) {
-      setLoading(false);
-      return;
-    }
-
     const fetchInsights = async () => {
       try {
-        const res = await fetch(`/api/rounds/${roundId}/insights`);
+        const res = await fetch(`/api/rounds/${roundId}/insights`, {
+          credentials: 'include',
+        });
+
+        // If the viewer isn't authenticated (or can't access this round), don't spam console.
+        if (res.status === 401 || res.status === 403) {
+          setInsights([]);
+          setError(null);
+          return;
+        }
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Failed to fetch insights');
         setInsights(data.insights?.messages || []);
@@ -73,10 +78,17 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
     return (
       <div className="card insights-card">
         <Header />
+        {insights && insights.length > 0 && (
+          <div className="insights-content">
+            {insights.map((message, idx) => (
+              <div key={idx} className="insight-message">{message}</div>
+            ))}
+          </div>
+        )}
         <div className="premium-gate">
           <div className="premium-gate-top">
             <Lock size={50} />
-            <p>Want to find out <strong>exactly</strong> what’s costing you strokes?</p>
+            <p>Want to find out <strong>exactly</strong> what's costing you strokes?</p>
           </div>
           <div className="premium-gate-bottom">
             <p>Unlock AI insights to see your strengths, mistakes, and quick tips to lower your score.</p>

@@ -58,7 +58,7 @@ model UserProfile {
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   theme               String              @default("dark") @db.VarChar(50)
   timezone            String?             @db.VarChar(100)
-  showStrokesGained   Boolean             @default(false) @map("show_strokes_gained")
+  showStrokesGained   Boolean             @default(true) @map("show_strokes_gained")
   favoriteCourse      Course?             @relation(fields: [favoriteCourseId], references: [id])
   user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
