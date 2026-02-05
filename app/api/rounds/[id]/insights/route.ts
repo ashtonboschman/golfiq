@@ -1665,9 +1665,34 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       (v) => v != null && Number(v) >= sgThresholds.exceptionalComponent,
     );
 
-  const stripExclamationsIfNeeded = (text: string) => {
-    if (allowExclamations) return text;
-    return text
+  // We generally avoid exclamation marks to keep the tone factual.
+  // Exception:
+  // - Truly exceptional rounds/components (rule above)
+  // - Round 1 onboarding Message 1 may use a single "!" for a friendly welcome
+  const stripExclamationsIfNeededByIndex = (line: string, index: number) => {
+    const normalizedLine = normalizeEmoji(line);
+    const match = normalizedLine.match(/^(🔥|✅|⚠️|ℹ️)\s*(.*)$/);
+    if (!match) return line;
+
+    const emoji = match[1];
+    const body = match[2];
+
+    const isWelcomeException = totalRounds === 1 && index === 0;
+    if (allowExclamations || isWelcomeException) {
+      // Collapse repeated exclamations and keep at most one "!" on onboarding welcome.
+      let kept = body.replace(/!{2,}/g, '!');
+      if (isWelcomeException) {
+        let seen = false;
+        kept = kept.replace(/!/g, () => {
+          if (seen) return '.';
+          seen = true;
+          return '!';
+        });
+      }
+      return `${emoji} ${kept}`.replace(/\.\s*\./g, '.').replace(/\s+/g, ' ').trim();
+    }
+
+    return `${emoji} ${body}`
       .replace(/!/g, '.')
       .replace(/\.\s*\./g, '.')
       .replace(/\s+/g, ' ')
@@ -1679,7 +1704,7 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
     .map(stripBannedPunctuation)
     .map(replaceBannedPhrases)
     .map(replaceWeirdParWording)
-    .map(stripExclamationsIfNeeded);
+    ;
 
   const enforceEmojiByIndex = (line: string, index: number) => {
     const normalizedLine = normalizeEmoji(line);
@@ -1728,6 +1753,7 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
 
   const normalizedLines = processedLines
     .map((line: string, i: number) => ensureThreeSentences(line, i))
+    .map((line: string, i: number) => stripExclamationsIfNeededByIndex(line, i))
     .map(stripBannedPunctuation)
     .map(enforceMaxChars)
     .map((line: string, i: number) => enforceEmojiByIndex(line, i));
