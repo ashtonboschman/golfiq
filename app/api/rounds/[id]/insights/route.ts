@@ -922,7 +922,7 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  - Do not use sentence fragments or run-on sentences.
  - Do NOT greet the user or mention the app name (no "Welcome", no "GolfIQ", no "logged").
  - Sentence 1: interpret the performance in a grounded way as a starting point (no hype, no shaming). Keep it tight.
- - Sentence 2: include the score using the compact format (e.g., "85 (+13)"). Do NOT restate that it is a baseline here.
+ - Sentence 2: include the score using the compact format embedded in a sentence (e.g., "An 85 (+13) gives us a clear starting point."). Do NOT output the score as a standalone sentence like "85 (+13).".
  - Sentence 3: explain what this establishes (a reference point to measure improvement), without repeating sentence 1 or 2.
  - Keep it golf-centric. Avoid app-y phrasing like "tracked in your history", "summary", or "post-round insights show".
  - Do not label the round as tough or great. There is no baseline yet.
@@ -943,7 +943,7 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
 
  Message 3 ℹ️ Recommendation for the next round.
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
- - Sentence 1: "Next round focus" and suggest tracking ONE stat next round (choose one of FIR, GIR, putts, penalties).
+ - Sentence 1: start with "Next round focus" in the same sentence and suggest tracking ONE stat next round (choose one of FIR, GIR, putts, penalties). Do NOT make "Next round focus." its own sentence.
  - Sentence 2: tell them exactly what to record (keep it simple and specific).
  - Sentence 3: explain what that stat will help identify next time (one short sentence, golf-centric, confident, no internal terms).
  - Avoid tentative language like "try it once" or "see if it changes the result".
@@ -1633,6 +1633,32 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
         normalized.push(normalizedCandidate);
       } else {
         normalized.push(normalizeSentence('Log another round to add context.'));
+      }
+    }
+
+    // Fix common nano pattern where it emits fragments like:
+    // "Next round focus." "Track putts." "Record the total number of putts for the round."
+    if (index === 2 && normalized.length >= 2) {
+      const s0 = stripTrailingTerminator(normalized[0]).toLowerCase();
+      const s1 = stripTrailingTerminator(normalized[1]).toLowerCase();
+      if (s0 === 'next round focus' && s1.startsWith('track ')) {
+        const stat = s1.replace(/^track\s+/i, '').trim();
+        normalized[0] = normalizeSentence(`Next round focus is to track ${stat}`);
+        // Make sentence 2 more specific when it is just "Track <stat>."
+        if (/^track\s+\w+\.?$/i.test(stripTrailingTerminator(normalized[1]))) {
+          normalized[1] = normalizeSentence(`Record the total ${stat} for the round`);
+        }
+      }
+    }
+
+    // If the model outputs a standalone score sentence like "85 (+13).", merge it into the previous sentence.
+    for (let i = 1; i < normalized.length; i += 1) {
+      const raw = stripTrailingTerminator(normalized[i]).trim();
+      if (/^\d+\s*\([+-]?\d+\)$/.test(raw)) {
+        const merged = `${stripTrailingTerminator(normalized[i - 1])} ${raw}`.trim();
+        normalized[i - 1] = normalizeSentence(merged);
+        normalized.splice(i, 1);
+        i -= 1;
       }
     }
 
