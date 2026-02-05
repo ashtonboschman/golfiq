@@ -942,6 +942,7 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  - Keep this as a progression signal, not onboarding.
  - Do NOT use the words "profile", "dashboard", or "unlock".
  - Do NOT use the words "consistent" or "consistency".
+ - Do NOT list tracked stats (no "FIR, GIR, putts, penalties") in this message.
  - Sentence 1: say their performance baseline is forming (one short sentence).
  - Sentence 2: say that after two more rounds their handicap will be calculated.
  - Sentence 3: say that future rounds can be compared against clearer expectations for their game once that baseline exists.
@@ -1171,7 +1172,7 @@ CRITICAL RULES:
 
 ${isScoreOnlyRound ? `SCORE-ONLY ROUND RULES:
 - The user did NOT track FIR, GIR, putts, or penalties for this round.
-- Do NOT claim anything about ball striking, course management, consistency, strengths, weaknesses, or specific areas of the game.
+- Do NOT claim anything about ball striking, course management, consistency/steady play, strengths, weaknesses, or specific areas of the game.
 - You MAY interpret the score and use it to frame a baseline/starting point.
 - You MAY mention progression milestones (handicap after enough rounds) and suggest tracking ONE stat next round.
 ` : ''}
@@ -1537,14 +1538,14 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
     // fallback sentence rather than repeating the same idea.
     const fallbackSentencesByIndex: Record<number, string[]> = {
       0: [
-        'As you log more rounds, these insights can compare this score to your own baseline.',
-        'With more tracked stats, these insights can be more specific about what moved your score.',
+        'This gives us a clear reference point to measure improvement in future rounds.',
+        'As you log more rounds, we can compare your scoring against a clearer baseline.',
       ],
       1: [
         totalRounds <= 2
-          ? 'After your third round, your handicap will be calculated.'
-          : 'Tracking a couple more stats next time can make this more specific.',
-        'Tracking FIR, GIR, putts, and penalties can make these insights more precise.',
+          ? 'After two more rounds, your handicap will be calculated.'
+          : 'Over time, more rounds help sharpen the baseline we compare against.',
+        'That baseline helps us compare future rounds against clearer expectations for your game.',
       ],
       2: [
         'Track it for the full round so the next feedback can be more specific.',
@@ -1677,6 +1678,31 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       }
     }
 
+    // After any rewriting/merging, de-dupe again. Rewrites can accidentally make
+    // two sentences too similar (e.g., "Record total putts..." twice).
+    for (let i = 0; i < normalized.length; i += 1) {
+      for (let j = i + 1; j < normalized.length; j += 1) {
+        if (isTooSimilar(normalized[i], normalized[j])) {
+          normalized.splice(j, 1);
+          j -= 1;
+        }
+      }
+    }
+
+    // If we dropped duplicates, top back up to exactly 3 with fallbacks.
+    if (normalized.length < 3) {
+      for (const candidate of fallbacks) {
+        if (normalized.length >= 3) break;
+        const normalizedCandidate = normalizeSentence(candidate);
+        if (!normalizedCandidate) continue;
+        if (normalized.some((existing) => isTooSimilar(existing, normalizedCandidate))) continue;
+        normalized.push(normalizedCandidate);
+      }
+    }
+    while (normalized.length < 3) {
+      normalized.push(normalizeSentence('Log another round to add context.'));
+    }
+
     // Note: we intentionally do not hard-force a specific handicap sentence anymore.
     // Round 1/Message 2 is now framed as progression (not setup), so we rely on prompt constraints.
 
@@ -1769,6 +1795,9 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
 
     // With score-only input, we must not imply shot-level truths.
     body = body
+      .replace(/\bsteady score\b/gi, 'score')
+      .replace(/\bsteady overall score\b/gi, 'score')
+      .replace(/\bsteady overall\b/gi, 'overall')
       .replace(/\bball[- ]?striking\b/gi, '')
       .replace(/\bcourse management\b/gi, '')
       .replace(/\bgame management\b/gi, '')
@@ -1784,6 +1813,10 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       .replace(/\bshown across the round\b/gi, '')
       .replace(/\bacross the round\b/gi, '')
       .replace(/\bperformance picture\b/gi, 'baseline')
+      // Avoid feature lists / documentation tone in score-only early rounds.
+      .replace(/\btracking\s+fir,\s*gir,\s*putts,\s*and\s*penalties[^.]*\./gi, '')
+      .replace(/\btracking\s+fir,\s*gir,\s*putts,\s*and\s*penalties[^.]*$/gi, '')
+      .replace(/\bwith more tracked data\b/gi, 'with more rounds logged')
       .replace(/\s+/g, ' ')
       .replace(/\s+\./g, '.')
       .trim();
