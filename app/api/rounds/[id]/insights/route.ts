@@ -403,6 +403,12 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
   if (!round) throw new Error('Round not found');
   if (round.userId !== userId) throw new Error('Unauthorized access to round');
 
+  const isScoreOnlyRound =
+    round.firHit == null &&
+    round.girHit == null &&
+    round.putts == null &&
+    round.penalties == null;
+
   const sgComponents = await prisma.roundStrokesGained.findUnique({
     where: { roundId },
   });
@@ -928,12 +934,14 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
  - Do not label the round as tough or great. There is no baseline yet.
  - A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
  - If stats are missing, acknowledge they were not tracked (no shaming).
- - Do not say or imply this is their first time playing this course. At most you may say it is their first round logged in GolfIQ.
+ - If stats are missing, do NOT infer ball striking, course management, consistency, strengths, or weaknesses. Only use the score to frame the baseline.
+ - Do not say or imply this is their first time playing this course. At most you may say it is their first round logged.
 
  Message 2 ✅ Handicap unlock message ONLY.
  - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
  - Keep this as a progression signal, not onboarding.
  - Do NOT use the words "profile", "dashboard", or "unlock".
+ - Do NOT use the words "consistent" or "consistency".
  - Sentence 1: say their performance baseline is forming (one short sentence).
  - Sentence 2: say that after two more rounds their handicap will be calculated.
  - Sentence 3: say that future rounds can be compared against clearer expectations for their game once that baseline exists.
@@ -1160,6 +1168,13 @@ CRITICAL RULES:
 - Each message MUST be exactly 3 sentences (not 2, not 4+)
 - Message 1 must NEVER be ⚠️ or ℹ️ (it must be ✅ or 🔥)
 - If total SG for the round is negative, Message 2 must be ⚠️
+
+${isScoreOnlyRound ? `SCORE-ONLY ROUND RULES:
+- The user did NOT track FIR, GIR, putts, or penalties for this round.
+- Do NOT claim anything about ball striking, course management, consistency, strengths, weaknesses, or specific areas of the game.
+- You MAY interpret the score and use it to frame a baseline/starting point.
+- You MAY mention progression milestones (handicap after enough rounds) and suggest tracking ONE stat next round.
+` : ''}
 
 EMOJI RULES:
 - 🔥 = exceptional round (total SG >= ${sgThresholds.exceptional.toFixed(1)}) OR exceptional single component (a single component >= ${sgThresholds.exceptionalComponent.toFixed(1)}, especially putting)
@@ -1527,13 +1542,13 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       ],
       1: [
         totalRounds <= 2
-          ? 'After your third round, your handicap will appear on the dashboard.'
+          ? 'After your third round, your handicap will be calculated.'
           : 'Tracking a couple more stats next time can make this more specific.',
         'Tracking FIR, GIR, putts, and penalties can make these insights more precise.',
       ],
       2: [
-        'Do this next round and write down the result after you finish.',
         'Track it for the full round so the next feedback can be more specific.',
+        'This single stat helps us spot scoring patterns and target the next focus.',
       ],
     };
 
@@ -1741,12 +1756,47 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
       .trim();
   };
 
+  const stripUnsupportedClaimsForScoreOnly = (line: string, index: number) => {
+    if (!isScoreOnlyRound) return line;
+    // Message 3 can mention the stat we want them to track next round.
+    if (index === 2) return line;
+
+    const normalizedLine = normalizeEmoji(line);
+    const match = normalizedLine.match(/^(🔥|✅|⚠️|ℹ️)\s*(.*)$/);
+    if (!match) return line;
+    const emoji = match[1];
+    let body = match[2].trim();
+
+    // With score-only input, we must not imply shot-level truths.
+    body = body
+      .replace(/\bball[- ]?striking\b/gi, '')
+      .replace(/\bcourse management\b/gi, '')
+      .replace(/\bgame management\b/gi, '')
+      .replace(/\bconsistency\b/gi, '')
+      .replace(/\bconsistent\b/gi, '')
+      .replace(/\bstrengths?\b/gi, '')
+      .replace(/\bweakness(?:es)?\b/gi, '')
+      .replace(/\boff[- ]the[- ]tee\b/gi, '')
+      .replace(/\bdriving\b/gi, '')
+      .replace(/\bapproach(?:es)?\b/gi, '')
+      .replace(/\bshort[- ]game\b/gi, '')
+      .replace(/\bputting\b/gi, '') // do not attribute putting performance without putts tracked
+      .replace(/\bshown across the round\b/gi, '')
+      .replace(/\bacross the round\b/gi, '')
+      .replace(/\bperformance picture\b/gi, 'baseline')
+      .replace(/\s+/g, ' ')
+      .replace(/\s+\./g, '.')
+      .trim();
+
+    return `${emoji} ${body}`.trim();
+  };
+
   const processedLines = lines
     .slice(0, 3)
     .map(stripBannedPunctuation)
     .map(replaceBannedPhrases)
     .map(replaceWeirdParWording)
-    ;
+    .map((line: string, i: number) => stripUnsupportedClaimsForScoreOnly(line, i));
 
   const enforceEmojiByIndex = (line: string, index: number) => {
     const normalizedLine = normalizeEmoji(line);
