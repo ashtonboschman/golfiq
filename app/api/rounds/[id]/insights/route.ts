@@ -3,6 +3,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
+import { callOpenAI, type OpenAIUsageSummary } from '@/lib/insights/openai';
+import { validateRealizedInsightsV3 } from '@/lib/insights/v3/validate';
+import { buildRealizerPromptsV3, normalizeRealizerParsedOutputV3 } from '@/lib/insights/v3/prompt';
+import { SG_COEFFICIENTS } from '@/lib/utils/strokesGainedCoefficients';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -13,11 +17,11 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 /** SG threshold below which a component is considered a weakness */
 const SG_WEAKNESS_THRESHOLD = -1.0;
 
-/** SG threshold for a "large" weakness requiring ⚠️ emoji */
+/** SG threshold for a "large" weakness requiring âš ï¸ emoji */
 const SG_LARGE_WEAKNESS_THRESHOLD = -2.0;
 
 /** SG threshold for short-game attribution from residual */
-const SG_SHORT_GAME_THRESHOLD = -2.5;
+const SG_SHORT_GAME_THRESHOLD = -2.0;
 
 /** Total SG threshold for a "tough" round */
 const SG_TOUGH_ROUND_THRESHOLD = -5.0;
@@ -28,7 +32,7 @@ const SG_BELOW_EXPECTATIONS_THRESHOLD = -2.0;
 /** Total SG threshold for "above expectations" */
 const SG_ABOVE_EXPECTATIONS_THRESHOLD = 2.0;
 
-/** Total SG threshold for exceptional performance (🔥 emoji) */
+/** Total SG threshold for exceptional performance (ðŸ”¥ emoji) */
 const SG_EXCEPTIONAL_THRESHOLD = 5.0;
 
 /** Individual component SG threshold for exceptional performance */
@@ -43,22 +47,36 @@ const VERY_LOW_FIR_PCT = 25;
 /** GIR percentage threshold for "very low" triggering override */
 const VERY_LOW_GIR_PCT = 20;
 
+/** Minimum adjusted-expectation gap (percentage points) to trigger SG opportunity nudge */
+const SG_OPPORTUNITY_NUDGE_GAP_PCT = 10;
+
+/** Maximum SG distance (strokes) between current and nudged opportunity to allow a nudge */
+const SG_OPPORTUNITY_NUDGE_MARGIN = 0.6;
+
 
 /** Baseline difference threshold for stat comparisons (e.g., FIR/GIR 8% below baseline) */
 const BASELINE_DIFFERENCE_THRESHOLD = 8;
 
-/** OpenAI model temperature for generation (lower = more deterministic) */
-const OPENAI_TEMPERATURE = 0.2;
-
 /** OpenAI model to use */
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
+const OPENAI_MODEL = 'gpt-4o-mini';
 
 /** Cap output tokens for post-round latency */
-// Keep a sensible floor to avoid overly short responses, but allow env overrides upward.
-const OPENAI_MAX_COMPLETION_TOKENS = Math.max(1600, Number(process.env.OPENAI_MAX_COMPLETION_TOKENS ?? 1600) || 1600);
+const OPENAI_MAX_COMPLETION_TOKENS = (() => {
+  const raw = Number(process.env.OPENAI_MAX_COMPLETION_TOKENS ?? 280);
+  if (Number.isFinite(raw)) return Math.max(160, Math.floor(raw));
+  return 280;
+})();
+/** Hard timeout per OpenAI request to keep post-round UX responsive. */
+const OPENAI_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.OPENAI_TIMEOUT_MS ?? 12000);
+  if (Number.isFinite(raw)) return Math.max(3000, Math.floor(raw));
+  return 12000;
+})();
 
 /** Keep each insight message short enough to be readable on mobile */
 const MAX_MESSAGE_CHARS = 320;
+/** Reuse the same drill briefly during rapid same-round regenerations when inputs are unchanged. */
+const DRILL_REUSE_WINDOW_MS = 60_000;
 
 // In-flight generation lock to prevent duplicate OpenAI calls from concurrent requests
 const inFlightGenerations = new Map<string, Promise<any>>();
@@ -133,7 +151,7 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
     }
 
     // Last resort: extract quoted strings that start with the expected emojis.
-    const quoted = fixed.match(/"(?:✅|🔥|⚠️|ℹ️)[^"]*"/g);
+    const quoted = fixed.match(/"(?:âœ…|ðŸ”¥|âš ï¸|â„¹ï¸)[^"]*"/g);
     if (quoted && quoted.length >= 3) {
       return quoted.slice(0, 3).map((s) => s.slice(1, -1));
     }
@@ -149,8 +167,23 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
     ? Math.min(MAX_INSIGHTS, messages.length)
     : Math.min(getFreeVisibleCount(insights), messages.length);
 
-  // Never return debug payloads to the client (can include numeric SG or other sensitive data).
-  const { raw_payload, ...rest } = insights ?? {};
+  // Never return debug payloads or internal metadata to the client.
+  const {
+    raw_payload,
+    realizer_raw,
+    planner,
+    planner_v2,
+    openai_usage,
+    realizer_ok,
+    realizer_error,
+    realizer_retry_count,
+    fallback_used,
+    drill_selected,
+    drill_selected_at,
+    drill_fingerprint,
+    drill_reused,
+    ...rest
+  } = insights ?? {};
 
   return {
     ...rest,
@@ -198,7 +231,7 @@ export async function POST(
     const roundId = BigInt(id);
 
     const entitlements = await getViewerEntitlements(userId);
-    const insights = await generateInsights(roundId, userId, entitlements);
+    const insights = await generateInsights(roundId, userId, entitlements, { forceRegenerate: true });
     return NextResponse.json({ insights });
   } catch (error: any) {
     console.error('Error generating insights:', error);
@@ -224,11 +257,19 @@ interface SGComponent {
 interface SGSelection {
   best: SGComponent;
   message2: SGComponent;
+  message2IsOpportunity: boolean;
   noWeaknessMode: boolean;
-  msg1Emoji: '🔥' | '✅';
-  msg2Emoji: '🔥' | '✅' | '⚠️';
+  msg1Emoji: 'ðŸ”¥' | 'âœ…';
+  msg2Emoji: 'ðŸ”¥' | 'âœ…' | 'âš ï¸';
   residualNote: string | null;
 }
+
+type SgOpportunityNudgeSignals = {
+  firGapPct: number | null;
+  girGapPct: number | null;
+  veryLowFir: boolean;
+  veryLowGir: boolean;
+};
 
 const SG_LABELS: Record<SGComponentName, string> = {
   off_tee: 'Off the Tee',
@@ -237,6 +278,128 @@ const SG_LABELS: Record<SGComponentName, string> = {
   penalties: 'Penalties',
   short_game: 'Short Game',
 };
+
+function sentenceCaseAreaLabel(label: string): string {
+  // "Off the Tee" reads a bit like a category tag; make it feel like a sentence.
+  if (label === 'Off the Tee') return 'Off the tee';
+  return label;
+}
+
+function clampPct(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function computeAdjustedExpectedAccuracyPcts(args: {
+  handicap: number | null;
+  courseRating: number | null;
+  slopeRating: number | null;
+  holesPlayed: number;
+  baselineFirPct: number | null;
+  baselineGirPct: number | null;
+}): { firPct: number | null; girPct: number | null } {
+  const {
+    handicap,
+    courseRating,
+    slopeRating,
+    holesPlayed,
+    baselineFirPct,
+    baselineGirPct,
+  } = args;
+
+  if (
+    handicap == null ||
+    !Number.isFinite(handicap) ||
+    courseRating == null ||
+    !Number.isFinite(courseRating) ||
+    slopeRating == null ||
+    !Number.isFinite(slopeRating)
+  ) {
+    return { firPct: null, girPct: null };
+  }
+
+  const normalizedCourseRating = courseRating * (18 / holesPlayed);
+  const ratingDelta = normalizedCourseRating - 72;
+  const slopeDelta = handicap * ((slopeRating / 113) - 1);
+
+  const adjustedFir =
+    baselineFirPct != null && Number.isFinite(baselineFirPct)
+      ? clampPct(
+          baselineFirPct -
+            ratingDelta * SG_COEFFICIENTS.RATING_TO_FIR_PCT -
+            slopeDelta * SG_COEFFICIENTS.SLOPE_TO_FIR_PCT
+        )
+      : null;
+  const adjustedGir =
+    baselineGirPct != null && Number.isFinite(baselineGirPct)
+      ? clampPct(
+          baselineGirPct -
+            ratingDelta * SG_COEFFICIENTS.RATING_TO_GIR_PCT -
+            slopeDelta * SG_COEFFICIENTS.SLOPE_TO_GIR_PCT
+        )
+      : null;
+
+  return { firPct: adjustedFir, girPct: adjustedGir };
+}
+
+function applyOpportunityNudge(args: {
+  selection: SGSelection | null;
+  totalSg: number | null;
+  sgOffTee: number | null;
+  sgApproach: number | null;
+  signals: SgOpportunityNudgeSignals;
+}): SGSelection | null {
+  const { selection, totalSg, sgOffTee, sgApproach, signals } = args;
+  if (!selection) return selection;
+  if (totalSg == null || !Number.isFinite(totalSg) || totalSg >= 0) return selection;
+
+  const current = selection.message2;
+  if (!Number.isFinite(current.value) || current.value >= 0) return selection;
+
+  type Candidate = { name: 'off_tee' | 'approach'; value: number; signalScore: number };
+  const candidates: Candidate[] = [];
+
+  const firGap = signals.firGapPct;
+  if (sgOffTee != null && Number.isFinite(sgOffTee) && sgOffTee < 0) {
+    const firSignalFromGap =
+      firGap != null && firGap >= SG_OPPORTUNITY_NUDGE_GAP_PCT
+        ? 1 + (firGap - SG_OPPORTUNITY_NUDGE_GAP_PCT)
+        : 0;
+    const firSignal =
+      firSignalFromGap +
+      (signals.veryLowFir ? 4 : 0);
+    if (firSignal > 0) candidates.push({ name: 'off_tee', value: sgOffTee, signalScore: firSignal });
+  }
+
+  const girGap = signals.girGapPct;
+  if (sgApproach != null && Number.isFinite(sgApproach) && sgApproach < 0) {
+    const girSignalFromGap =
+      girGap != null && girGap >= SG_OPPORTUNITY_NUDGE_GAP_PCT
+        ? 1 + (girGap - SG_OPPORTUNITY_NUDGE_GAP_PCT)
+        : 0;
+    const girSignal =
+      girSignalFromGap +
+      (signals.veryLowGir ? 4 : 0);
+    if (girSignal > 0) candidates.push({ name: 'approach', value: sgApproach, signalScore: girSignal });
+  }
+
+  if (!candidates.length) return selection;
+
+  const target = candidates
+    .sort((a, b) => b.signalScore - a.signalScore || a.value - b.value)[0];
+  if (target.name === current.name) return selection;
+
+  const closeCall = Math.abs(target.value - current.value) <= SG_OPPORTUNITY_NUDGE_MARGIN;
+  if (!closeCall) return selection;
+
+  return {
+    ...selection,
+    message2: {
+      name: target.name,
+      value: target.value,
+      label: SG_LABELS[target.name],
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // SG Selection Algorithm (server-side, deterministic)
@@ -253,6 +416,7 @@ function runSGSelection(
     weakness: number;
     largeWeakness: number;
     shortGame: number;
+    aboveExpectations: number;
     belowExpectations: number;
     exceptional: number;
     exceptionalComponent: number;
@@ -265,80 +429,114 @@ function runSGSelection(
   if (sgPutting != null) components.push({ name: 'putting', value: sgPutting, label: SG_LABELS.putting });
   if (sgPenalties != null) components.push({ name: 'penalties', value: sgPenalties, label: SG_LABELS.penalties });
 
-  const shouldUseShortGame =
-    sgResidual != null &&
-    sgResidual <= thresholds.shortGame &&
-    (sgOffTee ?? 0) >= thresholds.weakness &&
-    (sgApproach ?? 0) >= thresholds.weakness &&
-    (sgPutting ?? 0) >= thresholds.weakness &&
-    (sgPenalties ?? 0) >= thresholds.weakness;
+  // Short game is an *inference* from residual. Only attribute it when:
+  // - The round was below expectation overall (sgTotal < 0),
+  // - Residual is meaningfully negative,
+  // - Residual is materially worse than the worst non-residual component (gap threshold),
+  // - Use uncertainty language downstream ("most likely"/"suggests").
+  const residualNum = sgResidual != null && Number.isFinite(sgResidual) ? sgResidual : null;
+  const totalSgNumForShortGame = sgTotal != null && Number.isFinite(sgTotal) ? sgTotal : null;
+  const otherNumsAll: number[] = [sgOffTee, sgApproach, sgPutting, sgPenalties]
+    .filter((v): v is number => v != null && Number.isFinite(v));
+
+  const shouldUseShortGame = (() => {
+    if (residualNum == null) return false;
+    if (totalSgNumForShortGame == null || totalSgNumForShortGame >= 0) return false;
+    if (otherNumsAll.length < 2) return false;
+    if (residualNum > thresholds.shortGame) return false;
+
+    // Guard: only infer short game when other tracked components are not clearly weak.
+    // This keeps residual from overpowering a round where an individual component explains the outcome.
+    const othersNotWeak = otherNumsAll.every((v) => v >= thresholds.weakness);
+    if (!othersNotWeak) return false;
+
+    const nextWorstNonResidual = Math.min(...otherNumsAll);
+
+    // Scale the gap threshold for 9-hole rounds (we scale weakness thresholds similarly elsewhere).
+    const derivedScaleRaw = thresholds.weakness / SG_WEAKNESS_THRESHOLD;
+    const derivedScale = Number.isFinite(derivedScaleRaw) && derivedScaleRaw > 0 ? derivedScaleRaw : 1.0;
+    const residualGapThreshold = 1.0 * derivedScale;
+
+    const residualWorseByGap = (nextWorstNonResidual - residualNum) >= residualGapThreshold;
+    return residualWorseByGap;
+  })();
   if (shouldUseShortGame) {
-    components.push({ name: 'short_game', value: sgResidual, label: SG_LABELS.short_game });
+    components.push({ name: 'short_game', value: residualNum!, label: SG_LABELS.short_game });
   }
 
   if (components.length < 2) return null;
 
-  // Step 2: Find worst component (most negative < threshold)
+  // Step 2: Determine overall mode and extremes
   const negatives = components.filter(c => c.value < thresholds.weakness);
   const noWeaknessMode = negatives.length === 0;
-  let worstComponent: SGComponent | null = null;
-  if (!noWeaknessMode) {
-    worstComponent = negatives.reduce((min, c) => c.value < min.value ? c : min, negatives[0]);
-  }
 
-  // Step 3: Find best component (exclude worst)
-  const remainingForBest = worstComponent
-    ? components.filter(c => c.name !== worstComponent!.name)
-    : components;
-  let bestComponent = remainingForBest.reduce((max, c) => c.value > max.value ? c : max, remainingForBest[0]);
+  const bestRaw = components.reduce((max, c) => c.value > max.value ? c : max, components[0]);
+  const worstRaw = components.reduce((min, c) => c.value < min.value ? c : min, components[0]);
 
-  // Step 4: Find second-best component (exclude best and worst)
-  const remainingForSecond = components.filter(
-    c => c.name !== bestComponent.name && (worstComponent ? c.name !== worstComponent.name : true)
-  );
-  const secondBestComponent = remainingForSecond.length > 0
-    ? remainingForSecond.reduce((max, c) => c.value > max.value ? c : max, remainingForSecond[0])
-    : null;
+  const secondBestRaw = components
+    .filter(c => c.name !== bestRaw.name)
+    .reduce((max, c) => c.value > max.value ? c : max, components.find(c => c.name !== bestRaw.name) ?? bestRaw);
 
-  // Step 4b: If best is penalties, use second-best for display (we don't want to praise penalties in Message 1)
-  if (bestComponent.name === 'penalties' && secondBestComponent) {
-    bestComponent = secondBestComponent;
-  }
+  // Step 3: Best-for-display (never praise penalties in Message 1)
+  const bestComponent: SGComponent =
+    bestRaw.name === 'penalties' && secondBestRaw && secondBestRaw.name !== bestRaw.name
+      ? secondBestRaw
+      : bestRaw;
 
-  // Step 5: Assign messages
-  const message2Component = noWeaknessMode
-    ? (secondBestComponent ?? remainingForSecond[0])
-    : worstComponent!;
+  // Step 4: Message 2 selection policy
+  // Always use the lowest selected component for Message 2.
+  // Tone/emoji are derived from sign (<0 opportunity, >=0 second positive).
+  let message2Component: SGComponent | null = null;
+  let message2IsOpportunity = false;
+  message2Component = worstRaw;
 
   if (!message2Component) return null;
+
+  // If inferred short game is lowest but a measured component is clearly weak (<= -1.5),
+  // prefer the measured weakness so residual inference doesn't overpower direct evidence.
+  if (message2Component.name === 'short_game') {
+    const measuredCandidates = components.filter((c) => c.name !== 'short_game');
+    if (measuredCandidates.length) {
+      const worstMeasured = measuredCandidates.reduce((min, c) => (c.value < min.value ? c : min), measuredCandidates[0]);
+      const derivedScaleRaw = thresholds.weakness / SG_WEAKNESS_THRESHOLD;
+      const derivedScale = Number.isFinite(derivedScaleRaw) && derivedScaleRaw > 0 ? derivedScaleRaw : 1.0;
+      const measuredWeakOverrideThreshold = -1.5 * derivedScale;
+      if (Number.isFinite(worstMeasured.value) && worstMeasured.value <= measuredWeakOverrideThreshold) {
+        message2Component = worstMeasured;
+      }
+    }
+  }
+
+  // Ensure Message 1 and Message 2 never repeat the same category (ties/degenerate rounds).
+  if (message2Component.name === bestComponent.name) {
+    const alt = components.filter(c => c.name !== bestComponent.name);
+    if (alt.length) {
+      message2Component = alt.reduce((min, c) => c.value < min.value ? c : min, alt[0]);
+    }
+  }
+  message2IsOpportunity = Number.isFinite(message2Component.value) && message2Component.value < 0;
 
   // Emoji logic (based on SG thresholds, but do not surface values in text)
   const totalSG = sgTotal != null ? sgTotal : 0;
   const bestVal = bestComponent.value;
 
-  let msg1Emoji: '🔥' | '✅';
+  let msg1Emoji: 'ðŸ”¥' | 'âœ…';
   if (totalSG >= thresholds.exceptional || bestVal >= thresholds.exceptionalComponent) {
-    msg1Emoji = '🔥';
+    msg1Emoji = 'ðŸ”¥';
   } else {
-    msg1Emoji = '✅';
+    msg1Emoji = 'âœ…';
   }
-  // Override: if total SG <= below expectations threshold, never use 🔥
+  // Override: if total SG <= below expectations threshold, never use ðŸ”¥
   if (totalSG <= thresholds.belowExpectations) {
-    msg1Emoji = '✅';
+    msg1Emoji = 'âœ…';
   }
 
-  let msg2Emoji: '🔥' | '✅' | '⚠️';
-  if (!noWeaknessMode) {
-    // Only use ⚠️ for large weaknesses
-    msg2Emoji = message2Component.value <= thresholds.largeWeakness ? '⚠️' : '✅';
+  let msg2Emoji: 'ðŸ”¥' | 'âœ…' | 'âš ï¸';
+  if (message2IsOpportunity) {
+    msg2Emoji = 'âš ï¸';
   } else {
-    msg2Emoji = (totalSG >= thresholds.exceptional || message2Component.value >= thresholds.exceptionalComponent) ? '🔥' : '✅';
-    if (totalSG <= thresholds.belowExpectations) msg2Emoji = '✅';
-  }
-
-  // Rule: if total SG is negative, Message 2 should be caution.
-  if (sgTotal != null && sgTotal < 0) {
-    msg2Emoji = '⚠️';
+    msg2Emoji = (totalSG >= thresholds.exceptional || message2Component.value >= thresholds.exceptionalComponent) ? 'ðŸ”¥' : 'âœ…';
+    if (totalSG <= thresholds.belowExpectations) msg2Emoji = 'âœ…';
   }
 
   // Residual note: only used in Message 3 when short-game attribution is active
@@ -350,11 +548,1386 @@ function runSGSelection(
   return {
     best: bestComponent,
     message2: message2Component,
+    message2IsOpportunity,
     noWeaknessMode,
     msg1Emoji,
     msg2Emoji,
     residualNote,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Planner + Realizer
+// ---------------------------------------------------------------------------
+
+type InsightEmoji = '\u2705' | '\u26A0\uFE0F' | '\u2139\uFE0F' | '\uD83D\uDD25';
+
+const EMOJI_SUCCESS: InsightEmoji = '\u2705';
+const EMOJI_WARN: InsightEmoji = '\u26A0\uFE0F';
+const EMOJI_INFO: InsightEmoji = '\u2139\uFE0F';
+const EMOJI_FIRE: InsightEmoji = '\uD83D\uDD25';
+
+type PerformanceBand = 'tough' | 'below' | 'expected' | 'above' | 'great' | 'unknown';
+
+type PlannedInsightKey = 'insight1' | 'insight2' | 'insight3';
+
+type PlannedInsight = {
+  key: PlannedInsightKey;
+  emoji: InsightEmoji;
+  // Human-readable label only; the model must not invent new topics.
+  topic: string;
+  // The text the model should aim to produce (template-like guidance).
+  templateHint: string;
+  // For validation.
+  maxSentences: 2;
+};
+
+type PlannerOutput = {
+  insights: {
+    insight1: PlannedInsight;
+    insight2: PlannedInsight;
+    insight3: PlannedInsight;
+  };
+  onboardingMode: boolean;
+  // Deterministic phrasing selector to avoid "stuck" copy while keeping identical inputs stable.
+  styleVariant: number;
+  allowSgLanguage: boolean;
+  focus: {
+    bestName: SGComponentName | null;
+    opportunityName: SGComponentName | null;
+    shortGameInferred: boolean;
+  };
+  action: {
+    type: 'track' | 'drill' | 'general';
+    stat: 'putts' | 'penalties' | 'GIR' | 'FIR' | null;
+    drill: string | null;
+  };
+  // Numeric allowlist for validation (includes computed â€œrounds remainingâ€).
+  allowedNumbers: number[];
+  // When stats are missing, we forbid inference terms. This list is assembled by the planner.
+  bannedInferenceTerms: string[];
+  // Which tracked stats are present.
+  present: {
+    fir: boolean;
+    gir: boolean;
+    putts: boolean;
+    penalties: boolean;
+    handicap: boolean;
+    sgTotal: boolean;
+    sgComponents: boolean;
+  };
+  // For deterministic fallback.
+  fallback: {
+    messages: [string, string, string];
+  };
+};
+
+function computePerformanceBand(totalSG: number | null, thresholds: {
+  toughRound: number;
+  belowExpectations: number;
+  aboveExpectations: number;
+  exceptional: number;
+}): PerformanceBand {
+  if (totalSG == null || !Number.isFinite(totalSG)) return 'unknown';
+  if (totalSG <= thresholds.toughRound) return 'tough';
+  if (totalSG <= thresholds.belowExpectations) return 'below';
+  if (totalSG < thresholds.aboveExpectations) return 'expected';
+  if (totalSG < thresholds.exceptional) return 'above';
+  return 'great';
+}
+
+function splitSentencesSimple(text: string): string[] {
+  const t = String(text ?? '').trim();
+  if (!t) return [];
+  // Split on end punctuation. Keep it intentionally simple; we only need a guardrail.
+  const parts = t.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  // If the model omitted punctuation, treat as one sentence.
+  return parts.length ? parts : [t];
+}
+
+function enforceMaxMessageChars(message: string, maxChars: number): string {
+  const msg = String(message ?? '');
+  if (!maxChars || msg.length <= maxChars) return msg;
+
+  const prefixMatch = msg.match(/^(âœ…|âš ï¸|â„¹ï¸|ðŸ”¥)\s+/);
+  const prefix = prefixMatch?.[0] ?? '';
+  const body = msg.slice(prefix.length).trim();
+
+  const sentences = splitSentencesSimple(body);
+  if (sentences.length === 0) return msg.slice(0, maxChars);
+
+  const keep: string[] = [];
+  for (const s of sentences) {
+    if (keep.length === 0) {
+      keep.push(s);
+      continue;
+    }
+    const candidate = `${prefix}${keep.join(' ')} ${s}`.trim();
+    if (candidate.length <= maxChars) keep.push(s);
+    else break;
+  }
+
+  let resultBody = keep.join(' ').trim();
+  let out = `${prefix}${resultBody}`.trim();
+
+  if (out.length <= maxChars) return out;
+
+  // Last resort: keep a single sentence, trimmed to a word boundary, and end it cleanly.
+  const limit = Math.max(0, maxChars - prefix.length);
+  let truncated = resultBody.slice(0, limit).trimEnd();
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > 20) truncated = truncated.slice(0, lastSpace).trimEnd();
+  truncated = truncated.replace(/[,:;]+$/g, '').trimEnd();
+  if (!/[.!?]$/.test(truncated)) truncated = `${truncated.replace(/[.!?]+$/g, '')}.`;
+  return `${prefix}${truncated}`.trim();
+}
+
+function extractNumericLiterals(text: string): number[] {
+  const matches = String(text ?? '').match(/[-+]?\d+(?:\.\d+)?/g);
+  if (!matches) return [];
+  const nums: number[] = [];
+  for (const m of matches) {
+    const n = Number(m);
+    if (Number.isFinite(n)) nums.push(n);
+  }
+  return nums;
+}
+
+function sanitizeWhitespace(text: string): string {
+  return String(text ?? '').replace(/\s+/g, ' ').trim();
+}
+
+const LEADING_INSIGHT_MARKERS_REGEX =
+  /^(?:(?:\u2705|\u26A0\uFE0F|\u26A0|\u2139\uFE0F|\u2139|\uD83D\uDD25|âœ…|âš\s*ï¸|âš |â„¹\s*ï¸|â„¹|ðŸ”¥)\s*)+/u;
+
+const BODY_EMOJI_OR_MOJIBAKE_REGEX =
+  /(?:\p{Extended_Pictographic}|\uFE0F|\u200D|âœ…|âš\s*ï¸|âš |â„¹\s*ï¸|â„¹|ðŸ”¥|ðŸŽ¯|ðŸ›‘|ï¸|Â)/gu;
+
+function sanitizeInsightBodyText(text: string): string {
+  return sanitizeWhitespace(String(text ?? ''))
+    .replace(BODY_EMOJI_OR_MOJIBAKE_REGEX, '')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tryParseJsonObject(raw: string): any | null {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return null;
+
+  const candidates: string[] = [trimmed];
+
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch?.[1]) candidates.push(fenceMatch[1].trim());
+
+  const objMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (objMatch?.[0]) candidates.push(objMatch[0].trim());
+
+  for (const c of candidates) {
+    try {
+      return JSON.parse(c);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Small repair: sometimes the model outputs `{"insight1".{...}}`
+  const repaired = trimmed
+    .replace(/"(\w+)"\s*\.\s*\{/g, '"$1": {')
+    .replace(/"(\w+)"\s*=\s*\{/g, '"$1": {');
+  try {
+    return JSON.parse(repaired);
+  } catch {
+    return null;
+  }
+}
+
+function extractMessagesFromLooseText(raw: string): [string, string, string] | null {
+  const text = sanitizeWhitespace(String(raw ?? ''));
+  if (!text) return null;
+
+  const markerSplit = String(raw ?? '')
+    .split(/(?=(?:\u2705|\u26A0\uFE0F|\u26A0|\u2139\uFE0F|\u2139|\uD83D\uDD25|âœ…|âš\s*ï¸|âš |â„¹\s*ï¸|â„¹|ðŸ”¥))/u)
+    .map((s) => sanitizeWhitespace(s))
+    .filter(Boolean);
+  if (markerSplit.length >= 3) {
+    const candidate = markerSplit.slice(0, 3) as [string, string, string];
+    return candidate;
+  }
+
+  const lines = String(raw ?? '')
+    .split(/\r?\n+/)
+    .map((s) => sanitizeWhitespace(s))
+    .filter(Boolean);
+  if (lines.length >= 3) {
+    return [lines[0], lines[1], lines[2]];
+  }
+
+  const sentences = splitSentencesSimple(text);
+  if (sentences.length >= 3) {
+    const m1 = sentences.slice(0, Math.min(2, sentences.length)).join(' ');
+    const m2 = sentences.slice(Math.min(2, sentences.length), Math.min(4, sentences.length)).join(' ');
+    const m3 = sentences.slice(Math.min(4, sentences.length)).join(' ') || sentences[sentences.length - 1];
+    if (m1 && m2 && m3) return [m1, m2, m3];
+  }
+
+  return null;
+}
+
+const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
+  off_tee: [
+    'Pick a fairway target and hit 10 balls, scoring 1 point for in-play and 2 points for center hits.',
+    'Use an alignment stick 10 yards ahead and start 8 of 10 drives on that line.',
+    'Alternate driver and 3-wood to the same target line (5 each) to build control.',
+    'Hit 6 drives and hold your finish for 3 seconds to reinforce balance.',
+    'Practice a 20-yard "virtual fairway" and track how many of 10 drives land in it.',
+    'Do a tempo set: 5 drives at 70 percent effort, then 5 at 85 percent, keeping the same start line.',
+    'Keep tee height consistent for 6 drives and focus on center-face contact.',
+    'Pick a safe-side start line and commit to it for a full bucket on the range.',
+    'Use an intermediate target (a leaf or divot) and commit to starting every drive over it.',
+    'When trouble is in play, take one more club and aim to the safer side of the fairway.',
+  ],
+  approach: [
+    'Hit 5 shots to 50 yards, 5 to 75, and 5 to 100 to groove partial wedges.',
+    'Pick left, middle, and right green sections and hit 3 balls to each.',
+    'Practice landing 10 shots in the front third of the green to improve distance control.',
+    'Do a distance ladder with one club (e.g., 120, 130, 140) and hit 3 to each target.',
+    'Alternate two clubs for the same target to learn real carry distances.',
+    'Place a towel 2 inches behind the ball and avoid hitting it to train low point control.',
+    'Pick a center-of-green target for every approach, regardless of pin position.',
+    'Use a 3-2-1 challenge: 3 shots to a large target, 2 to medium, 1 to small.',
+    'Pick one start line and hit 10 shots, scoring how many start on line.',
+    'Choose one swing key per approach (tempo or start line) and stick to it for a full bucket.',
+  ],
+  putting: [
+    'Make 10 consecutive putts from 3 feet before leaving the practice green.',
+    'Do a 3-6-9 ladder: make 3 in a row from each distance before moving back.',
+    'Hit 10 uphill putts and aim to finish 1 foot past the hole.',
+    'Hit 10 downhill putts and stop them within 2 feet past the hole.',
+    'Lag putt 10 balls from 25 to 40 feet and aim to leave them inside 3 feet.',
+    'Do a start-line gate drill with two tees just wider than the ball.',
+    'Putt 10 balls focusing only on speed, not the line, to train pace.',
+    'Practice a "circle" drill: finish 10 putts inside a 3-foot circle around the hole.',
+    'Track your make rate from 4 feet until you make 8 of 10.',
+    'Do a one-hand touch drill for 10 putts to improve feel.',
+  ],
+  penalties: [
+    'When in trouble, punch out to the fairway instead of forcing a hero shot.',
+    'Pick a miss before every shot and aim away from the biggest hazard.',
+    'If water or OB is in play, take one more club and aim to the safer side.',
+    'Adopt a layup habit: advance to a comfortable yardage instead of chasing a tight target.',
+    'Play a "boring golf" round by aiming at center targets and avoiding risky lines.',
+    'Commit to the easiest route back in play when blocked, even if it costs distance.',
+    'Use a quick risk check: green light, yellow light, or red light before each shot.',
+    'Club down near hazards and accept the middle of the green as the target.',
+    'If the risk is high, pick the shot that guarantees a next shot from the fairway.',
+    'Practice decision-making by playing two balls on a few holes and choosing the safer line.',
+  ],
+  short_game: [
+    'Drop 5 balls around the green and aim to get 3 up-and-downs.',
+    'Place a towel 3 yards onto the green and land 10 chips on it.',
+    'Place a tee just ahead of the ball and clip it after impact to train low point control.',
+    'Chip from the fringe and aim to finish inside 6 feet for 10 reps.',
+    'Simulate missed greens and try to get down in 2 from 10 different lies.',
+    'Hit 3 low, 3 medium, and 3 high chips to the same target.',
+    'Use one wedge only and play 10 shots with different trajectories.',
+    'Hit 10 bump-and-runs with an 8-iron and focus on consistent rollout.',
+    'Do 10 pressure up-and-downs and track how many you save.',
+    'Hit a pitch ladder: 5 shots to 20 yards, then 25, then 30, focusing on distance control.',
+  ],
+  general: [
+    'Pick center targets and remove the biggest miss from play.',
+    'Hold your finish for 2 seconds on every full swing to reinforce balance.',
+    'Use one simple pre-shot routine on every shot.',
+    'Choose one swing key for the day (tempo or start line) and stick to it.',
+    'Commit to conservative targets on the front nine and note how it affects scoring.',
+    'Aim at the largest bailout area and commit to that target line.',
+    'Pick an intermediate target and start every shot over it for a full bucket.',
+    'Score your accuracy over 10 shots to a target and try to beat it next time.',
+    'Alternate clubs to the same target to learn your true carry distances.',
+    'Practice a safe-side aim habit when the trouble is on one side.',
+  ],
+};
+
+function hashStringToInt(input: string): number {
+  // Simple stable 32-bit hash (djb2 variant).
+  let h = 5381;
+  const s = String(input ?? '');
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+  }
+  return h | 0;
+}
+
+function mix32(n: number): number {
+  // Thomas Wang integer hash (32-bit).
+  let x = n | 0;
+  x = (x ^ (x >>> 16)) >>> 0;
+  x = Math.imul(x, 0x7feb352d) >>> 0;
+  x = (x ^ (x >>> 15)) >>> 0;
+  x = Math.imul(x, 0x846ca68b) >>> 0;
+  x = (x ^ (x >>> 16)) >>> 0;
+  return x >>> 0;
+}
+
+function normalizeDrillForMatch(text: string): string {
+  return sanitizeWhitespace(String(text ?? '')).toLowerCase().replace(/[.!?]+$/g, '').trim();
+}
+
+const ALL_KNOWN_DRILLS: string[] = Array.from(
+  new Set(Object.values(DRILL_LIBRARY).flat().map((d) => sanitizeWhitespace(d)))
+);
+
+function extractReferencedDrillsFromInsights(insights: any): string[] {
+  const messages = Array.isArray(insights?.messages) ? insights.messages : [];
+  if (!messages.length) return [];
+
+  const haystack = messages.map((m: any) => normalizeDrillForMatch(String(m ?? ''))).join(' ');
+  if (!haystack) return [];
+
+  const hits: string[] = [];
+  for (const drill of ALL_KNOWN_DRILLS) {
+    const needle = normalizeDrillForMatch(drill);
+    if (needle && haystack.includes(needle)) hits.push(drill);
+  }
+  return hits;
+}
+
+function pickDrillAvoidingRecent(
+  area: SGComponentName | 'general',
+  seed: number,
+  recentlyUsed: Set<string>
+): string {
+  const list = DRILL_LIBRARY[area] ?? DRILL_LIBRARY.general;
+  if (!list.length) return '';
+
+  const start = mix32(seed) % list.length;
+  for (let offset = 0; offset < list.length; offset++) {
+    const candidate = list[(start + offset) % list.length];
+    if (!recentlyUsed.has(candidate)) return candidate;
+  }
+  return list[start];
+}
+
+function buildPlannerOutput(args: {
+  scoreCompact: string; // e.g. "85 (+13)"
+  totalRounds: number | null;
+  isScoreOnlyRound: boolean;
+  lastRoundComparison: 'better' | 'same' | 'worse' | null;
+  avgScore: number | null;
+  scoreDiffVsAvg: number | null;
+  bestScore: number | null;
+  bestDelta: number | null;
+  nextTrackStat: 'putts' | 'penalties' | 'GIR' | 'FIR' | null;
+  performanceBand: PerformanceBand;
+  sgTotalValue: number | null;
+  message2ShouldWarn: boolean;
+  hasTrackedWeakness: boolean;
+  handicapValue: number | null;
+  allowSgLanguage: boolean;
+  styleVariant: number;
+  firHitCount: number | null;
+  girHitCount: number | null;
+  firPct: number | null;
+  girPct: number | null;
+  puttsCount: number | null;
+  penaltiesCount: number | null;
+  sgFocus: null | {
+    bestName: SGComponentName;
+    bestLabel: string;
+    bestValue: number;
+    opportunityName: SGComponentName;
+    opportunityLabel: string;
+    opportunityValue: number;
+    shortGameInferred: boolean;
+  };
+  weaknessThreshold: number;
+  drillSuggestion: string | null;
+  allowedNumbers: number[];
+  hasFir: boolean;
+  hasGir: boolean;
+  hasPutts: boolean;
+  hasPenalties: boolean;
+  hasHandicap: boolean;
+  hasSgTotal: boolean;
+  hasSgComponents: boolean;
+}): PlannerOutput {
+  const rounds = args.totalRounds;
+  const isOnboarding = rounds != null && rounds <= 3;
+  const scoreOnly = (() => {
+    const m = String(args.scoreCompact ?? '').match(/^\d+/);
+    return m?.[0] ?? String(args.scoreCompact ?? '');
+  })();
+  const styleVariant = Number.isFinite(args.styleVariant)
+    ? Math.abs(Math.trunc(args.styleVariant)) % 4
+    : 0;
+  const roundsRemainingForHandicap =
+    rounds != null && rounds < 3 ? Math.max(0, 3 - rounds) : 0;
+
+  const bannedInferenceTerms: string[] = [];
+  if (args.isScoreOnlyRound && isOnboarding) {
+    bannedInferenceTerms.push(
+      'ball striking',
+      'course management',
+      'game management',
+      'strength',
+      'weakness',
+      'struggled',
+      'struggle',
+      'performed well',
+      // Never acknowledge internal validation mechanics.
+      'score string',
+      'known score',
+      'stated score',
+      'confirming',
+      'cited result',
+      'no additional claims',
+      'handicap progression',
+      'progression shows',
+    );
+  }
+  if (args.sgFocus && Number.isFinite(args.sgFocus.bestValue) && args.sgFocus.bestValue <= 0) {
+    // If the "best" SG component is still negative, avoid calling it a strength/strongest.
+    bannedInferenceTerms.push('strongest', 'strength', 'bright spot');
+  }
+  // If a stat is missing AND we do not have SG components, we forbid attributing performance to that area.
+  // If SG is present, it's valid to discuss that area without quoting the missing stat count.
+  // We still allow *mentioning the stat name* as a tracking suggestion (e.g., "track putts").
+  if (!args.hasSgComponents) {
+    if (!args.hasFir) bannedInferenceTerms.push('off the tee', 'driving', 'driver', 'tee shot', 'fairway accuracy');
+    if (!args.hasGir) bannedInferenceTerms.push('approach play', 'approach shots', 'iron play', 'ball striking');
+    if (!args.hasPutts) bannedInferenceTerms.push('putting', 'three putt', 'pace control', 'green reading');
+    if (!args.hasPenalties) bannedInferenceTerms.push('penalty-free', 'hazard', 'out of bounds', 'ob');
+  }
+  // Always forbid internal key names / weird phrasing.
+  bannedInferenceTerms.push('to_par', 'to par', 'par phrase', 'score_display', 'par_phrase');
+  // Avoid internal/system narration.
+  bannedInferenceTerms.push('round summary', 'score display', 'milestone');
+  // Avoid template-y labels.
+  bannedInferenceTerms.push('primary opportunity', 'secondary focus');
+  if (!args.allowSgLanguage) {
+    // Settings may hide strokes gained from the UI. Keep the logic, but avoid SG-specific terminology.
+    bannedInferenceTerms.push('strokes gained', 'strokes-gained', 'residual', 'breakdown');
+  }
+
+  const present = {
+    fir: args.hasFir,
+    gir: args.hasGir,
+    putts: args.hasPutts,
+    penalties: args.hasPenalties,
+    handicap: args.hasHandicap,
+    sgTotal: args.hasSgTotal,
+    sgComponents: args.hasSgComponents,
+  };
+
+  const focus: PlannerOutput['focus'] = {
+    bestName: args.sgFocus?.bestName ?? null,
+    opportunityName: args.sgFocus?.opportunityName ?? null,
+    shortGameInferred: Boolean(args.sgFocus?.shortGameInferred),
+  };
+
+  // ---- Deterministic templates (fallback) ----
+
+  const inferredTrackedWeakness =
+    Boolean(
+      args.sgFocus &&
+      Number.isFinite(args.sgFocus.opportunityValue) &&
+      args.sgFocus.opportunityValue <= args.weaknessThreshold
+    );
+
+  const insight2Emoji: InsightEmoji = isOnboarding
+    ? EMOJI_SUCCESS
+    : (
+        args.message2ShouldWarn || inferredTrackedWeakness
+          ? EMOJI_WARN
+          : EMOJI_SUCCESS
+      );
+  const insight1Emoji: InsightEmoji =
+    !isOnboarding && args.performanceBand === 'great' ? EMOJI_FIRE : EMOJI_SUCCESS;
+
+  const stat = args.nextTrackStat ?? 'putts';
+  const statHow =
+    stat === 'putts'
+      ? 'recording the total number of putts you take for the round'
+      : stat === 'penalties'
+        ? 'recording the total number of penalties for the round'
+        : stat === 'GIR'
+          ? 'recording how many greens you hit in regulation'
+          : 'recording how many fairways you hit on non-par-3 holes';
+
+  const shouldPenaltyFocus =
+    (args.penaltiesCount ?? 0) >= 2 ||
+    ((args.penaltiesCount ?? 0) === 1 &&
+      args.firPct != null &&
+      Number.isFinite(args.firPct) &&
+      args.firPct < 50);
+  // Round 1 should stay baseline-first. Only elevate penalties when clearly meaningful.
+  const shouldPenaltyFocusRound1 = (args.penaltiesCount ?? 0) >= 2;
+
+  let fallback1: string;
+  let fallback2: string;
+  let fallback3: string;
+
+  if (isOnboarding) {
+    // Round 1â€“3 must feel consistent and never read like internal validation.
+    // Avoid diagnosing performance; earn that only once expectations exist.
+    if (rounds === 2) {
+      const cmp = args.lastRoundComparison;
+      if (cmp === 'better') {
+      fallback1 = `âœ… You improved on your previous round. A score of ${scoreOnly} shows early progress as your baseline forms.`;
+    } else if (cmp === 'same') {
+      fallback1 = `âœ… You matched your previous score this round. A score of ${scoreOnly} keeps your early baseline stable.`;
+    } else if (cmp === 'worse') {
+      fallback1 = `âœ… You finished slightly higher than your previous round. A score of ${scoreOnly} is still useful for shaping your baseline.`;
+    } else {
+        fallback1 = `âœ… A score of ${scoreOnly} adds another useful data point to your early baseline.`;
+      }
+    } else if (rounds === 3) {
+      fallback1 = `âœ… A score of ${scoreOnly} closes out onboarding and gives you a clearer early scoring profile.`;
+    } else {
+      // Default Round 1 onboarding copy. Keep the language stable; only numbers change.
+      fallback1 = `âœ… Nice work logging your first round. A score of ${scoreOnly} sets your first baseline for future comparisons.`;
+    }
+
+    const handicapLockedLine =
+      roundsRemainingForHandicap === 1
+        ? `âœ… You are one round away from unlocking your handicap. After that, your insights can compare rounds against your handicap baseline.`
+        : `âœ… You are ${roundsRemainingForHandicap} rounds away from unlocking your handicap. Once unlocked, your insights can compare rounds against your handicap baseline.`;
+
+    const handicapUnlockedLine = `âœ… Your handicap is now unlocked. You can view it anytime on your Dashboard.`;
+
+    fallback2 = roundsRemainingForHandicap > 0 ? handicapLockedLine : handicapUnlockedLine;
+    if (args.nextTrackStat) {
+      fallback3 = `â„¹ï¸ Next round focus: track ${stat} by ${statHow}. This will make your next insight more specific.`;
+    } else if (args.drillSuggestion) {
+      const why = (() => {
+        if (args.sgFocus) {
+          switch (args.sgFocus.opportunityName) {
+            case 'putting':
+              return 'This targets pace control and makes more second putts routine.';
+            case 'approach':
+              return 'This sharpens distance control into greens and improves repeatable contact.';
+            case 'off_tee':
+              return 'This tightens your start line and helps keep more tee shots in play.';
+            case 'penalties':
+              return 'This reinforces safe targets and lowers big-number risk.';
+            case 'short_game':
+              return 'This improves touch on chips and pitches and helps convert more saves.';
+            default:
+              return 'This keeps your focus simple and improves repeatability under pressure.';
+          }
+        }
+        return 'This keeps your focus simple and improves repeatability under pressure.';
+      })();
+      const drill = String(args.drillSuggestion).trim();
+      const drillWithPunct = /[.!?]$/.test(drill) ? drill : `${drill}.`;
+      fallback3 = `â„¹ï¸ Next round focus: ${drillWithPunct} ${why}`;
+    } else {
+      // Round 1: when advanced stats exist, use them to choose the next focus,
+      // but do NOT diagnose performance quality without comparisons/expectations.
+      if (rounds === 1) {
+        if (shouldPenaltyFocusRound1) {
+          fallback3 = `â„¹ï¸ Next round focus: choose safer targets off the tee and avoid forced shots to reduce penalty risk. This protects your score without adding swing thoughts.`;
+        } else if (
+          args.firPct != null &&
+          args.girPct != null &&
+          Number.isFinite(args.firPct) &&
+          Number.isFinite(args.girPct) &&
+          args.girPct < args.firPct
+        ) {
+          fallback3 = `â„¹ï¸ Next round focus: aim for conservative green targets so your approach misses stay manageable. This reduces short-sided misses while your baseline forms.`;
+        } else {
+          fallback3 = `â„¹ï¸ Next round focus: use one pre-shot routine on every shot to keep your decisions consistent. That helps stabilize early scoring.`;
+        }
+      } else if (rounds === 2 || rounds === 3) {
+        // Round 2â€“3: still no diagnosis, but we can pick a single focus informed by tracked stats.
+        if (rounds === 3) {
+          // Round 3 is a milestone; keep the focus low-judgment and aligned to the most actionable tracked stat.
+          if (args.hasPutts && args.puttsCount != null && Number.isFinite(args.puttsCount) && args.puttsCount >= 36) {
+            fallback3 = `â„¹ï¸ Next round focus: use a simple pace routine on the greens (read, one rehearsal, then commit). This should reduce long second putts and three-putt risk.`;
+          } else if ((args.penaltiesCount ?? 0) >= 3) {
+            fallback3 = `â„¹ï¸ Next round focus: choose safer tee targets and avoid forced shots to reduce penalty risk. This keeps more holes playable and protects your score.`;
+          } else if (args.hasGir) {
+            fallback3 = `â„¹ï¸ Next round focus: aim for conservative green targets to keep approach outcomes predictable. That should leave you more makeable first putts.`;
+          } else {
+            fallback3 = `â„¹ï¸ Next round focus: use one pre-shot routine on every shot to keep your decisions consistent. That helps stabilize scoring as expectations begin to form.`;
+          }
+        } else {
+          if (shouldPenaltyFocus) {
+            fallback3 = `â„¹ï¸ Next round focus: choose safer targets off the tee and avoid forced shots to reduce penalty risk. This protects your score without overthinking.`;
+          } else if (args.hasPutts) {
+            fallback3 = `â„¹ï¸ Next round focus: use a simple pace routine on the greens (read, one rehearsal, then commit). This keeps first-putt speed more predictable and second putts shorter.`;
+          } else if (args.hasGir) {
+            fallback3 = `â„¹ï¸ Next round focus: aim for conservative green targets to keep approach misses manageable. This reduces short-sided misses and improves scoring chances.`;
+          } else {
+            fallback3 = `â„¹ï¸ Next round focus: use one pre-shot routine on every shot to keep your decisions consistent. A consistent routine helps reduce avoidable mistakes.`;
+          }
+        }
+      } else {
+        fallback3 = `â„¹ï¸ Next round focus: pick one simple target for each shot and commit to it. Clear targets reduce indecision and keep misses smaller.`;
+      }
+    }
+  } else if (args.sgFocus && args.hasSgTotal) {
+    const bestLabel = sentenceCaseAreaLabel(args.sgFocus.bestLabel);
+    const oppLabel = sentenceCaseAreaLabel(args.sgFocus.opportunityLabel);
+    const bestIsPositive = Number.isFinite(args.sgFocus.bestValue) && args.sgFocus.bestValue > 0;
+    const strengthPhrase = bestIsPositive ? 'was the strongest area' : 'held up best';
+
+    const supportFor = (area: SGComponentName): string | null => {
+      switch (area) {
+        case 'off_tee':
+          return args.firHitCount != null ? `with ${args.firHitCount} fairways hit` : null;
+        case 'approach':
+          return args.girHitCount != null ? `with ${args.girHitCount} greens in regulation` : null;
+        case 'putting':
+          return args.puttsCount != null ? `with ${args.puttsCount} putts` : null;
+        case 'penalties':
+          return args.penaltiesCount != null ? `with ${args.penaltiesCount} penalties` : null;
+        default:
+          return null;
+      }
+    };
+
+    const bestSupport = supportFor(args.sgFocus.bestName);
+    const oppSupport = supportFor(args.sgFocus.opportunityName);
+
+    const bestClause = `${bestLabel} ${strengthPhrase}${bestSupport ? ` ${bestSupport}` : ''}.`;
+    const bestWhy = (() => {
+      if (!bestIsPositive) {
+        return 'It still lost strokes, but it was the least costly area in this round.';
+      }
+      switch (args.sgFocus.bestName) {
+        case 'off_tee':
+          return 'Keeping tee shots in play created simpler scoring chances on approach shots.';
+        case 'approach':
+          return 'More controlled approach outcomes reduced pressure on short-game saves.';
+        case 'putting':
+          return 'Better pace and conversion on the greens kept holes from slipping further.';
+        case 'penalties':
+          return 'Avoiding penalty damage protected the scorecard from high-cost holes.';
+        case 'short_game':
+          return 'Cleaner recovery shots around the green prevented extra dropped strokes.';
+        default:
+          return 'That was the clearest area limiting additional score loss in this round.';
+      }
+    })();
+    if (styleVariant === 1) {
+      fallback1 =
+        args.performanceBand === 'tough'
+          ? `âœ… In a tough round at ${args.scoreCompact}, ${bestClause} ${bestWhy}`
+          : `âœ… In this round (${args.scoreCompact}), ${bestClause} ${bestWhy}`;
+    } else if (styleVariant === 2) {
+      fallback1 =
+        args.performanceBand === 'tough'
+          ? `âœ… ${bestLabel} ${strengthPhrase} in a tough round at ${args.scoreCompact}${bestSupport ? `, ${bestSupport.replace(/^with\\s+/i, '')}` : ''}. ${bestWhy}`
+          : `âœ… ${bestLabel} ${strengthPhrase} at ${args.scoreCompact}${bestSupport ? `, ${bestSupport.replace(/^with\\s+/i, '')}` : ''}. ${bestWhy}`;
+    } else if (styleVariant === 3) {
+      fallback1 =
+        args.performanceBand === 'tough'
+          ? `âœ… ${args.scoreCompact} came on a difficult day, and ${bestClause} ${bestWhy}`
+          : `âœ… At ${args.scoreCompact}, ${bestClause} ${bestWhy}`;
+    } else {
+      fallback1 =
+        args.performanceBand === 'tough'
+          ? `âœ… Tough round at ${args.scoreCompact}, but ${bestClause} ${bestWhy}`
+          : `âœ… At ${args.scoreCompact}, ${bestClause} ${bestWhy}`;
+    }
+    const opportunityWhy = (() => {
+      switch (args.sgFocus.opportunityName) {
+        case 'off_tee':
+          return 'Misses from the tee forced recovery shots and reduced realistic birdie looks.';
+        case 'approach':
+          return 'Approach outcomes left too many difficult up-and-down attempts.';
+        case 'putting':
+          return 'Too many strokes on the green turned makeable pars into bogey pressure.';
+        case 'penalties':
+          return 'Penalty mistakes created avoidable high-cost holes and stalled momentum.';
+        case 'short_game':
+          if (args.girHitCount != null && args.girHitCount <= 6) {
+            return `With only ${args.girHitCount} greens hit, recovery execution around the green had a larger effect on scoring.`;
+          }
+          return 'Around-the-green execution on untracked shots likely decided several holes.';
+        default:
+          return 'This area had the clearest leverage for lowering score next round.';
+      }
+    })();
+    const opportunityDirection = (() => {
+      switch (args.sgFocus.opportunityName) {
+        case 'off_tee':
+          return 'Prioritize a safer tee target line to keep more holes playable.';
+        case 'approach':
+          return 'Prioritize center-green targets before attacking pin locations.';
+        case 'putting':
+          return 'Prioritize pace control to shrink second-putt distance.';
+        case 'penalties':
+          return 'Prioritize conservative decisions whenever trouble is in play.';
+        case 'short_game':
+          return 'Prioritize contact and landing spot control around the green.';
+        default:
+          return 'Prioritize one simple decision-making rule and commit to it.';
+      }
+    })();
+    fallback2 =
+      insight2Emoji === EMOJI_WARN
+        ? (() => {
+            const isPenalties = oppLabel === 'Penalties';
+            const isShortGameInferred = args.sgFocus?.shortGameInferred && args.sgFocus.opportunityName === 'short_game';
+            const verb = isPenalties ? 'were' : 'was';
+
+            if (isShortGameInferred) {
+              const s1 = args.allowSgLanguage
+                ? `âš ï¸ ${oppLabel} ${verb} the most likely source of lost strokes in this round, inferred from the residual gap versus tracked components.`
+                : `âš ï¸ ${oppLabel} ${verb} the most likely source of lost strokes in this round, inferred from the untracked portion.`;
+              const s2 = `${opportunityWhy} ${opportunityDirection}`;
+              return `${s1} ${s2}`;
+            }
+
+            const s1 = `âš ï¸ ${oppLabel} ${verb} the largest source of scoring drag and the clearest place to gain strokes next round${oppSupport ? `, ${oppSupport}` : ''}.`;
+            const s2 = `${opportunityWhy} ${opportunityDirection}`;
+            return `${s1} ${s2}`;
+          })()
+        : `âœ… ${oppLabel} was another area to build on. A small step here can help keep scoring more predictable.`;
+    if (args.nextTrackStat) {
+      fallback3 = `â„¹ï¸ Next round focus: track ${stat} by ${statHow}. This single input meaningfully improves insight accuracy.`;
+    } else if (args.drillSuggestion) {
+      const why = (() => {
+        switch (args.sgFocus.opportunityName) {
+          case 'putting':
+            return 'This targets pace control and makes more second putts routine.';
+          case 'approach':
+            return 'This sharpens distance control into greens and improves repeatable contact.';
+          case 'off_tee':
+            return 'This tightens your start line and helps keep more tee shots in play.';
+          case 'penalties':
+            return 'This reinforces safe targets and lowers big-number risk.';
+          case 'short_game':
+            return 'This improves touch on chips and pitches and helps convert more saves.';
+          default:
+            return 'This keeps your focus simple and improves repeatability under pressure.';
+        }
+      })();
+      const drill = String(args.drillSuggestion).trim();
+      const drillWithPunct = /[.!?]$/.test(drill) ? drill : `${drill}.`;
+      const drillLead =
+        styleVariant === 1
+          ? 'â„¹ï¸ Next round priority:'
+          : styleVariant === 2
+            ? 'â„¹ï¸ Practice focus for next round:'
+            : styleVariant === 3
+              ? 'â„¹ï¸ Next session focus:'
+              : 'â„¹ï¸ Next round focus:';
+      fallback3 = `${drillLead} ${drillWithPunct} ${why}`;
+    } else {
+      fallback3 = `â„¹ï¸ Next round focus: pick one simple target for each shot and commit to it. Clear targets reduce indecision and keep misses smaller.`;
+    }
+  } else {
+    // Minimal signal (score-only): use score context, SG band, and history context without over-attribution.
+    const avgScoreRounded = args.avgScore != null && Number.isFinite(args.avgScore)
+      ? Math.round(args.avgScore)
+      : null;
+    const diffVsAvgRounded = args.scoreDiffVsAvg != null && Number.isFinite(args.scoreDiffVsAvg)
+      ? Math.round(args.scoreDiffVsAvg)
+      : null;
+    const absDiffVsAvg = diffVsAvgRounded != null ? Math.abs(diffVsAvgRounded) : null;
+
+    if (args.bestDelta != null && Number.isFinite(args.bestDelta) && args.bestDelta <= 0) {
+      fallback1 = args.bestScore != null
+        ? `âœ… ${args.scoreCompact} matched or improved your best recorded score of ${Math.round(args.bestScore)}. That confirms this scoring level is reachable in your current form.`
+        : `âœ… ${args.scoreCompact} matched or improved your best recorded score. That confirms this scoring level is reachable in your current form.`;
+    } else if (args.bestDelta != null && Number.isFinite(args.bestDelta) && args.bestDelta <= 2) {
+      fallback1 = args.bestScore != null
+        ? `âœ… ${args.scoreCompact} finished within ${Math.round(args.bestDelta)} of your best recorded score of ${Math.round(args.bestScore)}. That keeps your scoring ceiling in immediate range.`
+        : `âœ… ${args.scoreCompact} finished within ${Math.round(args.bestDelta)} of your best recorded score. That keeps your scoring ceiling in immediate range.`;
+    } else if (avgScoreRounded != null && absDiffVsAvg != null && absDiffVsAvg >= 2) {
+      if (diffVsAvgRounded! < 0) {
+        fallback1 = `âœ… ${args.scoreCompact} came in about ${absDiffVsAvg} strokes better than your recent average of ${avgScoreRounded}. That is a meaningful step ahead of your current scoring pattern.`;
+      } else {
+        fallback1 = `âœ… ${args.scoreCompact} was about ${absDiffVsAvg} strokes above your recent average of ${avgScoreRounded}. That helps isolate where the round drifted from your normal scoring level.`;
+      }
+    } else {
+      fallback1 = `âœ… ${args.scoreCompact} adds another data point to stabilize your scoring profile as your sample grows.`;
+    }
+
+    if (insight2Emoji === EMOJI_WARN) {
+      fallback2 = `âš ï¸ This round finished below expectation for your current handicap context. Tracking a few core stats next round will show where the extra strokes came from.`;
+    } else if (args.performanceBand === 'great' || args.performanceBand === 'above') {
+      fallback2 = `âœ… This round finished above expectation for your current handicap context. Tracking core stats next round will show which parts of play drove that result.`;
+    } else {
+      fallback2 = `âœ… This round landed close to expectation for your current handicap context. More tracked stats will separate stable scoring from round-to-round variance.`;
+    }
+
+    const statWhy =
+      stat === 'putts'
+        ? 'Putting totals are usually the fastest way to explain score swings in score-only rounds.'
+        : stat === 'penalties'
+          ? 'Penalty count quickly identifies avoidable score leakage.'
+          : stat === 'GIR'
+            ? 'GIR helps separate approach quality from short-game pressure.'
+            : 'FIR helps explain tee-shot pressure across the round.';
+    if (args.nextTrackStat) {
+      fallback3 = `â„¹ï¸ Next round focus: track ${stat} by ${statHow}. ${statWhy}`;
+    } else if (args.drillSuggestion) {
+      const drill = String(args.drillSuggestion).trim();
+      const drillWithPunct = /[.!?]$/.test(drill) ? drill : `${drill}.`;
+      fallback3 = `â„¹ï¸ Next round focus: ${drillWithPunct} This is a simple way to make the next round's feedback more specific.`;
+    } else {
+      fallback3 = `â„¹ï¸ Next round focus: pick center targets and remove the biggest miss from play. Clear targets reduce indecision and keep misses smaller.`;
+    }
+  }
+
+  // Round 4+ fallback is emergency-only. Keep it short, neutral, and unscripted.
+  if (!isOnboarding) {
+    fallback1 = `${EMOJI_SUCCESS} ${args.scoreCompact} is now in your round history and contributes to your performance baseline.`;
+    fallback2 =
+      insight2Emoji === EMOJI_WARN
+        ? `${EMOJI_WARN} The scoring result came in below expectation for your current handicap context. One more fully tracked round will tighten attribution.`
+        : `${EMOJI_SUCCESS} The scoring result is within or above expectation for your current handicap context. One more fully tracked round will sharpen attribution.`;
+    if (args.nextTrackStat) {
+      fallback3 = `${EMOJI_INFO} Next round focus: track ${stat} by ${statHow}. This is the fastest way to improve the precision of your next insight.`;
+    } else if (args.drillSuggestion) {
+      const drill = String(args.drillSuggestion).trim();
+      const drillWithPunct = /[.!?]$/.test(drill) ? drill : `${drill}.`;
+      fallback3 = `${EMOJI_INFO} Next round focus: ${drillWithPunct} Keep this as the single priority for the next session.`;
+    } else {
+      fallback3 = `${EMOJI_INFO} Next round focus: choose one repeatable decision rule and commit to it on every hole.`;
+    }
+  }
+
+  const insights: PlannerOutput['insights'] = {
+    insight1: {
+      key: 'insight1',
+      emoji: insight1Emoji,
+      topic: (isOnboarding || !args.sgFocus) ? 'score context' : `strength: ${args.sgFocus.bestLabel}`,
+      templateHint: args.sgFocus
+        ? `Write 1â€“2 sentences anchored to "${args.scoreCompact}" and the planned strength area "${args.sgFocus.bestLabel}". Include why it mattered using only provided facts.`
+        : (rounds === 2 && args.isScoreOnlyRound
+            ? `Write 1â€“2 sentences that compare this round to the previous score. Anchor to "${args.scoreCompact}" and do not diagnose why the score changed.`
+            : `Write 1â€“2 sentences anchored to "${args.scoreCompact}". Explain why it matters, and do not claim strengths or weaknesses without supporting stats.`),
+      maxSentences: 2,
+    },
+    insight2: {
+      key: 'insight2',
+      emoji: insight2Emoji,
+      topic: isOnboarding ? 'handicap milestone' : (insight2Emoji === EMOJI_WARN ? 'main opportunity' : 'secondary takeaway'),
+      templateHint:
+        isOnboarding
+          ? `Write 1 sentence about the handicap milestone. If the user has fewer than 3 rounds, mention the exact remaining round count (${roundsRemainingForHandicap}). Avoid system narration.`
+          : (args.sgFocus
+              ? `Write 1â€“2 sentences focused on "${args.sgFocus.opportunityLabel}". Include why it mattered, and use uncertainty language if the planner marks it as inferred.`
+              : `Write 1â€“2 sentences. If using a weakness framing, include why it mattered and only reference stats that are present.`),
+      maxSentences: 2,
+    },
+    insight3: {
+      key: 'insight3',
+      emoji: EMOJI_INFO,
+      topic: 'next round focus',
+      templateHint: args.nextTrackStat
+        ? `Write 1â€“2 sentences recommending tracking "${stat}" by ${statHow}. If you add a second sentence, explain why it improves feedback.`
+        : (args.drillSuggestion
+            ? `Write 1â€“2 sentences. Sentence 1 must recommend this drill exactly: "${args.drillSuggestion}". If you add a second sentence, explain why it helps.`
+            : `Write 1â€“2 sentences recommending one concrete next-round focus. If you add a second sentence, explain why it helps.`),
+      maxSentences: 2,
+    },
+  };
+
+  return {
+    insights,
+    onboardingMode: isOnboarding,
+    styleVariant,
+    allowSgLanguage: args.allowSgLanguage,
+    focus,
+    action: {
+      type: args.nextTrackStat ? 'track' : (args.drillSuggestion ? 'drill' : 'general'),
+      stat: args.nextTrackStat,
+      drill: args.drillSuggestion,
+    },
+    allowedNumbers: Array.from(new Set([
+      ...args.allowedNumbers,
+      roundsRemainingForHandicap,
+      args.handicapValue ?? NaN,
+      ...(args.drillSuggestion ? extractNumericLiterals(args.drillSuggestion) : []),
+    ]))
+      .filter((n) => Number.isFinite(n)),
+    bannedInferenceTerms: Array.from(new Set(bannedInferenceTerms.map((s) => s.toLowerCase()))),
+    present,
+    fallback: { messages: [fallback1, fallback2, fallback3] },
+  };
+}
+
+function isServerLevelOutageError(message: string): boolean {
+  const m = String(message ?? '').toLowerCase();
+  return (
+    m.includes('timed out') ||
+    m.includes('abort') ||
+    m.includes('fetch failed') ||
+    m.includes('network') ||
+    m.includes('status 429') ||
+    m.includes('status 500') ||
+    m.includes('status 502') ||
+    m.includes('status 503') ||
+    m.includes('status 504')
+  );
+}
+
+function buildRound4EmergencyFallback(nextTrackStat: 'putts' | 'penalties' | 'GIR' | 'FIR' | null): [string, string, string] {
+  const trackLine =
+    nextTrackStat === 'putts'
+      ? 'track putts by recording the total number of putts you take for the round'
+      : nextTrackStat === 'penalties'
+        ? 'track penalties by recording the total number of penalties for the round'
+        : nextTrackStat === 'GIR'
+          ? 'track GIR by recording how many greens you hit in regulation'
+          : nextTrackStat === 'FIR'
+            ? 'track FIR by recording how many fairways you hit on non-par-3 holes'
+            : 'choose one repeatable decision rule and apply it on every full swing';
+
+  return [
+    '\u2705 Your round is saved, but insight generation is temporarily unavailable.',
+    '\u26A0\uFE0F We could not produce full attribution due to a temporary service issue. Retry once in a moment.',
+    `\u2139\uFE0F Next round focus: ${trackLine}.`,
+  ];
+}
+
+type PresentStatsForV3 = {
+  fir: boolean;
+  gir: boolean;
+  putts: boolean;
+  penalties: boolean;
+};
+
+function repairV3MessagesForMissingStats(
+  messages: [string, string, string],
+  present: PresentStatsForV3,
+  action: { type: 'track' | 'drill' | 'general'; stat: 'putts' | 'penalties' | 'GIR' | 'FIR' | null }
+): [string, string, string] {
+  const puttRe = /\b(putt|putts|putting|on the green|on the greens)\b/i;
+  const firRe = /\b(off the tee|off-the-tee|tee shot|driver|driving|fairway|fairways|fir)\b/i;
+  const girRe = /\b(approach|approach play|approach shots|iron play|green(s)? in regulation|gir)\b/i;
+  const penRe = /\b(penalt(y|ies)|penalty|hazard|ob|out of bounds)\b/i;
+
+  const replaceKeepingEmoji = (msg: string, body: string): string => {
+    const m = sanitizeWhitespace(msg);
+    const match = m.match(/^(\u2705|\u26A0\uFE0F|\u2139\uFE0F|\uD83D\uDD25)\s+/u);
+    const emoji = match?.[1] ?? '\u2705';
+    return `${emoji} ${body}`;
+  };
+
+  let m1 = messages[0];
+  let m2 = messages[1];
+  let m3 = messages[2];
+
+  const hasMissingRef = (text: string): boolean =>
+    (!present.putts && puttRe.test(text)) ||
+    (!present.fir && firRe.test(text)) ||
+    (!present.gir && girRe.test(text)) ||
+    (!present.penalties && penRe.test(text));
+
+  const stripMissingStatSentences = (msg: string): string => {
+    const body = sanitizeWhitespace(String(msg ?? '')).replace(/^(?:✅|⚠️|ℹ️|🔥)\s+/u, '');
+    const sentences = splitSentencesSimple(body);
+    const kept = sentences.filter((s) => !hasMissingRef(s));
+    if (kept.length) return sanitizeWhitespace(kept.join(' '));
+
+    // Last resort: redact missing-area terms in-place without replacing with a canned template.
+    let redacted = body;
+    if (!present.putts) redacted = redacted.replace(puttRe, 'round context');
+    if (!present.fir) redacted = redacted.replace(firRe, 'round context');
+    if (!present.gir) redacted = redacted.replace(girRe, 'round context');
+    if (!present.penalties) redacted = redacted.replace(penRe, 'round context');
+    redacted = sanitizeWhitespace(redacted)
+      .replace(/\b(your|this|that)\s+round context\s+stats?\b/gi, 'one key stat')
+      .replace(/\bround context\s+stats?\b/gi, 'round context')
+      .replace(/\bthat area\b/gi, 'round context')
+      .replace(/\barea area\b/gi, 'area')
+      .replace(/\bmore stable area area\b/gi, 'more stable area');
+    return redacted || body;
+  };
+
+  if (hasMissingRef(m1)) m1 = replaceKeepingEmoji(m1, stripMissingStatSentences(m1));
+  if (hasMissingRef(m2)) m2 = replaceKeepingEmoji(m2, stripMissingStatSentences(m2));
+
+  if (action.type === 'track') {
+    const trackingVerbRe = /\b(track|record|log|capture|count|enter|note)\b/i;
+    const mentionsStat = (() => {
+      if (action.stat === 'putts') return /\b(putt|putts|putting)\b/i;
+      if (action.stat === 'penalties') return /\b(penalt(y|ies)|penalty)\b/i;
+      if (action.stat === 'GIR') return /\b(gir|green(s)? in regulation)\b/i;
+      if (action.stat === 'FIR') return /\b(fir|fairway|fairways)\b/i;
+      return /\b\B\b/;
+    })();
+
+    const bodyOk = trackingVerbRe.test(m3) && mentionsStat.test(m3);
+    if (!bodyOk) {
+      const statText =
+        action.stat === 'putts'
+          ? 'track your total putts'
+          : action.stat === 'penalties'
+            ? 'track your total penalties'
+            : action.stat === 'GIR'
+              ? 'track your greens in regulation'
+              : action.stat === 'FIR'
+                ? 'track your fairways hit'
+                : 'track one key stat';
+      m3 = replaceKeepingEmoji(
+        m3,
+        `Next round focus: ${statText}. This improves next-round insight precision.`
+      );
+    }
+  }
+
+  return [m1, m2, m3];
+}
+
+function forcePlannedEmojis(
+  messages: [string, string, string],
+  insights: Record<'insight1' | 'insight2' | 'insight3', { emoji: string }>
+): [string, string, string] {
+  const stripLeadingInsightEmoji = (msg: string): string =>
+    sanitizeWhitespace(String(msg ?? '')).replace(LEADING_INSIGHT_MARKERS_REGEX, '').trim();
+
+  const b1 = sanitizeInsightBodyText(stripLeadingInsightEmoji(messages[0]));
+  const b2 = sanitizeInsightBodyText(stripLeadingInsightEmoji(messages[1]));
+  const b3 = sanitizeInsightBodyText(stripLeadingInsightEmoji(messages[2]));
+
+  return [
+    `${insights.insight1.emoji} ${b1}`.trim(),
+    `${insights.insight2.emoji} ${b2}`.trim(),
+    `${insights.insight3.emoji} ${b3}`.trim(),
+  ];
+}
+
+function applyV3LanguagePolicy(
+  messages: [string, string, string],
+  opts: {
+    measuredOpportunity: boolean;
+    opportunityIsWeak: boolean;
+    opportunityValue: number | null;
+    bestName: SGComponentName | null;
+    opportunityName: SGComponentName | null;
+    opportunitySupportPhrase?: string | null;
+    allowCourseDifficultyLanguage: boolean;
+    nearNeutralRound: boolean;
+    scoreOnlyMode: boolean;
+  }
+): [string, string, string] {
+  const replaceBodyKeepingEmoji = (msg: string, body: string): string => {
+    const m = sanitizeWhitespace(msg);
+    const match = m.match(/^(\u2705|\u26A0\uFE0F|\u2139\uFE0F|\uD83D\uDD25)\s+/u);
+    const emoji = match?.[1] ?? '\u2705';
+    return `${emoji} ${sanitizeWhitespace(body)}`;
+  };
+  const getBody = (msg: string): string =>
+    sanitizeWhitespace(String(msg ?? '')).replace(/^(?:\u2705|\u26A0\uFE0F|\u2139\uFE0F|\uD83D\uDD25)\s+/u, '');
+  const areaMentionRegex = (area: SGComponentName): RegExp => {
+    if (area === 'off_tee') return /\b(off the tee|off-the-tee|tee shot|driver|driving|fairway|fairways|fir)\b/i;
+    if (area === 'approach') return /\b(approach|approach play|approach shots|iron play|greens?\s+in\s+regulation|gir)\b/i;
+    if (area === 'putting') return /\b(putt|putts|putting|on the green|on the greens)\b/i;
+    if (area === 'penalties') return /\b(penalt(y|ies)|penalty|hazard|ob|out of bounds)\b/i;
+    return /\b(short game|around the green|chip|chips|chipping|pitch|pitches|pitching|up-and-down)\b/i;
+  };
+  const areaLabel = (area: SGComponentName): string => sentenceCaseAreaLabel(SG_LABELS[area]);
+  const AREA_NAMES: SGComponentName[] = ['off_tee', 'approach', 'putting', 'penalties', 'short_game'];
+
+  const normalizeCommon = (text: string): string =>
+    sanitizeWhitespace(String(text ?? ''))
+      // GIR can imply opportunities, but "birdie opportunities" is an over-claim.
+      .replace(/\bbirdie opportunities\b/gi, 'scoring opportunities')
+      // Fix common run-on phrasing from the model.
+      .replace(/,\s*hitting\s+(\d+\s+greens?\s+in\s+regulation)\s+helped\b/gi, '. Hitting $1 helped')
+      .replace(/\bmore stable area feature\b/gi, 'more stable area')
+      // Avoid vague golf jargon that adds no actionable signal.
+      .replace(/\bball[- ]striking\b/gi, 'shot execution')
+      // Avoid competitive framing language for post-round feedback tone.
+      .replace(/\bcompetitive total\b/gi, 'round score')
+      .replace(/\bcompetitive score\b/gi, 'round score')
+      .replace(/\bcompetitive edge\b/gi, 'scoring stability')
+      // Keep phrasing concrete instead of generic.
+      .replace(/\boverall performance\b/gi, 'your score')
+      .replace(/\bscoring potential\b/gi, 'scoring outcomes')
+      .replace(/\b(\d+)\s+putts?\s+made\b/gi, '$1 putts')
+      .replace(/\bmore stable area area\b/gi, 'more stable area')
+      .replace(/\btracked data\b/gi, 'round context')
+      .replace(/\btracked stats\b/gi, 'round context')
+      .replace(/\byour your\b/gi, 'your');
+
+  const normalizeMeasuredOpportunity = (text: string): string =>
+    text
+      // For measured opportunity areas (not inferred short game), keep wording definitive.
+      .replace(/\bcan have cost(?:ing)?\b/gi, 'cost')
+      .replace(/\bmost likely\b/gi, 'clearly')
+      .replace(/\blikely\b/gi, 'clearly')
+      .replace(/\bsuggests\b/gi, 'shows')
+      .replace(/\bmay\b/gi, 'can');
+
+  let out: [string, string, string] = [
+    normalizeCommon(messages[0]),
+    normalizeCommon(messages[1]),
+    normalizeCommon(messages[2]),
+  ];
+
+  if (!opts.allowCourseDifficultyLanguage) {
+    out = [
+      out[0].replace(/\bthroughout a challenging course\b/gi, 'throughout the round')
+        .replace(/\bon a challenging course\b/gi, 'in this round')
+        .replace(/\bchallenging course\b/gi, 'course setup'),
+      out[1].replace(/\bthroughout a challenging course\b/gi, 'throughout the round')
+        .replace(/\bon a challenging course\b/gi, 'in this round')
+        .replace(/\bchallenging course\b/gi, 'course setup'),
+      out[2].replace(/\bthroughout a challenging course\b/gi, 'throughout the round')
+        .replace(/\bon a challenging course\b/gi, 'in this round')
+        .replace(/\bchallenging course\b/gi, 'course setup'),
+    ];
+  }
+
+  if (opts.nearNeutralRound) {
+    out = [
+      out[0]
+        .replace(/\bstandout(?: aspect| part)?\b/gi, 'more stable area')
+        .replace(/\bshowcasing your strong ability\b/gi, 'showing steadier execution')
+        .replace(/\bstrong ability\b/gi, 'steady execution')
+        .replace(/\bstrong performance\b/gi, 'solid execution')
+        .replace(/\bdefined your round\b/gi, 'was a helpful part of your round'),
+      out[1]
+        .replace(/\bsignificant issue with penalties\b/gi, 'clear penalty opportunity')
+        .replace(/\bgreatly improve your overall score\b/gi, 'improve your score')
+        .replace(/\bsignificantly impacted\b/gi, 'raised')
+        .replace(/\bmaterially raised\b/gi, 'raised')
+        .replace(/\bseverely\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim(),
+      out[2],
+    ];
+  }
+
+  if (opts.measuredOpportunity) {
+    out[1] = normalizeMeasuredOpportunity(out[1]);
+  }
+
+  // Low-impact measured negatives (e.g., around -0.5 to -1.4) should still read as actionable,
+  // but avoid severe framing language that overstates the impact.
+  if (
+    opts.opportunityIsWeak &&
+    opts.opportunityValue != null &&
+    Number.isFinite(opts.opportunityValue) &&
+    Math.abs(opts.opportunityValue) < 1.5
+  ) {
+    out[1] = out[1]
+      .replace(/\bmajor issue\b/gi, 'clear opportunity area')
+      .replace(/\bsignificant (?:issue|weakness|opportunity)\b/gi, 'clear opportunity')
+      .replace(/\bsevere(?:ly)?\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  // Message 1 should stay scoped to the planned strength area when provided.
+  if (opts.bestName) {
+    const body = getBody(out[0]);
+    const sentences = splitSentencesSimple(body);
+    const kept = sentences.filter((s) => {
+      const mentionsAnyArea = AREA_NAMES.some((a) => areaMentionRegex(a).test(s));
+      if (!mentionsAnyArea) return true;
+      return areaMentionRegex(opts.bestName!).test(s);
+    }).map((s) => {
+      // Avoid mixed-area sentences such as "Approach was strong ... even though you had 35 putts."
+      // Message 1 should stay scoped to the planned best area.
+      const mentionsOtherArea = AREA_NAMES
+        .filter((a) => a !== opts.bestName)
+        .some((a) => areaMentionRegex(a).test(s));
+      if (!mentionsOtherArea) return s;
+
+      const trimmed = s
+        .replace(/\b(?:even though|although|though|despite|while|but)\b[\s\S]*$/i, '')
+        // Remove common cross-area fragments that slip into a strength sentence.
+        .replace(/\bfrom the fairway\b/gi, '')
+        .replace(/\bfrom fairway lies\b/gi, '')
+        .replace(/\bwith\s+\d+\s+putts?\b/gi, '')
+        .replace(/\bwith\s+\d+\s+penalt(?:y|ies)\b/gi, '')
+        .replace(/\s+,/g, ',')
+        .trim();
+      return trimmed;
+    }).filter(Boolean);
+    if (kept.length > 0) {
+      out[0] = replaceBodyKeepingEmoji(out[0], kept.join(' '));
+    }
+  }
+
+  // Non-weak opportunity should read as a second positive takeaway, not hidden weakness math.
+  if (!opts.opportunityIsWeak && !opts.scoreOnlyMode) {
+    let body2 = getBody(out[1]);
+    body2 = body2
+      .replace(/\b(?:save|saved|saving|gain|gained|gaining|recover|recovered|recovering)\b[^.]*\bstrokes?\b/gi, 'support lower scores')
+      .replace(/\b(?:around|about|roughly|nearly|approximately|approx\.?)\s*\d+\s*strokes?\b/gi, '')
+      .replace(/~\s*\d+\s*strokes?\b/gi, '')
+      .replace(/\bcan help shave off(?:\s+\w+){0,4}\b/gi, 'can help support lower scores next round')
+      .replace(/\bhelp shave off(?:\s+\w+){0,4}\b/gi, 'help support lower scores next round')
+      .replace(/\bshave off(?:\s+\w+){0,4}\b/gi, 'support lower scores next round')
+      .replace(/\bopportunity area\b/gi, 'secondary area')
+      .replace(/\b(?:significant|clear|major)\s+opportunity\b/gi, 'secondary area')
+      .replace(/\b(?:weak|weaker|weakest)\b/gi, 'secondary')
+      .replace(/\broom for improvement\b/gi, 'another area to build on')
+      .replace(/\bpotential for (?:even )?better performance\b/gi, 'another area to build on')
+      .replace(/\bshowed potential for growth\b/gi, 'was another area you can build on')
+      .replace(/\bpotential for growth\b/gi, 'another area to build on')
+      .replace(/\bneeds improvement\b/gi, 'can keep building')
+      .replace(/\bneeds work\b/gi, 'can keep building')
+      .replace(/\b(?:struggle|struggled|struggling)\b/gi, 'can keep improving')
+      .replace(/\bimproving this area by can\b/gi, 'improving this area can')
+      .replace(/\bpotentially support\b/gi, 'support')
+      .replace(/\b(?:cost|costing|lost|loss|leak|drag|hurt)\b[^.]*\./gi, 'Building on this area can support more consistent scoring next round.')
+      .replace(/\b(?:focusing|working)\s+on\s+(?:improving|this area)\b[^.]*\./gi, 'Building on this area can support more consistent scoring next round.')
+      .replace(/\bwhile\b[^.]*\bsolid\b[^.]*\./gi, 'This was another area you can build on.')
+      // Remove dangling approximation fragments left after stroke phrase cleanup.
+      .replace(/\bwith\s+(?:about|around|roughly|nearly|approximately|approx\.?)\b\s*(?=[.!,]|$)/gi, '')
+      .replace(/\bwith\s+(?:about|around|roughly|nearly|approximately|approx\.?)\s+Building on this area\b/gi, 'Building on this area')
+      .replace(/\b(?:about|around|roughly|nearly|approximately|approx\.?)\s+Building on this area\b/gi, 'Building on this area')
+      .replace(/\bcan still be a second area to build on\b/gi, 'was another area you can build on')
+      .replace(/\bfocus on improving your next round\b/gi, 'keep building this area next round')
+      .replace(/\byou can support lower scores(?:\s+in this area)?\b/gi, 'this can support lower scores')
+      .replace(/\bwith just to gain in this area\b/gi, 'with room to build in this area')
+      .replace(/\bwith just impact from this,?\s*focusing on this will further lower your score next round\.?/gi, 'A small step here can support more consistent scoring next round.')
+      .replace(/\bfocusing on this will further lower your score next round\b/gi, 'A small step here can support more consistent scoring next round')
+      .replace(/;/g, '.')
+      .replace(/,\s*Building on this area/gi, '. Building on this area')
+      .replace(/\s+/g, ' ')
+      .replace(/\s+([,.;!?])/g, '$1')
+      .replace(/\.\s*This was another area you can build on\./gi, '.')
+      .replace(/\bThis was another area you can build on\.\s*This was another area you can build on\./gi, 'This was another area you can build on.')
+      .replace(/,\s*support lower scores(?:\s+next round)?/gi, ', and this can support lower scores next round')
+      .replace(/^\s*support lower scores(?:\s+next round)?/i, 'Building this area can support lower scores next round')
+      .replace(/\bsupport lower scores compared to your recent play\b/gi, 'support steadier scoring versus your recent rounds')
+      .trim();
+
+    // Remove duplicate/near-duplicate sentences caused by aggressive phrase repairs.
+    const dedupeSentences = (text: string): string => {
+      const seen = new Set<string>();
+      const unique: string[] = [];
+      for (const s of splitSentencesSimple(text)) {
+        const key = s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+        if (!key) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(s);
+      }
+      return unique.join(' ').trim();
+    };
+    body2 = dedupeSentences(body2);
+
+    if (opts.opportunityName) {
+      const mentionsOpportunity = areaMentionRegex(opts.opportunityName).test(body2);
+      if (!mentionsOpportunity) {
+        body2 = `${areaLabel(opts.opportunityName)} was another area you can build on. ${body2}`.trim();
+      }
+
+      const hasOtherAreaMention = AREA_NAMES
+        .filter((a) => a !== opts.opportunityName)
+        .some((a) => areaMentionRegex(a).test(body2));
+
+      if (hasOtherAreaMention) {
+        body2 = body2
+          .replace(/\b(?:even though|although|though|despite|while|but)\b[\s\S]*$/i, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+    }
+
+    if (!/[.!?]$/.test(body2)) body2 = `${body2}.`;
+
+    const supportPhrase = sanitizeWhitespace(opts.opportunitySupportPhrase ?? '');
+    const areaText = opts.opportunityName ? areaLabel(opts.opportunityName) : 'This area';
+    const supportText = supportPhrase ? `, ${supportPhrase}` : '';
+    const stripEndPunct = (s: string): string => s.replace(/[.!?]+$/g, '').trim();
+    const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+    const closers = [
+      'A small step here can support more consistent scoring next round.',
+      'A bit of progress here can help keep your scoring more repeatable next round.',
+      'Building this area can help stabilize scoring in your next round.',
+      'Steady gains here can make your scoring pattern more repeatable next round.',
+      'Progress in this area can help your next-round scoring hold up under pressure.',
+    ];
+    const fullRewriteVariants = [
+      `${areaText} was a second strength you can build from${supportText}. ${pick(closers)}`,
+      `${areaText} gave you another positive signal${supportText}. ${pick(closers)}`,
+      `${areaText} held up as a secondary strength${supportText}. ${pick(closers)}`,
+      `${areaText} was another area that supported your scoring${supportText}. ${pick(closers)}`,
+    ];
+    const nonWeakQualityIssue =
+      /\b(represented a secondary area|potential for (?:even )?better performance|showed potential for growth|overall performed well|strong but|there'?s an opportunity|can keep improving)\b/i.test(body2) ||
+      /\bthere'?s (?:a|an)\s+\w+\s+opportunity\b/i.test(body2) ||
+      /\bsecondary area to build upon,\s*as\b/i.test(body2) ||
+      /\b(?:weak|weaker|room for improvement|needs improvement|needs work)\b/i.test(body2) ||
+      /\bbuild upon\b/i.test(body2) ||
+      /\bfocus on improving your next round\b/i.test(body2) ||
+      /\bwith solid putting performance,\s*there'?s potential to build on that\b/i.test(body2) ||
+      /\bwith just to gain in this area\b/i.test(body2) ||
+      /\bwith just impact from this\b/i.test(body2) ||
+      /\.\s*with\b/i.test(body2) ||
+      /\bfocusing on this will further lower your score next round\b/i.test(body2) ||
+      /\bby can\b/i.test(body2) ||
+      /\b(?:another area you can build on\.)\s*(?:this was another area you can build on\.)/i.test(body2) ||
+      /\b,\s*and this can support lower scores next round,\s*and this can support lower scores next round\b/i.test(body2);
+    const hasBuildForwardPhrase = /\b(another area you can build on|secondary area|build on|keep building|support more consistent scoring|support steadier scoring|support lower scores|stabilize scoring|repeatable)\b/i.test(body2);
+
+    // Keep valid LLM phrasing when possible; only rewrite bad non-weak messages.
+    if (nonWeakQualityIssue || body2.length < 35) {
+      body2 = pick(fullRewriteVariants);
+    } else if (!hasBuildForwardPhrase) {
+      const sentences = splitSentencesSimple(body2);
+      if (sentences.length >= 2) {
+        sentences[sentences.length - 1] = pick(closers);
+        body2 = sentences.slice(0, 2).join(' ');
+      } else {
+        body2 = `${stripEndPunct(body2)}. ${pick(closers)}`;
+      }
+    }
+    out[1] = replaceBodyKeepingEmoji(out[1], body2);
+  }
+
+  if (opts.scoreOnlyMode) {
+    const skillAreaRe = /\b(off the tee|off-the-tee|tee shot|driver|driving|fairway|fairways|fir|approach|approach play|approach shots|iron play|greens?\s+in\s+regulation|gir|putt|putts|putting|penalt(y|ies)|penalty|hazard|ob|out of bounds|short game|around the green|chip|chips|chipping|pitch|pitches|pitching|up-and-down)\b/i;
+    const badScoreOnlyPhraseRe = /\b(this area|that area|tracked data|tracked stats|specific strength area|build(?:ing)? this area|support steadier scoring|support more consistent scoring)\b/i;
+
+    const scrubScoreOnly = (text: string): string =>
+      sanitizeWhitespace(String(text ?? ''))
+        .replace(/\b(this|that)\s+area\b/gi, 'your scoring trend')
+        .replace(/\btracked data\b/gi, 'scoring data')
+        .replace(/\btracked stats\b/gi, 'scoring data')
+        .replace(/\bmissing scoring trend\b/gi, 'missing tracked stats')
+        .replace(/\bkeep building this area\b/gi, 'keep your process steady')
+        .replace(/\bbuild(?:ing)? (?:on|this area)\b/gi, 'staying consistent')
+        .replace(/\broom for improvement\b/gi, 'a clear next step')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const keepScoreOnlySentences = (text: string): string => {
+      const sentences = splitSentencesSimple(scrubScoreOnly(text))
+        .map((s) => sanitizeWhitespace(s))
+        .filter(Boolean);
+      const filtered = sentences.filter((s) => !skillAreaRe.test(s) && !badScoreOnlyPhraseRe.test(s));
+      return sanitizeWhitespace((filtered.length ? filtered : sentences.slice(0, 1)).slice(0, 2).join(' '));
+    };
+
+    const b1 = keepScoreOnlySentences(getBody(out[0]));
+    let b2 = keepScoreOnlySentences(getBody(out[1]));
+    if (!b2) b2 = sanitizeWhitespace(getBody(out[1]));
+    out[0] = replaceBodyKeepingEmoji(out[0], b1);
+    out[1] = replaceBodyKeepingEmoji(out[1], b2);
+  }
+
+  // Keep Message 3 format consistent for UI readability.
+  {
+    const b3 = getBody(out[2]);
+    if (!/^next round focus:/i.test(b3)) {
+      out[2] = replaceBodyKeepingEmoji(out[2], `Next round focus: ${b3.replace(/^[.:\-\s]+/, '')}`);
+    }
+  }
+
+  out = [
+    replaceBodyKeepingEmoji(out[0], sanitizeInsightBodyText(getBody(out[0]))),
+    replaceBodyKeepingEmoji(out[1], sanitizeInsightBodyText(getBody(out[1]))),
+    replaceBodyKeepingEmoji(out[2], sanitizeInsightBodyText(getBody(out[2]))),
+  ];
+
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -364,10 +1937,11 @@ function runSGSelection(
 export async function generateInsights(
   roundId: bigint,
   userId: bigint,
-  entitlements?: ViewerEntitlements
+  entitlements?: ViewerEntitlements,
+  options?: { forceRegenerate?: boolean }
 ) {
-  if (!OPENAI_API_KEY) throw new Error('OpenAI API key not configured');
   const effectiveEntitlements = entitlements ?? (await getViewerEntitlements(userId));
+  const forceRegenerate = options?.forceRegenerate === true;
 
   // Check if insights already exist
   const existing = await prisma.roundInsight.findUnique({ where: { roundId } });
@@ -375,17 +1949,23 @@ export async function generateInsights(
     if (existing.userId !== userId) {
       throw new Error('Unauthorized');
     }
-    return limitInsightsForViewer(existing.insights, effectiveEntitlements);
+    if (!forceRegenerate) {
+      return limitInsightsForViewer(existing.insights, effectiveEntitlements);
+    }
   }
 
-  // Deduplicate concurrent in-flight requests for the same round
-  const key = roundId.toString();
+  // Deduplicate concurrent in-flight requests.
+  // Force-regeneration must not get coalesced with a non-force in-flight run,
+  // or it can return stale wording after a stats edit.
+  const key = forceRegenerate
+    ? `${userId.toString()}:${roundId.toString()}:force`
+    : `${userId.toString()}:${roundId.toString()}`;
   if (inFlightGenerations.has(key)) {
     const fullInsights = await inFlightGenerations.get(key)!;
     return limitInsightsForViewer(fullInsights, effectiveEntitlements);
   }
 
-  const promise = generateInsightsInternal(roundId, userId).finally(() => {
+  const promise = generateInsightsInternal(roundId, userId, effectiveEntitlements, { forceRegenerate }).finally(() => {
     inFlightGenerations.delete(key);
   });
   inFlightGenerations.set(key, promise);
@@ -394,7 +1974,16 @@ export async function generateInsights(
   return limitInsightsForViewer(fullInsights, effectiveEntitlements);
 }
 
-async function generateInsightsInternal(roundId: bigint, userId: bigint) {
+async function generateInsightsInternal(
+  roundId: bigint,
+  userId: bigint,
+  entitlements: ViewerEntitlements,
+  options?: { forceRegenerate?: boolean },
+) {
+  const forceRegenerate = options?.forceRegenerate === true;
+  // Unified engine:
+  // - Rounds 1-3: deterministic onboarding
+  // - Rounds 4+: LLM-first (v3 behavior)
   const round = await prisma.round.findUnique({
     where: { id: roundId },
     include: { tee: { include: { course: { include: { location: true } }, holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } } },
@@ -764,1204 +2353,552 @@ async function generateInsightsInternal(roundId: bigint, userId: bigint) {
     delete payloadForLLM.scenarios.is_first_at_course;
   }
 
-  // ---- Build message assignment instructions for the LLM ----
-
-  const missingStats: string[] = [];
-  if (round.advancedStats && round.firHit === null) missingStats.push('FIR');
-  if (round.advancedStats && round.girHit === null) missingStats.push('GIR');
-  if (round.advancedStats && round.putts === null) missingStats.push('putts');
-  if (round.advancedStats && round.penalties === null) missingStats.push('penalties');
-
-  // Build stats nudge (only show ~25% of the time). Only nudge when data is
-  // missing or tracking mode limits insight quality, and avoid nagging.
-  let statsNudge = '';
-  if (shouldNudgeStats) {
-    const missingStatsNoteParts: string[] = [];
-    if (!round.advancedStats) {
-      missingStatsNoteParts.push('You may note that tracking FIR, GIR, putts, and penalties will make insights more precise.');
-    }
-    if (missingStats.length) {
-      missingStatsNoteParts.push(`Consider noting that tracking ${missingStats.join(', ')} next time could sharpen insights.`);
-    }
-    statsNudge = missingStatsNoteParts.length ? `\nSTATS TRACKING optional. Vary phrasing. ${missingStatsNoteParts.join(' ')}` : '';
-  }
-
-  const drillLibrary: Record<SGComponentName | 'general', string[]> = {
-    off_tee: [
-      'Fairway-finder drill with alignment sticks',
-      '3-shot window to a target',
-      'Tempo check at 70% and 85% effort',
-      'Tee-height consistency drill',
-      'Accuracy scoring game (1 point in-play, 2 points center)',
-      'Finish-hold drill for balance',
-      'Driver/3-wood alternating drill',
-      'Narrow-target visualization',
-      'Start-line drill with alignment stick',
-      'Safe-miss commitment practice',
-    ],
-    approach: [
-      'Distance ladder drill (short/mid/long targets)',
-      '9-ball flight drill (fade/straight/draw)',
-      '3-2-1 target challenge',
-      'Center-of-green focus drill',
-      'Front-edge landing practice',
-      'Two-club distance comparison',
-      'Dispersion tracking drill',
-      'Clock drill (50/75/100 yards)',
-      'Low-point control with towel',
-      'Green-section targeting drill',
-    ],
-    putting: [
-      '3-6-9 ladder drill',
-      'Gate drill with tees',
-      'Speed control ladder (20/30/40 feet)',
-      'Circle drill from 3-4 feet',
-      'Lag putting to 3-foot circle',
-      '6-foot one-putt challenge',
-      'Start-line gate drill',
-      'Distance control practice',
-      'Downhill/uphill specialty work',
-      'Three-foot pressure drill',
-    ],
-    penalties: [
-      'Smart target selection habit',
-      'Pre-shot club safety rule',
-      'Safe-miss decision practice',
-      'Punch-out commitment drill',
-      '2-shot planning routine',
-      'Penalty-free round goal',
-      'Hazard buffer targeting',
-      'Conservative line practice',
-      'Layup habit on high-risk holes',
-      'Safe-side aim rule',
-    ],
-    general: [
-      'Pre-shot routine consistency',
-      'Single focus per shot drill',
-      '5-ball reflection practice',
-      'Conservative targeting round',
-      'Tempo count drill',
-      'Finish-hold commitment',
-      'One swing key for the day',
-      'Center-of-green targeting habit',
-      'Worst-miss avoidance practice',
-    ],
-    short_game: [
-      'Landing spot drill with towel',
-      'Up-and-down challenge',
-      'Bump-and-run consistency drill',
-      'Pitch distance ladder',
-      'One-club trajectory variety',
-      'Par-save simulation',
-      'Three-landing drill',
-      'Pressure up-and-down tracking',
-      'Fringe-only proximity practice',
-      'Low-point control with tee',
-    ],
-  };
-
-  const getSampleDrills = (area: SGComponentName | 'general', seed: number, count: number = 2): string[] => {
-    const list = drillLibrary[area] || drillLibrary.general;
-    const results: string[] = [];
-    for (let i = 0; i < count && i < list.length; i++) {
-      const idx = Math.abs(seed + i) % list.length;
-      if (!results.includes(list[idx])) {
-        results.push(list[idx]);
-      }
-    }
-    return results;
-  };
-
-  // ---- Build drill suggestions for the prompt ----
-  // Deterministic per-round seed so edits don't randomly reshuffle recommendations.
-  const drillSeed = Number(roundId % BigInt(9973)) + (totalRounds ?? 0) * 17;
-
-  // ---- Build scenario context ----
-  let scenarioContext = '';
-
-  if (isPersonalBest) {
-    scenarioContext += '\nSPECIAL PERSONAL BEST. This is the player\'s best score so far. Mention it briefly in Message 1.';
-  }
-
-  if (isNearPersonalBest) {
-    scenarioContext += '\nSPECIAL NEAR PERSONAL BEST. This round finished within 2 strokes of the player\'s best score. You may mention that briefly in Message 1.';
-  }
-
-  if (isFirstAtCourse) {
-    scenarioContext += '\nSPECIAL FIRST AT COURSE. This is the first logged round at this course for this user. Mention it briefly only if it adds useful context.';
-  }
-
-  if (isReturnAfterBreak) {
-    scenarioContext += '\nSPECIAL RETURN AFTER BREAK. This is the first round in 14+ days. Mention it briefly if it helps context.';
-  }
-
-  if (handicapTrend === 'improving') {
-    scenarioContext += '\nHANDICAP TREND IMPROVING. Handicap has been dropping recently. You may mention this trend briefly.';
-  } else if (handicapTrend === 'declining') {
-    scenarioContext += '\nHANDICAP TREND DECLINING. Handicap has risen recently. Do NOT mention this.';
-  }
-
-  // ---- Build message assignments ----
-  let messageAssignments: string;
-
-  if (isEarlyRounds) {
-    // Onboarding rounds (1-3) - consistent structure, varied language
-    const lastRound = last5Rounds[0];
-    let comparisonContext = '';
-    if (lastRound && round.score != null && lastRound.score != null) {
-      if (round.score < lastRound.score) {
-        comparisonContext = 'This score is better than their last round - acknowledge this progress.';
-      } else if (round.score > lastRound.score) {
-        comparisonContext = 'This score is a bit higher than their last round - frame as building a baseline.';
-      } else {
-        comparisonContext = 'This score matches their last round - frame as consistency.';
-      }
-    }
-
-    const drillSuggestions = getSampleDrills('general', drillSeed, 2);
-
-    if (totalRounds === 1) {
-      messageAssignments = `MESSAGE ASSIGNMENTS (Round 1 onboarding)
-
- Message 1 ✅ Welcome insight for their first round.
- - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
- - Do not use sentence fragments or run-on sentences.
- - Do NOT greet the user or mention the app name (no "Welcome", no "GolfIQ", no "logged").
- - Sentence 1: interpret the performance in a grounded way as a starting point (no hype, no shaming). Keep it tight.
- - Sentence 2: include the score using the compact format embedded in a sentence (e.g., "An 85 (+13) gives us a clear starting point."). Do NOT output the score as a standalone sentence like "85 (+13).".
- - Sentence 3: explain what this establishes (a reference point to measure improvement), without repeating sentence 1 or 2.
- - Keep it golf-centric. Avoid app-y phrasing like "tracked in your history", "summary", or "post-round insights show".
- - Do not label the round as tough or great. There is no baseline yet.
- - A light, friendly tone is OK. Prefer "nice work" or "good start". Avoid overhype words like "awesome", "fantastic", "impressive", or "excellent".
- - If stats are missing, acknowledge they were not tracked (no shaming).
- - If stats are missing, do NOT infer ball striking, course management, consistency, strengths, or weaknesses. Only use the score to frame the baseline.
- - Do not say or imply this is their first time playing this course. At most you may say it is their first round logged.
-
- Message 2 ✅ Handicap unlock message ONLY.
- - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
- - Keep this as a progression signal, not onboarding.
- - Do NOT use the words "profile", "dashboard", or "unlock".
- - Do NOT use the words "consistent" or "consistency".
- - Do NOT list tracked stats (no "FIR, GIR, putts, penalties") in this message.
- - Sentence 1: say their performance baseline is forming (one short sentence).
- - Sentence 2: say that after two more rounds their handicap will be calculated.
- - Sentence 3: say that future rounds can be compared against clearer expectations for their game once that baseline exists.
- - Keep it concise and non-repetitive. Do not restate the same handicap fact twice.
- - Do NOT mention weaknesses, "opportunities to gain strokes", or "tighten up scoring" in this message.
- - Do NOT guess at untracked stats.
-
- Message 3 ℹ️ Recommendation for the next round.
- - Exactly 3 sentences with clean grammar and proper punctuation. Each sentence must end with a period.
- - Sentence 1: start with "Next round focus" in the same sentence and suggest tracking ONE stat next round (choose one of FIR, GIR, putts, penalties). Do NOT make "Next round focus." its own sentence.
- - Sentence 2: tell them exactly what to record (keep it simple and specific).
- - Sentence 3: explain what that stat will help identify next time (one short sentence, golf-centric, confident, no internal terms).
- - Avoid tentative language like "try it once" or "see if it changes the result".
- - Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
-
-    } else if (totalRounds === 2) {
-      messageAssignments = `MESSAGE ASSIGNMENTS (Round 2 onboarding)
-
-Message 1 ✅ Summary of this round.
-- ${comparisonContext}
-- Include at least one concrete stat from this round.
-- Sentence 3 must say One more round unlocks your handicap.
-
-Message 2 ✅ Note that tracking more stats improves precision.
-${statsNudge}
-
-Message 3 ℹ️ Recommendation for the next round.
-- Suggest one simple on course focus or practice idea.
-- Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
-
-    } else {
-      messageAssignments = `MESSAGE ASSIGNMENTS (Round 3 onboarding)
-
-Message 1 ✅ Congratulate the user. They now have a handicap.
-- Encourage them to check the dashboard to see it.
-- Include at least one concrete stat from this round.
-
-Message 2 ✅ Note that logging more rounds improves personalization and trend detection.
-${statsNudge}
-
-Message 3 ℹ️ Recommendation for the next round.
-- Suggest one simple on course focus or practice idea.
-- Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
-    }
-
-  } else if (sgSelection) {
-    // Standard round with SG data
-    let { best, message2, noWeaknessMode, msg1Emoji, msg2Emoji, residualNote } = sgSelection;
-
-    const firPct = round.firHit != null && currentCtx.nonPar3Holes > 0
-      ? (round.firHit / currentCtx.nonPar3Holes) * 100
-      : null;
-    const girPct = round.girHit != null && currentCtx.holes > 0
-      ? (round.girHit / currentCtx.holes) * 100
-      : null;
-
-    // FIR/GIR override suggestions (strong hint but LLM has flexibility)
-    let statOverrideHint = '';
-    const offTeeLeak = firPct != null
-      && message2.name !== 'off_tee'
-      && (
-        (baselineFirPct != null && firPct <= baselineFirPct - BASELINE_DIFFERENCE_THRESHOLD)
-        || firPct <= VERY_LOW_FIR_PCT
-      );
-    const approachLeak = girPct != null
-      && message2.name !== 'approach'
-      && (
-        (baselineGirPct != null && girPct <= baselineGirPct - BASELINE_DIFFERENCE_THRESHOLD)
-        || girPct <= VERY_LOW_GIR_PCT
-      );
-
-    if (offTeeLeak) {
-      statOverrideHint = '\nSTRONG SUGGESTION: FIR was notably low this round. Consider focusing Message 2 on off-the-tee improvement instead of or in addition to the SG-based area.';
-      message2 = { name: 'off_tee', value: -2.0, label: SG_LABELS.off_tee };
-      msg2Emoji = '⚠️';
-    } else if (approachLeak) {
-      statOverrideHint = '\nSTRONG SUGGESTION: GIR was notably low this round. Consider focusing Message 2 on approach play improvement instead of or in addition to the SG-based area.';
-      message2 = { name: 'approach', value: -2.0, label: SG_LABELS.approach };
-      msg2Emoji = '⚠️';
-    }
-
-    const drillArea = !noWeaknessMode ? message2.name : 'general';
-    const drillSuggestions = getSampleDrills(drillArea, drillSeed, 2);
-
-    // Short game special instructions
-    let shortGameInstructions = '';
-    if (message2.name === 'short_game') {
-      shortGameInstructions = `
-- SHORT GAME FOCUS. This is inferred from scoring patterns. It is not directly measured.
-- Phrase with uncertainty such as the data suggests short game touch may have been a factor.
-- Do not compare short game to recent averages. We do not track it directly.
-- Do not mention residual or strokes gained numbers.`;
-    }
-
-    messageAssignments = `MESSAGE ASSIGNMENTS (Standard round with SG driven analysis)
-
-Message 1 ${msg1Emoji} Positive anchor on ${best.label}.
-- Include at least one concrete round stat.
-- If the round was below expectations or worse, acknowledge that plainly and then anchor to the best area.
-- Do not mention penalties in Message 1. If penalties was best, use score, to par, FIR, GIR, or putts instead.
-${scenarioContext}
-
-Message 2 ${msg2Emoji} Main opportunity on ${message2.label}.
-- If total SG is negative, this message must be ⚠️ and must point to a likely reason based on the data.
-- Use uncertainty language. The data suggests. Likely. May indicate.
-- Compare to recent averages only when meaningful. Meaningful means at least 2 strokes score difference, at least 2 putts difference, at least 8 percentage points FIR or GIR difference, or at least 1 penalty difference.${shortGameInstructions}${statOverrideHint}
-${statsNudge}
-
-Message 3 ℹ️ Recommendation aligned to Message 2.
-- Give one specific habit or drill to try next round.
-- No breathing tips. No equipment changes. No swing changes.
-- Drill ideas you may use or adapt ${drillSuggestions.join(', ')}
-${residualNote ? `- You may reference short game touch with uncertainty.` : ''}`;
-
-  } else if (hasSGData && totalSG != null) {
-    // Limited SG data
-    const drillSuggestions = getSampleDrills('general', drillSeed, 2);
-
-    messageAssignments = `MESSAGE ASSIGNMENTS (Limited SG data)
-
-Message 1 ✅ Summary anchored to one concrete stat.
-- Include the score and one additional stat if available.
-${scenarioContext}
-
-Message 2 ✅ Main opportunity based on tracked stats.
-- Use uncertainty language and avoid over attribution.
-- Compare to recent averages only when meaningful.
-${statsNudge}
-
-Message 3 ℹ️ Recommendation for the next round.
-- Give one simple habit or drill.
-- Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
-
-  } else {
-    // Minimal data - no SG
-    const drillSuggestions = getSampleDrills('general', drillSeed, 2);
-
-    messageAssignments = `MESSAGE ASSIGNMENTS (Minimal data)
-
-Message 1 ✅ Summary of the score.
-- Do not label the round as good or bad without a baseline.
-- Include any available stats.
-${scenarioContext}
-
-Message 2 ✅ Note what extra tracking would most improve the next insight.
-${statsNudge}
-
-Message 3 ℹ️ Recommendation for the next round.
-- Give one simple habit or drill.
-- Drill ideas you may use or adapt ${drillSuggestions.join(', ')}`;
-  }
-
-  // ---- Confidence/partial analysis instructions ----
-
-  let confidenceInstructions = '';
-  if (partialAnalysis) {
-    confidenceInstructions = `\nCONFIDENCE NOTE: This round has partial analysis. Do NOT attribute specific performance differences to individual SG components. Focus on overall round trends.`;
-  }
-
-  // ---- Course difficulty instructions ----
-
-  let courseDifficultyInstructions = '';
-  if (mentionCourseDifficulty) {
-    courseDifficultyInstructions = `\nCOURSE DIFFICULTY: This course can play tough. You may mention that briefly in Message 1 for context.`;
-  } else {
-    courseDifficultyInstructions = `\nCOURSE DIFFICULTY: Do NOT mention course difficulty.`;
-  }
-
-  // ---- Performance band instructions ----
-
-  let performanceBandInstructions = '';
-  if (totalSG != null && totalSG <= sgThresholds.toughRound) {
-    performanceBandInstructions = `\nPERFORMANCE BAND: TOUGH ROUND
-- This was a difficult day. Acknowledge it plainly in Message 1.
-- Message 1 should include one genuine bright spot backed by a concrete stat.
-- Avoid motivational filler and minimization.
-- Message 2 should state the main struggle and why it mattered.`;
-  } else if (totalSG != null && totalSG > sgThresholds.toughRound && totalSG <= sgThresholds.belowExpectations) {
-    performanceBandInstructions = `\nPERFORMANCE BAND: BELOW EXPECTATIONS
-- This round was below typical but not disastrous.
-- Keep Message 1 balanced - avoid enthusiastic praise or strong descriptors.
-- Use neutral positive language like "held up," "one area that worked," or "something to build on."
-- Frame improvements as fine-tuning opportunities, not dramatic changes.
-- Don't over-praise individual stats when the overall was underwhelming.
-- AVOID in Message 1: "great job," "excellent," "fantastic," "impressive," "solid," "solid performance," "solid touch," "solid foundation," "strong," "really well," "positive step," "highlight," "stood out," "contributing positively."
-- AVOID in Message 2: "significant difference," "major impact," "dramatically improve."
-- PREFER: "steady," "held up," "one bright spot," "something to build on," "room to gain strokes."`;
-  } else if (totalSG != null && totalSG > sgThresholds.belowExpectations && totalSG <= sgThresholds.aboveExpectations) {
-    performanceBandInstructions = `\nPERFORMANCE BAND: WITHIN EXPECTATIONS
-- This was a typical round - not exceptional, not poor.
-- Use balanced language: "steady," "consistent," "nice" rather than superlatives.
-- Keep comparisons to averages subdued.
-- Message 2 should frame improvement areas as fine-tuning, not problems.`;
-  } else if (totalSG != null && totalSG > sgThresholds.aboveExpectations && totalSG < sgThresholds.exceptional) {
-    performanceBandInstructions = `\nPERFORMANCE BAND: ABOVE EXPECTATIONS
-- This was a good round.
-- Strong positive language is appropriate.
-- Still acknowledge improvement areas constructively in Message 2.`;
-  } else if (totalSG != null && totalSG >= sgThresholds.exceptional) {
-    performanceBandInstructions = `\nPERFORMANCE BAND: EXCEPTIONAL
-- This was an outstanding round! Full celebration is appropriate.
-- Use enthusiastic language in Message 1.
-- Message 2 can still mention an area to maintain or fine-tune.`;
-  }
-
-  // ---- Build system prompt ----
-
-  const systemPrompt = `You are a golf performance analyst inside GolfIQ. Explain what happened and why, based strictly on the provided data.
-
-OUTPUT FORMAT (strict):
-- Return EXACTLY 3 lines of plain text (no JSON)
-- Line 1 = Message 1, Line 2 = Message 2, Line 3 = Message 3
-- Each line must start with its assigned emoji (🔥, ✅, ⚠️, or ℹ️) followed by a single space
-- Each line must be EXACTLY 3 sentences (3 complete thoughts)
-- The 3 sentences must not repeat the same fact. Sentence 2 must add new information beyond sentence 1. Sentence 3 must add a next step or implication beyond sentence 2.
-- Grammar must be clean. Each of the 3 sentences must end with a period.
-- Each line (excluding the leading emoji and space) must be <= ${MAX_MESSAGE_CHARS} characters
-- Inside each message line (after the emoji), NEVER use ":" ";" "--" "—" or "–"
-- Plain text only. Do not use markdown
-
-CRITICAL RULES:
-- NEVER mention penalties in Message 1, even if penalties was the strongest SG component
-- If penalties is the best area, talk about FIR, putts, or overall score instead in Message 1
-- Each message MUST be exactly 3 sentences (not 2, not 4+)
-- Message 1 must NEVER be ⚠️ or ℹ️ (it must be ✅ or 🔥)
-- If total SG for the round is negative, Message 2 must be ⚠️
-
-${isScoreOnlyRound ? `SCORE-ONLY ROUND RULES:
-- The user did NOT track FIR, GIR, putts, or penalties for this round.
-- Do NOT claim anything about ball striking, course management, consistency/steady play, strengths, weaknesses, or specific areas of the game.
-- Avoid characterizing the round as "steady" or "consistent" when you only have the total score.
-- You MAY interpret the score and use it to frame a baseline/starting point.
-- You MAY mention progression milestones (handicap after enough rounds) and suggest tracking ONE stat next round.
-` : ''}
-
-EMOJI RULES:
-- 🔥 = exceptional round (total SG >= ${sgThresholds.exceptional.toFixed(1)}) OR exceptional single component (a single component >= ${sgThresholds.exceptionalComponent.toFixed(1)}, especially putting)
-- ✅ = positive anchor or strength
-- ⚠️ = weakness or the largest area to improve
-- ℹ️ = actionable recommendation (Message 3 only)
-- 🔥 is FORBIDDEN when total SG <= ${sgThresholds.belowExpectations.toFixed(1)}
-
-TONE:
-- Strictly factual and grounded in the data
-- Never invent or exaggerate data. Only use what is provided
-- Avoid generic encouragement and filler. No "keep it up", "stay patient", "trust the process"
-- Use exclamation marks only for exceptional performance
-- Do NOT suggest equipment changes or swing changes
-- Do NOT suggest breathing tips
-- Avoid absolutes like "always" or "never"
-- If using hypotheticals, keep them modest (around 2 strokes) and avoid precise claims
-- Do NOT include any strokes gained numbers
-- Use historical comparisons only when meaningful
-- Include at least one concrete round stat (score, score vs par, putts, FIR/GIR, penalties) in Message 1 or 2 when available
- - In Round 1 onboarding, prefer the compact score format like "85 (+13)" and keep interpretation short.
-- Numeric comparisons are OK for round stats (score, putts, FIR/GIR, penalties), but NEVER use numeric strokes gained values
-- Do NOT mention penalties in Message 1; use score/to-par, FIR/GIR, or putts instead
-- If referencing short game from residual, label it as inferred or suggested, not certain
-- SG component values between -${Math.abs(sgThresholds.weakness).toFixed(1)} and +${Math.abs(sgThresholds.weakness).toFixed(1)} are expected variance. Never frame that range as a weakness
-- IMPORTANT: Vary your phrasing across rounds. Do not reuse the same sentence structures repeatedly.
-- Never mention internal field or key names from the input JSON.
-- FORBIDDEN phrases anywhere: "to_par", "to par", "par phrase", "score_display", "par_phrase".
-- If you reference par, use natural golf phrasing like "85 (+13)", "13 over par", "even par", or "2 under par".
-- Do not guess performance in an untracked stat. If a stat is null, only say it was not tracked and how that limits attribution.${confidenceInstructions}${courseDifficultyInstructions}${performanceBandInstructions}`;
-
-  // ---- Build user prompt ----
-
-  const userPrompt = `Generate 3 post-round insights for this round.
-
-${messageAssignments}
-
- ROUND DATA:
-${JSON.stringify(payloadForLLM, null, 2)}`;
-
-  // ---- Call OpenAI API ----
-
-  const openaiResult = await callOpenAI({
-    apiKey: OPENAI_API_KEY,
-    model: OPENAI_MODEL,
-    systemPrompt,
-    userPrompt,
-    maxOutputTokens: OPENAI_MAX_COMPLETION_TOKENS,
-    temperature: OPENAI_TEMPERATURE,
-  });
-  const content = openaiResult.text;
-
-  // ---- Parse response into structured format ----
-
-  const parseJsonMessages = (raw: string): string[] | null => {
-    const trimmed = raw.trim();
-    const candidates: string[] = [trimmed];
-
-    // Strip common wrappers like ```json ... ```
-    const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-    if (fenceMatch?.[1]) candidates.push(fenceMatch[1].trim());
-
-    // Attempt to extract first JSON object in the text
-    const objMatch = trimmed.match(/\{[\s\S]*\}/);
-    if (objMatch?.[0]) candidates.push(objMatch[0].trim());
-
-    const normalizeJsonLike = (s: string) => {
-      // Common failure mode: the model tries to avoid ":" and emits `"messages".[`
-      // which is not valid JSON.
-      return s
-        .replace(/"messages"\s*\.\s*\[/gi, '"messages":[')
-        .replace(/"messages"\s*=\s*\[/gi, '"messages":[');
-    };
-
-    for (const candidate of candidates) {
-      try {
-        const parsed = JSON.parse(candidate);
-        const messages = parsed?.messages;
-        if (Array.isArray(messages) && messages.every((m) => typeof m === 'string')) {
-          return messages;
-        }
-      } catch {
-        // ignore
-      }
-
-      // Try again with small repairs.
-      try {
-        const repaired = normalizeJsonLike(candidate);
-        const parsed = JSON.parse(repaired);
-        const messages = parsed?.messages;
-        if (Array.isArray(messages) && messages.every((m) => typeof m === 'string')) {
-          return messages;
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    // Last resort: extract quoted emoji-prefixed messages from malformed JSON-ish output.
-    const quoted = normalizeJsonLike(trimmed).match(/"(?:✅|🔥|⚠️|ℹ️)[^"]*"/g);
-    if (quoted && quoted.length >= 3) {
-      return quoted.slice(0, 3).map((s) => s.slice(1, -1));
-    }
-
-    return null;
-  };
-
-  const parsedMessages = parseJsonMessages(content);
-  const lines = (parsedMessages ?? content.split('\n'))
-    .map((line: string) => line.trim())
-    .filter((line: string) => line.length > 0);
-
-  // ---- Post-processing helpers ----
-
-  const stripBannedPunctuation = (text: string) => {
-    return text
-      .replace(/[—–]/g, '-') // no em/en dashes
-      .replace(/--+/g, '-') // no double hyphen
-      .replace(/[:;]/g, '.') // no colon or semicolon in message text
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
-
-  // Replace banned phrases that LLM might still use despite AVOID instructions
-  const replaceBannedPhrases = (text: string) => {
-    const replacements: [RegExp, string][] = [
-      // Internal key names / awkward technical phrasing
-      [/\bto_par\b/gi, ''],
-      [/\btoPar\b/g, ''],
-      [/\bpar phrase\b/gi, 'par'],
-      // App-documentation-y phrasing (keep it golf-centric)
-      [/\btracked in your history\b/gi, 'saved'],
-      [/\bis now tracked\b/gi, 'is saved'],
-      [/\bthis summary captures\b/gi, 'this highlights'],
-      [/\bthese insights show\b/gi, 'this gives us a starting point'],
-      [/\bpost[- ]round insights\b/gi, 'feedback'],
-      [/\bthe score shows\b/gi, 'you shot'],
-      [/\ba solid base\b/gi, 'a starting point'],
-      // "solid" variations
-      [/\bsolid foundation\b/gi, 'something to build on'],
-      [/\bgreat foundation\b/gi, 'something to build on'],
-      [/\bsolid performance\b/gi, 'steady effort'],
-      [/\bsolid touch\b/gi, 'good feel'],
-      [/\bsolid control\b/gi, 'good control'],
-      [/\bsolid effort\b/gi, 'steady effort'],
-      [/\bsolid round\b/gi, 'decent round'],
-      // Overly positive phrases
-      [/\bgreat job\b/gi, 'nice work'],
-      [/\bcontributing positively\b/gi, 'helping'],
-      [/\ba highlight\b/gi, 'a bright spot'],
-      [/\bwas a highlight\b/gi, 'held up well'],
-      [/\bstood out\b/gi, 'held up'],
-      // Generic encouragement / filler (keep it factual)
-      [/\bkeep pushing forward\b/gi, 'keep going'],
-      [/\bstay motivated\b/gi, 'stay consistent'],
-      [/\btrust the process\b/gi, 'track the result'],
-      [/\bstay patient with the process\b/gi, 'track the result'],
-      [/\bkeep it up\b/gi, ''],
-      [/\bkeep it simple\b/gi, 'keep it focused'],
-      [/\bkeep building\b/gi, 'build on'],
-      [/\byou’ve got this\b/gi, ''],
-      [/\byou got this\b/gi, ''],
-      // "significantly" variations (too dramatic for below-expectations)
-      [/\bsignificantly enhance\b/gi, 'help improve'],
-      [/\bsignificantly improve\b/gi, 'help improve'],
-      [/\bsignificant improvement\b/gi, 'some improvement'],
-      [/\bsignificant difference\b/gi, 'a difference'],
-      // "opportunity to gain strokes" language (too SG-coded / can be unsupported when stats are missing)
-      [/\bbiggest opportunity to gain strokes\b/gi, ''],
-      [/\bbiggest opportunity\b/gi, ''],
-      [/\bclearest place to tighten up scoring\b/gi, ''],
-    ];
-    let result = text;
-    for (const [pattern, replacement] of replacements) {
-      result = result.replace(pattern, replacement);
-    }
-    return result;
-  };
-
-  const replaceWeirdParWording = (text: string) => {
-    // Undo LLM-internal phrasing like "to par 2" or "par phrase ...". Keep it golf-natural.
-    let result = text;
-    result = result.replace(/\bpar phrase of\s*/gi, '');
-    result = result.replace(/\bpar phrase\b/gi, '');
-    // Fix "a 13 strokes over par" after removing "par phrase"
-    result = result.replace(/\ba\s+(\d+)\s+strokes?\s+(over|under)\s+par\b/gi, (_m, n, dir) => {
-      const abs = Number(n);
-      if (!Number.isFinite(abs) || abs <= 0) return `${formatToParPhrase(toPar)}`;
-      return dir.toLowerCase() === 'under' ? `${abs} under par` : `${abs} over par`;
+  const scoreCompact = `${round.score} (${formatToParShort(toPar)})`;
+  const roundsRemainingForHandicap = totalRounds != null && totalRounds < 3 ? Math.max(0, 3 - totalRounds) : 0;
+
+    const firPct =
+      round.firHit != null && currentCtx.nonPar3Holes > 0
+        ? (Number(round.firHit) / currentCtx.nonPar3Holes) * 100
+        : null;
+    const girPct =
+      round.girHit != null && currentCtx.holes > 0
+        ? (Number(round.girHit) / currentCtx.holes) * 100
+        : null;
+
+    const nextTrackStat: 'putts' | 'penalties' | 'GIR' | 'FIR' | null =
+      round.putts == null
+        ? 'putts'
+        : round.penalties == null
+          ? 'penalties'
+          : round.girHit == null
+            ? 'GIR'
+            : round.firHit == null
+              ? 'FIR'
+              : null;
+
+    const performanceBand = computePerformanceBand(totalSG, {
+      toughRound: sgThresholds.toughRound,
+      belowExpectations: sgThresholds.belowExpectations,
+      aboveExpectations: sgThresholds.aboveExpectations,
+      exceptional: sgThresholds.exceptional,
     });
-    // Replace "to par <num>" patterns with "(+/-X)"
-    result = result.replace(/\bto par\s*(-?\d+)\b/gi, (_m, n) => `(${formatToParShort(Number(n))})`);
-    // Replace bare "to par" with a natural phrase using the real round value.
-    result = result.replace(/\bto par\b/gi, formatToParPhrase(toPar));
-    return result.replace(/\s+/g, ' ').trim();
-  };
 
-  const splitSentences = (text: string) => {
-    const trimmed = text.replace(/\s+/g, ' ').trim();
-    if (!trimmed) return [];
-
-    // Replace decimal numbers temporarily to avoid splitting on decimal points
-    const placeholder = '\u0000DEC\u0000';
-    const decimalPattern = /(\d)\.(\d)/g;
-    const protected_ = trimmed.replace(decimalPattern, `$1${placeholder}$2`);
-
-    const restore = (s: string) => s.replace(new RegExp(placeholder, 'g'), '.').trim();
-
-    const punctParts = protected_.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
-    const punct = (punctParts ?? []).map(restore).filter(Boolean);
-    if (punct.length >= 2) return punct;
-
-    // Heuristic split when the model omits punctuation (common for nano).
-    // We only split on a small set of "sentence starter" words to reduce bad breaks.
-    const starters = [
-      'You',
-      'This',
-      'These',
-      'As',
-      'After',
-      'Before',
-      'Next',
-      'Try',
-      'For',
-      'With',
-      'Tracking',
-      'Log',
-      'Logging',
-      'Keep',
-      'On',
-    ];
-    const boundary = new RegExp(`\\s+(?=(?:${starters.join('|')})\\b)`, 'g');
-    const rough = protected_.split(boundary).map(restore).filter(Boolean);
-    if (rough.length >= 2) return rough;
-
-    // Last-resort: split a long run-on into 3 chunks on whitespace.
-    if (protected_.length >= 180) {
-      const idx1 = Math.floor(protected_.length / 3);
-      const idx2 = Math.floor((protected_.length * 2) / 3);
-
-      const findSplit = (target: number) => {
-        let left = target;
-        let right = target;
-        while (left > 0 || right < protected_.length - 1) {
-          if (left > 0 && /\s/.test(protected_[left])) return left;
-          if (right < protected_.length - 1 && /\s/.test(protected_[right])) return right;
-          left -= 1;
-          right += 1;
-        }
-        return target;
-      };
-
-      const s1 = findSplit(idx1);
-      const s2 = findSplit(idx2);
-
-      const chunks = [
-        protected_.slice(0, s1),
-        protected_.slice(s1, s2),
-        protected_.slice(s2),
-      ].map(restore).map((s) => s.trim()).filter(Boolean);
-
-      if (chunks.length >= 2) return chunks;
-    }
-
-    return [restore(protected_)];
-  };
-
-  const normalizeEmoji = (line: string) => {
-    return line
-      .replace(/âœ…/g, '✅')
-      .replace(/âš ï¸/g, '⚠️')
-      .replace(/â„¹ï¸/g, 'ℹ️')
-      .replace(/ðŸ”¥/g, '🔥');
-  };
-
-  const ensureThreeSentences = (line: string, index: number) => {
-    const normalizedLine = normalizeEmoji(line);
-    const match = normalizedLine.match(/^(🔥|✅|⚠️|ℹ️)\s*(.*)$/);
-    if (!match) return line;
-
-    const emoji = match[1];
-    const stripTrailingTerminator = (s: string) => s.replace(/[.!?]+$/g, '').trim();
-
-    const normalizeSentence = (s: string) => {
-      let out = stripBannedPunctuation(s);
-      out = out.replace(/^\s*[-,]+\s*/g, '').trim();
-      if (!out) return '';
-
-      // Fix common fragment patterns (keep it minimal and generic).
-      // Example bad output: "Guide where to focus next round."
-      out = out.replace(/^guide where\b/i, 'Use this to guide where');
-      out = out.replace(/^guide\b/i, 'Use this to guide');
-
-      // Normalize "aim ..." -> "Aim ..."
-      out = out.replace(/^([a-z])/, (m) => m.toUpperCase());
-
-      // Always end with a period for consistent, clean UI rendering.
-      if (!/[.!?]$/.test(out)) out = `${out}.`;
-      out = out.replace(/[!?]$/g, '.');
-      out = out.replace(/\.\s*\./g, '.');
-      return out.replace(/\s+/g, ' ').trim();
-    };
-
-    const splitClause = (sentence: string): [string, string] | null => {
-      const base = stripTrailingTerminator(sentence);
-      if (base.length < 90) return null;
-
-      const mid = Math.floor(base.length / 2);
-      const patterns = [
-        /\bbut\b/gi,
-        /\band\b/gi,
-        /\bso\b/gi,
-        /\bbecause\b/gi,
-        /,\s+/g,
-      ];
-
-      let bestIdx: number | null = null;
-      let bestDist = Number.POSITIVE_INFINITY;
-
-      for (const re of patterns) {
-        for (const m of base.matchAll(re)) {
-          const idx = (m.index ?? -1);
-          if (idx <= 0 || idx >= base.length - 1) continue;
-          const dist = Math.abs(idx - mid);
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestIdx = idx;
+    const sgFocus =
+      hasSGData && sgSelection
+        ? {
+            bestName: sgSelection.best.name,
+            bestLabel: sgSelection.best.label,
+            bestValue: sgSelection.best.value,
+            opportunityName: sgSelection.message2.name,
+            opportunityLabel: sgSelection.message2.label,
+            opportunityValue: sgSelection.message2.value,
+            shortGameInferred: sgSelection.message2.name === 'short_game',
           }
-        }
-      }
+        : null;
+    const message2IsOpportunity = Boolean(
+      sgSelection &&
+      Number.isFinite(sgSelection.message2.value) &&
+      sgSelection.message2.value < 0
+    );
+    const hasTrackedWeakness = Boolean(
+      message2IsOpportunity &&
+      sgSelection &&
+      Number.isFinite(sgSelection.message2.value) &&
+      sgSelection.message2.value <= sgThresholds.weakness
+    );
+    const message2ShouldWarn = hasTrackedWeakness || performanceBand === 'tough' || performanceBand === 'below';
+    const allowCourseDifficultyLanguage =
+      mentionCourseDifficulty &&
+      (performanceBand === 'tough' || performanceBand === 'below') &&
+      !hasTrackedWeakness;
+    const opportunityImpactStrokesRounded =
+      (sgFocus && Number.isFinite(sgFocus.opportunityValue) && Math.abs(sgFocus.opportunityValue) >= 1.5)
+        ? Math.max(1, Math.round(Math.abs(sgFocus.opportunityValue)))
+        : null;
 
-      if (bestIdx == null) return null;
+    const drillSeed = hashStringToInt([
+      roundId.toString(),
+      userId.toString(),
+      String(totalRounds ?? ''),
+      String(sgFocus?.opportunityName ?? ''),
+      String(Math.round(Number(sgComponents?.sgTotal ?? 0) * 100)),
+      String(Math.round(Number(sgComponents?.sgResidual ?? 0) * 100)),
+      String(round.score),
+      String(round.firHit ?? ''),
+      String(round.girHit ?? ''),
+      String(round.putts ?? ''),
+      String(round.penalties ?? ''),
+    ].join('|'));
+    // Keep onboarding rounds (1-3) deterministic and milestone-focused.
+    // Drill prescriptions start once the user is past onboarding.
+    const allowDrillSuggestion = totalRounds != null && totalRounds >= 4;
+    let drillSuggestion: string | null = null;
+    let drillSelectedAtIso: string | null = null;
+    let drillFingerprint: string | null = null;
+    let drillReused = false;
+    let priorRoundDrillFingerprint: string | null = null;
+    let priorRoundDrillRecent: string[] = [];
+    if (allowDrillSuggestion && nextTrackStat == null && sgFocus) {
+      drillFingerprint = [
+        roundId.toString(),
+        userId.toString(),
+        String(round.score),
+        String(round.firHit ?? ''),
+        String(round.girHit ?? ''),
+        String(round.putts ?? ''),
+        String(round.penalties ?? ''),
+        String(sgFocus.opportunityName),
+        String(Math.round(Number(sgFocus.opportunityValue ?? 0) * 100) / 100),
+        String(Math.round(Number(sgComponents?.sgTotal ?? 0) * 100) / 100),
+        String(Math.round(Number(sgComponents?.sgResidual ?? 0) * 100) / 100),
+      ].join('|');
 
-      const left = base.slice(0, bestIdx).trim();
-      const right = base.slice(bestIdx).replace(/^[,]\s*/g, '').replace(/^(and|but|so|because)\s+/i, '').trim();
-      if (left.length < 25 || right.length < 25) return null;
-      return [left, right];
-    };
+      const currentInsightRow = await prisma.roundInsight.findUnique({
+        where: { roundId },
+        select: { insights: true },
+      });
+      const currentInsight: any = currentInsightRow?.insights ?? null;
+      const previousDrill = typeof currentInsight?.drill_selected === 'string'
+        ? sanitizeWhitespace(currentInsight.drill_selected)
+        : null;
+      const previousFingerprint = typeof currentInsight?.drill_fingerprint === 'string'
+        ? currentInsight.drill_fingerprint
+        : null;
+      priorRoundDrillFingerprint = previousFingerprint;
+      priorRoundDrillRecent = Array.isArray(currentInsight?.drill_recent)
+        ? currentInsight.drill_recent
+            .filter((d: any) => typeof d === 'string')
+            .map((d: string) => sanitizeWhitespace(d))
+            .filter(Boolean)
+        : [];
+      const previousSelectedAt = typeof currentInsight?.drill_selected_at === 'string'
+        ? currentInsight.drill_selected_at
+        : null;
+      const previousSelectedAtMs = previousSelectedAt ? Date.parse(previousSelectedAt) : NaN;
+      const nowMs = Date.now();
+      const withinReuseWindow =
+        Number.isFinite(previousSelectedAtMs) &&
+        nowMs - previousSelectedAtMs >= 0 &&
+        nowMs - previousSelectedAtMs < DRILL_REUSE_WINDOW_MS;
 
-    let body = match[2].trim();
-    // Apply these again defensively because we call ensureThreeSentences after other maps.
-    body = replaceWeirdParWording(replaceBannedPhrases(stripBannedPunctuation(body)));
+      const canReusePreviousDrill =
+        Boolean(previousDrill) &&
+        Boolean(previousFingerprint) &&
+        previousFingerprint === drillFingerprint &&
+        !forceRegenerate &&
+        withinReuseWindow;
 
-    // Round 1: never mention par/to-par. If the model slips, strip the scoring-relative phrase.
-    if (totalRounds === 1) {
-      body = body
-        .replace(/\bon a par\s*\d+\s*(course)?\b/gi, '')
-        .replace(/\bpar\s*\d+\b/gi, '')
-        .replace(/\bto\s*par\b/gi, '')
-        .replace(/\beven par\b/gi, '')
-        .replace(/\b\d+\s+strokes?\s+(over|under)\s+par\b/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-
-    const sentencesRaw = splitSentences(body);
-    const sentences = sentencesRaw.map(normalizeSentence).filter(Boolean);
-
-    // If the model fails to produce 3 distinct sentences, we add a short, relevant
-    // fallback sentence rather than repeating the same idea.
-    const fallbackSentencesByIndex: Record<number, string[]> = {
-      0: [
-        'This gives us a clear reference point to measure improvement in future rounds.',
-        'As you log more rounds, we can compare your scoring against a clearer baseline.',
-      ],
-      1: [
-        totalRounds <= 2
-          ? 'After two more rounds, your handicap will be calculated.'
-          : 'Over time, more rounds help sharpen the baseline we compare against.',
-        'That baseline helps us compare future rounds against clearer expectations for your game.',
-      ],
-      2: [
-        'This single stat helps reveal scoring patterns and where strokes add up.',
-        'Use it to guide a simple putting focus for the next round.',
-      ],
-    };
-
-    const fallbacks = fallbackSentencesByIndex[index] ?? fallbackSentencesByIndex[2];
-
-    const isTooSimilar = (a: string, b: string) => {
-      const normalize = (s: string) => s.replace(/[^a-z0-9\s]/gi, '').toLowerCase();
-      const aWords = normalize(a).split(/\s+/).filter(Boolean);
-      const bWords = normalize(b).split(/\s+/).filter(Boolean);
-      if (!aWords.length || !bWords.length) return false;
-
-      const toBigrams = (words: string[]) => {
-        const result: string[] = [];
-        for (let i = 0; i < words.length - 1; i += 1) {
-          result.push(`${words[i]} ${words[i + 1]}`);
-        }
-        return result;
-      };
-
-      const aTokens = new Set(aWords);
-      const bTokens = new Set(bWords);
-      let tokenOverlap = 0;
-      for (const t of aTokens) if (bTokens.has(t)) tokenOverlap += 1;
-      const tokenJaccard = tokenOverlap / (aTokens.size + bTokens.size - tokenOverlap);
-
-      const aBigrams = new Set(toBigrams(aWords));
-      const bBigrams = new Set(toBigrams(bWords));
-      let bigramOverlap = 0;
-      for (const t of aBigrams) if (bBigrams.has(t)) bigramOverlap += 1;
-      const bigramJaccard = aBigrams.size && bBigrams.size
-        ? bigramOverlap / (aBigrams.size + bBigrams.size - bigramOverlap)
-        : 0;
-
-      return tokenJaccard >= 0.45 || bigramJaccard >= 0.3;
-    };
-
-    const normalized: string[] = [];
-
-    for (const sentence of sentences) {
-      if (normalized.length >= 3) break;
-      if (normalized.some(existing => isTooSimilar(existing, sentence))) continue;
-      normalized.push(sentence);
-    }
-
-    // If we still have fewer than 3 sentences, prefer splitting an existing long sentence
-    // instead of injecting generic filler.
-    while (normalized.length < 3) {
-      const longestIndex = normalized.reduce((bestI, cur, i, arr) => (arr[i].length > arr[bestI].length ? i : bestI), 0);
-      const candidate = normalized[longestIndex];
-      const split = splitClause(candidate);
-      if (!split) break;
-      const left = normalizeSentence(split[0]);
-      const right = normalizeSentence(split[1]);
-      if (!left || !right) break;
-      normalized.splice(longestIndex, 1, left, right);
-      // De-dupe again after splitting.
-      for (let i = 0; i < normalized.length; i += 1) {
-        for (let j = i + 1; j < normalized.length; j += 1) {
-          if (isTooSimilar(normalized[i], normalized[j])) {
-            normalized.splice(j, 1);
-            j -= 1;
-          }
-        }
-      }
-      if (normalized.length > 3) {
-        normalized.length = 3;
-      }
-    }
-
-    const contains = (s: string, needle: string) => s.toLowerCase().includes(needle);
-    const existingContains = (needle: string) => normalized.some((s) => contains(s, needle));
-
-    for (const candidate of fallbacks) {
-      if (normalized.length >= 3) break;
-
-      // Avoid obvious repeats when we have to add fallback sentences.
-      if (contains(candidate, 'handicap') && existingContains('handicap')) continue;
-      if (contains(candidate, 'track') && existingContains('track')) continue;
-      if ((contains(candidate, 'fir') || contains(candidate, 'gir')) && (existingContains('fir') || existingContains('gir'))) continue;
-
-      const normalizedCandidate = normalizeSentence(candidate);
-      if (!normalizedCandidate) continue;
-      if (normalized.some((existing) => isTooSimilar(existing, normalizedCandidate))) continue;
-      normalized.push(normalizedCandidate);
-    }
-
-    while (normalized.length < 3) {
-      const candidate = index === 2
-        ? 'Measure it next round and adjust from there.'
-        : 'This will be clearer once more tracked data is available.';
-      const normalizedCandidate = normalizeSentence(candidate);
-      if (!normalizedCandidate) {
-        normalized.push('Log another round to add context.');
-        continue;
-      }
-      if (!normalized.some((existing) => isTooSimilar(existing, normalizedCandidate))) {
-        normalized.push(normalizedCandidate);
+      if (canReusePreviousDrill) {
+        drillSuggestion = previousDrill;
+        drillSelectedAtIso = previousSelectedAt;
+        drillReused = true;
       } else {
-        normalized.push(normalizeSentence('Log another round to add context.'));
-      }
-    }
+      const area = sgFocus.opportunityName;
+      const areaDrills = new Set(DRILL_LIBRARY[area] ?? DRILL_LIBRARY.general);
+      const recentInsights = await prisma.roundInsight.findMany({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+        take: 8,
+        select: { insights: true },
+      });
 
-    // Fix common nano pattern where it emits fragments like:
-    // "Next round focus." "Track putts." "Record the total number of putts for the round."
-    if (index === 2 && normalized.length >= 2) {
-      const s0 = stripTrailingTerminator(normalized[0]).toLowerCase();
-      const s1 = stripTrailingTerminator(normalized[1]).toLowerCase();
-      if (s0 === 'next round focus' && s1.startsWith('track ')) {
-        const stat = s1.replace(/^track\s+/i, '').trim();
-        normalized[0] = normalizeSentence(`Next round focus is to track ${stat}`);
-        // Make sentence 2 more specific when it is just "Track <stat>."
-        if (/^track\s+\w+\.?$/i.test(stripTrailingTerminator(normalized[1]))) {
-          normalized[1] = normalizeSentence(`Record the total ${stat} for the round`);
+      const recentlyUsedForArea = new Set<string>();
+      for (const row of recentInsights) {
+        const refs = extractReferencedDrillsFromInsights(row.insights);
+        for (const drill of refs) {
+          if (areaDrills.has(drill)) recentlyUsedForArea.add(drill);
         }
       }
-    }
+      // On explicit regenerate, force rotation away from the current round's last drill
+      // when inputs/fingerprint are unchanged.
+      if (
+        forceRegenerate &&
+        previousDrill &&
+        previousFingerprint &&
+        previousFingerprint === drillFingerprint &&
+        areaDrills.has(previousDrill)
+      ) {
+        recentlyUsedForArea.add(previousDrill);
+      }
+      if (
+        forceRegenerate &&
+        previousFingerprint &&
+        previousFingerprint === drillFingerprint &&
+        priorRoundDrillRecent.length
+      ) {
+        for (const d of priorRoundDrillRecent) {
+          if (areaDrills.has(d)) recentlyUsedForArea.add(d);
+        }
+      }
 
-    // If the model outputs a standalone score sentence like "85 (+13).", merge it into the previous sentence.
-    for (let i = 1; i < normalized.length; i += 1) {
-      const raw = stripTrailingTerminator(normalized[i]).trim();
-      if (/^\d+\s*\([+-]?\d+\)$/.test(raw)) {
-        const merged = `${stripTrailingTerminator(normalized[i - 1])} ${raw}`.trim();
-        normalized[i - 1] = normalizeSentence(merged);
-        normalized.splice(i, 1);
-        i -= 1;
+      drillSuggestion = pickDrillAvoidingRecent(area, drillSeed, recentlyUsedForArea);
+        drillSelectedAtIso = new Date().toISOString();
       }
     }
 
-    // For score-only rounds, strip any accidental "steady/consistent" characterization and
-    // avoid repeating the baseline concept across multiple sentences.
-    if (isScoreOnlyRound && totalRounds <= 3) {
-      const stripSteady = (s: string) =>
-        normalizeSentence(stripTrailingTerminator(s)
-          .replace(/\bsteady\b/gi, '')
-          .replace(/\bconsistent\b/gi, '')
-          .replace(/\s+/g, ' ')
-          .trim());
+    const lastRoundComparison: 'better' | 'same' | 'worse' | null = (() => {
+      if (totalRounds !== 2) return null;
+      if (!last5Rounds.length) return null;
 
-      for (let i = 0; i < normalized.length; i += 1) {
-        normalized[i] = stripSteady(normalized[i]);
-      }
+      const last = last5Rounds[0];
+      const lastCtx = last5Contexts[0];
+      if (!lastCtx?.holes || lastCtx.holes <= 0) return null;
 
-      if (index === 0) {
-        const baselinePhrases = [
-          /\bbaseline\b/gi,
-          /\breference point\b/gi,
-          /\bstarting point\b/gi,
-          /\bbenchmark\b/gi,
-          /\bfoundation\b/gi,
-        ];
+      const currentPerHole = round.score / currentHolesPlayed;
+      const lastPerHole = last.score / lastCtx.holes;
+      if (!Number.isFinite(currentPerHole) || !Number.isFinite(lastPerHole)) return null;
 
-        const hasScore = (s: string) => /\d+\s*\([+-]?\d+\)/.test(s);
-        let keepIdx = normalized.findIndex((s) => hasScore(s));
-        if (keepIdx === -1) keepIdx = 0;
+      if (currentPerHole < lastPerHole) return 'better';
+      if (currentPerHole > lastPerHole) return 'worse';
+      return 'same';
+    })();
 
-        let keptOne = false;
-        for (let i = 0; i < normalized.length; i += 1) {
-          if (i === keepIdx) continue;
-          let s = stripTrailingTerminator(normalized[i]);
-          for (const re of baselinePhrases) {
-            if (re.test(s)) {
-              if (!keptOne) {
-                keptOne = true;
+    // Deterministic style variant:
+    // - same inputs => same phrasing
+    // - material round edits (score/stats/SG focus) => likely different phrasing
+    const styleVariant = (() => {
+      const seedSource = [
+        roundId.toString(),
+        userId.toString(),
+        String(round.score),
+        String(toPar),
+        String(round.putts ?? ''),
+        String(round.penalties ?? ''),
+        String(round.firHit ?? ''),
+        String(round.girHit ?? ''),
+        String(round.handicapAtRound ?? ''),
+        String(sgFocus?.bestName ?? ''),
+        String(sgFocus?.opportunityName ?? ''),
+        String(Math.round(Number(sgComponents?.sgTotal ?? 0) * 100)),
+        String(Math.round(Number(sgComponents?.sgOffTee ?? 0) * 100)),
+        String(Math.round(Number(sgComponents?.sgApproach ?? 0) * 100)),
+        String(Math.round(Number(sgComponents?.sgPutting ?? 0) * 100)),
+        String(Math.round(Number(sgComponents?.sgPenalties ?? 0) * 100)),
+        String(Math.round(Number(sgComponents?.sgResidual ?? 0) * 100)),
+      ].join('|');
+      return mix32(hashStringToInt(seedSource)) % 4;
+    })();
+
+    const planner = buildPlannerOutput({
+      scoreCompact,
+      totalRounds,
+      isScoreOnlyRound,
+      lastRoundComparison,
+      avgScore,
+      scoreDiffVsAvg: diffs.score,
+      bestScore,
+      bestDelta,
+      nextTrackStat,
+      performanceBand,
+      sgTotalValue: totalSG != null ? Number(totalSG) : null,
+      message2ShouldWarn,
+      hasTrackedWeakness,
+      handicapValue: handicapAtRound,
+      allowSgLanguage: entitlements.showStrokesGained,
+      styleVariant,
+      firHitCount: round.firHit != null ? Number(round.firHit) : null,
+      girHitCount: round.girHit != null ? Number(round.girHit) : null,
+      firPct,
+      girPct,
+      puttsCount: round.putts != null ? Number(round.putts) : null,
+      penaltiesCount: round.penalties != null ? Number(round.penalties) : null,
+      sgFocus,
+      weaknessThreshold: sgThresholds.weakness,
+      drillSuggestion,
+      allowedNumbers: [
+        Number(round.score),
+        Number(toPar),
+        Number(roundsRemainingForHandicap),
+        ...(avgScore != null ? [avgScore, Math.round(avgScore * 10) / 10, Math.round(avgScore)] : []),
+        ...(diffs.score != null ? [diffs.score, Math.round(diffs.score * 10) / 10, Math.round(diffs.score)] : []),
+        ...(bestScore != null ? [bestScore, Math.round(bestScore)] : []),
+        ...(bestDelta != null ? [bestDelta, Math.round(bestDelta * 10) / 10, Math.round(bestDelta)] : []),
+        ...(totalSG != null ? [totalSG, Math.round(totalSG * 10) / 10, Math.round(totalSG * 100) / 100] : []),
+        ...(sgComponents?.sgOffTee != null ? [Number(sgComponents.sgOffTee), Math.round(Number(sgComponents.sgOffTee) * 10) / 10] : []),
+        ...(sgComponents?.sgApproach != null ? [Number(sgComponents.sgApproach), Math.round(Number(sgComponents.sgApproach) * 10) / 10] : []),
+        ...(sgComponents?.sgPutting != null ? [Number(sgComponents.sgPutting), Math.round(Number(sgComponents.sgPutting) * 10) / 10] : []),
+        ...(sgComponents?.sgPenalties != null ? [Number(sgComponents.sgPenalties), Math.round(Number(sgComponents.sgPenalties) * 10) / 10] : []),
+        ...(sgComponents?.sgResidual != null ? [Number(sgComponents.sgResidual), Math.round(Number(sgComponents.sgResidual) * 10) / 10] : []),
+        ...(handicapAtRound != null ? [Number(handicapAtRound)] : []),
+        ...(round.firHit != null ? [Number(round.firHit)] : []),
+        ...(round.girHit != null ? [Number(round.girHit)] : []),
+        ...(round.putts != null ? [Number(round.putts)] : []),
+        ...(round.penalties != null ? [Number(round.penalties)] : []),
+        ...(drillSuggestion ? extractNumericLiterals(drillSuggestion) : []),
+      ],
+      hasFir: round.firHit != null,
+      hasGir: round.girHit != null,
+      hasPutts: round.putts != null,
+      hasPenalties: round.penalties != null,
+      hasHandicap: handicapAtRound != null,
+      hasSgTotal: totalSG != null,
+      hasSgComponents: sgComponents?.sgOffTee != null || sgComponents?.sgApproach != null || sgComponents?.sgPutting != null || sgComponents?.sgPenalties != null,
+    });
+
+    const useLlmRound = totalRounds != null && totalRounds > 3;
+    let finalMessages: [string, string, string] = useLlmRound
+      ? (['\u2705 Loading insight.', '\u26A0\uFE0F Loading insight.', '\u2139\uFE0F Loading insight.'] as [string, string, string])
+      : planner.fallback.messages;
+    let openaiUsage: OpenAIUsageSummary | null = null;
+    let realizerOk = !useLlmRound;
+    let realizerError: string | null = null;
+    let realizerRetryCount = 0;
+    let fallbackUsed = false;
+    const scoreOnlyMode = !planner.present.fir && !planner.present.gir && !planner.present.putts && !planner.present.penalties;
+
+    if (useLlmRound) {
+      if (!OPENAI_API_KEY) {
+        finalMessages = buildRound4EmergencyFallback(nextTrackStat);
+        realizerError = 'OpenAI API key missing';
+        fallbackUsed = true;
+      } else {
+        try {
+          const { systemPrompt, userPrompt } = buildRealizerPromptsV3(payloadForLLM, planner.allowSgLanguage, {
+            actionType: planner.action.type,
+            nextTrackStat: planner.action.stat,
+            drillSuggestion: planner.action.drill,
+            allowCourseDifficultyMention: allowCourseDifficultyLanguage,
+            scoreCompact,
+            scoreDiffVsAvg: diffs.score != null && Number.isFinite(diffs.score) ? Math.round(diffs.score * 10) / 10 : null,
+            totalSg: totalSG != null && Number.isFinite(totalSG) ? Number(totalSG) : null,
+            scoreOnlyMode,
+            insight2Emoji: planner.insights.insight2.emoji,
+            hasOpportunityFocus: planner.focus.opportunityName != null,
+            focus: {
+              bestLabel: sgFocus?.bestLabel ?? null,
+              opportunityLabel: sgFocus?.opportunityLabel ?? null,
+              shortGameInferred: planner.focus.shortGameInferred,
+              opportunityIsWeak: hasTrackedWeakness,
+              opportunityImpactStrokesRounded,
+            },
+            present: {
+              fir: planner.present.fir,
+              gir: planner.present.gir,
+              putts: planner.present.putts,
+              penalties: planner.present.penalties,
+            },
+          });
+          const toNode = (msg: string) => {
+            const m = sanitizeWhitespace(msg);
+            const match = m.match(/^(?:\u2705|\u26A0\uFE0F|\u2139\uFE0F|\uD83D\uDD25)\s+(.*)$/u);
+            return {
+              emoji: (m.split(/\s+/)[0] ?? '\u2705') as InsightEmoji,
+              text: sanitizeWhitespace(match?.[1] ?? m),
+            };
+          };
+
+          const validateMessages = (messages: [string, string, string]) =>
+            validateRealizedInsightsV3(
+              {
+                insights: planner.insights,
+                allowedNumbers: planner.allowedNumbers,
+                action: planner.action,
+                focus: {
+                  ...planner.focus,
+                  opportunityIsWeak: hasTrackedWeakness,
+                  opportunityImpactStrokesRounded,
+                },
+                allowSgLanguage: planner.allowSgLanguage,
+                present: {
+                  fir: planner.present.fir,
+                  gir: planner.present.gir,
+                  putts: planner.present.putts,
+                  penalties: planner.present.penalties,
+                },
+              },
+              {
+                insight1: toNode(messages[0]),
+                insight2: toNode(messages[1]),
+                insight3: toNode(messages[2]),
+              },
+            );
+
+          const opportunitySupportPhrase = (() => {
+            const name = planner.focus.opportunityName;
+            if (!name) return null;
+            if (name === 'putting' && round.putts != null) return `with ${Number(round.putts)} putts`;
+            if (name === 'approach' && round.girHit != null) return `with ${Number(round.girHit)} greens in regulation`;
+            if (name === 'off_tee' && round.firHit != null) return `with ${Number(round.firHit)} fairways hit`;
+            if (name === 'penalties' && round.penalties != null) return `with ${Number(round.penalties)} penalties`;
+            return null;
+          })();
+
+          const runRealizer = async (prompt: string): Promise<{
+            messages: [string, string, string] | null;
+            candidate: [string, string, string] | null;
+            usage: OpenAIUsageSummary | null;
+            error: string | null;
+          }> => {
+            const openaiResult = await callOpenAI({
+              apiKey: OPENAI_API_KEY,
+              model: OPENAI_MODEL,
+              systemPrompt,
+              userPrompt: prompt,
+              maxOutputTokens: OPENAI_MAX_COMPLETION_TOKENS,
+              timeoutMs: OPENAI_TIMEOUT_MS,
+            });
+
+            const parsed = tryParseJsonObject(openaiResult.text);
+            const realizedMessages =
+              normalizeRealizerParsedOutputV3(parsed) ??
+              normalizeRealizerParsedOutputV3(openaiResult.text) ??
+              extractMessagesFromLooseText(openaiResult.text);
+            if (!realizedMessages) {
+              return {
+                messages: null,
+                candidate: null,
+                usage: openaiResult.usage,
+                error: 'Failed to parse JSON messages',
+              };
+            }
+
+            const repairedMessages = repairV3MessagesForMissingStats(
+              realizedMessages,
+              {
+                fir: planner.present.fir,
+                gir: planner.present.gir,
+                putts: planner.present.putts,
+                penalties: planner.present.penalties,
+              },
+              planner.action,
+            );
+
+            const normalizedMessages = forcePlannedEmojis(repairedMessages, planner.insights);
+            const policyAdjustedMessages = applyV3LanguagePolicy(normalizedMessages, {
+              measuredOpportunity: !planner.focus.shortGameInferred,
+              opportunityIsWeak: hasTrackedWeakness,
+              opportunityValue:
+                sgFocus && Number.isFinite(sgFocus.opportunityValue)
+                  ? Number(sgFocus.opportunityValue)
+                  : null,
+              bestName: planner.focus.bestName,
+              opportunityName: planner.focus.opportunityName,
+              opportunitySupportPhrase,
+              allowCourseDifficultyLanguage,
+              nearNeutralRound: totalSG != null && Number.isFinite(totalSG) && Math.abs(totalSG) <= 1.5,
+              scoreOnlyMode,
+            });
+
+            const validation = validateMessages(policyAdjustedMessages);
+            if (!validation.ok) {
+              return { messages: null, candidate: policyAdjustedMessages, usage: openaiResult.usage, error: validation.reason };
+            }
+
+            return { messages: policyAdjustedMessages, candidate: policyAdjustedMessages, usage: openaiResult.usage, error: null };
+          };
+
+          const firstPass = await runRealizer(userPrompt);
+          openaiUsage = firstPass.usage;
+
+          if (firstPass.messages) {
+            finalMessages = firstPass.messages;
+            realizerOk = true;
+          } else {
+            const softCandidate = firstPass.candidate;
+            if (!softCandidate) {
+              finalMessages = buildRound4EmergencyFallback(nextTrackStat);
+              realizerOk = false;
+              realizerError = `V3 realizer failed: ${firstPass.error ?? 'unknown validation error'}`;
+              fallbackUsed = true;
+            } else {
+              if (scoreOnlyMode) {
+                const scoreOnlyRepairPrompt = [
+                  userPrompt,
+                  '',
+                  'REPAIR INSTRUCTIONS:',
+                  '- Rewrite all 3 messages so they pass the constraints.',
+                  '- Keep this score-only: do not attribute to specific skill areas.',
+                  '- Message 3 must start with "Next round focus:".',
+                  '- Return only valid JSON schema {"messages":["...","...","..."]}.',
+                  '',
+                  'PREVIOUS INVALID OUTPUT:',
+                  JSON.stringify(softCandidate),
+                  '',
+                  `VALIDATION FAILURE: ${firstPass.error ?? 'unknown validation error'}`,
+                ].join('\n');
+
+                realizerRetryCount = 1;
+                const secondPass = await runRealizer(scoreOnlyRepairPrompt);
+                openaiUsage = secondPass.usage ?? openaiUsage;
+
+                if (secondPass.messages) {
+                  finalMessages = secondPass.messages;
+                  realizerOk = true;
+                  realizerError = null;
+                  fallbackUsed = false;
+                } else {
+                  finalMessages = softCandidate;
+                  realizerOk = false;
+                  realizerError = `Soft-accepted after score-only retry failure: ${secondPass.error ?? firstPass.error ?? 'unknown validation error'}`;
+                  fallbackUsed = false;
+                }
               } else {
-                s = s.replace(re, '');
+                finalMessages = softCandidate;
+                realizerOk = false;
+                realizerError = `Soft-accepted after single-pass validation failure: ${firstPass.error ?? 'unknown validation error'}`;
+                fallbackUsed = false;
               }
             }
           }
-          // Clean up double spaces and dangling "to build from"/"to build on" phrasing.
-          s = s
-            .replace(/\bto build (from|on)\b/gi, '')
-            .replace(/\s+/g, ' ')
-            .replace(/\s+\./g, '.')
-            .trim();
-          normalized[i] = normalizeSentence(s);
+        } catch (err: any) {
+          const message = err?.message || String(err);
+          if (isServerLevelOutageError(message)) {
+            finalMessages = buildRound4EmergencyFallback(nextTrackStat);
+            realizerError = message;
+            fallbackUsed = true;
+          } else {
+            throw err;
+          }
         }
       }
     }
 
-    // After any rewriting/merging, de-dupe again. Rewrites can accidentally make
-    // two sentences too similar (e.g., "Record total putts..." twice).
-    for (let i = 0; i < normalized.length; i += 1) {
-      for (let j = i + 1; j < normalized.length; j += 1) {
-        if (isTooSimilar(normalized[i], normalized[j])) {
-          normalized.splice(j, 1);
-          j -= 1;
-        }
-      }
-    }
+    // Hard cap message length for mobile readability. Keep whole sentences whenever possible.
+    finalMessages = [
+      enforceMaxMessageChars(finalMessages[0], MAX_MESSAGE_CHARS),
+      enforceMaxMessageChars(finalMessages[1], MAX_MESSAGE_CHARS),
+      enforceMaxMessageChars(finalMessages[2], MAX_MESSAGE_CHARS),
+    ] as [string, string, string];
 
-    // If Message 3 still repeats sentence 2, replace sentence 3 with a fallback.
-    if (index === 2 && normalized.length >= 3 && isTooSimilar(normalized[1], normalized[2])) {
-      const candidate = normalizeSentence('This single stat helps reveal scoring patterns and where strokes add up');
-      if (!isTooSimilar(normalized[1], candidate)) {
-        normalized[2] = candidate;
-      }
-    }
+    // Free users see only Message 1 after round 3, but we still generate and store
+    // all 3 so an upgrade reveals the rest without regeneration.
+    const freeVisibleCount = isEarlyRounds ? 3 : 1;
 
-    // If we dropped duplicates, top back up to exactly 3 with fallbacks.
-    if (normalized.length < 3) {
-      for (const candidate of fallbacks) {
-        if (normalized.length >= 3) break;
-        const normalizedCandidate = normalizeSentence(candidate);
-        if (!normalizedCandidate) continue;
-        if (normalized.some((existing) => isTooSimilar(existing, normalizedCandidate))) continue;
-        normalized.push(normalizedCandidate);
-      }
-    }
-    while (normalized.length < 3) {
-      normalized.push(normalizeSentence('Log another round to add context.'));
-    }
-
-    // Note: we intentionally do not hard-force a specific handicap sentence anymore.
-    // Round 1/Message 2 is now framed as progression (not setup), so we rely on prompt constraints.
-
-    // If we somehow have more than 3, merge extras into the 3rd sentence without
-    // turning it into multiple sentences.
-    while (normalized.length > 3) {
-      const merged = `${stripTrailingTerminator(normalized[2])} ${stripTrailingTerminator(normalized[3])}`.trim();
-      normalized.splice(2, 2, normalizeSentence(merged));
-    }
-
-    const rebuilt = normalized.slice(0, 3).join(' ').replace(/\s+/g, ' ').trim();
-    return `${emoji} ${rebuilt}`;
-  };
-
-  const enforceMaxChars = (line: string) => {
-    const normalizedLine = normalizeEmoji(line);
-    const match = normalizedLine.match(/^(🔥|✅|⚠️|ℹ️)\s*(.*)$/);
-    if (!match) return line;
-    const emoji = match[1];
-    let body = match[2].trim();
-
-    if (body.length <= MAX_MESSAGE_CHARS) return `${emoji} ${body}`;
-
-    // Prefer trimming the last sentence first to preserve the earlier thoughts.
-    const sentences = splitSentences(body);
-    while (sentences.length > 1 && sentences.join(' ').length > MAX_MESSAGE_CHARS) {
-      sentences.pop();
-    }
-    body = sentences.join(' ').trim();
-
-    if (body.length > MAX_MESSAGE_CHARS) {
-      body = body.slice(0, MAX_MESSAGE_CHARS).trim();
-      body = body.replace(/\s+\S*$/, '').trim(); // avoid ending mid-word
-      if (!/[.!?]$/.test(body)) body = `${body}.`;
-    }
-
-    return `${emoji} ${body}`;
-  };
-
-  const allowExclamations =
-    (totalSG != null && totalSG >= sgThresholds.exceptional) ||
-    [sgComponents?.sgOffTee, sgComponents?.sgApproach, sgComponents?.sgPutting, sgComponents?.sgPenalties].some(
-      (v) => v != null && Number(v) >= sgThresholds.exceptionalComponent,
-    );
-
-  // We generally avoid exclamation marks to keep the tone factual.
-  // Exception:
-  // - Truly exceptional rounds/components (rule above)
-  // - Round 1 onboarding Message 1 may use a single "!" for a friendly welcome
-  const stripExclamationsIfNeededByIndex = (line: string, index: number) => {
-    const normalizedLine = normalizeEmoji(line);
-    const match = normalizedLine.match(/^(🔥|✅|⚠️|ℹ️)\s*(.*)$/);
-    if (!match) return line;
-
-    const emoji = match[1];
-    const body = match[2];
-
-    const isWelcomeException = totalRounds === 1 && index === 0;
-    if (allowExclamations || isWelcomeException) {
-      // Collapse repeated exclamations and keep at most one "!" on onboarding welcome.
-      let kept = body.replace(/!{2,}/g, '!');
-      if (isWelcomeException) {
-        let seen = false;
-        kept = kept.replace(/!/g, () => {
-          if (seen) return '.';
-          seen = true;
-          return '!';
-        });
-      }
-      return `${emoji} ${kept}`.replace(/\.\s*\./g, '.').replace(/\s+/g, ' ').trim();
-    }
-
-    return `${emoji} ${body}`
-      .replace(/!/g, '.')
-      .replace(/\.\s*\./g, '.')
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
-
-  const stripUnsupportedClaimsForScoreOnly = (line: string, index: number) => {
-    if (!isScoreOnlyRound) return line;
-    // Message 3 can mention the stat we want them to track next round.
-    if (index === 2) return line;
-
-    const normalizedLine = normalizeEmoji(line);
-    const match = normalizedLine.match(/^(🔥|✅|⚠️|ℹ️)\s*(.*)$/);
-    if (!match) return line;
-    const emoji = match[1];
-    let body = match[2].trim();
-
-    // With score-only input, we must not imply shot-level truths.
-    body = body
-      .replace(/\bsteady score\b/gi, 'score')
-      .replace(/\bsteady overall score\b/gi, 'score')
-      .replace(/\bsteady overall\b/gi, 'overall')
-      .replace(/\bsteady scoring\b/gi, 'score')
-      .replace(/\bconsistent scoring\b/gi, 'score')
-      .replace(/\bball[- ]?striking\b/gi, '')
-      .replace(/\bcourse management\b/gi, '')
-      .replace(/\bgame management\b/gi, '')
-      .replace(/\bconsistency\b/gi, '')
-      .replace(/\bconsistent\b/gi, '')
-      .replace(/\bfoundation\b/gi, 'baseline')
-      .replace(/\bstrengths?\b/gi, '')
-      .replace(/\bweakness(?:es)?\b/gi, '')
-      .replace(/\boff[- ]the[- ]tee\b/gi, '')
-      .replace(/\bdriving\b/gi, '')
-      .replace(/\bapproach(?:es)?\b/gi, '')
-      .replace(/\bshort[- ]game\b/gi, '')
-      .replace(/\bputting\b/gi, '') // do not attribute putting performance without putts tracked
-      .replace(/\bshown across the round\b/gi, '')
-      .replace(/\bacross the round\b/gi, '')
-      .replace(/\bperformance picture\b/gi, 'baseline')
-      // Avoid feature lists / documentation tone in score-only early rounds.
-      .replace(/\btracking\s+fir,\s*gir,\s*putts,\s*and\s*penalties[^.]*\./gi, '')
-      .replace(/\btracking\s+fir,\s*gir,\s*putts,\s*and\s*penalties[^.]*$/gi, '')
-      .replace(/\bwith more tracked data\b/gi, 'with more rounds logged')
-      .replace(/\s+/g, ' ')
-      .replace(/\s+\./g, '.')
-      .trim();
-
-    return `${emoji} ${body}`.trim();
-  };
-
-  const processedLines = lines
-    .slice(0, 3)
-    .map(stripBannedPunctuation)
-    .map(replaceBannedPhrases)
-    .map(replaceWeirdParWording)
-    .map((line: string, i: number) => stripUnsupportedClaimsForScoreOnly(line, i));
-
-  const enforceEmojiByIndex = (line: string, index: number) => {
-    const normalizedLine = normalizeEmoji(line);
-    const match = normalizedLine.match(/^(🔥|✅|⚠️|ℹ️)\s*(.*)$/);
-    if (!match) return line;
-    let emoji = match[1];
-    const body = match[2].trim();
-
-    if (index === 0) {
-      // Message 1 is always a positive anchor (never ⚠️ or ℹ️).
-      if (emoji === '⚠️' || emoji === 'ℹ️') emoji = '✅';
-
-      // Avoid 🔥 in onboarding or minimal-data situations unless it's truly exceptional.
-      // This prevents Round 1 score-only rounds from being over-celebrated.
-      const hasTrackedStats =
-        round.firHit != null ||
-        round.girHit != null ||
-        round.putts != null ||
-        round.penalties != null;
-
-      const canUseFire =
-        hasTrackedStats &&
-        (
-          (totalSG != null && totalSG >= sgThresholds.exceptional) ||
-          [sgComponents?.sgOffTee, sgComponents?.sgApproach, sgComponents?.sgPutting, sgComponents?.sgPenalties].some(
-            (v) => v != null && Number(v) >= sgThresholds.exceptionalComponent,
-          )
-        );
-
-      if (emoji === '🔥' && !canUseFire) emoji = '✅';
-    }
-
-    if (index === 1) {
-      // Message 2 is analysis (never ℹ️). Use ⚠️ when total SG is negative.
-      if (emoji === 'ℹ️') emoji = (totalSG != null && totalSG < 0) ? '⚠️' : '✅';
-      if (totalSG != null && totalSG < 0) emoji = '⚠️';
-    }
-
-    if (index === 2) {
-      // Message 3 is always the recommendation.
-      emoji = 'ℹ️';
-    }
-
-    return `${emoji} ${body}`;
-  };
-
-  const normalizedLines = processedLines
-    .map((line: string, i: number) => ensureThreeSentences(line, i))
-    .map((line: string, i: number) => stripExclamationsIfNeededByIndex(line, i))
-    .map(stripBannedPunctuation)
-    .map(enforceMaxChars)
-    .map((line: string, i: number) => enforceEmojiByIndex(line, i));
-
-  // Free users see only Message 1 after round 3, but we still generate and store
-  // all 3 so an upgrade reveals the rest without regeneration.
-  const freeVisibleCount = isEarlyRounds ? 3 : 1;
-
-  const insightsData = {
-    messages: normalizedLines,
-    generated_at: new Date().toISOString(),
-    model: OPENAI_MODEL,
-    free_visible_count: freeVisibleCount,
-    generation_count: MAX_INSIGHTS,
-    includes_numeric_sg: false,
-    openai_usage: openaiResult.usage,
-    raw_payload: payload,
-  };
-
-  // ---- Store in database ----
+    const insightsData = {
+      // Keep a short recent drill list for same-round force-regeneration rotation.
+      // This prevents immediate repeats while preserving deterministic behavior otherwise.
+      drill_recent:
+        drillSuggestion && drillFingerprint
+          ? (() => {
+              const seed =
+                priorRoundDrillFingerprint &&
+                priorRoundDrillFingerprint === drillFingerprint &&
+                priorRoundDrillRecent.length
+                  ? priorRoundDrillRecent
+                  : [];
+              const merged = [sanitizeWhitespace(drillSuggestion), ...seed]
+                .filter(Boolean)
+                .filter((v, i, arr) => arr.indexOf(v) === i);
+              return merged.slice(0, 4);
+            })()
+          : [],
+      messages: finalMessages,
+      generated_at: new Date().toISOString(),
+      model: OPENAI_MODEL,
+      free_visible_count: freeVisibleCount,
+      generation_count: MAX_INSIGHTS,
+      openai_usage: openaiUsage,
+      planner: planner.insights,
+      realizer_ok: realizerOk,
+      realizer_error: realizerError,
+      realizer_retry_count: realizerRetryCount,
+      fallback_used: fallbackUsed,
+      drill_selected: drillSuggestion,
+      drill_selected_at: drillSelectedAtIso,
+      drill_fingerprint: drillFingerprint,
+      drill_reused: drillReused,
+      raw_payload: payload,
+    };
 
   const savedInsights = await prisma.roundInsight.upsert({
     where: { roundId },
@@ -1980,287 +2917,4 @@ ${JSON.stringify(payloadForLLM, null, 2)}`;
   return savedInsights.insights;
 }
 
-type OpenAICallParams = {
-  apiKey: string;
-  model: string;
-  systemPrompt: string;
-  userPrompt: string;
-  maxOutputTokens: number;
-  temperature: number;
-};
 
-type OpenAIUsageSummary = {
-  endpoint: 'chat_completions' | 'responses';
-  model: string;
-  input_tokens: number | null;
-  output_tokens: number | null;
-  total_tokens: number | null;
-  finish_reason: string | null;
-  attempts: number;
-  max_output_tokens: number;
-};
-
-function extractTextFromResponsesApi(data: any): string | null {
-  if (typeof data?.output_text === 'string' && data.output_text.trim().length > 0) {
-    return data.output_text.trim();
-  }
-
-  const outputs = Array.isArray(data?.output) ? data.output : [];
-  const parts: string[] = [];
-
-  for (const o of outputs) {
-    const content = Array.isArray(o?.content) ? o.content : [];
-    for (const c of content) {
-      const text = typeof c?.text === 'string' ? c.text : null;
-      if (text && text.trim().length > 0) parts.push(text.trim());
-    }
-  }
-
-  if (parts.length === 0) return null;
-  return parts.join('\n').trim();
-}
-
-function extractTextFromChatCompletionsApi(data: any): string | null {
-  const msg = data?.choices?.[0]?.message;
-  const content = msg?.content;
-
-  if (typeof content === 'string') {
-    const trimmed = content.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-
-  // Some newer models may return an array of content parts.
-  if (Array.isArray(content)) {
-    const parts: string[] = [];
-    for (const c of content) {
-      const text = typeof c?.text === 'string' ? c.text : null;
-      if (text && text.trim().length > 0) parts.push(text.trim());
-    }
-    const joined = parts.join('\n').trim();
-    return joined.length > 0 ? joined : null;
-  }
-
-  // Refusals are surfaced separately on some responses.
-  const refusal = typeof msg?.refusal === 'string' ? msg.refusal.trim() : '';
-  return refusal.length > 0 ? refusal : null;
-}
-
-function normalizeUsageFromChat(data: any, maxOutputTokens: number, attempts: number): OpenAIUsageSummary {
-  const usage = data?.usage;
-  const prompt = typeof usage?.prompt_tokens === 'number' ? usage.prompt_tokens : null;
-  const completion = typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : null;
-  const total = typeof usage?.total_tokens === 'number' ? usage.total_tokens : null;
-  const finishReason = typeof data?.choices?.[0]?.finish_reason === 'string' ? data.choices[0].finish_reason : null;
-  const model = typeof data?.model === 'string' ? data.model : 'unknown';
-
-  return {
-    endpoint: 'chat_completions',
-    model,
-    input_tokens: prompt,
-    output_tokens: completion,
-    total_tokens: total,
-    finish_reason: finishReason,
-    attempts,
-    max_output_tokens: maxOutputTokens,
-  };
-}
-
-function normalizeUsageFromResponses(data: any, maxOutputTokens: number, attempts: number): OpenAIUsageSummary {
-  const usage = data?.usage;
-  const input = typeof usage?.input_tokens === 'number' ? usage.input_tokens : null;
-  const output = typeof usage?.output_tokens === 'number' ? usage.output_tokens : null;
-  const total = typeof usage?.total_tokens === 'number' ? usage.total_tokens : null;
-  const model = typeof data?.model === 'string' ? data.model : 'unknown';
-
-  return {
-    endpoint: 'responses',
-    model,
-    input_tokens: input,
-    output_tokens: output,
-    total_tokens: total,
-    finish_reason: null,
-    attempts,
-    max_output_tokens: maxOutputTokens,
-  };
-}
-
-async function callOpenAI(params: OpenAICallParams): Promise<{ text: string; usage: OpenAIUsageSummary | null }> {
-  const { apiKey, model, systemPrompt, userPrompt, maxOutputTokens, temperature } = params;
-
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` };
-
-  const isGpt5 = model.startsWith('gpt-5');
-  const chatCompletionsUrl = 'https://api.openai.com/v1/chat/completions';
-  const responsesUrl = 'https://api.openai.com/v1/responses';
-
-  const callChatCompletions = async (opts: {
-    maxCompletionTokens: number;
-    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
-    verbosity?: 'low' | 'medium' | 'high';
-    includeTemperature: boolean;
-  }) => {
-    const body: any = {
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      // GPT-5 models use `max_completion_tokens` (not `max_tokens`).
-      max_completion_tokens: opts.maxCompletionTokens,
-    };
-
-    if (opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort;
-    if (opts.verbosity) body.verbosity = opts.verbosity;
-    if (opts.includeTemperature) body.temperature = temperature;
-
-    return fetch(chatCompletionsUrl, { method: 'POST', headers, body: JSON.stringify(body) });
-  };
-
-  // ---- GPT-5 models ----
-  // In practice, some deployments of the Responses API can return "reasoning"-only output
-  // unless text formatting is set exactly right. Chat Completions has been more reliable
-  // for gpt-5-nano in this app, so we try it first with a compatible parameter set.
-  if (isGpt5) {
-    // Models before gpt-5.1 default to medium reasoning and can burn the entire
-    // completion budget on reasoning. Use `minimal` to reduce empty responses.
-    const chat = await callChatCompletions({
-      maxCompletionTokens: maxOutputTokens,
-      reasoningEffort: 'minimal',
-      verbosity: 'low',
-      includeTemperature: false,
-    });
-
-    if (chat.ok) {
-      const chatData = await chat.json();
-      const chatText = extractTextFromChatCompletionsApi(chatData);
-      if (chatText) {
-        return { text: chatText, usage: normalizeUsageFromChat(chatData, maxOutputTokens, 1) };
-      }
-
-      const finishReason = chatData?.choices?.[0]?.finish_reason;
-      const usage = chatData?.usage;
-
-      // If we hit the completion limit without producing visible text, retry once with a
-      // larger budget. Some GPT-5 reasoning behavior can use a lot of tokens even when
-      // the requested output is short.
-      if (finishReason === 'length') {
-        const retry = await callChatCompletions({
-          maxCompletionTokens: Math.min(4096, maxOutputTokens * 3),
-          reasoningEffort: 'minimal',
-          verbosity: 'low',
-          includeTemperature: false,
-        });
-
-        if (retry.ok) {
-          const retryData = await retry.json();
-          const retryText = extractTextFromChatCompletionsApi(retryData);
-          if (retryText) {
-            return { text: retryText, usage: normalizeUsageFromChat(retryData, Math.min(4096, maxOutputTokens * 3), 2) };
-          }
-        }
-      }
-
-      console.error('OpenAI Chat Completions returned no text (gpt-5):', JSON.stringify({
-        id: chatData?.id,
-        model: chatData?.model,
-        keys: chatData && typeof chatData === 'object' ? Object.keys(chatData) : null,
-        choice0: Array.isArray(chatData?.choices) ? chatData.choices[0] : null,
-        usage,
-      }, null, 2));
-    } else {
-      const err = await chat.json().catch(() => ({}));
-      console.error('OpenAI Chat Completions error (gpt-5):', JSON.stringify(err, null, 2));
-    }
-
-    // If Chat Completions didn't work, fall back to the Responses API.
-    const response = await fetch(responsesUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        instructions: systemPrompt,
-        input: userPrompt,
-        max_output_tokens: maxOutputTokens,
-        reasoning: { effort: 'minimal' },
-        tool_choice: 'none',
-        text: {
-          verbosity: 'low',
-          format: {
-            type: 'json_schema',
-            name: 'post_round_insights',
-            strict: true,
-            schema: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['messages'],
-              properties: {
-                messages: {
-                  type: 'array',
-                  minItems: 3,
-                  maxItems: 3,
-                  items: { type: 'string' },
-                },
-              },
-            },
-          },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
-    }
-
-    const data = await response.json();
-    const text = extractTextFromResponsesApi(data);
-    if (!text) {
-      console.error('OpenAI Responses API returned no text (gpt-5):', JSON.stringify({
-        id: data?.id,
-        model: data?.model,
-        keys: data && typeof data === 'object' ? Object.keys(data) : null,
-        output_count: Array.isArray(data?.output) ? data.output.length : null,
-        output_0: Array.isArray(data?.output) ? data.output[0] : null,
-        text: data?.text,
-      }, null, 2));
-      throw new Error('OpenAI returned no content');
-    }
-
-    return { text, usage: normalizeUsageFromResponses(data, maxOutputTokens, 1) };
-  }
-
-  // Fallback for older chat-completions models.
-  const response = await fetch(chatCompletionsUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      // Standard Chat Completions models use `max_tokens`.
-      max_tokens: maxOutputTokens,
-      temperature,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
-  }
-
-  const data = await response.json();
-  const text = extractTextFromChatCompletionsApi(data);
-  if (!text) {
-    console.error('OpenAI Chat Completions returned no text:', JSON.stringify({
-      id: data?.id,
-      model: data?.model,
-      finish_reason: data?.choices?.[0]?.finish_reason,
-      keys: data && typeof data === 'object' ? Object.keys(data) : null,
-    }, null, 2));
-    throw new Error('OpenAI returned no content');
-  }
-
-  return { text, usage: normalizeUsageFromChat(data, maxOutputTokens, 1) };
-}

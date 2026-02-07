@@ -220,7 +220,7 @@ export async function PUT(
     const updatePutts = !data.hole_by_hole && data.advanced_stats ? data.putts ?? null : null;
     const updatePenalties = !data.hole_by_hole && data.advanced_stats ? data.penalties ?? null : null;
 
-    // Fetch existing round to preserve time
+    // Fetch existing round to preserve time.
     const existingRound = await prisma.round.findFirst({
       where: { id: roundId, userId },
       select: { date: true },
@@ -345,9 +345,9 @@ export async function PUT(
     // Recalculate leaderboard
     await recalcLeaderboard(userId);
 
-    // Trigger insights asynchronously
+    // Always regenerate insights after a round update.
     await prisma.roundInsight.deleteMany({ where: { roundId } });
-    triggerInsightsGeneration(roundId, userId).catch(console.error);
+    triggerInsightsGeneration(roundId, userId, true).catch(console.error);
 
     return successResponse({ message: 'Round updated' });
   } catch (error) {
@@ -465,7 +465,7 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
 }
 
 // Helper to trigger insights generation for premium users
-async function triggerInsightsGeneration(roundId: bigint, userId: bigint): Promise<void> {
+async function triggerInsightsGeneration(roundId: bigint, userId: bigint, forceRegenerate = false): Promise<void> {
   // Check if user is premium or lifetime
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -474,7 +474,7 @@ async function triggerInsightsGeneration(roundId: bigint, userId: bigint): Promi
 
   if (user?.subscriptionTier === 'premium' || user?.subscriptionTier === 'lifetime') {
     try {
-      await generateInsights(roundId, userId);
+      await generateInsights(roundId, userId, undefined, { forceRegenerate });
     } catch (error) {
       // Silently fail - insights can be generated later if needed
       console.error('Failed to generate insights:', error);

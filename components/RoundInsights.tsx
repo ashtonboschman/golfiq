@@ -13,35 +13,57 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
   const router = useRouter();
   const [insights, setInsights] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchInsights = async () => {
-      try {
-        const res = await fetch(`/api/rounds/${roundId}/insights`, {
-          credentials: 'include',
-        });
+  const fetchInsights = async () => {
+    try {
+      const res = await fetch(`/api/rounds/${roundId}/insights`, {
+        credentials: 'include',
+      });
 
-        // If the viewer isn't authenticated (or can't access this round), don't spam console.
-        if (res.status === 401 || res.status === 403) {
-          setInsights([]);
-          setError(null);
-          return;
-        }
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Failed to fetch insights');
-        setInsights(data.insights?.messages || []);
-      } catch (err: any) {
-        console.error('Error fetching insights:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      // If the viewer isn't authenticated (or can't access this round), don't spam console.
+      if (res.status === 401 || res.status === 403) {
+        setInsights([]);
+        setError(null);
+        return;
       }
-    };
 
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to fetch insights');
+      setInsights(data.insights?.messages || []);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching insights:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchInsights();
   }, [roundId, isPremium]);
+
+  const handleRegenerate = async () => {
+    if (regenerating) return;
+    setRegenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/rounds/${roundId}/insights`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || 'Failed to regenerate insights');
+      setInsights(data?.insights?.messages || []);
+    } catch (err: any) {
+      console.error('Error regenerating insights:', err);
+      setError(err.message || 'Failed to regenerate insights');
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const Header = () => (
     <div className="insights-header">
@@ -49,7 +71,20 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
         <Sparkles size={20} />
         <h3>AI Performance Insights</h3>
       </div>
-      {isPremium && <span className="insights-badge">Premium</span>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {isPremium && <span className="insights-badge">Premium</span>}
+        {isPremium && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleRegenerate}
+            disabled={regenerating || loading}
+            style={{ padding: '6px 10px', fontSize: 12 }}
+          >
+            {regenerating ? 'Regenerating...' : 'Regenerate'}
+          </button>
+        )}
+      </div>
     </div>
   );
 

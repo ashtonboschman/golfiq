@@ -107,7 +107,7 @@ function AddRoundContent() {
     putts: null,
     penalties: null,
     round_holes: [],
-    advanced_stats: 0,
+    advanced_stats: 1,
   });
 
   const [segmentOptions, setSegmentOptions] = useState<{ value: TeeSegment; label: string }[]>([]);
