@@ -4,7 +4,7 @@ export const selectStyles = {
     ...base,
     backgroundColor: 'var(--color-secondary-surface)',
     borderColor: state.isFocused ? 'var(--color-accent)' : 'var(--color-border)',
-    border: '2px solid var(--color-border)',
+    border: '1px solid var(--color-border)',
     borderRadius: 'var(--border-radius)',
     color: 'var(--color-secondary-text)',
     fontSize: '1rem',
