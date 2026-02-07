@@ -20,7 +20,7 @@ export default function WaitlistForm() {
     const error = searchParams.get('error');
 
     if (confirmed === 'true') {
-      setMessage('✓ Email confirmed! You are on the list. We will notify you when beta opens.');
+      setMessage('Email confirmed. You are on the list. We will notify you when beta opens.');
       setMessageType('success');
     } else if (alreadyConfirmed === 'true') {
       setMessage('You have already confirmed your email. Thanks for your interest!');
@@ -55,7 +55,7 @@ export default function WaitlistForm() {
         throw new Error(data.error || 'Failed to join waitlist');
       }
 
-      setMessage('✓ Success! Check your email to confirm your spot on the waitlist.');
+      setMessage('Success. Check your email to confirm your spot on the waitlist.');
       setMessageType('success');
       setEmail('');
       setName('');
@@ -96,7 +96,7 @@ export default function WaitlistForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onFocus={(e) => {
-                const input = e.target as HTMLInputElement;
+                // no-op: keep focus behavior consistent across mobile keyboards
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -167,3 +167,4 @@ export default function WaitlistForm() {
     </section>
   );
 }
+

@@ -7,13 +7,17 @@ import { Inter, Space_Grotesk, IBM_Plex_Sans } from 'next/font/google';
 import BootstrapClient from '@/components/BootstrapClient';
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://golfiq.ca"),
+  metadataBase: new URL("https://www.golfiq.ca"),
   title: "GolfIQ - Track Your Golf Game",
   description:
     "GolfIQ helps you track your golf rounds, analyze your performance, and improve your game with AI-powered insights.",
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+  },
 
   icons: {
     apple: "/logos/favicon/golfiq-icon-180.png",
+    shortcut: "/logos/favicon/golfiq-icon-48.png",
     icon: [
       {
         url: "/logos/favicon/golfiq-icon-16.png",
@@ -25,6 +29,16 @@ export const metadata: Metadata = {
         sizes: "32x32",
         type: "image/png",
       },
+      {
+        url: "/logos/favicon/golfiq-icon-48.png",
+        sizes: "48x48",
+        type: "image/png",
+      },
+      {
+        url: "/logos/favicon/golfiq-icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
     ],
   },
 
@@ -32,14 +46,14 @@ export const metadata: Metadata = {
     title: "GolfIQ - Track Your Golf Game",
     description:
       "Smart insights for golfers. Track rounds, analyze performance, and improve your game.",
-    url: "https://golfiq.ca",
+    url: "https://www.golfiq.ca",
     siteName: "GolfIQ",
     images: [
       {
-        url: "/logos/favicon/golfiq-icon-512.png",
-        width: 512,
-        height: 512,
-        alt: "GolfIQ Logo",
+        url: "/logos/share/golfiq-share.png",
+        width: 1200,
+        height: 630,
+        alt: "GolfIQ app preview",
       },
     ],
     type: "website",

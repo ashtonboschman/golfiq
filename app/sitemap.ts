@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://golfiq.ca';
+  const baseUrl = 'https://www.golfiq.ca';
   const now = new Date();
 
   return [
@@ -43,4 +43,3 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 }
-

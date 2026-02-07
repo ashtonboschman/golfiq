@@ -43,10 +43,11 @@ export default function LandingFooter() {
         </div>
         <div className="landing-footer-bottom">
           <p className="landing-footer-copyright">
-            © {new Date().getFullYear()} GolfIQ. All rights reserved.
+            Copyright {new Date().getFullYear()} GolfIQ. All rights reserved.
           </p>
         </div>
       </div>
     </footer>
   );
 }
+

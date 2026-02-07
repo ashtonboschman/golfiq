@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     title: 'GolfIQ | AI Golf Analytics and Round Tracking',
     description:
       'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ AI insights built from real performance data.',
-    url: 'https://golfiq.ca/',
+    url: 'https://www.golfiq.ca/',
     siteName: 'GolfIQ',
     images: [
       {
@@ -55,8 +55,8 @@ export default async function LandingPage() {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'GolfIQ',
-    url: 'https://golfiq.ca',
-    logo: 'https://golfiq.ca/logos/share/golfiq-share.png',
+    url: 'https://www.golfiq.ca',
+    logo: 'https://www.golfiq.ca/logos/share/golfiq-share.png',
     sameAs: [
       'https://facebook.com/golfiqofficial',
       'https://instagram.com/GolfIQApp',
@@ -70,10 +70,10 @@ export default async function LandingPage() {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'GolfIQ',
-    url: 'https://golfiq.ca',
+    url: 'https://www.golfiq.ca',
     potentialAction: {
       '@type': 'SearchAction',
-      target: 'https://golfiq.ca/courses/search?q={search_term_string}',
+      target: 'https://www.golfiq.ca/courses/search?q={search_term_string}',
       'query-input': 'required name=search_term_string',
     },
   };
