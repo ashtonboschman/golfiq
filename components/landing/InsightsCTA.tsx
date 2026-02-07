@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import { Sparkles, Target, LineChart } from 'lucide-react';
 

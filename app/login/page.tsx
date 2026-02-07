@@ -8,6 +8,13 @@ import { Eye, EyeOff } from 'lucide-react';
 
 import Link from 'next/link';
 
+class HandledAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HandledAuthError';
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -58,10 +65,10 @@ export default function LoginPage() {
       if (!isRegister) {
         // Login with NextAuth
         if (!form.email.trim()) {
-          throw new Error('Please enter your email address');
+          throw new HandledAuthError('Please enter your email address');
         }
         if (!form.password) {
-          throw new Error('Please enter your password');
+          throw new HandledAuthError('Please enter your password');
         }
 
         const result = await signIn('credentials', {
@@ -73,7 +80,7 @@ export default function LoginPage() {
         if (result?.error) {
           // Provide user-friendly error messages
           if (result.error === 'CredentialsSignin' || result.error.includes('Invalid')) {
-            throw new Error('Invalid email or password');
+            throw new HandledAuthError('Invalid email or password');
           }
           throw new Error(result.error);
         }
@@ -84,44 +91,44 @@ export default function LoginPage() {
       } else {
         // Registration - Frontend validation
         if (!form.first_name.trim()) {
-          throw new Error('First name is required');
+          throw new HandledAuthError('First name is required');
         }
         if (form.first_name.trim().length > 50) {
-          throw new Error('First name must be 50 characters or less');
+          throw new HandledAuthError('First name must be 50 characters or less');
         }
         if (!form.last_name.trim()) {
-          throw new Error('Last name is required');
+          throw new HandledAuthError('Last name is required');
         }
         if (form.last_name.trim().length > 50) {
-          throw new Error('Last name must be 50 characters or less');
+          throw new HandledAuthError('Last name must be 50 characters or less');
         }
         if (!form.email.trim()) {
-          throw new Error('Email address is required');
+          throw new HandledAuthError('Email address is required');
         }
 
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(form.email)) {
-          throw new Error('Please enter a valid email address');
+          throw new HandledAuthError('Please enter a valid email address');
         }
 
         if (!form.password) {
-          throw new Error('Password is required');
+          throw new HandledAuthError('Password is required');
         }
         if (form.password.length < 8) {
-          throw new Error('Password must be at least 8 characters long');
+          throw new HandledAuthError('Password must be at least 8 characters long');
         }
         if (form.password.length > 100) {
-          throw new Error('Password is too long (maximum 100 characters)');
+          throw new HandledAuthError('Password is too long (maximum 100 characters)');
         }
         if (form.password.includes(' ')) {
-          throw new Error('Password cannot contain spaces');
+          throw new HandledAuthError('Password cannot contain spaces');
         }
         if (!form.confirmPassword) {
-          throw new Error('Please confirm your password');
+          throw new HandledAuthError('Please confirm your password');
         }
         if (form.password !== form.confirmPassword) {
-          throw new Error('Passwords do not match');
+          throw new HandledAuthError('Passwords do not match');
         }
 
         const res = await fetch('/api/users/register', {
@@ -145,7 +152,7 @@ export default function LoginPage() {
             setShouldRedirectToLanding(true);
             return;
           }
-          throw new Error(data.message || 'Failed to create account. Please try again.');
+          throw new HandledAuthError(data.message || 'Failed to create account. Please try again.');
         }
 
         showMessage('Account created successfully! Please check your email to verify your account. You can still login and use the app while unverified.', 'success');
@@ -155,7 +162,9 @@ export default function LoginPage() {
         setShowConfirmPassword(false);
       }
     } catch (err: any) {
-      console.error('Login/register error:', err);
+      if (!(err instanceof HandledAuthError)) {
+        console.error('Login/register error:', err);
+      }
       showMessage(err.message || 'An error occurred. Please try again.', 'error');
     } finally {
       setLoading(false);

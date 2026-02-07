@@ -25,21 +25,42 @@ export default function LandingHeader() {
         </div>
 
         <nav className="landing-nav" style={{ whiteSpace: 'nowrap' }}>
-          <button onClick={() => scrollToSection('features')} className="landing-nav-link">
+          <a
+            href="#features"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('features');
+            }}
+            className="landing-nav-link"
+          >
             Features
-          </button>
-          <button onClick={() => scrollToSection('insights')} className="landing-nav-link">
+          </a>
+          <a
+            href="#insights"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('insights');
+            }}
+            className="landing-nav-link"
+          >
             AI Insights
-          </button>
+          </a>
         </nav>
 
         <div className="landing-header-actions" style={{ whiteSpace: 'nowrap' }}>
           <Link href="/login" className="btn btn-secondary">
             Login
           </Link>
-          <button onClick={() => scrollToSection('waitlist')} className="btn btn-accent">
+          <a
+            href="#waitlist"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('waitlist');
+            }}
+            className="btn btn-accent"
+          >
             Join Beta
-          </button>
+          </a>
         </div>
       </div>
     </header>
