@@ -166,6 +166,7 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
   const visibleCount = effectiveEntitlements.isPremium
     ? Math.min(MAX_INSIGHTS, messages.length)
     : Math.min(getFreeVisibleCount(insights), messages.length);
+  const cappedMessages = messages.slice(0, MAX_INSIGHTS);
 
   // Never return debug payloads or internal metadata to the client.
   const {
@@ -187,7 +188,7 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
 
   return {
     ...rest,
-    messages: messages.slice(0, visibleCount),
+    messages: cappedMessages,
     visible_count: visibleCount,
   };
 }

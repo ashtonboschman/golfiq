@@ -5,6 +5,8 @@ export type OpenAICallParams = {
   userPrompt: string;
   maxOutputTokens: number;
   timeoutMs: number;
+  schemaName?: string;
+  jsonSchema?: any;
 };
 
 export type OpenAIUsageSummary = {
@@ -58,7 +60,7 @@ function normalizeUsageFromResponses(data: any, maxOutputTokens: number): OpenAI
 }
 
 export async function callOpenAI(params: OpenAICallParams): Promise<{ text: string; usage: OpenAIUsageSummary | null }> {
-  const { apiKey, model, systemPrompt, userPrompt, maxOutputTokens, timeoutMs } = params;
+  const { apiKey, model, systemPrompt, userPrompt, maxOutputTokens, timeoutMs, schemaName, jsonSchema } = params;
 
   const responsesUrl = 'https://api.openai.com/v1/responses';
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` };
@@ -80,9 +82,9 @@ export async function callOpenAI(params: OpenAICallParams): Promise<{ text: stri
         verbosity,
         format: {
           type: 'json_schema',
-          name: 'post_round_insights',
+          name: schemaName || 'post_round_insights',
           strict: true,
-          schema: {
+          schema: jsonSchema || {
             type: 'object',
             additionalProperties: false,
             required: ['messages'],

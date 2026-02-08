@@ -28,6 +28,7 @@ model User {
   friendsReceived         Friend[]                 @relation("FriendOfUser")
   friendsInitiated        Friend[]                 @relation("UserFriends")
   lifetimeGrants          LifetimeGrant[]
+  overallInsight          OverallInsight?
   RoundInsights           RoundInsight[]
   roundStrokesGaineds     RoundStrokesGained[]
   rounds                  Round[]
@@ -418,6 +419,23 @@ model RoundInsight {
   @@index([roundId], map: "idx_round_insights_round")
   @@index([userId], map: "idx_round_insights_user")
   @@map("round_insights")
+}
+
+model OverallInsight {
+  id                  BigInt    @id @default(autoincrement())
+  userId              BigInt    @unique @map("user_id")
+  modelUsed           String    @default("gpt-4o-mini") @map("model_used")
+  insights            Json
+  dataHash            String?   @map("data_hash") @db.VarChar(64)
+  generatedAt         DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
+  lastManualRefreshAt DateTime? @map("last_manual_refresh_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime? @map("updated_at") @db.Timestamptz(6)
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_overall_insights_user")
+  @@index([generatedAt], map: "idx_overall_insights_generated")
+  @@map("overall_insights")
 }
 
 model AchievementTier {

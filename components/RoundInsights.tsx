@@ -9,9 +9,14 @@ interface RoundInsightsProps {
   isPremium: boolean;
 }
 
+type RoundInsightsResponse = {
+  messages: string[];
+  visible_count?: number;
+};
+
 export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps) {
   const router = useRouter();
-  const [insights, setInsights] = useState<string[] | null>(null);
+  const [insights, setInsights] = useState<RoundInsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,14 +28,25 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
 
       // If the viewer isn't authenticated (or can't access this round), don't spam console.
       if (res.status === 401 || res.status === 403) {
-        setInsights([]);
+        setInsights({ messages: [], visible_count: 0 });
         setError(null);
         return;
       }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to fetch insights');
-      setInsights(data.insights?.messages || []);
+      const messages = Array.isArray(data.insights?.messages) ? data.insights.messages : [];
+      const visibleCountRaw = Number(data.insights?.visible_count);
+      const visibleCount = Number.isFinite(visibleCountRaw)
+        ? Math.max(0, Math.min(messages.length, Math.floor(visibleCountRaw)))
+        : isPremium
+          ? messages.length
+          : Math.min(1, messages.length);
+
+      setInsights({
+        messages,
+        visible_count: visibleCount,
+      });
       setError(null);
     } catch (err: any) {
       console.error('Error fetching insights:', err);
@@ -51,7 +67,7 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
         <h3>AI Performance Insights</h3>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {isPremium && <span className="insights-badge">Premium</span>}
+        <span className="insights-badge">{isPremium ? 'Premium' : 'Free'}</span>
       </div>
     </div>
   );
@@ -78,28 +94,48 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
   // FREE USER VIEW
   // -------------------------
   if (!isPremium) {
+    const messages = insights?.messages ?? [];
+    const visibleCount = Number.isFinite(Number(insights?.visible_count))
+      ? Math.max(0, Math.min(messages.length, Math.floor(Number(insights?.visible_count))))
+      : Math.min(1, messages.length);
+    const visibleMessages = messages.slice(0, visibleCount || 1);
+    const blurredPreviewMessages = [
+      ...messages.slice(Math.max(visibleCount, 1), Math.max(visibleCount, 1) + 2),
+      'Premium insight preview',
+      'Premium insight preview',
+    ].slice(0, 2);
+
     return (
       <div className="card insights-card">
         <Header />
-        {insights && insights.length > 0 && (
+        {visibleMessages.length > 0 && (
           <div className="insights-content">
-            {insights.map((message, idx) => (
-              <div key={idx} className="insight-message">{message}</div>
+            {visibleMessages.map((message, idx) => (
+              <div key={`visible-${idx}`} className="insight-message">{message}</div>
             ))}
           </div>
         )}
-        <div className="premium-gate">
-          <div className="premium-gate-top">
-            <Lock size={50} />
-            <p>Want to find out <strong>exactly</strong> what's costing you strokes?</p>
+
+        <div className="locked-section round-insights-lock-section">
+          <div className="locked-blur-content">
+            <div className="insights-content">
+              {blurredPreviewMessages.map((message, idx) => (
+                <div key={`blur-preview-${idx}`} className="insight-message overall-insight-fake">
+                  {message}
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="premium-gate-bottom">
-            <p>Unlock AI insights to see your strengths, mistakes, and quick tips to lower your score.</p>
+          <div className="locked-overlay has-cta">
+            <div className="locked-overlay-card">
+              <Lock size={50} className="locked-overlay-icon" />
+              <h4>Want to find out exactly what&apos;s costing you strokes?</h4>
+              <p>Unlock AI insights to see your strengths, mistakes, and quick tips to lower your score.</p>
+              <button className="btn btn-upgrade" onClick={() => router.push('/pricing')}>
+                Unlock My Insights
+              </button>
+            </div>
           </div>
-          
-          <button className="btn btn-upgrade" onClick={() => router.push('/pricing')}>
-            Unlock My Insights
-          </button>
         </div>
       </div>
     );
@@ -108,13 +144,13 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
   // -------------------------
   // PREMIUM VIEW
   // -------------------------
-  if (!insights || insights.length === 0) return null;
+  if (!insights || insights.messages.length === 0) return null;
 
   return (
     <div className="card insights-card">
       <Header />
       <div className="insights-content">
-        {insights.map((message, idx) => (
+        {insights.messages.map((message, idx) => (
           <div key={idx} className="insight-message">{message}</div>
         ))}
       </div>
