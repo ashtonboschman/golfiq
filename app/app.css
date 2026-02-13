@@ -991,7 +991,7 @@ select option {
 .course-card {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: var(--gap-small);
 }
 
 .course-card-top {
@@ -1340,11 +1340,12 @@ select option {
   flex-direction: row;
   align-items: baseline;
   gap: var(--gap);
+  margin-top: var(--gap-small);
   color: var(--color-secondary-text);
 }
 
 .roundcard-city {
-  font-size: 1rem;
+  font-size: 0.9rem;
   margin: 0;
 }
 
