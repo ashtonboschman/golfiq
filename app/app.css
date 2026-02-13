@@ -892,13 +892,12 @@ select option {
   text-align: center;
   display: inline-block;
   margin: 0 auto;
-  display: flex;
-  justify-content: center;
 }
 
 .avatar-image {
   width: 200px;
   height: 200px;
+  display: block;
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid var(--color-border);
@@ -980,8 +979,13 @@ select option {
 }
 
 .avatar-uploading-text {
+  position: absolute;
+  left: 50%;
+  bottom: -22px;
+  transform: translateX(-50%);
   margin-top: 0;
-  font-size: 0.85;
+  font-size: 0.85rem;
+  white-space: nowrap;
   color: var(--color-secondary-text);
 }
 
@@ -5630,5 +5634,103 @@ input[type='date'].form-input {
   }
   [class*="-indicatorContainer"] {
     color: var(--color-secondary-text) !important;
+  }
+}
+
+/* PWA */
+.pwa-update-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1200;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--color-primary-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  color: var(--color-primary-text);
+}
+
+.pwa-update-toast p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-primary-text);
+  white-space: nowrap;
+}
+
+.pwa-install-card {
+  position: fixed;
+  right: 16px;
+  left: auto;
+  bottom: 16px;
+  z-index: 1190;
+  width: min(560px, calc(100vw - 32px));
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-primary-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+  color: var(--color-primary-text);
+}
+
+.pwa-install-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pwa-install-copy strong {
+  color: var(--color-primary-text);
+}
+
+.pwa-install-copy span {
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+}
+
+.pwa-install-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.offline-fallback-card {
+  max-width: 640px;
+  margin: 24px auto;
+  text-align: center;
+}
+
+.offline-fallback-card h2 {
+  margin-bottom: 8px;
+}
+
+.offline-fallback-card p {
+  margin: 6px 0;
+  color: var(--color-secondary-text);
+}
+
+.offline-fallback-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .pwa-update-toast,
+  .pwa-install-card {
+    left: 12px;
+    right: 12px;
+    width: auto;
   }
 }

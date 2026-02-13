@@ -32,17 +32,22 @@ export async function requireAuth(req?: NextRequest): Promise<bigint> {
 /**
  * API Response helpers
  */
+const API_NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, private, max-age=0',
+  Pragma: 'no-cache',
+} as const;
+
 export function successResponse<T>(data: T, status = 200) {
   return Response.json(
     { ...data, type: 'success' },
-    { status }
+    { status, headers: API_NO_STORE_HEADERS }
   );
 }
 
 export function errorResponse(message: string, status = 400) {
   return Response.json(
     { message, type: 'error' },
-    { status }
+    { status, headers: API_NO_STORE_HEADERS }
   );
 }
 

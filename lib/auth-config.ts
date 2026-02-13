@@ -19,8 +19,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Email and password required');
         }
 
+        const normalizedEmail = credentials.email.trim().toLowerCase();
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: normalizedEmail },
           include: { profile: true },
         });
 
@@ -34,23 +35,10 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid credentials');
         }
 
-        // Map Prisma profile to NextAuth expected profile type
-        const mappedProfile = user.profile
-          ? {
-              ...user.profile,
-              id: user.profile.id.toString(),
-              userId: user.profile.userId.toString(),
-              favoriteCourseId: user.profile.favoriteCourseId?.toString() || null,
-              createdAt: user.profile.createdAt,
-              updatedAt: user.profile.updatedAt,
-            }
-          : null;
-
         return {
           id: user.id.toString(),
           email: user.email,
           name: user.username,
-          profile: mappedProfile,
         };
       },
     }),
@@ -68,7 +56,6 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
-        token.profile = user.profile;
       }
       return token;
     },
@@ -77,7 +64,6 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
-        session.user.profile = token.profile ?? null;
       }
       return session;
     },

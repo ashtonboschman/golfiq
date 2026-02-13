@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '../providers';
@@ -8,7 +8,6 @@ import { AsyncPaginate } from 'react-select-async-paginate';
 import Select from 'react-select';
 import { useUploadThing } from '@/lib/uploadthing';
 import { useAvatar } from '@/context/AvatarContext';
-import PullToRefresh from '@/components/PullToRefresh';
 import { Mail, SquarePen, Trash2, Upload, Eye, EyeOff } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 
@@ -56,7 +55,6 @@ export default function ProfilePage() {
   const [originalFavoriteCourseOption, setOriginalFavoriteCourseOption] = useState<CourseOption | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwords, setPasswords] = useState({
     currentPassword: '',
@@ -167,7 +165,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [status, router, refreshKey]);
+  }, [status, router]);
 
   // Close avatar menu when clicking outside
   useEffect(() => {
@@ -487,14 +485,9 @@ export default function ProfilePage() {
     }
   };
 
-  const handleRefresh = useCallback(() => {
-    setRefreshKey(k => k + 1);
-  }, []);
-
   if (status === 'loading') return <p className="loading-text">Loading...</p>;
 
   return (
-    <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       {/* Email Verification Banner */}
       {profile.email_verified === false && (
@@ -526,15 +519,17 @@ export default function ProfilePage() {
             alt="User Avatar"
             className="avatar-image"
           />
-          <button
-            type="button"
-            onClick={() => setShowAvatarMenu(!showAvatarMenu)}
-            disabled={uploadingAvatar || loading}
-            className="avatar-edit-button"
-            title="Edit Avatar"
-          >
-            <SquarePen/>
-          </button>
+          {!uploadingAvatar && (
+            <button
+              type="button"
+              onClick={() => setShowAvatarMenu(!showAvatarMenu)}
+              disabled={loading}
+              className="avatar-edit-button"
+              title="Edit Avatar"
+            >
+              <SquarePen />
+            </button>
+          )}
 
           {showAvatarMenu && !uploadingAvatar && (
             <div className="avatar-menu">
@@ -889,12 +884,11 @@ export default function ProfilePage() {
           Settings
         </button>
       </div>
-         <div className="card">
+      <div className="card">
         <button type="button" className="btn btn-logout" onClick={handleLogout} disabled={loading}>
           Logout
         </button>
       </div>
     </div>
-    </PullToRefresh>
   );
 }

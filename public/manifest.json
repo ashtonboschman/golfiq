@@ -2,10 +2,14 @@
   "name": "GolfIQ",
   "short_name": "GolfIQ",
   "description": "Track your golf game and improve with AI insights.",
-  "start_url": "/",
+  "id": "/",
+  "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#0F131A",
   "theme_color": "#0F131A",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/logos/favicon/golfiq-icon-192.png",

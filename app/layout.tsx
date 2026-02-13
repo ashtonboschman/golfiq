@@ -5,6 +5,7 @@ import { Providers, PostHogProvider } from "./providers";
 import Layout from "@/components/Layout";
 import { Inter, Space_Grotesk, IBM_Plex_Sans } from 'next/font/google';
 import BootstrapClient from '@/components/BootstrapClient';
+import PwaManager from '@/components/pwa/PwaManager';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.golfiq.ca"),
@@ -101,6 +102,7 @@ export default function RootLayout({
         <PostHogProvider>
           <Providers>
             <BootstrapClient />
+            <PwaManager />
             <Layout>{children}</Layout>
           </Providers>
         </PostHogProvider>
