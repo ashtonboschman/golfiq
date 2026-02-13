@@ -256,7 +256,12 @@ describe('/insights page', () => {
     expect(screen.getByText('Strokes Gained Trend (Premium)')).toBeInTheDocument();
     expect(screen.getByText('SG Component Breakdown (Premium)')).toBeInTheDocument();
     expect(screen.getByText('Performance Trajectory (Premium)')).toBeInTheDocument();
-    expect(screen.getByText('SG Component Delta (Recent vs Average)')).toBeInTheDocument();
+    expect(screen.getByText('SG Component Delta')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Shows each strokes gained component delta comparing your recent 5 rounds versus your baseline window of 20 rounds in this mode. Positive means better than baseline, negative means worse.',
+      ),
+    ).toBeInTheDocument();
 
     expect(container.querySelectorAll('.locked-section')).toHaveLength(4);
     expect(container.querySelectorAll('.locked-blur-content')).toHaveLength(4);
@@ -289,7 +294,7 @@ describe('/insights page', () => {
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
   });
 
-  it('shows card values with fixed 1-decimal formatting', async () => {
+  it('shows card values with expected numeric formatting', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ insights: makeInsights(true) }),
@@ -300,8 +305,8 @@ describe('/insights page', () => {
     await screen.findByText('Scoring');
     expect(screen.getByText('75.2')).toBeInTheDocument();
     expect(screen.getByText('75.7')).toBeInTheDocument();
-    expect(screen.getByText('50.0%')).toBeInTheDocument();
-    expect(screen.getByText('49.2%')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText('49%')).toBeInTheDocument();
     expect(screen.getByText('33.0')).toBeInTheDocument();
     expect(screen.getByText('30.6')).toBeInTheDocument();
     expect(screen.getByText('1.3')).toBeInTheDocument();

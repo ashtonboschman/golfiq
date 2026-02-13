@@ -271,7 +271,7 @@ describe('deterministic overall cards', () => {
     });
 
     expect(cards).toHaveLength(6);
-    expect(cards[5]).toContain('Projection and milestone:');
+    expect(cards[5]).toContain('Projection:');
     expect(cards[5]).toContain('Upgrade');
   });
 
@@ -295,7 +295,7 @@ describe('deterministic overall cards', () => {
       variantOffset: 0,
     });
 
-    expect(cards[5]).toContain('Projection and milestone:');
+    expect(cards[5]).toContain('Projection:');
     expect(cards[5]).toContain('72');
     expect(cards[5]).toContain('9.4');
   });

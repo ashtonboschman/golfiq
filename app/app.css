@@ -1641,6 +1641,7 @@ select option {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   line-height: 1.4;
   border: 1px solid var(--color-border);
+  text-align: left;
 }
 
 .info-tooltip-content.right {
@@ -5554,6 +5555,7 @@ input[type='date'].form-input {
 .sg-delta-card {
   align-items: stretch;
   text-align: left;
+  position: relative;
 }
 
 .sg-delta-card h3 {

@@ -224,6 +224,10 @@ function formatCoverageText(coverageRecent: string): string {
   return `Tracked in ${match[1]} of last ${match[2]} rounds`;
 }
 
+function formatRoundCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'round' : 'rounds'}`;
+}
+
 function getMagnitudeWidths(
   recent: number | null,
   typical: number | null,
@@ -802,6 +806,32 @@ export default function InsightsPage() {
       delta: null as number | null,
     }));
   }, [sgHasAnyDelta, sgDeltaRows]);
+  const sgRecentWindowRounds = useMemo(() => {
+    const raw = modePayload?.kpis.roundsRecent ?? insights?.tier_context?.recentWindow ?? 5;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return 5;
+    return Math.max(1, Math.round(parsed));
+  }, [modePayload?.kpis.roundsRecent, insights?.tier_context?.recentWindow]);
+  const sgBaselineWindowRounds = useMemo(() => {
+    const raw =
+      selectedModeProjection?.roundsUsed ??
+      modePayload?.trend?.labels?.length ??
+      insights?.tier_context?.maxRoundsUsed ??
+      sgRecentWindowRounds;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return sgRecentWindowRounds;
+    return Math.max(sgRecentWindowRounds, Math.round(parsed));
+  }, [
+    selectedModeProjection?.roundsUsed,
+    modePayload?.trend?.labels?.length,
+    insights?.tier_context?.maxRoundsUsed,
+    sgRecentWindowRounds,
+  ]);
+  const sgComponentDeltaTooltip = useMemo(
+    () =>
+      `Shows each strokes gained component delta comparing your recent ${formatRoundCountLabel(sgRecentWindowRounds)} versus your baseline window of ${formatRoundCountLabel(sgBaselineWindowRounds)} in this mode. Positive means better than baseline, negative means worse.`,
+    [sgRecentWindowRounds, sgBaselineWindowRounds],
+  );
   const aiPrimaryCard = useMemo(() => {
     if (!insights?.cards?.length) return null;
     return insights.cards[0] ?? null;
@@ -1038,7 +1068,10 @@ export default function InsightsPage() {
               ['--sg-negative-color' as any]: INSIGHTS_NEGATIVE_COLOR,
             } as any}
           >
-            <h3 className="insights-centered-title">SG Component Delta (Recent vs Average)</h3>
+            <div className="comparison-bar-header">
+              <h3 className="insights-centered-title">SG Component Delta</h3>
+              <InfoTooltip text={sgComponentDeltaTooltip} />
+            </div>
             {!sgHasComponentData && (
               <p className="secondary-text insights-subtle-note insights-centered-title">No SG component data yet. Log rounds with advanced stats to populate this section.</p>
             )}

@@ -13,7 +13,7 @@ const CARD_PREFIXES = [
   'Opportunity:',
   'Priority first:',
   'On-course strategy:',
-  'Projection and milestone:',
+  'Projection:',
 ] as const;
 
 const BANNED_TOKENS = ['could', 'might', 'consider', 'seems', 'challenge', '—', '–', '&mdash;'] as const;
