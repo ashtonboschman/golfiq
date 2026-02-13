@@ -878,7 +878,9 @@ export default function InsightsPage() {
             <h3>Overall Insights</h3>
           </div>
           <div className="overall-insights-actions">
-            <span className="insights-badge">{isPremiumContext ? 'Premium' : 'Free'}</span>
+            <span className={`insights-badge ${isPremiumContext ? 'is-premium' : 'is-free'}`}>
+              {isPremiumContext ? 'Premium' : 'Free'}
+            </span>
           </div>
         </div>
         <div className="overall-insights-meta">

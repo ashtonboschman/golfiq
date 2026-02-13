@@ -20,8 +20,6 @@ export default function Footer() {
   const { showConfirm } = useMessage();
   const [hasInsightsNudge, setHasInsightsNudge] = useState(false);
 
-  if (!user) return null;
-
   // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
 
@@ -84,6 +82,8 @@ export default function Footer() {
       setHasInsightsNudge(false);
     }
   }, [pathname]);
+
+  if (!user) return null;
 
   return (
     <footer className="footer-menu">

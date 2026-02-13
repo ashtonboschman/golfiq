@@ -1750,6 +1750,7 @@ select option {
 
 .settings-theme-description {
   margin-bottom: 15px;
+  font-size: 0.9rem;
   color: var(--color-accent);
 }
 
@@ -4919,6 +4920,10 @@ input[type='date'].form-input {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-white-text);
+}
+
+.insights-badge.is-free {
+  background: var(--color-gray, #95a5a6);
 }
 
 .insights-content {

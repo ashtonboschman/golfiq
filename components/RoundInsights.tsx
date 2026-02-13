@@ -18,6 +18,7 @@ type RoundInsightsResponse = {
 type InsightLevel = 'great' | 'success' | 'warning' | 'info';
 
 const DEFAULT_LEVEL: InsightLevel = 'info';
+const SHOW_POST_ROUND_REGENERATE = false;
 
 function stripMessagePrefix(message: string): string {
   return message.replace(/^(?:🔥|✅|⚠️|ℹ️)\s*/u, '').trim();
@@ -135,15 +136,19 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
         <h3>Performance Insights</h3>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span className="insights-badge">{isPremium ? 'Premium' : 'Free'}</span>
-        <button
-          type="button"
-          className="btn btn-toggle"
-          onClick={handleRegenerate}
-          disabled={regenerating || loading}
-        >
-          {regenerating ? <RefreshCw className="spinning" size={16} /> : <RefreshCw size={16} />} Regenerate
-        </button>
+        {SHOW_POST_ROUND_REGENERATE && (
+          <button
+            type="button"
+            className="btn btn-toggle"
+            onClick={handleRegenerate}
+            disabled={regenerating || loading}
+          >
+            {regenerating ? <RefreshCw className="spinning" size={16} /> : <RefreshCw size={16} />} Regenerate
+          </button>
+        )}
+        <span className={`insights-badge ${isPremium ? 'is-premium' : 'is-free'}`}>
+          {isPremium ? 'Premium' : 'Free'}
+        </span>
       </div>
     </div>
   );

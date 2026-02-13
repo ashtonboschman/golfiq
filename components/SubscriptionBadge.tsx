@@ -3,7 +3,6 @@
 import { useSubscription } from '@/hooks/useSubscription';
 import {
   getTierDisplayName,
-  getTierBadgeColor,
   getStatusDisplayName,
   getStatusBadgeColor,
 } from '@/lib/subscription';
@@ -21,20 +20,20 @@ export default function SubscriptionBadge({
   size = 'medium',
 }: SubscriptionBadgeProps) {
   const { tier, status, loading } = useSubscription();
+  const tierName = getTierDisplayName(tier);
+
+  const getInsightsTierClass = (value: string): string => {
+    if (value === 'free') return 'is-free';
+    return 'is-premium';
+  };
 
   if (loading) {
-    return <span className={`subscription-badge loading ${size}`}>...</span>;
+    return <span className={`insights-badge is-free ${size}`}>...</span>;
   }
-
-  const tierName = getTierDisplayName(tier);
-  const tierColor = getTierBadgeColor(tier);
 
   if (!showStatus) {
     return (
-      <span
-        className={`subscription-badge ${size}`}
-        style={{ backgroundColor: tierColor }}
-      >
+      <span className={`insights-badge ${getInsightsTierClass(tier)} ${size}`}>
         {tierName}
       </span>
     );
@@ -45,10 +44,7 @@ export default function SubscriptionBadge({
 
   return (
     <div className="subscription-badge-group">
-      <span
-        className={`subscription-badge ${size}`}
-        style={{ backgroundColor: tierColor }}
-      >
+      <span className={`insights-badge ${getInsightsTierClass(tier)} ${size}`}>
         {tierName}
       </span>
       <span
