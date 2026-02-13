@@ -191,7 +191,7 @@ function formatConsistencyLabel(label: OverallInsightsPayload['consistency']['la
 
 function formatEffValue(v: number | null, type: 'percent' | 'rate'): string {
   if (v == null || !Number.isFinite(v)) return 'Not tracked';
-  if (type === 'percent') return `${(v * 100).toFixed(1)}%`;
+  if (type === 'percent') return `${Math.round(v * 100)}%`;
   return (Math.round(v * 10) / 10).toFixed(1);
 }
 
@@ -282,10 +282,13 @@ function getPercentDeltaSummary(
     return { text: 'Not enough data', tone: 'none' };
   }
 
-  const deltaPts = (recent - typical) * 100;
-  if (Math.abs(deltaPts) < 1) return { text: `\u2192 0% ${metricLabel}`, tone: 'flat' };
-  if (deltaPts > 0) return { text: `\u25B2 +${Math.round(deltaPts)}% ${metricLabel}`, tone: 'up' };
-  return { text: `\u25BC ${Math.round(deltaPts)}% ${metricLabel}`, tone: 'down' };
+  // Align delta math with displayed whole-percent values in the cards.
+  const recentPct = Math.round(recent * 100);
+  const typicalPct = Math.round(typical * 100);
+  const deltaPts = recentPct - typicalPct;
+  if (deltaPts === 0) return { text: `\u2192 0% ${metricLabel}`, tone: 'flat' };
+  if (deltaPts > 0) return { text: `\u25B2 +${deltaPts}% ${metricLabel}`, tone: 'up' };
+  return { text: `\u25BC ${deltaPts}% ${metricLabel}`, tone: 'down' };
 }
 function getLowerBetterRateDeltaSummary(recent: number | null, typical: number | null): { text: string; tone: DeltaTone } {
   if (recent == null || typical == null || !Number.isFinite(recent) || !Number.isFinite(typical)) {

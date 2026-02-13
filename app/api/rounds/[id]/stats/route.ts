@@ -114,13 +114,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // Calculate percentages (only if advanced stats were tracked)
     const totalHoles = ctx.holes;
     const girPercentage = hasAdvancedStats && totalGIR !== null && totalHoles > 0
-      ? ((totalGIR / totalHoles) * 100).toFixed(1)
+      ? ((totalGIR / totalHoles) * 100).toFixed(0)
       : null;
 
     // FIR only applies to par 4s and 5s - use resolved context
     const totalFIRHoles = ctx.nonPar3Holes;
     const firPercentage = hasAdvancedStats && totalFIR !== null && totalFIRHoles > 0
-      ? ((totalFIR / totalFIRHoles) * 100).toFixed(1)
+      ? ((totalFIR / totalFIRHoles) * 100).toFixed(0)
       : null;
 
     const puttsPerHole = hasAdvancedStats && totalPutts !== null && totalHoles > 0
@@ -144,12 +144,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ? round.course.courseName
       : `${round.course.clubName} - ${round.course.courseName}`;
 
-    const sgTotal = round.roundStrokesGained?.sgTotal;
-    const sgOffTee = round.roundStrokesGained?.sgOffTee;
-    const sgApproach = round.roundStrokesGained?.sgApproach;
-    const sgPutting = round.roundStrokesGained?.sgPutting;
-    const sgPenalties = round.roundStrokesGained?.sgPenalties;
-    const sgResidual = round.roundStrokesGained?.sgResidual;
+    const roundOneDecimal = (value: unknown): number | null => {
+      if (value == null) return null;
+      const asNumber = Number(value);
+      if (!Number.isFinite(asNumber)) return null;
+      return Math.round(asNumber * 10) / 10;
+    };
+
+    const sgTotal = roundOneDecimal(round.roundStrokesGained?.sgTotal);
+    const sgOffTee = roundOneDecimal(round.roundStrokesGained?.sgOffTee);
+    const sgApproach = roundOneDecimal(round.roundStrokesGained?.sgApproach);
+    const sgPutting = roundOneDecimal(round.roundStrokesGained?.sgPutting);
+    const sgPenalties = roundOneDecimal(round.roundStrokesGained?.sgPenalties);
+    const sgResidual = roundOneDecimal(round.roundStrokesGained?.sgResidual);
     const confidence = round.roundStrokesGained?.confidence;
     const messages = round.roundStrokesGained?.messages;
 

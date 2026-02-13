@@ -12,6 +12,7 @@ import { getLocalDateString } from '@/lib/dateUtils';
 import { Plus } from 'lucide-react';
 import Select from 'react-select';
 import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSegment } from '@/lib/tee/resolveTeeContext';
+import { markInsightsNudgePending } from '@/lib/insights/insightsNudge';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -763,6 +764,8 @@ function AddRoundContent() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error saving round');
+
+      markInsightsNudgePending();
 
       // Keep loading state true during navigation to prevent flash
       // Replace history so back button goes to rounds page, not add page

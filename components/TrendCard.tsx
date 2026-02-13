@@ -28,12 +28,6 @@ function formatSignedNumber(value: number): string {
   return rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1);
 }
 
-function formatSignedInteger(value: number): string {
-  const rounded = Math.round(value);
-  if (rounded === 0 || Object.is(rounded, -0)) return '0';
-  return rounded > 0 ? `+${rounded}` : `${rounded}`;
-}
-
 function formatHandicapInteger(value: number): string {
   const rounded = Math.round(value);
   if (rounded === 0 || Object.is(rounded, -0)) return '0';
@@ -119,7 +113,7 @@ export default function TrendCard({
             }
 
             if ((context.dataset.label === 'FIR %' || context.dataset.label === 'GIR %') && value != null) {
-              return `${value.toFixed(1)}%`;
+              return `${Math.round(value)}%`;
             }
 
             return value != null ? value.toString() : '-';
@@ -151,7 +145,7 @@ export default function TrendCard({
               return formatToPar(Number(value));
             }
             if (firstDatasetLabel === 'Strokes Gained Total' || firstDatasetLabel === 'SG Total') {
-              return formatSignedInteger(Number(value));
+              return formatSignedNumber(Number(value));
             }
             if (firstDatasetLabel === 'Handicap Trend' || firstDatasetLabel === 'Handicap') {
               return formatHandicapInteger(Number(value));

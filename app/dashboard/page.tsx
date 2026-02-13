@@ -364,6 +364,11 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     }
   };
 
+  const formatWholePercent = (value: number | null): string => {
+    if (value == null || !Number.isFinite(value)) return '-';
+    return `${Math.round(value)}%`;
+  };
+
   return (
     <div className="page-stack">
       {!isOwnDashboard && stats.user && (
@@ -541,7 +546,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
               {tooltip && <InfoTooltip text={tooltip as string} />}
               <h3>{label}</h3>
-              <p>{isPercent ? formatPercent(val as number) : formatNumber(val as number)}</p>
+              <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number)}</p>
             </div>
           ))}
         </div>

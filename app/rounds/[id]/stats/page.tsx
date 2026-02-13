@@ -61,7 +61,7 @@ interface RoundStats {
   notes: string | null;
   hole_by_hole: boolean;
   advanced_stats: boolean;
-  sg_total: number;
+  sg_total: number | null;
   sg_off_tee: number | null;
   sg_approach: number | null;
   sg_putting: number | null;
@@ -222,6 +222,13 @@ export default function RoundStatsPage() {
     });
   };
 
+  const formatSignedSg = (value: number | null): string => {
+    if (value == null || !Number.isFinite(value)) return '-';
+    const rounded = Math.round(value * 10) / 10;
+    if (rounded === 0 || Object.is(rounded, -0)) return '0.0';
+    return rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1);
+  };
+
   return (
     <div className="page-stack">
       <div className='card'>
@@ -340,7 +347,7 @@ export default function RoundStatsPage() {
                   <>
                     <div>
                       <div className={`stats-score-value ${stats.sg_total != null ? stats.sg_total > 1 ? 'green' : stats.sg_total < -1 ? 'red' : 'primary' : 'primary'}`}>
-                        {stats.sg_total != null ? `${stats.sg_total > 0 ? '+' : ''}${stats.sg_total}` : '-'}
+                        {formatSignedSg(stats.sg_total)}
                       </div>
                       <div className="stats-score-label">
                         SG Total
@@ -348,7 +355,7 @@ export default function RoundStatsPage() {
                     </div>
                     <div>
                       <div className={`stats-score-value ${stats.sg_off_tee != null ? stats.sg_off_tee > 1 ? 'green' : stats.sg_off_tee < -1 ? 'red' : 'primary' : 'primary'}`}>
-                        {stats.sg_off_tee != null ? `${stats.sg_off_tee > 0 ? '+' : ''}${stats.sg_off_tee}` : '-'}
+                        {formatSignedSg(stats.sg_off_tee)}
                       </div>
                       <div className="stats-score-label">
                         SG Off Tee
@@ -356,7 +363,7 @@ export default function RoundStatsPage() {
                     </div>
                     <div>
                       <div className={`stats-score-value ${stats.sg_approach != null ? stats.sg_approach > 1 ? 'green' : stats.sg_approach < -1 ? 'red' : 'primary' : 'primary'}`}>
-                        {stats.sg_approach != null ? `${stats.sg_approach > 0 ? '+' : ''}${stats.sg_approach}` : '-'}
+                        {formatSignedSg(stats.sg_approach)}
                       </div>
                       <div className="stats-score-label">
                         SG Approach
@@ -364,7 +371,7 @@ export default function RoundStatsPage() {
                     </div>
                     <div>
                       <div className={`stats-score-value ${stats.sg_putting != null ? stats.sg_putting > 1 ? 'green' : stats.sg_putting < -1 ? 'red' : 'primary' : 'primary'}`}>
-                        {stats.sg_putting != null ? `${stats.sg_putting > 0 ? '+' : ''}${stats.sg_putting}` : '-'}
+                        {formatSignedSg(stats.sg_putting)}
                       </div>
                       <div className="stats-score-label">
                         SG Putting
@@ -372,7 +379,7 @@ export default function RoundStatsPage() {
                     </div>
                     <div>
                       <div className={`stats-score-value ${stats.sg_penalties != null ? stats.sg_penalties > 1 ? 'green' : stats.sg_penalties < -1 ? 'red' : 'primary' : 'primary'}`}>
-                        {stats.sg_penalties != null ? `${stats.sg_penalties > 0 ? '+' : ''}${stats.sg_penalties}` : '-'}
+                        {formatSignedSg(stats.sg_penalties)}
                       </div>
                       <div className="stats-score-label">
                         SG Penalties
@@ -380,7 +387,7 @@ export default function RoundStatsPage() {
                     </div>
                     <div>
                       <div className={`stats-score-value ${stats.sg_residual != null ? stats.sg_residual > 1 ? 'green' : stats.sg_residual < -1 ? 'red' : 'primary' : 'primary'}`}>
-                        {stats.sg_residual != null ? `${stats.sg_residual > 0 ? '+' : ''}${stats.sg_residual}` : '-'}
+                        {formatSignedSg(stats.sg_residual)}
                       </div>
                       <div className="stats-score-label">
                         SG Residual

@@ -176,7 +176,7 @@ export async function calculateStrokesGained(
             const diff = adjPutts - actualPutts;
             if (Math.abs(diff) > puttingCap) {
               messages.push(
-                `Extreme putting (capped at +/-${puttingCap.toFixed(2)} strokes)`
+                `Extreme putting (capped at +/-${puttingCap.toFixed(1)} strokes)`
               );
               return Math.sign(diff) * (puttingCap + (Math.abs(diff) - puttingCap) * 0.5);
             }
@@ -240,10 +240,10 @@ export async function calculateStrokesGained(
         messages.push(
           puttingValue > 0
             ? `Strong putting performance (+${puttingValue.toFixed(
-                2
+                1
               )}) may inflate short game results`
             : `Poor putting performance (${puttingValue.toFixed(
-                2
+                1
               )}) likely contributed significantly to score`
         );
       }
@@ -251,8 +251,8 @@ export async function calculateStrokesGained(
       confidence = "low";
       messages.push(
         `Residual, putting, and short game opportunities indicate low confidence (${shortGameOpps} short game opportunities, putting ${puttingValue.toFixed(
-          2
-        )}, residual ${sgResidual.toFixed(2)})`
+          1
+        )}, residual ${sgResidual.toFixed(1)})`
       );
     }
   }
