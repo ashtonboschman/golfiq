@@ -1,22 +1,28 @@
 import { Brain, TrendingUp, Trophy, Users2, BarChart3, MapPin } from 'lucide-react';
 
 export default function Features() {
+  const SHOW_ACHIEVEMENTS_STREAKS = false;
+
   const features = [
     {
       icon: <Brain size={32} />,
-      title: 'AI-Powered Insights',
-      description: 'Transform your performance data into clear, actionable explanations. GolfIQ analyzes your stats and delivers insights that show what is holding your game back and how to fix it.',
+      title: 'Intelligent Insights',
+      description: 'Transform real round data into clear, actionable explanations. GolfIQ uses deterministic strokes-gained and trend models to show what is costing strokes and where to focus next.',
     },
     {
       icon: <BarChart3 size={32} />,
       title: 'Performance Dashboards',
       description: 'See your game clearly through interactive dashboards, trends, and detailed breakdowns. Track every stat that matters, from scoring consistency to long-term progress.',
     },
-    {
-      icon: <Trophy size={32} />,
-      title: 'Achievements & Streaks',
-      description: 'Stay motivated with achievements, streaks, and milestones that reward real progress. Every great round and improvement is recognized.',
-    },
+    ...(SHOW_ACHIEVEMENTS_STREAKS
+      ? [
+          {
+            icon: <Trophy size={32} />,
+            title: 'Achievements & Streaks',
+            description: 'Stay motivated with achievements, streaks, and milestones that reward real progress. Every great round and improvement is recognized.',
+          },
+        ]
+      : []),
     {
       icon: <Users2 size={32} />,
       title: 'Social Leaderboards',

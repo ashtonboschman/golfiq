@@ -5,6 +5,7 @@ import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { calculateNetScore } from '@/lib/utils/handicap';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
+import { generateAndStoreOverallInsights } from '@/app/api/insights/overall/route';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { z } from 'zod';
 
@@ -319,6 +320,9 @@ export async function POST(request: NextRequest) {
     triggerInsightsGeneration(roundId, userId).catch((error: any) => {
       console.error('Failed to generate insights:', error);
     });
+    triggerOverallInsightsGeneration(userId).catch((error: any) => {
+      console.error('Failed to regenerate overall insights:', error);
+    });
 
     return successResponse({ message: 'Round created', roundId: roundId.toString() }, 201);
   } catch (error) {
@@ -346,6 +350,15 @@ async function triggerInsightsGeneration(roundId: bigint, userId: bigint): Promi
       // Silently fail - insights can be generated later if needed
       console.error('Failed to generate insights:', error);
     }
+  }
+}
+
+async function triggerOverallInsightsGeneration(userId: bigint): Promise<void> {
+  try {
+    await generateAndStoreOverallInsights(userId, false);
+  } catch (error) {
+    // Silently fail - overall insights can be generated on next /insights fetch.
+    console.error('Failed to generate overall insights:', error);
   }
 }
 

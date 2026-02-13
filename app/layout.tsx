@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.golfiq.ca"),
   title: "GolfIQ - Track Your Golf Game",
   description:
-    "GolfIQ helps you track your golf rounds, analyze your performance, and improve your game with AI-powered insights.",
+    "GolfIQ helps you track your golf rounds, analyze your performance, and improve your game with Intelligent Insights and personalized recommendations.",
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
   },

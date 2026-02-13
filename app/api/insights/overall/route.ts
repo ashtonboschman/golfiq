@@ -6,19 +6,14 @@ import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import {
   type OverallRoundPoint,
+  OVERALL_SG_MIN_RECENT_COVERAGE,
   type StatsMode,
+  buildDeterministicOverallCards,
   computeOverallDataHash,
   computeOverallPayload,
-  decorateCardEmojis,
-  generateOverallCardsWithLLM,
   pickDeterministicDrillSeeded,
   shouldAutoRefreshOverall,
 } from '@/lib/insights/overall';
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-const OPENAI_MAX_COMPLETION_TOKENS = Math.max(1600, Number(process.env.OPENAI_MAX_COMPLETION_TOKENS ?? 1600) || 1600);
-const OPENAI_TIMEOUT_MS = Math.max(12000, Number(process.env.OPENAI_TIMEOUT_MS ?? 20000) || 20000);
 
 function normalizeSgConfidence(raw: unknown): 'high' | 'medium' | 'low' | null {
   if (raw == null) return null;
@@ -60,6 +55,20 @@ function applyTierSafety(payload: any, isPremium: boolean, roundsUsed: number): 
       projectedHandicapIn10: null,
     };
   }
+  if (next.projection_by_mode && typeof next.projection_by_mode === 'object') {
+    for (const mode of Object.keys(next.projection_by_mode)) {
+      const modeProjection = next.projection_by_mode[mode];
+      if (!modeProjection || typeof modeProjection !== 'object') continue;
+      if (!hasProjectionData) {
+        next.projection_by_mode[mode] = {
+          ...modeProjection,
+          projectedScoreIn10: null,
+          scoreLow: null,
+          scoreHigh: null,
+        };
+      }
+    }
+  }
 
   if (!isPremium) {
     next.sg_locked = true;
@@ -92,45 +101,6 @@ function applyTierSafety(payload: any, isPremium: boolean, roundsUsed: number): 
   return next;
 }
 
-function fallbackCards(facts: any): string[] {
-  const scoreCompact = facts?.analysis?.score_compact ?? '-';
-  const recentAvg = facts?.analysis?.avg_score_recent;
-  const baseAvg = facts?.analysis?.avg_score_baseline;
-  const strength = facts?.analysis?.strength?.label ?? 'scoring';
-  const opp = facts?.analysis?.opportunity?.label ?? 'consistency';
-  const isWeak = Boolean(facts?.analysis?.opportunity?.isWeakness);
-  const delta =
-    recentAvg != null && baseAvg != null ? Math.round((recentAvg - baseAvg) * 10) / 10 : null;
-  const drift =
-    delta == null
-      ? 'near your baseline'
-      : delta < -0.5
-        ? `${Math.abs(delta)} strokes better than baseline`
-        : delta > 0.5
-          ? `${delta} strokes above baseline`
-          : 'close to baseline';
-
-  const drill = String(facts?.recommended_drill ?? 'Use one simple pre-shot routine on every shot.').trim();
-  const projectionScore = facts?.projection?.projectedScoreIn10;
-  const projectionHcp = facts?.projection?.projectedHandicapIn10;
-
-  return [
-    `You finished at ${scoreCompact}, which is ${drift} based on your recent trend.`,
-    isWeak
-      ? `${opp} was the clearest area costing strokes in this sample, while ${strength} held up best.`
-      : `${strength} led this sample and ${opp} was a secondary area to build on.`,
-    `Next-round focus: commit to one clear target on every scoring shot and track execution quality hole by hole.`,
-    `Practice plan: ${drill}`,
-    `Course strategy: choose conservative targets when trouble is in play and avoid low-percentage recovery lines.`,
-    projectionScore != null
-      ? `At your current trend, a realistic short-term scoring target is around ${projectionScore} over the next ~10 rounds.`
-      : `At your current trend, focus on making one repeatable gain over the next ~10 rounds.`,
-    projectionHcp != null
-      ? `Your handicap trend suggests a rough trajectory toward ${projectionHcp} if your current pattern holds.`
-      : `Your trend is currently stable enough to build confidence with repeatable decision-making.`,
-  ];
-}
-
 async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]> {
   const rounds = await prisma.round.findMany({
     where: { userId },
@@ -143,7 +113,7 @@ async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]
         },
       },
     },
-    orderBy: { date: 'desc' },
+    orderBy: [{ date: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
   });
 
   return rounds.map((r: any) => {
@@ -199,6 +169,15 @@ export async function generateAndStoreOverallInsights(userId: bigint, forceManua
   });
   if (!user) throw new Error('User not found');
   const isPremium = isPremiumUser(user);
+  const model = 'deterministic-v2';
+  const leaderboardStats = await prisma.userLeaderboardStats.findUnique({
+    where: { userId },
+    select: { handicap: true },
+  });
+  const currentHandicapOverride =
+    leaderboardStats?.handicap != null && Number.isFinite(Number(leaderboardStats.handicap))
+      ? Number(leaderboardStats.handicap)
+      : null;
 
   const roundsAll = await loadRoundsForOverall(userId);
   const rounds = isPremium ? roundsAll : roundsAll.slice(0, 20);
@@ -206,142 +185,124 @@ export async function generateAndStoreOverallInsights(userId: bigint, forceManua
 
   const existing = await overallInsightModel.findUnique({
     where: { userId },
-    select: { generatedAt: true, dataHash: true },
   });
+
+  const previousVariantOffset = Number.isFinite(Number(existing?.variantOffset))
+    ? Math.max(0, Math.floor(Number(existing?.variantOffset)))
+    : 0;
+  const dataHashChanged = !existing || existing.dataHash !== dataHash;
+  const variantOffset = forceManualTimestamp
+    ? previousVariantOffset + 1
+    : dataHashChanged
+      ? 0
+      : previousVariantOffset;
 
   const shouldAuto = shouldAutoRefreshOverall(existing?.generatedAt ?? null, existing?.dataHash ?? null, dataHash);
   if (!forceManualTimestamp && existing && !shouldAuto) {
-    const persisted = await overallInsightModel.findUnique({ where: { userId } });
-    const persistedTier = Boolean((persisted?.insights as any)?.tier_context?.isPremium);
-    const persistedHasSgComponents = Boolean(
-      (persisted?.insights as any)?.sg?.components &&
-      typeof (persisted?.insights as any)?.sg?.components === 'object'
-    );
-    const persistedEfficiency = (persisted?.insights as any)?.efficiency;
+    const persistedTier = Boolean((existing?.insights as any)?.tier_context?.isPremium);
+    const persistedModelUsed = existing?.modelUsed != null ? String(existing.modelUsed) : null;
+    const persistedCards = Array.isArray((existing?.insights as any)?.cards) ? (existing?.insights as any)?.cards : [];
+    const persistedEfficiency = (existing?.insights as any)?.efficiency;
+    const persistedProjectionByMode = (existing?.insights as any)?.projection_by_mode;
     const persistedHasNewEfficiencyShape = Boolean(
       persistedEfficiency &&
       typeof persistedEfficiency === 'object' &&
       Object.prototype.hasOwnProperty.call(persistedEfficiency, 'puttsTotal') &&
-      Object.prototype.hasOwnProperty.call(persistedEfficiency, 'penaltiesPerRound')
+      Object.prototype.hasOwnProperty.call(persistedEfficiency, 'penaltiesPerRound'),
     );
+    const persistedHasProjectionByMode = Boolean(
+      persistedProjectionByMode &&
+      typeof persistedProjectionByMode === 'object' &&
+      persistedProjectionByMode.combined &&
+      persistedProjectionByMode['9'] &&
+      persistedProjectionByMode['18'] &&
+      Object.prototype.hasOwnProperty.call(persistedProjectionByMode.combined, 'projectedScoreIn10') &&
+      Object.prototype.hasOwnProperty.call(persistedProjectionByMode.combined, 'scoreLow') &&
+      Object.prototype.hasOwnProperty.call(persistedProjectionByMode.combined, 'scoreHigh'),
+    );
+
     const canReusePersisted =
-      persisted &&
+      persistedModelUsed === model &&
       persistedTier === isPremium &&
-      (!isPremium || persistedHasSgComponents) &&
-      persistedHasNewEfficiencyShape;
+      persistedCards.length === 6 &&
+      persistedHasNewEfficiencyShape &&
+      persistedHasProjectionByMode;
 
     if (canReusePersisted) {
-      return applyTierSafety(persisted?.insights as any, isPremium, rounds.length);
+      return applyTierSafety(existing?.insights as any, isPremium, rounds.length);
     }
   }
 
-  if (!OPENAI_API_KEY) throw new Error('OpenAI API key not configured');
-  const seed = `${userId.toString()}|${new Date().toISOString().slice(0, 10)}|${rounds.length}`;
-
-  const draft = computeOverallPayload({
+  const basePayload = computeOverallPayload({
     rounds,
     isPremium,
-    model: OPENAI_MODEL,
-    openaiUsage: null,
-    cards: Array.from({ length: 7 }, () => ''),
+    model,
+    cards: Array.from({ length: 6 }, () => ''),
+    currentHandicapOverride,
   });
-  const drillArea = (draft.analysis.opportunity.name ?? draft.analysis.strength.name);
-  const recommendedDrill = pickDeterministicDrillSeeded(drillArea, seed);
-  const freeModeKpis = (() => {
-    const { avgSgTotalRecent: _avgSgTotalRecent, ...rest } = draft.mode_payload.combined.kpis;
-    return rest;
-  })();
 
-  const facts: any = {
-    analysis: isPremium
-      ? draft.analysis
-      : {
-          window_recent: draft.analysis.window_recent,
-          window_baseline: draft.analysis.window_baseline,
-          mode_for_narrative: draft.analysis.mode_for_narrative,
-          performance_band: draft.analysis.performance_band,
-          strength: {
-            name: draft.analysis.strength.name,
-            label: draft.analysis.strength.label,
-          },
-          opportunity: {
-            name: draft.analysis.opportunity.name,
-            label: draft.analysis.opportunity.label,
-            isWeakness: draft.analysis.opportunity.isWeakness,
-          },
-          score_compact: draft.analysis.score_compact,
-          avg_score_recent: draft.analysis.avg_score_recent,
-          avg_score_baseline: draft.analysis.avg_score_baseline,
-          rounds_recent: draft.analysis.rounds_recent,
-          rounds_baseline: draft.analysis.rounds_baseline,
-        },
-    projection: draft.projection,
-    consistency: draft.consistency,
-    efficiency: draft.efficiency,
-    recommended_drill: recommendedDrill,
-    mode_payload_combined: isPremium ? draft.mode_payload.combined.kpis : freeModeKpis,
-    tough_course_context: false,
-    missing_stats: {
-      fir: rounds.slice(0, 5).some((r) => r.firHit == null),
-      gir: rounds.slice(0, 5).some((r) => r.girHit == null),
-      putts: rounds.slice(0, 5).some((r) => r.putts == null),
-      penalties: rounds.slice(0, 5).some((r) => r.penalties == null),
-    },
+  const drillArea = basePayload.analysis.opportunity.name ?? basePayload.analysis.strength.name;
+  const variantSeedBase = `${userId.toString()}|${dataHash}|${rounds.length}`;
+  const drillSeed = `${userId.toString()}|${dataHash}|${rounds.length}|drill`;
+  const recommendedDrill = pickDeterministicDrillSeeded(drillArea, drillSeed, variantOffset);
+  const recentWindow = rounds.slice(0, 5);
+  const trackedCounts = {
+    fir: recentWindow.filter((r) => r.firHit != null).length,
+    gir: recentWindow.filter((r) => r.girHit != null).length,
+    putts: recentWindow.filter((r) => r.putts != null).length,
+    penalties: recentWindow.filter((r) => r.penalties != null).length,
+  };
+  const missingStats = {
+    fir: trackedCounts.fir < OVERALL_SG_MIN_RECENT_COVERAGE,
+    gir: trackedCounts.gir < OVERALL_SG_MIN_RECENT_COVERAGE,
+    putts: trackedCounts.putts < OVERALL_SG_MIN_RECENT_COVERAGE,
+    penalties: trackedCounts.penalties < OVERALL_SG_MIN_RECENT_COVERAGE,
   };
 
-  if (isPremium) {
-    facts.tier_context = draft.tier_context;
-  }
+  const cards = buildDeterministicOverallCards({
+    payload: basePayload,
+    recommendedDrill,
+    missingStats,
+    isPremium,
+    variantSeedBase,
+    variantOffset,
+  });
 
-  let cards: string[];
-  let usage: any = null;
-  try {
-    const ai = await generateOverallCardsWithLLM({
-      apiKey: OPENAI_API_KEY,
-      model: OPENAI_MODEL,
-      payloadFacts: facts,
-      maxOutputTokens: OPENAI_MAX_COMPLETION_TOKENS,
-      timeoutMs: OPENAI_TIMEOUT_MS,
-      userSeed: seed,
-    });
-    cards = ai.cards;
-    usage = ai.usage;
-  } catch {
-    cards = fallbackCards(facts);
-  }
-
-  const decorated = decorateCardEmojis(cards, draft.analysis.performance_band, draft.analysis.opportunity.isWeakness);
   const payload = computeOverallPayload({
     rounds,
     isPremium,
-    model: OPENAI_MODEL,
-    openaiUsage: usage,
-    cards: decorated,
+    model,
+    cards,
+    currentHandicapOverride,
   });
+
   payload.analysis = {
     ...payload.analysis,
-    score_compact: draft.analysis.score_compact,
+    score_compact: basePayload.analysis.score_compact,
   };
   (payload as any).recommended_drill = recommendedDrill;
   (payload as any).data_hash = dataHash;
-  (payload as any).model = OPENAI_MODEL;
+  (payload as any).model = model;
+
   const safePayload = applyTierSafety(payload as any, isPremium, rounds.length);
 
   await overallInsightModel.upsert({
     where: { userId },
     create: {
       userId,
-      modelUsed: OPENAI_MODEL,
+      modelUsed: model,
       insights: safePayload as any,
       dataHash,
+      variantOffset,
       generatedAt: new Date(safePayload.generated_at),
       lastManualRefreshAt: forceManualTimestamp ? new Date() : null,
       updatedAt: new Date(),
     },
     update: {
-      modelUsed: OPENAI_MODEL,
+      modelUsed: model,
       insights: safePayload as any,
       dataHash,
+      variantOffset,
       generatedAt: new Date(safePayload.generated_at),
       lastManualRefreshAt: forceManualTimestamp ? new Date() : undefined,
       updatedAt: new Date(),
@@ -360,67 +321,9 @@ export async function GET(request: NextRequest) {
 
     const userId = await requireAuth(request);
     const mode = parseMode(new URL(request.url).searchParams);
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        subscriptionTier: true,
-        subscriptionStatus: true,
-        trialEndsAt: true,
-      },
-    });
-    if (!user) return errorResponse('User not found', 404);
-
-    const isPremium = isPremiumUser(user);
-    const roundsAll = await loadRoundsForOverall(userId);
-    const rounds = isPremium ? roundsAll : roundsAll.slice(0, 20);
-    const dataHash = computeOverallDataHash(rounds, isPremium);
-
-    const existing = await overallInsightModel.findUnique({
-      where: { userId },
-      select: {
-        generatedAt: true,
-        dataHash: true,
-        insights: true,
-      },
-    });
-
-    let storedInsights: any = existing?.insights ?? null;
-    const persistedTier = Boolean(storedInsights?.tier_context?.isPremium);
-    const hasCards = Array.isArray(storedInsights?.cards) && storedInsights.cards.length > 0;
-    const needsCardRegeneration =
-      !storedInsights ||
-      persistedTier !== isPremium ||
-      !hasCards ||
-      shouldAutoRefreshOverall(existing?.generatedAt ?? null, existing?.dataHash ?? null, dataHash);
-
-    if (needsCardRegeneration) {
-      storedInsights = await generateAndStoreOverallInsights(userId, false);
-    }
-
-    const cards = Array.isArray(storedInsights?.cards) ? storedInsights.cards : [];
-    const payload = computeOverallPayload({
-      rounds,
-      isPremium,
-      model: OPENAI_MODEL,
-      openaiUsage: storedInsights?.openai_usage ?? null,
-      cards,
-    });
-
-    payload.generated_at =
-      needsCardRegeneration
-        ? (typeof storedInsights?.generated_at === 'string' ? storedInsights.generated_at : new Date().toISOString())
-        : (existing?.generatedAt?.toISOString() ??
-            (typeof storedInsights?.generated_at === 'string' ? storedInsights.generated_at : new Date().toISOString()));
-
-    if (typeof storedInsights?.recommended_drill === 'string' && storedInsights.recommended_drill.trim().length > 0) {
-      (payload as any).recommended_drill = storedInsights.recommended_drill;
-    }
-    (payload as any).data_hash = dataHash;
-    (payload as any).model = OPENAI_MODEL;
-
-    const safePayload = applyTierSafety(payload as any, isPremium, rounds.length);
+    const payload = await generateAndStoreOverallInsights(userId, false);
     return successResponse({
-      insights: safePayload,
+      insights: payload,
       selectedMode: mode,
     });
   } catch (error: any) {

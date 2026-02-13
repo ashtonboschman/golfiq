@@ -2927,7 +2927,7 @@ input[type='date'].form-input {
 
 
 /* ============================================
-   AI COACH PAGE STYLES
+   INSIGHTS PAGE STYLES
    ============================================ */
 
 .ai-coach-container {
@@ -4881,7 +4881,7 @@ input[type='date'].form-input {
   margin-top: var(--gap);
 }
 /* ========================================
-   AI Insights Component
+   Insights Component
    ======================================== */
 .insights-card {
   
@@ -4936,6 +4936,37 @@ input[type='date'].form-input {
   line-height: 1.6;
   color: var(--color-primary-text);
   font-size: 15px;
+}
+
+.insight-message-content {
+  display: block;
+}
+
+.insight-message-icon {
+  display: inline-block;
+  vertical-align: text-top;
+  margin-right: 8px;
+  margin-top: 1px;
+}
+
+.insight-message-text {
+  display: inline;
+}
+
+.insight-level-great {
+  color: #f97316;
+}
+
+.insight-level-success {
+  color: #16a34a;
+}
+
+.insight-level-warning {
+  color: #f59e0b;
+}
+
+.insight-level-info {
+  color: #0ea5e9;
 }
 
 .premium-gate {

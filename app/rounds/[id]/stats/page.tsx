@@ -329,7 +329,7 @@ export default function RoundStatsPage() {
           </div>
         </div>
 
-        {/* AI Performance Insights */}
+        {/* Intelligent Insights */}
         <RoundInsights roundId={roundId} isPremium={isPremium} />
 
         {/* Strokes Gained Summary Card */}

@@ -47,20 +47,20 @@ export default function TermsPage() {
             <li>You agree to provide accurate information and update it as necessary.</li>
           </ul>
 
-          <h2 className="legal-subtitle">AI Insights and Performance Data</h2>
+          <h2 className="legal-subtitle">Intelligent Insights and Performance Data</h2>
 
           <ul>
-            <li>GolfIQ uses your round data to generate AI-powered insights and recommendations.</li>
-            <li>Insights are based on statistical models, including strokes gained calculations, and are provided for informational purposes only.</li>
-            <li>GolfIQ is not a substitute for professional coaching or medical advice.</li>
-            <li>We do not guarantee specific results from using the AI insights.</li>
+            <li>GolfIQ uses your round data to generate Intelligent Insights and recommendations.</li>
+            <li>Insights are based on deterministic statistical models, including strokes-gained calculations, and are provided for informational purposes only.</li>
+            <li>GolfIQ is not a substitute for professional instruction or medical advice.</li>
+            <li>We do not guarantee specific results from using insights.</li>
           </ul>
 
           <h2 className="legal-subtitle">User Content</h2>
 
           <ul>
             <li>You retain ownership of any data or content you input into GolfIQ.</li>
-            <li>By using GolfIQ, you grant us a non-exclusive, worldwide, royalty-free license to use your content to operate, maintain, and improve GolfIQ, including AI analytics.</li>
+            <li>By using GolfIQ, you grant us a non-exclusive, worldwide, royalty-free license to use your content to operate, maintain, and improve GolfIQ, including insights analytics.</li>
             <li>You agree not to upload content that is illegal, harmful, or infringes on third-party rights.</li>
           </ul>
 
@@ -105,7 +105,7 @@ export default function TermsPage() {
           </p>
 
           <p>
-            This includes damages related to loss of data, performance, or AI recommendations.
+            This includes damages related to loss of data, performance, or insight recommendations.
           </p>
 
           <h2 className="legal-subtitle">Indemnification</h2>

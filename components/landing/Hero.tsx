@@ -25,7 +25,7 @@ export default function Hero() {
         </h1>
 
         <p className="landing-hero-subtitle">
-          Track every round, uncover hidden weaknesses, and improve faster with AI-generated insights built on real performance data.
+          Track every round, uncover hidden weaknesses, and improve faster with Intelligent Insights built from your real performance data.
         </p>
 
         <div className="landing-hero-actions">

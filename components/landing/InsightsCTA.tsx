@@ -14,8 +14,8 @@ export default function InsightsCTA() {
   const insights = [
     {
       icon: <Sparkles size={24} />,
-      title: 'AI Coaching',
-      description: 'Post-round analysis with personalized feedback generated from your performance trends and strokes-gained data.',
+      title: 'Intelligent Insights',
+      description: 'Post-round and overall analysis generated from your real round data, strokes-gained calculations, and scoring trends.',
     },
     {
       icon: <Target size={24} />,
@@ -38,7 +38,7 @@ export default function InsightsCTA() {
             Understand <span className="accent-text">Why</span> You Shoot the Scores You Do
           </h2>
           <p className="landing-insights-subtitle">
-            GolfIQ goes beyond charts and numbers. Our AI-driven insights explain the real factors behind your scores and guide you toward meaningful improvement.
+            GolfIQ goes beyond charts and numbers. Our Intelligent Insights are built from your real round stats and deterministic performance models, so every recommendation maps to measurable data.
           </p>
 
           <div className="landing-insights-list">

@@ -1,6 +1,7 @@
 import {
+  buildDeterministicOverallCards,
+  computeOverallPayload,
   normalizeByMode,
-  decorateCardEmojis,
   shouldAutoRefreshOverall,
   type OverallRoundPoint,
 } from '../overall';
@@ -57,17 +58,59 @@ describe('overall insights helpers', () => {
     expect(normalizeByMode([nine, eighteen], '18').map((r) => r.holes)).toEqual([18]);
   });
 
-  it('decorates emojis in fixed order', () => {
-    const cards = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'];
-    const out = decorateCardEmojis(cards, 'great', true);
-    expect(out[0].startsWith('🔥 ')).toBe(true);
-    expect(out[1].startsWith('⚠️ ')).toBe(true);
-    expect(out[2].startsWith('ℹ️ ')).toBe(true);
+  it('builds exactly 6 deterministic overall cards without emojis', () => {
+    const rounds = [
+      mkRound({
+        score: 78,
+        toPar: 6,
+        sgTotal: -1.2,
+        sgOffTee: 0.3,
+        sgApproach: -0.8,
+        sgPutting: -0.5,
+        sgPenalties: -0.2,
+      }),
+      mkRound({
+        id: BigInt(2),
+        date: new Date('2026-01-28T12:00:00Z'),
+        score: 76,
+        toPar: 4,
+        sgTotal: -0.5,
+        sgOffTee: 0.2,
+        sgApproach: -0.4,
+        sgPutting: -0.3,
+        sgPenalties: 0,
+      }),
+    ];
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    const cards = buildDeterministicOverallCards({
+      payload,
+      recommendedDrill: 'Use one simple pre-shot routine on every shot.',
+      missingStats: { fir: false, gir: false, putts: false, penalties: false },
+      isPremium: true,
+      variantSeedBase: 'seed',
+      variantOffset: 0,
+    });
+
+    expect(cards).toHaveLength(6);
+    cards.forEach((card) => {
+      expect(card.startsWith('?')).toBe(false);
+      expect(card.startsWith('??')).toBe(false);
+      expect(card.startsWith('??')).toBe(false);
+      expect(card.startsWith('??')).toBe(false);
+    });
   });
 
-  it('only auto-refreshes when week changed and hash changed', () => {
+  it('auto-refreshes whenever data hash changes', () => {
     const old = new Date('2026-01-31T12:00:00Z');
     expect(shouldAutoRefreshOverall(old, 'abc', 'abc')).toBe(false);
+    expect(shouldAutoRefreshOverall(old, 'abc', 'def')).toBe(true);
     expect(shouldAutoRefreshOverall(null, null, 'abc')).toBe(true);
   });
 });

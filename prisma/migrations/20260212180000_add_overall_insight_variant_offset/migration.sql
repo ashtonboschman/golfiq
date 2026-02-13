@@ -1,0 +1,2 @@
+ALTER TABLE "overall_insights"
+ADD COLUMN IF NOT EXISTS "variant_offset" INTEGER NOT NULL DEFAULT 0;

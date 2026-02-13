@@ -3,6 +3,20 @@ import { calculateHandicap, calculateNetScore, calculateNetScoreLegacy, normaliz
 import { createRound, mock18HoleRound, mock9HoleRound, type RoundFixture } from "../__fixtures__/handicapFixtures";
 
 type Round = RoundFixture;
+type NetScoreContext = Parameters<typeof calculateNetScore>[2];
+
+function makeNetScoreCtx(overrides: Partial<NetScoreContext> = {}): NetScoreContext {
+  const holes = overrides.holes ?? 18;
+  return {
+    holes,
+    slopeRating: overrides.slopeRating ?? 113,
+    courseRating: overrides.courseRating ?? (holes === 9 ? 36 : 72),
+    bogeyRating: overrides.bogeyRating ?? null,
+    parTotal: overrides.parTotal ?? (holes === 9 ? 36 : 72),
+    nonPar3Holes: overrides.nonPar3Holes ?? (holes === 9 ? 7 : 14),
+    holeRange: overrides.holeRange ?? Array.from({ length: holes }, (_, i) => i + 1),
+  };
+}
 
 describe("normalizeRoundsByMode", () => {
   // ----------------------------
@@ -453,23 +467,13 @@ describe("calculateHandicap", () => {
 
 describe("calculateNetScore", () => {
   it("returns nulls when handicap is null", () => {
-    const ctx = {
-      holes: 18,
-      slopeRating: 113,
-      courseRating: 72,
-      parTotal: 72,
-    };
+    const ctx = makeNetScoreCtx();
 
     expect(calculateNetScore(85, null, ctx)).toEqual({ netScore: null, netToPar: null });
   });
 
   it("calculates net score for 18 holes", () => {
-    const ctx = {
-      holes: 18,
-      slopeRating: 113,
-      courseRating: 72,
-      parTotal: 72,
-    };
+    const ctx = makeNetScoreCtx();
 
     const result = calculateNetScore(85, 10, ctx);
     expect(result.netScore).toBe(75);
@@ -477,12 +481,7 @@ describe("calculateNetScore", () => {
   });
 
   it("scales course handicap for 9-hole rounds", () => {
-    const ctx = {
-      holes: 9,
-      slopeRating: 113,
-      courseRating: 36,
-      parTotal: 36,
-    };
+    const ctx = makeNetScoreCtx({ holes: 9 });
 
     const result = calculateNetScore(40, 10, ctx);
     expect(result.netScore).toBe(35);
@@ -490,12 +489,7 @@ describe("calculateNetScore", () => {
   });
 
   it("applies slope and rating adjustments for 18 holes", () => {
-    const ctx = {
-      holes: 18,
-      slopeRating: 130,
-      courseRating: 74,
-      parTotal: 72,
-    };
+    const ctx = makeNetScoreCtx({ slopeRating: 130, courseRating: 74 });
 
     const result = calculateNetScore(90, 12, ctx);
 
@@ -506,12 +500,7 @@ describe("calculateNetScore", () => {
   });
 
   it("applies slope and rating adjustments for 9 holes", () => {
-    const ctx = {
-      holes: 9,
-      slopeRating: 120,
-      courseRating: 36.5,
-      parTotal: 36,
-    };
+    const ctx = makeNetScoreCtx({ holes: 9, slopeRating: 120, courseRating: 36.5, parTotal: 36 });
 
     const result = calculateNetScore(44, 18, ctx);
 
@@ -522,12 +511,7 @@ describe("calculateNetScore", () => {
   });
 
   it("handles negative handicap indexes", () => {
-    const ctx = {
-      holes: 18,
-      slopeRating: 113,
-      courseRating: 72,
-      parTotal: 72,
-    };
+    const ctx = makeNetScoreCtx();
 
     const result = calculateNetScore(70, -2.4, ctx);
 
@@ -540,12 +524,7 @@ describe("calculateNetScore", () => {
 
 describe("calculateNetScoreLegacy", () => {
   it("matches calculateNetScore for 18-hole inputs", () => {
-    const ctx = {
-      holes: 18,
-      slopeRating: 113,
-      courseRating: 72,
-      parTotal: 72,
-    };
+    const ctx = makeNetScoreCtx();
 
     const legacy = calculateNetScoreLegacy(85, 10, 72, 72, 113);
     const modern = calculateNetScore(85, 10, ctx);
@@ -591,12 +570,7 @@ describe("integration-style checks", () => {
   });
 
   it("computes net score with real tee context values", () => {
-    const ctx = {
-      holes: 18,
-      slopeRating: 117,
-      courseRating: 69.2,
-      parTotal: 72,
-    };
+    const ctx = makeNetScoreCtx({ slopeRating: 117, courseRating: 69.2 });
 
     const result = calculateNetScore(90, 14.2, ctx);
 
@@ -607,12 +581,7 @@ describe("integration-style checks", () => {
   });
 
   it("rounds course handicap at .5 boundaries", () => {
-    const ctx = {
-      holes: 18,
-      slopeRating: 113,
-      courseRating: 72,
-      parTotal: 72,
-    };
+    const ctx = makeNetScoreCtx();
 
     // courseHandicap = round(10.5) = 11
     const result = calculateNetScore(85, 10.5, ctx);

@@ -138,7 +138,7 @@ export default function PricingPage() {
                 <li><Check color='green' size='20' className="feature-icon"/> Everything in Free</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Unlimited stat calculations & advanced trend charts</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Strokes gained per round & KPI comparisons</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Round based and weekly AI performance insights & predictions</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Round-based and weekly Intelligent Insights with personalized recommendations</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Course insights, tee recommendations & course-specific leaderboards</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Premium themes & enhanced filtering</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Priority support</li>
@@ -153,7 +153,7 @@ export default function PricingPage() {
               </button>
               <div>
                 <p className="price-subtext">
-                  No charge today · Cancel anytime
+                  No charge today - Cancel anytime
                 </p>
               </div>
             </div>
@@ -193,7 +193,7 @@ export default function PricingPage() {
               </button>
               <div>
                 <p className="price-subtext">
-                  Billed ${PRICING.annual.price}/year · One-time payment · Save {PRICING.annual.savings} vs monthly
+                  Billed ${PRICING.annual.price}/year - One-time payment - Save {PRICING.annual.savings} vs monthly
                 </p>
               </div>
             </div>
@@ -218,7 +218,7 @@ export default function PricingPage() {
                 <li><Check color='green' size='20' className="feature-icon"/> Course search, scorecards, friends, & leaderboards</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Light & dark themes, multi-device sync</li>
                 <li><X color='red' size='20' className="feature-icon"/> Advanced analytics & predictions</li>
-                <li><X color='red' size='20' className="feature-icon"/> Round based AI performance insights</li>
+                <li><X color='red' size='20' className="feature-icon"/> Round-based Intelligent Insights</li>
                 <li><X color='red' size='20' className="feature-icon"/> Custom dashboards & advanced filters</li>
               </ul>
               <button

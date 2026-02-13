@@ -84,7 +84,7 @@ describe("resolveTeeContext", () => {
   });
 
   it("throws for invalid tee segment", () => {
-    expect(() => resolveTeeContext(baseTee18 as any, "invalid")).toThrow(
+    expect(() => resolveTeeContext(baseTee18 as any, "invalid" as any)).toThrow(
       "Invalid tee_segment"
     );
   });

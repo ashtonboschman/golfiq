@@ -350,17 +350,17 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
   const getModalMessage = () => {
     const rounds = totalRoundsForModal;
     if (rounds === 3) {
-      return "You've logged 3 rounds! Upgrade to Premium to unlock AI Insights and advanced trends.";
+      return "You've logged 3 rounds! Upgrade to Premium to unlock Intelligent Insights and advanced trends.";
     } else if (rounds === 10) {
       return "10 rounds played! Premium gives you detailed trends and analytics to improve faster.";
     } else if (rounds === 15) {
       return "15 rounds logged! Upgrade to Premium to see full insights beyond your recent rounds.";
     } else if (rounds === 20) {
-      return "20 rounds reached — the free stats limit! Upgrade to Premium for unlimited history and advanced Insights.";
+      return "20 rounds reached - the free stats limit! Upgrade to Premium for unlimited history and advanced insights.";
     } else if (rounds > 20 && rounds % 5 === 0) {
       return `${rounds} rounds logged! Unlock Premium to analyze all your rounds and track long-term performance.`;
     } else {
-      return `You've logged ${rounds} rounds! Upgrade to Premium for unlimited analytics and AI Insights.`;
+      return `You've logged ${rounds} rounds! Upgrade to Premium for unlimited analytics and Intelligent Insights.`;
     }
   };
 
@@ -399,12 +399,12 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             value: dateFilter,
             label:
               dateFilter === 'all'
-                ? `All Time ${!subscriptionLoading && !isPremium ? '🔒' : ''}`
+                ? `All Time ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`
                 : dateFilter === '30'
-                ? `Last 30 Days ${!subscriptionLoading && !isPremium ? '🔒' : ''}`
+                ? `Last 30 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`
                 : dateFilter === '90'
-                ? `Last 90 Days ${!subscriptionLoading && !isPremium ? '🔒' : ''}`
-                : `Last Year ${!subscriptionLoading && !isPremium ? '🔒' : ''}`,
+                ? `Last 90 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`
+                : `Last Year ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`,
           }}
           onChange={(option) => {
             if (!subscriptionLoading && !isPremium) {
@@ -414,10 +414,10 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             }
           }}
           options={[
-            { value: 'all', label: `All Time ${!subscriptionLoading && !isPremium ? '🔒' : ''}` },
-            { value: '30', label: `Last 30 Days ${!subscriptionLoading && !isPremium ? '🔒' : ''}` },
-            { value: '90', label: `Last 90 Days ${!subscriptionLoading && !isPremium ? '🔒' : ''}` },
-            { value: '365', label: `Last Year ${!subscriptionLoading && !isPremium ? '🔒' : ''}` },
+            { value: 'all', label: `All Time ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
+            { value: '30', label: `Last 30 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
+            { value: '90', label: `Last 90 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
+            { value: '365', label: `Last Year ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
           ]}
           isSearchable={false}
           isDisabled={subscriptionLoading} // only disable while loading
@@ -572,7 +572,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
           'All-time stat access beyond your last 20 rounds',
           'Estimated strokes gained & core performance KPIs',
           'Trend charts across your last 20 rounds (vs 5 on Free)',
-          'AI performance insights & predictions',
+          'Intelligent Insights and personalized recommendations',
           'Flexible date-based comparisons',
           'Premium themes'
         ]}
@@ -580,3 +580,5 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     </div>
   );
 }
+
+

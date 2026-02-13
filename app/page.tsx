@@ -10,9 +10,9 @@ import WaitlistForm from '@/components/landing/WaitlistForm';
 import LandingFooter from '@/components/landing/LandingFooter';
 
 export const metadata: Metadata = {
-  title: 'GolfIQ | AI Golf Analytics and Round Tracking',
+  title: 'GolfIQ | Intelligent Golf Analytics and Round Tracking',
   description:
-    'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ AI insights built from real performance data.',
+    'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ Intelligent Insights built from real round data and deterministic performance models.',
   alternates: {
     canonical: '/',
   },
@@ -21,9 +21,9 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: 'GolfIQ | AI Golf Analytics and Round Tracking',
+    title: 'GolfIQ | Intelligent Golf Analytics and Round Tracking',
     description:
-      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ AI insights built from real performance data.',
+      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ Intelligent Insights built from real round data and deterministic performance models.',
     url: 'https://www.golfiq.ca/',
     siteName: 'GolfIQ',
     images: [
@@ -38,9 +38,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'GolfIQ | AI Golf Analytics and Round Tracking',
+    title: 'GolfIQ | Intelligent Golf Analytics and Round Tracking',
     description:
-      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ AI insights built from real performance data.',
+      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ Intelligent Insights built from real round data and deterministic performance models.',
     images: ['/logos/share/golfiq-share.png'],
   },
 };

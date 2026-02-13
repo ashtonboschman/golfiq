@@ -5,6 +5,7 @@ import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { calculateNetScore } from '@/lib/utils/handicap';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
+import { generateAndStoreOverallInsights } from '@/app/api/insights/overall/route';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { z } from 'zod';
 
@@ -346,8 +347,10 @@ export async function PUT(
     await recalcLeaderboard(userId);
 
     // Always regenerate insights after a round update.
+    // Await here so edits reliably reflect the latest Message 3 policy/data on next view.
     await prisma.roundInsight.deleteMany({ where: { roundId } });
-    triggerInsightsGeneration(roundId, userId, true).catch(console.error);
+    await triggerInsightsGeneration(roundId, userId, true);
+    await triggerOverallInsightsGeneration(userId);
 
     return successResponse({ message: 'Round updated' });
   } catch (error) {
@@ -388,6 +391,7 @@ export async function DELETE(
 
     // Update leaderboard
     await recalcLeaderboard(userId);
+    await triggerOverallInsightsGeneration(userId);
 
     return successResponse({ message: 'Round deleted' });
   } catch (error) {
@@ -479,5 +483,14 @@ async function triggerInsightsGeneration(roundId: bigint, userId: bigint, forceR
       // Silently fail - insights can be generated later if needed
       console.error('Failed to generate insights:', error);
     }
+  }
+}
+
+async function triggerOverallInsightsGeneration(userId: bigint): Promise<void> {
+  try {
+    await generateAndStoreOverallInsights(userId, false);
+  } catch (error) {
+    // Silently fail - overall insights can be generated on next /insights fetch.
+    console.error('Failed to generate overall insights:', error);
   }
 }

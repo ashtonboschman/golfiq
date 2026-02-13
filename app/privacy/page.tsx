@@ -57,7 +57,7 @@ export default function PrivacyPage() {
 
           <ul>
             <li>Provide, maintain, and improve GolfIQ features</li>
-            <li>Analyze rounds, generate AI-powered insights, and deliver personalized recommendations</li>
+            <li>Analyze rounds, generate Intelligent Insights, and deliver personalized recommendations</li>
             <li>Communicate with you regarding beta access, updates, promotions, or support</li>
             <li>Monitor app performance and usage trends</li>
             <li>Ensure security and prevent unauthorized activity</li>
@@ -67,18 +67,18 @@ export default function PrivacyPage() {
             <strong>We do not sell your personal information to third parties.</strong>
           </p>
 
-          <h2 className="legal-subtitle">AI-Powered Analytics</h2>
+          <h2 className="legal-subtitle">Intelligent Insights Analytics</h2>
 
-          <p>GolfIQ's AI uses your real round data and performance statistics to provide:</p>
+          <p>GolfIQ uses your real round data and performance statistics to provide:</p>
 
           <ul>
-            <li>Personalized coaching and actionable insights</li>
+            <li>Personalized recommendations and actionable insights</li>
             <li>Trend analysis for strengths and weaknesses</li>
             <li>Strokes gained calculations compared to similar golfers</li>
           </ul>
 
           <p>
-            Your data is processed securely to generate these insights. The AI recommendations are based on anonymized statistical models combined with your personal performance data.
+            Your data is processed securely to generate these insights. Recommendations are based on deterministic scoring and strokes-gained models combined with your personal performance data.
           </p>
 
           <h2 className="legal-subtitle">Data Sharing and Third Parties</h2>

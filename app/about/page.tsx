@@ -45,10 +45,10 @@ export default function AboutPage() {
             This is not a casual GPS scorecard. GolfIQ is built for players who want to improve through data, pattern recognition, and focused practice.
           </p>
 
-          <h2 className="legal-subtitle">Turning Data Into Coaching Insights</h2>
+          <h2 className="legal-subtitle">Turning Data Into Intelligent Insights</h2>
 
           <p>
-            GolfIQ compares your performance against expectations for your handicap and identifies where you are gaining or losing strokes. That data is then processed through an AI layer that translates your stats into clear, actionable recommendations.
+            GolfIQ compares your performance against expectations for your handicap and identifies where you are gaining or losing strokes. That data is processed through deterministic scoring and strokes-gained models that translate your stats into clear, actionable recommendations.
           </p>
 
           <p>

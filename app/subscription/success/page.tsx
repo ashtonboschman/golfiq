@@ -169,7 +169,7 @@ function SubscriptionSuccessContent() {
               Your subscription has been activated successfully.
             </p>
             <p className="secondary-text" style={{ fontSize: '14px' }}>
-              You now have access to all premium features including AI Insights,
+              You now have access to all premium features including Intelligent Insights,
               full leaderboard access, and unlimited analytics history.
             </p>
           </div>

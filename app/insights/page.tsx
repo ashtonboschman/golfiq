@@ -4,12 +4,12 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Select from 'react-select';
-import { Sparkles, Lock, RefreshCw } from 'lucide-react';
+import { Sparkles, Lock, RefreshCw, BarChart3, CircleCheck, CircleAlert, Dumbbell, Map, TrendingUp } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 import { useSubscription } from '@/hooks/useSubscription';
 import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
-import { formatHandicap, formatNumber, formatPercent } from '@/lib/formatters';
+import { formatHandicap, formatNumber } from '@/lib/formatters';
 
 type StatsMode = 'combined' | '9' | '18';
 
@@ -91,6 +91,13 @@ type OverallInsightsPayload = {
     handicapLow: number | null;
     handicapHigh: number | null;
   };
+  projection_by_mode?: Record<StatsMode, {
+    trajectory: 'improving' | 'flat' | 'worsening' | 'volatile' | 'unknown';
+    projectedScoreIn10: number | null;
+    scoreLow: number | null;
+    scoreHigh: number | null;
+    roundsUsed: number;
+  }>;
   tier_context: {
     isPremium: boolean;
     baseline: 'last20' | 'alltime';
@@ -184,8 +191,13 @@ function formatConsistencyLabel(label: OverallInsightsPayload['consistency']['la
 
 function formatEffValue(v: number | null, type: 'percent' | 'rate'): string {
   if (v == null || !Number.isFinite(v)) return 'Not tracked';
-  if (type === 'percent') return formatPercent(v * 100);
-  return v.toFixed(1);
+  if (type === 'percent') return `${(v * 100).toFixed(1)}%`;
+  return (Math.round(v * 10) / 10).toFixed(1);
+}
+
+function formatCardValueOneDecimal(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return '-';
+  return (Math.round(v * 10) / 10).toFixed(1);
 }
 
 function sgComponentLabel(component: SGComponentKey): string {
@@ -193,7 +205,7 @@ function sgComponentLabel(component: SGComponentKey): string {
   if (component === 'approach') return 'Approach';
   if (component === 'putting') return 'Putting';
   if (component === 'penalties') return 'Penalties';
-  return 'Short Game (Residual)';
+  return 'Residual';
 }
 
 function normalizeDelta(v: number | null | undefined): number | null {
@@ -355,6 +367,33 @@ type LockedSectionProps = {
   onCtaClick?: () => void;
   className?: string;
 };
+
+function stripOverallCardPrefix(message: string): string {
+  return String(message ?? '')
+    .replace(/^(?:\u2705|\u26A0\uFE0F|\u2139\uFE0F|\u{1F525})\s*/u, '')
+    .trim();
+}
+
+function getOverallCardMeta(index: number): { icon: ReactNode } {
+  if (index === 0) return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-info" /> };
+  if (index === 1) return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
+  if (index === 2) return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
+  if (index === 3) return { icon: <Dumbbell size={18} className="insight-message-icon insight-level-info" /> };
+  if (index === 4) return { icon: <Map size={18} className="insight-message-icon insight-level-info" /> };
+  return { icon: <TrendingUp size={18} className="insight-message-icon insight-level-great" /> };
+}
+
+function OverallInsightMessage({ card, index }: { card: string; index: number }) {
+  const meta = getOverallCardMeta(index);
+  return (
+    <div className="insight-message">
+      <div className="insight-message-content">
+        {meta.icon}
+        <span className="insight-message-text">{stripOverallCardPrefix(card)}</span>
+      </div>
+    </div>
+  );
+}
 
 function ComparisonBarCard({
   title,
@@ -581,9 +620,10 @@ export default function InsightsPage() {
   const penaltiesMetric = efficiency.penaltiesPerRound ?? efficiency.penaltiesPerHole ?? DEFAULT_EFFICIENCY_METRIC;
   const projection = insights?.projection;
   const projectionRanges = insights?.projection_ranges;
+  const selectedModeProjection = insights?.projection_by_mode?.[statsMode] ?? null;
   const sgComponents = modePayload?.sgComponents ?? insights?.sg?.components;
   const sgHasComponentData = Boolean(sgComponents?.hasData);
-  const trajectoryLabel = formatTrajectoryLabel(projection?.trajectory);
+  const trajectoryLabel = formatTrajectoryLabel(selectedModeProjection?.trajectory ?? projection?.trajectory);
   const trajectoryDelta = getTrajectoryDeltaSummary(modePayload?.kpis.deltaVsBaseline ?? null);
   const trajectoryDeltaColor =
     trajectoryDelta.tone === 'up'
@@ -592,13 +632,13 @@ export default function InsightsPage() {
         ? INSIGHTS_NEGATIVE_COLOR
         : 'var(--color-secondary-text)';
   const trajectoryChipTone =
-    projection?.trajectory === 'improving'
+    selectedModeProjection?.trajectory === 'improving'
       ? 'up'
-      : projection?.trajectory === 'worsening'
+      : selectedModeProjection?.trajectory === 'worsening'
         ? 'down'
-        : projection?.trajectory === 'volatile'
+        : selectedModeProjection?.trajectory === 'volatile'
           ? 'warn'
-          : projection?.trajectory === 'flat'
+          : selectedModeProjection?.trajectory === 'flat'
             ? 'flat'
             : 'none';
   const trajectoryChipColor =
@@ -609,34 +649,68 @@ export default function InsightsPage() {
         : trajectoryChipTone === 'warn'
           ? warningColor
           : 'var(--color-secondary-text)';
-  const premiumProjectionUnlocked = Boolean(
+  const handicapProjectionPointCount = insights?.handicap_trend?.handicap
+    ?.filter((v): v is number => v != null && Number.isFinite(v))
+    .length ?? 0;
+  const hasEnoughHandicapHistory = handicapProjectionPointCount >= 5;
+  const premiumScoreProjectionUnlocked = Boolean(
     isPremiumContext &&
       projection?.projectedScoreIn10 != null &&
-    projection?.projectedHandicapIn10 != null,
+      (selectedModeProjection?.projectedScoreIn10 != null || projection?.projectedScoreIn10 != null),
   );
-  const hasStdDevForRanges = consistency.stdDev != null && Number.isFinite(consistency.stdDev);
-  const effectiveProjectionRanges = useMemo(() => {
-    if (!premiumProjectionUnlocked) return null;
+  const premiumHandicapProjectionUnlocked = Boolean(
+    isPremiumContext &&
+      hasEnoughHandicapHistory &&
+      projection?.projectedHandicapIn10 != null,
+  );
+  const hasModeStdDevForRanges = consistency.stdDev != null && Number.isFinite(consistency.stdDev);
+  const combinedStdDev = insights?.consistency?.stdDev ?? null;
+  const hasCombinedStdDevForRanges = combinedStdDev != null && Number.isFinite(combinedStdDev);
+  const effectiveScoreRange = useMemo(() => {
+    if (!premiumScoreProjectionUnlocked) return null;
     if (
-      projectionRanges?.scoreLow != null &&
-      projectionRanges?.scoreHigh != null &&
-      projectionRanges?.handicapLow != null &&
-      projectionRanges?.handicapHigh != null
+      selectedModeProjection?.scoreLow != null &&
+      selectedModeProjection?.scoreHigh != null
     ) {
-      return projectionRanges;
+      return {
+        low: selectedModeProjection.scoreLow,
+        high: selectedModeProjection.scoreHigh,
+      };
     }
-    if (!hasStdDevForRanges || projection == null) return null;
-    const scoreLow = projection.projectedScoreIn10! - consistency.stdDev!;
-    const scoreHigh = projection.projectedScoreIn10! + consistency.stdDev!;
-    const handicapLow = projection.projectedHandicapIn10! - (consistency.stdDev! / 2);
-    const handicapHigh = projection.projectedHandicapIn10! + (consistency.stdDev! / 2);
+    if (projectionRanges?.scoreLow != null && projectionRanges?.scoreHigh != null) {
+      return {
+        low: projectionRanges.scoreLow,
+        high: projectionRanges.scoreHigh,
+      };
+    }
+    const fallbackProjectedScore = selectedModeProjection?.projectedScoreIn10 ?? projection?.projectedScoreIn10 ?? null;
+    if (!hasModeStdDevForRanges || fallbackProjectedScore == null) return null;
     return {
-      scoreLow,
-      scoreHigh,
-      handicapLow,
-      handicapHigh,
+      low: fallbackProjectedScore - consistency.stdDev!,
+      high: fallbackProjectedScore + consistency.stdDev!,
     };
-  }, [premiumProjectionUnlocked, projectionRanges, hasStdDevForRanges, projection, consistency.stdDev]);
+  }, [premiumScoreProjectionUnlocked, selectedModeProjection, projectionRanges, projection?.projectedScoreIn10, hasModeStdDevForRanges, consistency.stdDev]);
+  const effectiveHandicapRange = useMemo(() => {
+    if (!premiumHandicapProjectionUnlocked) return null;
+    let rawLow: number | null = null;
+    let rawHigh: number | null = null;
+    if (projectionRanges?.handicapLow != null && projectionRanges?.handicapHigh != null) {
+      rawLow = projectionRanges.handicapLow;
+      rawHigh = projectionRanges.handicapHigh;
+    } else if (hasCombinedStdDevForRanges && projection?.projectedHandicapIn10 != null) {
+      rawLow = projection.projectedHandicapIn10 - (combinedStdDev! / 2);
+      rawHigh = projection.projectedHandicapIn10 + (combinedStdDev! / 2);
+    }
+    if (rawLow == null || rawHigh == null) return null;
+    const minRealisticLow =
+      projection?.handicapCurrent != null ? projection.handicapCurrent - 1.0 : rawLow;
+    const boundedLow = Math.max(rawLow, minRealisticLow);
+    const boundedHigh = Math.max(rawHigh, boundedLow);
+    return {
+      low: boundedLow,
+      high: boundedHigh,
+    };
+  }, [premiumHandicapProjectionUnlocked, projectionRanges, hasCombinedStdDevForRanges, projection, combinedStdDev]);
 
   const scoringWidths = useMemo(
     () => getMagnitudeWidths(modePayload?.kpis.avgScoreRecent ?? null, modePayload?.kpis.avgScoreBaseline ?? null, 10),
@@ -733,7 +807,7 @@ export default function InsightsPage() {
   const aiPreviewCards = useMemo(() => {
     if (isPremiumContext || !insights?.cards?.length) return [];
     const start = 1;
-    const count = Math.min(3, Math.max(0, insights.cards.length - 1));
+    const count = Math.min(4, Math.max(0, insights.cards.length - 1));
     return insights.cards.slice(start, start + count);
   }, [insights, isPremiumContext]);
 
@@ -822,14 +896,14 @@ export default function InsightsPage() {
         <div className="insights-content">
           {isPremiumContext ? (
             (insights?.cards ?? []).map((card, idx) => (
-              <div key={`card-${idx}`} className="insight-message">{card}</div>
+              <OverallInsightMessage key={`card-${idx}`} card={card} index={idx} />
             ))
           ) : (
             <>
               {aiPrimaryCard ? (
-                <div className="insight-message">{aiPrimaryCard}</div>
+                <OverallInsightMessage card={aiPrimaryCard} index={0} />
               ) : (
-                <div className="insight-message">Premium insight preview</div>
+                <OverallInsightMessage card="Premium insight preview" index={0} />
               )}
 
               <LockedSection
@@ -843,10 +917,10 @@ export default function InsightsPage() {
                 <div className="insights-locked-preview-stack">
                   {(aiPreviewCards.length
                     ? aiPreviewCards
-                    : ['Premium insight preview', 'Premium insight preview', 'Premium insight preview']
+                    : ['Premium insight preview', 'Premium insight preview', 'Premium insight preview', 'Premium insight preview']
                   ).map((card, idx) => (
-                    <div key={`blur-card-${idx}`} className="insight-message overall-insight-fake">
-                      <span>{card}</span>
+                    <div key={`blur-card-${idx}`} className="overall-insight-fake">
+                      <OverallInsightMessage card={card} index={idx + 1} />
                     </div>
                   ))}
                 </div>
@@ -885,8 +959,8 @@ export default function InsightsPage() {
             recentRawValue={modePayload.kpis.avgScoreRecent}
             typicalRawValue={modePayload.kpis.avgScoreBaseline}
             betterWhenHigher={false}
-            recentValueText={formatNumber(modePayload.kpis.avgScoreRecent)}
-            typicalValueText={formatNumber(modePayload.kpis.avgScoreBaseline)}
+            recentValueText={formatCardValueOneDecimal(modePayload.kpis.avgScoreRecent)}
+            typicalValueText={formatCardValueOneDecimal(modePayload.kpis.avgScoreBaseline)}
             recentBarWidth={scoringWidths.recent}
             typicalBarWidth={scoringWidths.typical}
             hasData={scoringWidths.hasData}
@@ -950,7 +1024,7 @@ export default function InsightsPage() {
         <LockedSection
           locked={!isPremiumContext}
           title="SG Component Breakdown (Premium)"
-          subtitle="Compare Off the Tee, Approach, Putting, Penalties, and Short Game deltas vs your average to find your biggest leak."
+          subtitle="Compare Off The Tee, Approach, Putting, Penalties, and Residual deltas vs your average to find your biggest leak."
         >
           <div
             className="card dashboard-stat-card sg-delta-card"
@@ -1126,40 +1200,42 @@ export default function InsightsPage() {
             </div>
 
             {isPremiumContext ? (
-              premiumProjectionUnlocked ? (
-                effectiveProjectionRanges ? (
+              premiumScoreProjectionUnlocked ? (
+                <>
                   <div className="trajectory-pill-grid">
                     <div className="trajectory-pill">
-                      <span className="trajectory-pill-label">Score Range</span>
+                      <span className="trajectory-pill-label">{effectiveScoreRange ? 'Score Range' : 'Estimated Score'}</span>
                       <span className="trajectory-pill-value">
-                        {Math.round(Math.min(effectiveProjectionRanges.scoreLow!, effectiveProjectionRanges.scoreHigh!))}
-                        -
-                        {Math.round(Math.max(effectiveProjectionRanges.scoreLow!, effectiveProjectionRanges.scoreHigh!))}
+                        {effectiveScoreRange
+                          ? `${Math.round(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.round(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
+                          : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? projection?.projectedScoreIn10 ?? null)}`}
                       </span>
                     </div>
                     <div className="trajectory-pill">
-                      <span className="trajectory-pill-label">HCP Range</span>
+                      <span className="trajectory-pill-label">
+                        {premiumHandicapProjectionUnlocked
+                          ? (effectiveHandicapRange ? 'HCP Range' : 'Estimated Handicap')
+                          : 'HCP Range'}
+                      </span>
                       <span className="trajectory-pill-value">
-                        {formatHandicap(Math.min(effectiveProjectionRanges.handicapLow!, effectiveProjectionRanges.handicapHigh!))}
-                        -
-                        {formatHandicap(Math.max(effectiveProjectionRanges.handicapLow!, effectiveProjectionRanges.handicapHigh!))}
+                        {premiumHandicapProjectionUnlocked
+                          ? (effectiveHandicapRange
+                            ? `${formatHandicap(Math.min(effectiveHandicapRange.low, effectiveHandicapRange.high))}-${formatHandicap(Math.max(effectiveHandicapRange.low, effectiveHandicapRange.high))}`
+                            : `~${formatHandicap(projection?.projectedHandicapIn10 ?? null)}`)
+                          : '--'}
                       </span>
                     </div>
                   </div>
-                ) : (
-                  <div className="trajectory-pill-grid">
-                    <div className="trajectory-pill">
-                      <span className="trajectory-pill-label">Estimated Score</span>
-                      <span className="trajectory-pill-value">~{formatNumber(projection?.projectedScoreIn10)}</span>
-                    </div>
-                    <div className="trajectory-pill">
-                      <span className="trajectory-pill-label">Estimated Handicap</span>
-                      <span className="trajectory-pill-value">~{formatHandicap(projection?.projectedHandicapIn10 ?? null)}</span>
-                    </div>
-                  </div>
-                )
+                  {!premiumHandicapProjectionUnlocked && (
+                    <span className="secondary-text insights-subtle-note insights-centered-title">
+                      Not enough handicap history yet for a reliable handicap projection.
+                    </span>
+                  )}
+                </>
               ) : (
-                <span className="secondary-text insights-subtle-note insights-centered-title">Projections unlock after 10 rounds logged.</span>
+                <span className="secondary-text insights-subtle-note insights-centered-title">
+                  Projections unlock after 10 rounds logged.
+                </span>
               )
             ) : (
               <div className="trajectory-pill-grid">

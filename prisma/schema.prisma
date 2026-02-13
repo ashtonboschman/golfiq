@@ -409,7 +409,7 @@ model RoundInsight {
   id        BigInt    @id @default(autoincrement())
   roundId   BigInt    @unique @map("round_id")
   userId    BigInt    @map("user_id")
-  modelUsed String    @default("gpt-5-mini") @map("model_used")
+  modelUsed String    @default("deterministic-v1") @map("model_used")
   insights  Json
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime? @map("updated_at") @db.Timestamptz(6)
@@ -424,9 +424,10 @@ model RoundInsight {
 model OverallInsight {
   id                  BigInt    @id @default(autoincrement())
   userId              BigInt    @unique @map("user_id")
-  modelUsed           String    @default("gpt-4o-mini") @map("model_used")
+  modelUsed           String    @default("deterministic-v2") @map("model_used")
   insights            Json
   dataHash            String?   @map("data_hash") @db.VarChar(64)
+  variantOffset       Int       @default(0) @map("variant_offset")
   generatedAt         DateTime  @default(now()) @map("generated_at") @db.Timestamptz(6)
   lastManualRefreshAt DateTime? @map("last_manual_refresh_at") @db.Timestamptz(6)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
