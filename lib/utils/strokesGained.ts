@@ -1,5 +1,6 @@
 // lib/utils/strokesGained.ts
 import { Prisma, PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/db";
 import { SG_COEFFICIENTS as C } from "./strokesGainedCoefficients";
 import { resolveTeeContext, type TeeSegment } from "@/lib/tee/resolveTeeContext";
 
@@ -273,4 +274,4 @@ export async function calculateStrokesGained(
 
 // Optional: default export with real Prisma client for production use
 export const calculateStrokesGainedWithPrisma = (inputs: SGInputs) =>
-  calculateStrokesGained(inputs, new PrismaClient());
+  calculateStrokesGained(inputs, prisma);
