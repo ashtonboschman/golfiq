@@ -1,6 +1,6 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
@@ -16,11 +16,12 @@ export default function SettingsPage() {
   const router = useRouter();
   const { tier, status: subscriptionStatus, endsAt, cancelAtPeriodEnd, loading, isPremium } = useSubscription();
   const [managingSubscription, setManagingSubscription] = useState(false);
-  const { showMessage } = useMessage();
+  const { showMessage, showConfirm } = useMessage();
   const [exporting, setExporting] = useState(false);
   const { theme, setTheme, availableThemes } = useTheme();
   const [showStrokesGained, setShowStrokesGained] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -132,6 +133,35 @@ export default function SettingsPage() {
       console.error('Update preference error:', error);
       showMessage(error.message || 'Failed to update preference', 'error');
     }
+  };
+
+  const handleDeleteAccount = () => {
+    showConfirm({
+      message:
+        'Delete your account permanently? This cannot be undone and will remove your rounds, insights, friends, profile, and subscription access.',
+      onConfirm: async () => {
+        setDeletingAccount(true);
+        try {
+          const res = await fetch('/api/users/account', {
+            method: 'DELETE',
+          });
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            throw new Error(data.message || 'Failed to delete account');
+          }
+
+          showMessage(data.message || 'Account deleted successfully.', 'success');
+          await signOut({ redirect: false });
+          router.replace('/');
+        } catch (error: any) {
+          console.error('Delete account error:', error);
+          showMessage(error.message || 'Failed to delete account', 'error');
+          setDeletingAccount(false);
+        }
+      },
+    });
   };
 
   if (status === 'loading') {
@@ -353,6 +383,24 @@ export default function SettingsPage() {
             </div>
           </section>
           )}
+
+          <section className="settings-section">
+            <div className="settings-card settings-danger-card">
+              <div className="settings-danger-content">
+                <label className="form-label">Delete Account</label>
+                <p className="settings-danger-text">
+                  This action is permanent and cannot be undone. All your GolfIQ data will be deleted.
+                </p>
+                <button
+                  className="btn btn-logout"
+                  onClick={handleDeleteAccount}
+                  disabled={deletingAccount}
+                >
+                  {deletingAccount ? 'Deleting...' : 'Delete Account'}
+                </button>
+              </div>
+            </div>
+          </section>
     </div>
   );
 }
