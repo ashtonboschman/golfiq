@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 import { useSubscription } from '@/hooks/useSubscription';
-import { getDaysUntilExpiry, getTierDisplayName } from '@/lib/subscription';
 import { Download, PartyPopper, Upload } from 'lucide-react';
 import { useMessage } from '@/app/providers';
 import { useTheme } from '@/context/ThemeContext';
@@ -15,7 +14,7 @@ import { selectStyles } from '@/lib/selectStyles';
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { tier, status: subscriptionStatus, endsAt, trialEndsAt, loading, isPremium } = useSubscription();
+  const { tier, status: subscriptionStatus, endsAt, cancelAtPeriodEnd, loading, isPremium } = useSubscription();
   const [managingSubscription, setManagingSubscription] = useState(false);
   const { showMessage } = useMessage();
   const [exporting, setExporting] = useState(false);
@@ -143,7 +142,8 @@ export default function SettingsPage() {
     return null;
   }
 
-  const daysUntilExpiry = endsAt ? getDaysUntilExpiry(endsAt, tier) : null;
+  const isCancelScheduled = subscriptionStatus === 'active' && cancelAtPeriodEnd;
+  const isExpired = Boolean(endsAt && endsAt.getTime() <= Date.now());
 
   return (
     <div className="page-stack">
@@ -180,44 +180,34 @@ export default function SettingsPage() {
 
                     {tier === 'premium' && (
                       <div className="subscription-detail-box">
-                        {trialEndsAt && new Date() < new Date(trialEndsAt) ? (
-                          <>
-                            <p className="subscription-status trial-active">
-                              Status <strong>Free Trial Active</strong>
+                        <>
+                          <p className="subscription-status">
+                            Status <strong>{subscriptionStatus}</strong>
+                          </p>
+                          {endsAt && (
+                            <>
+                              {isExpired ? (
+                                <p className="subscription-expiry warning">
+                                  Subscription expired. Please update your payment method.
+                                </p>
+                              ) : (
+                                <p className="subscription-expiry">
+                                  {isCancelScheduled || subscriptionStatus === 'cancelled' ? 'Ends' : 'Renews'} on {endsAt.toLocaleDateString()}
+                                </p>
+                              )}
+                            </>
+                          )}
+                          {subscriptionStatus === 'cancelled' && !endsAt && (
+                            <p className="subscription-expiry warning">
+                              Subscription cancelled.
                             </p>
-                            <p className="subscription-expiry">
-                              Trial ends on {new Date(trialEndsAt).toLocaleDateString()}
-                              {' '}({Math.ceil((new Date(trialEndsAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days remaining)
+                          )}
+                          {subscriptionStatus === 'past_due' && (
+                            <p className="subscription-expiry warning">
+                              Payment is past due. Please update your payment method.
                             </p>
-                            <p className="subscription-note">
-                              Your card will be charged after the trial ends. Cancel anytime before then to avoid charges.
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="subscription-status">
-                              Status <strong>{subscriptionStatus}</strong>
-                            </p>
-                            {endsAt && daysUntilExpiry !== null && (
-                              <>
-                                {daysUntilExpiry > 0 ? (
-                                  <p className="subscription-expiry">
-                                    Renews in {daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''}
-                                  </p>
-                                ) : (
-                                  <p className="subscription-expiry warning">
-                                    Subscription expired. Please update your payment method.
-                                  </p>
-                                )}
-                              </>
-                            )}
-                            {subscriptionStatus === 'cancelled' && endsAt && (
-                              <p className="subscription-expiry warning">
-                                Access ends on {endsAt.toLocaleDateString()}
-                              </p>
-                            )}
-                          </>
-                        )}
+                          )}
+                        </>
                         <button
                           className="btn-manage"
                           onClick={handleManageSubscription}

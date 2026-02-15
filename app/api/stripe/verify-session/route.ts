@@ -58,8 +58,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if subscription is already activated
-    if (user.subscriptionTier === 'premium' || user.subscriptionTier === 'lifetime') {
+    // Lifetime users don't need checkout verification updates.
+    if (user.subscriptionTier === 'lifetime') {
       return NextResponse.json({
         message: 'Subscription already active',
         status: 'already_active',
@@ -67,20 +67,32 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Get subscription details - subscription is already expanded
-    const subscription = checkoutSession.subscription;
+    const expandedSubscription = checkoutSession.subscription;
+    const subscriptionId =
+      typeof expandedSubscription === 'string'
+        ? expandedSubscription
+        : expandedSubscription?.id;
 
-    if (!subscription || typeof subscription === 'string') {
+    if (!subscriptionId) {
       return NextResponse.json(
         { message: 'No subscription found in checkout session' },
         { status: 400 }
       );
     }
 
-    const subscriptionId = subscription.id;
-    const trialEnd = subscription.trial_end;
-    // Access current_period_end from the subscription object (cast to access property)
-    const currentPeriodEnd = (subscription as any).current_period_end as number | null;
+    // Fetch full subscription object to get reliable period dates.
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const currentPeriodEnd = getSubscriptionPeriodEnd(subscription);
+    const currentPeriodStart = getSubscriptionPeriodStart(subscription);
+
+    // If already premium and period end is already stored, nothing to do.
+    if (user.subscriptionTier === 'premium' && user.subscriptionEndsAt) {
+      return NextResponse.json({
+        message: 'Subscription already active',
+        status: 'already_active',
+        tier: user.subscriptionTier,
+      });
+    }
 
     // Update user with subscription details
     await prisma.user.update({
@@ -90,9 +102,9 @@ export async function POST(req: NextRequest) {
         stripeSubscriptionId: subscriptionId,
         subscriptionTier: 'premium',
         subscriptionStatus: 'active',
-        subscriptionStartsAt: new Date(),
-        subscriptionEndsAt: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null,
-        trialEndsAt: trialEnd ? new Date(trialEnd * 1000) : null,
+        subscriptionStartsAt: currentPeriodStart ?? user.subscriptionStartsAt ?? new Date(),
+        subscriptionEndsAt: currentPeriodEnd,
+        subscriptionCancelAtPeriodEnd: isCancellationScheduled(subscription),
       },
     });
 
@@ -109,19 +121,18 @@ export async function POST(req: NextRequest) {
         metadata: {
           checkoutSessionId: checkoutSession.id,
           subscriptionId,
-          trialEndsAt: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+          periodEnd: currentPeriodEnd?.toISOString() ?? null,
           source: 'verify-session-fallback',
         },
       },
     });
 
-    console.log(`Subscription activated via verify-session for user ${user.id}${trialEnd ? ' with trial' : ''}`);
+    console.log(`Subscription activated via verify-session for user ${user.id}`);
 
     return NextResponse.json({
       message: 'Subscription activated successfully',
       status: 'activated',
       tier: 'premium',
-      trialEndsAt: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
     });
   } catch (error: any) {
     console.error('Verify session error:', error);
@@ -130,4 +141,34 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function toDateFromUnix(value: unknown): Date | null {
+  const unix = Number(value);
+  if (!Number.isFinite(unix) || unix <= 0) return null;
+  return new Date(unix * 1000);
+}
+
+function getSubscriptionPeriodEnd(subscription: any): Date | null {
+  const topLevel = toDateFromUnix(subscription?.current_period_end);
+  if (topLevel) return topLevel;
+
+  const itemLevel = toDateFromUnix(subscription?.items?.data?.[0]?.current_period_end);
+  if (itemLevel) return itemLevel;
+
+  const anchor = toDateFromUnix(subscription?.billing_cycle_anchor);
+  return anchor;
+}
+
+function getSubscriptionPeriodStart(subscription: any): Date | null {
+  const topLevel = toDateFromUnix(subscription?.current_period_start);
+  if (topLevel) return topLevel;
+
+  const itemLevel = toDateFromUnix(subscription?.items?.data?.[0]?.current_period_start);
+  return itemLevel;
+}
+
+function isCancellationScheduled(subscription: any): boolean {
+  if (subscription?.status === 'canceled') return false;
+  return Boolean(subscription?.cancel_at_period_end || subscription?.cancel_at);
 }

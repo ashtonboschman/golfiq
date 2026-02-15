@@ -164,7 +164,6 @@ export async function generateAndStoreOverallInsights(userId: bigint, forceManua
     select: {
       subscriptionTier: true,
       subscriptionStatus: true,
-      trialEndsAt: true,
     },
   });
   if (!user) throw new Error('User not found');

@@ -109,11 +109,13 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return;
   }
 
-  // Fetch subscription details to get trial information
+  // Fetch subscription details
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  const trialEnd = subscription.trial_end;
 
-  // Update user with subscription details including trial date
+  const periodStart = getSubscriptionPeriodStart(subscription);
+  const periodEnd = getSubscriptionPeriodEnd(subscription);
+
+  // Update user with subscription details
   await prisma.user.update({
     where: { id: BigInt(userId) },
     data: {
@@ -121,8 +123,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       stripeSubscriptionId: subscriptionId,
       subscriptionTier: 'premium',
       subscriptionStatus: 'active',
-      subscriptionStartsAt: new Date(),
-      trialEndsAt: trialEnd ? new Date(trialEnd * 1000) : null,
+      subscriptionStartsAt: periodStart ?? new Date(),
+      subscriptionEndsAt: periodEnd,
+      subscriptionCancelAtPeriodEnd: isCancellationScheduled(subscription),
     },
   });
 
@@ -139,12 +142,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       metadata: {
         checkoutSessionId: session.id,
         subscriptionId,
-        trialEndsAt: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+        periodEnd: periodEnd?.toISOString() ?? null,
       },
     },
   });
 
-  console.log(`Subscription activated for user ${userId}${trialEnd ? ' with trial' : ''}`);
+  console.log(`Subscription activated for user ${userId}`);
 }
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
@@ -167,10 +170,8 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   }
 
   const status = mapStripeStatus(subscription.status);
-  const currentPeriodEnd = (subscription as any).current_period_end;
-  const currentPeriodStart = (subscription as any).current_period_start;
-  const trialEnd = (subscription as any).trial_end;
-  const endsAt = new Date(currentPeriodEnd * 1000);
+  const endsAt = getSubscriptionPeriodEnd(subscription);
+  const startsAt = getSubscriptionPeriodStart(subscription);
 
   await prisma.user.update({
     where: { id: BigInt(userId) },
@@ -178,9 +179,9 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       stripeSubscriptionId: subscription.id,
       subscriptionTier: 'premium',
       subscriptionStatus: status,
-      subscriptionStartsAt: new Date(currentPeriodStart * 1000),
+      subscriptionStartsAt: startsAt ?? new Date(),
       subscriptionEndsAt: endsAt,
-      trialEndsAt: trialEnd ? new Date(trialEnd * 1000) : null,
+      subscriptionCancelAtPeriodEnd: isCancellationScheduled(subscription),
     },
   });
 
@@ -195,7 +196,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       stripeEventId: subscription.id,
       metadata: {
         subscriptionId: subscription.id,
-        periodEnd: endsAt.toISOString(),
+        periodEnd: endsAt?.toISOString() ?? null,
       },
     },
   });
@@ -217,17 +218,18 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   }
 
   const status = mapStripeStatus(subscription.status);
-  const currentPeriodEnd = (subscription as any).current_period_end;
-  const endsAt = new Date(currentPeriodEnd * 1000);
+  const endsAt = getSubscriptionPeriodEnd(subscription);
 
   // Determine if subscription is being cancelled
-  const tier = subscription.cancel_at_period_end ? user.subscriptionTier : 'premium';
+  const cancellationScheduled = isCancellationScheduled(subscription);
+  const tier = cancellationScheduled ? user.subscriptionTier : 'premium';
 
   await prisma.user.update({
     where: { id: user.id },
     data: {
       subscriptionStatus: status,
       subscriptionEndsAt: endsAt,
+      subscriptionCancelAtPeriodEnd: cancellationScheduled,
       subscriptionTier: tier,
     },
   });
@@ -244,7 +246,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
       metadata: {
         subscriptionId: subscription.id,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        periodEnd: endsAt.toISOString(),
+        cancelAt: (subscription as any).cancel_at ?? null,
+        periodEnd: endsAt?.toISOString() ?? null,
       },
     },
   });
@@ -269,6 +272,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     data: {
       subscriptionTier: 'free',
       subscriptionStatus: 'cancelled',
+      subscriptionCancelAtPeriodEnd: false,
       stripeSubscriptionId: null,
     },
   });
@@ -310,11 +314,16 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
     return;
   }
 
-  // Ensure subscription is active after successful payment
+  // Ensure subscription is active after successful payment and refresh period end.
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const endsAt = getSubscriptionPeriodEnd(subscription);
+
   await prisma.user.update({
     where: { id: user.id },
     data: {
       subscriptionStatus: 'active',
+      subscriptionEndsAt: endsAt,
+      subscriptionCancelAtPeriodEnd: isCancellationScheduled(subscription),
     },
   });
 
@@ -331,6 +340,7 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
         invoiceId: invoice.id,
         amountPaid: invoice.amount_paid,
         currency: invoice.currency,
+        periodEnd: endsAt?.toISOString() ?? null,
       },
     },
   });
@@ -392,8 +402,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 function mapStripeStatus(stripeStatus: Stripe.Subscription.Status): 'active' | 'cancelled' | 'past_due' {
   switch (stripeStatus) {
     case 'active':
-    case 'trialing':
-      return 'active'; // Treat trial as active - users have premium access during trial
+      return 'active';
     case 'past_due':
       return 'past_due';
     case 'canceled':
@@ -405,4 +414,37 @@ function mapStripeStatus(stripeStatus: Stripe.Subscription.Status): 'active' | '
     default:
       return 'cancelled';
   }
+}
+
+function toDateFromUnix(value: unknown): Date | null {
+  const unix = Number(value);
+  if (!Number.isFinite(unix) || unix <= 0) return null;
+  return new Date(unix * 1000);
+}
+
+function getSubscriptionPeriodEnd(subscription: Stripe.Subscription): Date | null {
+  const anySub = subscription as any;
+  const topLevel = toDateFromUnix(anySub.current_period_end);
+  if (topLevel) return topLevel;
+
+  const itemLevel = toDateFromUnix(anySub.items?.data?.[0]?.current_period_end);
+  if (itemLevel) return itemLevel;
+
+  const anchor = toDateFromUnix(anySub.billing_cycle_anchor);
+  return anchor;
+}
+
+function getSubscriptionPeriodStart(subscription: Stripe.Subscription): Date | null {
+  const anySub = subscription as any;
+  const topLevel = toDateFromUnix(anySub.current_period_start);
+  if (topLevel) return topLevel;
+
+  const itemLevel = toDateFromUnix(anySub.items?.data?.[0]?.current_period_start);
+  return itemLevel;
+}
+
+function isCancellationScheduled(subscription: Stripe.Subscription): boolean {
+  if (subscription.status === 'canceled') return false;
+  const anySub = subscription as any;
+  return Boolean(anySub.cancel_at_period_end || anySub.cancel_at);
 }

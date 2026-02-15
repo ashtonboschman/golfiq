@@ -20,8 +20,8 @@ model User {
   subscriptionEndsAt      DateTime?                @map("subscription_ends_at") @db.Timestamptz(6)
   subscriptionStartsAt    DateTime?                @map("subscription_starts_at") @db.Timestamptz(6)
   subscriptionStatus      SubscriptionStatus       @default(active) @map("subscription_status")
+  subscriptionCancelAtPeriodEnd Boolean            @default(false) @map("subscription_cancel_at_period_end")
   subscriptionTier        SubscriptionTier         @default(premium) @map("subscription_tier")
-  trialEndsAt             DateTime?                @map("trial_ends_at") @db.Timestamptz(6)
   dataExports             DataExport[]
   friendRequestsReceived  FriendRequest[]          @relation("RecipientRelation")
   friendRequestsSent      FriendRequest[]          @relation("RequesterRelation")

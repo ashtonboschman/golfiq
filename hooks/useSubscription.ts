@@ -6,7 +6,7 @@ export interface SubscriptionData {
   tier: any;
   status: any;
   endsAt: Date | null;
-  trialEndsAt: Date | null;
+  cancelAtPeriodEnd: boolean;
   loading: boolean;
 }
 
@@ -19,7 +19,7 @@ export function useSubscription() {
     tier: 'free',
     status: 'active',
     endsAt: null,
-    trialEndsAt: null,
+    cancelAtPeriodEnd: false,
     loading: true,
   });
 
@@ -30,7 +30,7 @@ export function useSubscription() {
           tier: 'free',
           status: 'active',
           endsAt: null,
-          trialEndsAt: null,
+          cancelAtPeriodEnd: false,
           loading: false,
         });
         return;
@@ -44,7 +44,7 @@ export function useSubscription() {
             tier: data.tier,
             status: data.status,
             endsAt: data.endsAt ? new Date(data.endsAt) : null,
-            trialEndsAt: data.trialEndsAt ? new Date(data.trialEndsAt) : null,
+            cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
             loading: false,
           });
         } else {
@@ -52,7 +52,7 @@ export function useSubscription() {
             tier: 'free',
             status: 'active',
             endsAt: null,
-            trialEndsAt: null,
+            cancelAtPeriodEnd: false,
             loading: false,
           });
         }
@@ -62,7 +62,7 @@ export function useSubscription() {
           tier: 'free',
           status: 'active',
           endsAt: null,
-          trialEndsAt: null,
+          cancelAtPeriodEnd: false,
           loading: false,
         });
       }
@@ -73,8 +73,8 @@ export function useSubscription() {
 
   return {
     ...subscription,
-    isPremium: isPremium(subscription.tier, subscription.status, subscription.trialEndsAt),
+    isPremium: isPremium(subscription.tier, subscription.status),
     isLifetime: isLifetime(subscription.tier),
-    isFree: subscription.tier === 'free' && !subscription.trialEndsAt,
+    isFree: subscription.tier === 'free',
   };
 }

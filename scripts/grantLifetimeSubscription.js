@@ -24,7 +24,7 @@ async function grantLifetimeSubscription(userId) {
         subscriptionStatus: 'active',
         subscriptionStartsAt: new Date(),
         subscriptionEndsAt: null,
-        trialEndsAt: null,
+        subscriptionCancelAtPeriodEnd: false,
       },
     });
 

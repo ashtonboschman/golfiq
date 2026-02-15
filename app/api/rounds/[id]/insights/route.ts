@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { POST_ROUND_MESSAGE_MAX_CHARS, POST_ROUND_THRESHOLDS } from '@/lib/insights/config/postRound';

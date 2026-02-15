@@ -149,11 +149,11 @@ export default function PricingPage() {
                 onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
                 disabled={loading !== null}
               >
-                {loading === 'month' ? 'Loading...' : 'Start 14-Day Free Trial'}
+                {loading === 'month' ? 'Loading...' : 'Upgrade to Premium'}
               </button>
               <div>
                 <p className="price-subtext">
-                  No charge today - Cancel anytime
+                  Billed ${PRICING.monthly.price}/month. Cancel anytime.
                 </p>
               </div>
             </div>
@@ -189,7 +189,7 @@ export default function PricingPage() {
                 onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
                 disabled={loading !== null}
               >
-                {loading === 'year' ? 'Loading...' : 'Subscribe Annually'}
+                {loading === 'year' ? 'Loading...' : 'Upgrade to Premium Annual'}
               </button>
               <div>
                 <p className="price-subtext">
@@ -208,6 +208,9 @@ export default function PricingPage() {
                 <span className="price-amount">$0</span>
                 <span className="price-period">/forever</span>
               </div>
+              <p className="price-breakdown">
+                Free forever. Upgrade when you want deeper insights.
+              </p>
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">

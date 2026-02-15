@@ -93,7 +93,6 @@ describe('/api/insights/overall contract', () => {
     mockedPrisma.user.findUnique.mockResolvedValue({
       subscriptionTier: 'free',
       subscriptionStatus: 'active',
-      trialEndsAt: null,
     });
 
     const request = new Request('http://localhost/api/insights/overall?statsMode=9');
@@ -119,7 +118,6 @@ describe('/api/insights/overall contract', () => {
     mockedPrisma.user.findUnique.mockResolvedValue({
       subscriptionTier: 'premium',
       subscriptionStatus: 'active',
-      trialEndsAt: null,
     });
 
     const request = new Request('http://localhost/api/insights/overall?statsMode=18');
@@ -146,7 +144,6 @@ describe('/api/insights/overall contract', () => {
     mockedPrisma.user.findUnique.mockResolvedValue({
       subscriptionTier: 'premium',
       subscriptionStatus: 'active',
-      trialEndsAt: null,
     });
     mockedPrisma.overallInsight.findUnique.mockResolvedValue({
       userId: BigInt(1),
@@ -168,7 +165,6 @@ describe('/api/insights/overall contract', () => {
     mockedPrisma.user.findUnique.mockResolvedValue({
       subscriptionTier: 'premium',
       subscriptionStatus: 'active',
-      trialEndsAt: null,
     });
     mockedPrisma.overallInsight.findUnique.mockResolvedValue({
       userId: BigInt(1),

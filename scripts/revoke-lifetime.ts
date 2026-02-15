@@ -59,6 +59,7 @@ async function revokeLifetimeAccess(email: string, reason: string) {
           subscriptionTier: 'free',
           subscriptionStatus: 'active',
           subscriptionEndsAt: null,
+          subscriptionCancelAtPeriodEnd: false,
         },
       });
 

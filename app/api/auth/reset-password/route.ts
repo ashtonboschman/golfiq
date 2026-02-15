@@ -15,9 +15,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!password || typeof password !== 'string' || password.length < 8) {
+    if (!password || typeof password !== 'string') {
+      return NextResponse.json(
+        { type: 'error', message: 'Password is required.' },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 8) {
       return NextResponse.json(
         { type: 'error', message: 'Password must be at least 8 characters long.' },
+        { status: 400 }
+      );
+    }
+
+    if (password.length > 100) {
+      return NextResponse.json(
+        { type: 'error', message: 'Password is too long (maximum 100 characters).' },
+        { status: 400 }
+      );
+    }
+
+    if (password.includes(' ')) {
+      return NextResponse.json(
+        { type: 'error', message: 'Password cannot contain spaces.' },
         { status: 400 }
       );
     }

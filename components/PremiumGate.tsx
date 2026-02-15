@@ -62,7 +62,7 @@ export default function PremiumGate({
             className="text-blue-600 hover:text-blue-700 underline font-medium"
             onClick={() => router.push('/pricing')}
           >
-            Start 14-Day Free Trial
+            Upgrade to Premium
           </button>
         </div>
       );
@@ -79,7 +79,7 @@ export default function PremiumGate({
           className="btn btn-upgrade"
           onClick={() => router.push('/pricing')}
         >
-          Start 14-Day Free Trial
+          Upgrade to Premium
         </button>
       </div>
     );

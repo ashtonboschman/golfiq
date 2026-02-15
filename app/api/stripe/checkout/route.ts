@@ -79,11 +79,6 @@ export async function POST(req: NextRequest) {
     // Create checkout session
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    // Check if user has ever had a subscription (first-time users get 14-day trial for monthly plan only)
-    const hasHadSubscription = user.subscriptionStartsAt !== null;
-    const isMonthlyPlan = interval === 'month';
-    const shouldOfferTrial = !hasHadSubscription && isMonthlyPlan;
-
     const checkoutSession = await createCheckoutSession({
       customerId: stripeCustomerId,
       priceId,
@@ -93,7 +88,6 @@ export async function POST(req: NextRequest) {
         userId: user.id.toString(),
         interval,
       },
-      trialPeriodDays: shouldOfferTrial ? 14 : undefined, // 14-day trial for first-time monthly subscribers only
     });
 
     return NextResponse.json({

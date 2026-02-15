@@ -13,7 +13,6 @@ function SubscriptionSuccessContent() {
   const [verifying, setVerifying] = useState(true);
   const [verified, setVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -46,9 +45,6 @@ function SubscriptionSuccessContent() {
         }
 
         setVerified(true);
-        if (data.trialEndsAt) {
-          setTrialEndsAt(data.trialEndsAt);
-        }
       } catch (err: any) {
         console.error('Verification error:', err);
         setError(err.message);
@@ -153,27 +149,15 @@ function SubscriptionSuccessContent() {
           <h1 className="auth-title">Welcome to Premium!</h1>
         </div>
 
-        {trialEndsAt ? (
-          <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-            <p className="secondary-text" style={{ marginBottom: '12px', fontWeight: '600' }}>
-              Your 14-day free trial has started!
-            </p>
-            <p className="secondary-text" style={{ fontSize: '14px' }}>
-              You now have full access to all premium features. Your trial ends on{' '}
-              {new Date(trialEndsAt).toLocaleDateString()}. Cancel anytime before then to avoid charges.
-            </p>
-          </div>
-        ) : (
-          <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-            <p className="secondary-text" style={{ marginBottom: '12px' }}>
-              Your subscription has been activated successfully.
-            </p>
-            <p className="secondary-text" style={{ fontSize: '14px' }}>
-              You now have access to all premium features including Intelligent Insights,
-              full leaderboard access, and unlimited analytics history.
-            </p>
-          </div>
-        )}
+        <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+          <p className="secondary-text" style={{ marginBottom: '12px' }}>
+            Your subscription has been activated successfully.
+          </p>
+          <p className="secondary-text" style={{ fontSize: '14px' }}>
+            You now have access to all premium features including Intelligent Insights,
+            full leaderboard access, and unlimited analytics history.
+          </p>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button className="btn btn-primary" onClick={() => router.push('/dashboard')}>

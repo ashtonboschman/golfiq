@@ -10,27 +10,13 @@ import { SubscriptionTier, SubscriptionStatus } from '@prisma/client';
 // ============================================
 
 /**
- * Check if user is in active trial period
- */
-export function isInTrial(trialEndsAt: Date | null): boolean {
-  if (!trialEndsAt) return false;
-  return new Date() < new Date(trialEndsAt);
-}
-
-/**
- * Check if user has premium access (premium, lifetime, or active trial)
+ * Check if user has premium access.
+ * Premium access requires an active paid subscription, or lifetime tier.
  */
 export function isPremium(
   tier: SubscriptionTier,
-  status: SubscriptionStatus,
-  trialEndsAt?: Date | null
+  status: SubscriptionStatus
 ): boolean {
-  // Check if user is in trial period
-  if (trialEndsAt && isInTrial(trialEndsAt)) {
-    return true;
-  }
-
-  // Check if user has paid premium access
   return (
     (tier === 'premium' || tier === 'lifetime') &&
     status === 'active'
@@ -44,10 +30,9 @@ export function isPremium(
 export function isPremiumUser(user: {
   subscriptionTier: SubscriptionTier;
   subscriptionStatus?: SubscriptionStatus;
-  trialEndsAt?: Date | null;
 }): boolean {
   const status = user.subscriptionStatus || 'active';
-  return isPremium(user.subscriptionTier, status, user.trialEndsAt);
+  return isPremium(user.subscriptionTier, status);
 }
 
 /**
@@ -73,10 +58,9 @@ export function isFree(tier: SubscriptionTier): boolean {
  */
 export function canAccessAICoach(
   tier: SubscriptionTier,
-  status: SubscriptionStatus,
-  trialEndsAt?: Date | null
+  status: SubscriptionStatus
 ): boolean {
-  return isPremium(tier, status, trialEndsAt);
+  return isPremium(tier, status);
 }
 
 /**
@@ -84,10 +68,9 @@ export function canAccessAICoach(
  */
 export function canAccessFullLeaderboard(
   tier: SubscriptionTier,
-  status: SubscriptionStatus,
-  trialEndsAt?: Date | null
+  status: SubscriptionStatus
 ): boolean {
-  return isPremium(tier, status, trialEndsAt);
+  return isPremium(tier, status);
 }
 
 /**
@@ -95,10 +78,9 @@ export function canAccessFullLeaderboard(
  */
 export function hasUnlimitedAnalytics(
   tier: SubscriptionTier,
-  status: SubscriptionStatus,
-  trialEndsAt?: Date | null
+  status: SubscriptionStatus
 ): boolean {
-  return isPremium(tier, status, trialEndsAt);
+  return isPremium(tier, status);
 }
 
 /**
@@ -106,10 +88,9 @@ export function hasUnlimitedAnalytics(
  */
 export function getAnalyticsHistoryLimit(
   tier: SubscriptionTier,
-  status: SubscriptionStatus,
-  trialEndsAt?: Date | null
+  status: SubscriptionStatus
 ): number | null {
-  if (isPremium(tier, status, trialEndsAt)) {
+  if (isPremium(tier, status)) {
     return null; // Unlimited
   }
   return 90; // Free users: 90 days
@@ -120,10 +101,9 @@ export function getAnalyticsHistoryLimit(
  */
 export function getLeaderboardLimit(
   tier: SubscriptionTier,
-  status: SubscriptionStatus,
-  trialEndsAt?: Date | null
+  status: SubscriptionStatus
 ): number | null {
-  if (isPremium(tier, status, trialEndsAt)) {
+  if (isPremium(tier, status)) {
     return null; // Unlimited
   }
   return 10; // Free users: top 10

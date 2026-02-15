@@ -3115,10 +3115,6 @@ input[type='date'].form-input {
   color: var(--color-primary-text);
 }
 
-.subscription-status.trial-active {
-  color: var(--color-success);
-}
-
 .subscription-expiry {
   font-size: 0.95rem;
   color: var(--color-primary-text);

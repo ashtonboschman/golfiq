@@ -72,7 +72,7 @@ export default function LoginPage() {
         }
 
         const result = await signIn('credentials', {
-          email: form.email,
+          email: form.email.trim().toLowerCase(),
           password: form.password,
           redirect: false,
         });

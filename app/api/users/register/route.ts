@@ -46,6 +46,20 @@ export async function POST(request: NextRequest) {
 
     const { email, password, first_name, last_name } = result.data;
 
+    // Fast-path duplicate email check for cleaner UX (race-safe fallback is still in catch block).
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: email,
+          mode: 'insensitive',
+        },
+      },
+      select: { id: true },
+    });
+    if (existingUser) {
+      return errorResponse('This email is already registered. Please use a different email or try logging in.', 400);
+    }
+
     // Check if registration is open or email is in allowlist (beta access)
     try {
       console.log('[REGISTER] Checking waitlist models...');
@@ -178,18 +192,47 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     // Handle unique constraint violations (Prisma error)
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-      const prismaError = error as { meta?: { target?: string[] } };
-      const field = prismaError.meta?.target?.[0];
-      if (field === 'email') {
+    if (isPrismaUniqueViolation(error)) {
+      const targets = getUniqueTargets(error);
+      const targetText = targets.join(' ');
+
+      if (
+        targets.includes('email') ||
+        targetText.includes('users_email_key') ||
+        targetText.includes('user_email_key')
+      ) {
         return errorResponse('This email is already registered. Please use a different email or try logging in.', 400);
       }
-      if (field === 'username') {
-        return errorResponse('An account with this email already exists. Please try logging in.', 400);
+
+      if (
+        targets.includes('username') ||
+        targetText.includes('users_username_key') ||
+        targetText.includes('user_username_key')
+      ) {
+        return errorResponse('An account with this username already exists. Please use a different email address.', 400);
       }
+
+      return errorResponse('An account already exists with these details. Please try logging in.', 400);
     }
 
     console.error('Register error:', error);
     return errorResponse('Failed to create account. Please try again.', 500);
   }
+}
+
+function isPrismaUniqueViolation(
+  error: unknown
+): error is { code: string; meta?: { target?: unknown } } {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2002');
+}
+
+function getUniqueTargets(error: { meta?: { target?: unknown } }): string[] {
+  const rawTarget = error.meta?.target;
+  if (Array.isArray(rawTarget)) {
+    return rawTarget.map((value) => String(value).toLowerCase());
+  }
+  if (typeof rawTarget === 'string') {
+    return [rawTarget.toLowerCase()];
+  }
+  return [];
 }

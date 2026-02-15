@@ -79,7 +79,6 @@ export async function createCheckoutSession(params: {
   successUrl: string;
   cancelUrl: string;
   metadata?: Record<string, string>;
-  trialPeriodDays?: number;
 }): Promise<Stripe.Checkout.Session> {
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -98,7 +97,6 @@ export async function createCheckoutSession(params: {
     billing_address_collection: 'auto',
     subscription_data: {
       metadata: params.metadata,
-      trial_period_days: params.trialPeriodDays,
     },
     ui_mode: 'hosted',
     custom_text: {

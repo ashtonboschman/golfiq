@@ -1,5 +1,4 @@
 import {
-  isInTrial,
   isPremium,
   isPremiumUser,
   isLifetime,
@@ -30,16 +29,11 @@ describe("subscription utils", () => {
     jest.useRealTimers();
   });
 
-  it("detects trial periods", () => {
-    expect(isInTrial(new Date("2026-02-05T10:15:00.000Z"))).toBe(true);
-    expect(isInTrial(new Date("2026-02-03T10:15:00.000Z"))).toBe(false);
-  });
-
   it("determines premium access", () => {
-    expect(isPremium("premium", "active", null)).toBe(true);
-    expect(isPremium("lifetime", "active", null)).toBe(true);
-    expect(isPremium("premium", "cancelled", null)).toBe(false);
-    expect(isPremium("free", "active", new Date("2026-02-05T10:15:00.000Z"))).toBe(true);
+    expect(isPremium("premium", "active")).toBe(true);
+    expect(isPremium("lifetime", "active")).toBe(true);
+    expect(isPremium("premium", "cancelled")).toBe(false);
+    expect(isPremium("free", "active")).toBe(false);
   });
 
   it("handles premium user objects", () => {

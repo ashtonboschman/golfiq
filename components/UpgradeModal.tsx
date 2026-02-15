@@ -24,7 +24,7 @@ interface UpgradeModalProps {
  *   isOpen={showModal}
  *   onClose={() => setShowModal(false)}
  *   title="Unlock Intelligent Insights"
- *   message="You've logged 3 rounds! Upgrade to Premium for personalized recommendations and advanced trends."
+ *   message="You've logged 3 rounds! Upgrade to Premium for advanced trends and deeper analysis."
  *   features={['Intelligent Insights', 'Unlimited Analytics']}
  * />
  * ```
@@ -104,7 +104,7 @@ export default function UpgradeModal({
               className="btn btn-upgrade"
               onClick={handleUpgrade}
             >
-              Start 14-Day Free Trial
+              Upgrade to Premium
             </button>
             {showCloseButton && (
               <button

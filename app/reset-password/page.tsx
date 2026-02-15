@@ -38,6 +38,16 @@ function ResetPasswordForm() {
       return;
     }
 
+    if (password.length > 100) {
+      showMessage('Password is too long (maximum 100 characters).', 'error');
+      return;
+    }
+
+    if (password.includes(' ')) {
+      showMessage('Password cannot contain spaces.', 'error');
+      return;
+    }
+
     if (password !== confirmPassword) {
       showMessage('Passwords do not match.', 'error');
       return;

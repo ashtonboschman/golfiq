@@ -65,6 +65,7 @@ async function grantLifetimeAccess(
           subscriptionStatus: 'active',
           subscriptionStartsAt: new Date(),
           subscriptionEndsAt: null, // Lifetime never expires
+          subscriptionCancelAtPeriodEnd: false,
         },
       });
 
