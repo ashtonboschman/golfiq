@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import { normalizeFriend, FriendUser } from '@/lib/friendUtils';
@@ -32,67 +32,111 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
   const [incomingRequests, setIncomingRequests] = useState<FriendUser[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedForUserRef = useRef<string | null>(null);
+  const inFlightRef = useRef<Promise<void> | null>(null);
 
-  const fetchAll = async () => {
-    if (status !== 'authenticated') {
+  const fetchAll = useCallback(async () => {
+    if (status !== 'authenticated' || !session?.user?.id) {
+      setFriends([]);
+      setIncomingRequests([]);
+      setOutgoingRequests([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
-    clearMessage();
 
-    try {
-      const [friendsRes, incomingRes, outgoingRes] = await Promise.all([
-        fetch('/api/friends'),
-        fetch('/api/friends/incoming'),
-        fetch('/api/friends/outgoing'),
-      ]);
-
-      const [friendsData, incomingData, outgoingData] = await Promise.all([
-        friendsRes.json(),
-        incomingRes.json(),
-        outgoingRes.json(),
-      ]);
-
-      if (friendsData.type === 'success') {
-        setFriends(
-          friendsData.results.map((u: any) =>
-            normalizeFriend({ ...u, id: u.id, user_id: u.id, type: 'friend' })
-          )
-        );
-      } else {
-        console.warn('Friends fetch failed:', friendsData.message);
-        setFriends([]);
-      }
-
-      if (incomingData.type === 'success') {
-        setIncomingRequests(
-          incomingData.results.map((u: any) =>
-            normalizeFriend({ ...u, type: 'incoming' })
-          )
-        );
-      } else {
-        console.warn('Incoming requests fetch failed:', incomingData.message);
-        setIncomingRequests([]);
-      }
-
-      if (outgoingData.type === 'success') {
-        setOutgoingRequests(
-          outgoingData.results.map((u: any) =>
-            normalizeFriend({ ...u, type: 'outgoing' })
-          )
-        );
-      } else {
-        console.warn('Outgoing requests fetch failed:', outgoingData.message);
-        setOutgoingRequests([]);
-      }
-    } catch (err: any) {
-      console.error(err);
-      showMessage(err.message || 'Failed to fetch friends', 'error');
-    } finally {
-      setLoading(false);
+    if (inFlightRef.current) {
+      return inFlightRef.current;
     }
-  };
+
+    const run = (async () => {
+      setLoading(true);
+      clearMessage();
+
+      try {
+        const [friendsRes, incomingRes, outgoingRes] = await Promise.all([
+          fetch('/api/friends'),
+          fetch('/api/friends/incoming'),
+          fetch('/api/friends/outgoing'),
+        ]);
+
+        const [friendsData, incomingData, outgoingData] = await Promise.all([
+          friendsRes.json(),
+          incomingRes.json(),
+          outgoingRes.json(),
+        ]);
+
+        if (friendsData.type === 'success') {
+          setFriends(
+            friendsData.results.map((u: any) =>
+              normalizeFriend({ ...u, id: u.id, user_id: u.id, type: 'friend' })
+            )
+          );
+        } else {
+          console.warn('Friends fetch failed:', friendsData.message);
+          setFriends([]);
+        }
+
+        if (incomingData.type === 'success') {
+          setIncomingRequests(
+            incomingData.results.map((u: any) =>
+              normalizeFriend({ ...u, type: 'incoming' })
+            )
+          );
+        } else {
+          console.warn('Incoming requests fetch failed:', incomingData.message);
+          setIncomingRequests([]);
+        }
+
+        if (outgoingData.type === 'success') {
+          setOutgoingRequests(
+            outgoingData.results.map((u: any) =>
+              normalizeFriend({ ...u, type: 'outgoing' })
+            )
+          );
+        } else {
+          console.warn('Outgoing requests fetch failed:', outgoingData.message);
+          setOutgoingRequests([]);
+        }
+      } catch (err: any) {
+        console.error(err);
+        showMessage(err.message || 'Failed to fetch friends', 'error');
+      } finally {
+        setLoading(false);
+      }
+    })();
+
+    inFlightRef.current = run;
+    try {
+      await run;
+    } finally {
+      inFlightRef.current = null;
+    }
+  }, [status, session?.user?.id, clearMessage, showMessage]);
+
+  const userId = session?.user?.id ? String(session.user.id) : null;
+  useEffect(() => {
+    if (status !== 'authenticated' || !userId) {
+      hasLoadedForUserRef.current = null;
+      inFlightRef.current = null;
+      setFriends([]);
+      setIncomingRequests([]);
+      setOutgoingRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    if (hasLoadedForUserRef.current === userId) return;
+
+    if (hasLoadedForUserRef.current && hasLoadedForUserRef.current !== userId) {
+      setFriends([]);
+      setIncomingRequests([]);
+      setOutgoingRequests([]);
+      setLoading(true);
+    }
+
+    hasLoadedForUserRef.current = userId;
+    fetchAll().catch(() => undefined);
+  }, [status, userId, fetchAll]);
 
   const handleAction = async (id: number, action: string, extra: any = {}) => {
     try {
@@ -197,10 +241,6 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       showMessage(err.message || 'Action failed', 'error');
     }
   };
-
-  useEffect(() => {
-    fetchAll();
-  }, [status]);
 
   return (
     <FriendsContext.Provider

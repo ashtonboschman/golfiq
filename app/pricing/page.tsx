@@ -2,14 +2,14 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { PRICING } from '@/lib/subscription';
 import { Check, X } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
 
-export default function PricingPage() {
+function PricingContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -78,10 +78,6 @@ export default function PricingPage() {
     }
   };
 
-  if (status === 'loading' || subscriptionLoading) {
-    return <p className='loading-text'>Loading...</p>;
-  }
-
   if (status === 'unauthenticated') {
     return null;
   }
@@ -138,7 +134,7 @@ export default function PricingPage() {
                 <li><Check color='green' size='20' className="feature-icon"/> Everything in Free</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Unlimited stat calculations & advanced trend charts</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Strokes gained per round & KPI comparisons</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Round-based and weekly Intelligent Insights with personalized recommendations</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Round-based and overall Intelligent Insights with personalized recommendations</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Course insights, tee recommendations & course-specific leaderboards</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Premium themes & enhanced filtering</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Priority support</li>
@@ -147,7 +143,7 @@ export default function PricingPage() {
                 className="btn-upgrade"
                 aria-label="Subscribe monthly to Premium plan"
                 onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
-                disabled={loading !== null}
+                disabled={loading !== null || status === 'loading' || subscriptionLoading}
               >
                 {loading === 'month' ? 'Loading...' : 'Upgrade to Premium'}
               </button>
@@ -187,7 +183,7 @@ export default function PricingPage() {
                 className="btn-upgrade"
                 aria-label="Subscribe annually to Premium plan"
                 onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
-                disabled={loading !== null}
+                disabled={loading !== null || status === 'loading' || subscriptionLoading}
               >
                 {loading === 'year' ? 'Loading...' : 'Upgrade to Premium Annual'}
               </button>
@@ -276,5 +272,13 @@ export default function PricingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={null}>
+      <PricingContent />
+    </Suspense>
   );
 }

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import ManualCourseForm from '@/components/ManualCourseForm';
+import { AdminPanelSkeleton } from '@/components/skeleton/PageSkeletons';
 
 export default function ImportCoursePage() {
   const { data: session, status } = useSession();
@@ -225,11 +226,7 @@ export default function ImportCoursePage() {
   };
 
   if (status === 'loading' || !authChecked) {
-    return (
-      <div className="page-stack">
-        <p className="loading-text">Loading admin panel...</p>
-      </div>
-    );
+    return <AdminPanelSkeleton />;
   }
 
   return (

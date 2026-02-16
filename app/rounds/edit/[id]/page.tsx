@@ -12,6 +12,7 @@ import { Plus } from 'lucide-react';
 import Select from 'react-select';
 import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { markInsightsNudgePending } from '@/lib/insights/insightsNudge';
+import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -94,7 +95,7 @@ function EditRoundContent() {
     putts: null,
     penalties: null,
     round_holes: [],
-    advanced_stats: 0,
+    advanced_stats: 1,
   });
 
   const [segmentOptions, setSegmentOptions] = useState<{ value: TeeSegment; label: string }[]>([]);
@@ -102,7 +103,7 @@ function EditRoundContent() {
   const [tees, setTees] = useState<any[]>([]);
   const [holes, setHoles] = useState<any[]>([]);
   const [holeScores, setHoleScores] = useState<HoleScore[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseOption | null>(null);
   const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
@@ -383,7 +384,6 @@ function EditRoundContent() {
     if (status !== 'authenticated' || !id) return;
 
     const fetchRound = async () => {
-      setLoading(true);
       try {
         const res = await fetch(`/api/rounds/${id}`);
         const result = await res.json();
@@ -440,12 +440,11 @@ function EditRoundContent() {
           }
         }
 
-        setInitialized(true);
       } catch (err) {
         console.error(err);
         showMessage('Error fetching round.', 'error');
       } finally {
-        setLoading(false);
+        setInitialized(true);
       }
     };
 
@@ -635,7 +634,7 @@ function EditRoundContent() {
       }
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
       const res = await fetch(`/api/rounds/${id}`, {
         method: 'PUT',
@@ -657,7 +656,7 @@ function EditRoundContent() {
     } catch (err: any) {
       console.error(err);
       showMessage(err.message || 'Error saving round', 'error');
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -762,7 +761,10 @@ function EditRoundContent() {
     );
   };
 
-  if (status === 'loading' || loading || !initialized) return <p className="loading-text">Loading...</p>;
+  const showDataSkeleton = status === 'loading' || !initialized;
+  const disableFormControls = showDataSkeleton || saving;
+
+  if (status === 'unauthenticated') return null;
 
   return (
     <div className="page-stack">
@@ -770,46 +772,57 @@ function EditRoundContent() {
         <form onSubmit={handleSubmit} className="form">
           <div className="form-row">
             <label className="form-label">Date</label>
-            <input
-              type="date"
-              name="date"
-              value={round.date}
-              onChange={handleChange}
-              className="form-input"
-              required
-            />
+            {showDataSkeleton ? (
+              <SkeletonBlock className="skeleton-input" style={{ height: 44 }} />
+            ) : (
+              <input
+                type="date"
+                name="date"
+                value={round.date}
+                onChange={handleChange}
+                className="form-input"
+                required
+                disabled={disableFormControls}
+              />
+            )}
           </div>
 
           <div className="form-row">
             <label className="form-label">Course</label>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
               <div style={{ flex: 1 }}>
-                <AsyncPaginate
-                  value={selectedCourse}
-                  loadOptions={loadCourseOptions}
-                  onChange={(option) => {
-                    setSelectedCourse(option);
-                    setSelectedTee(null);
-                    setRound((prev) => ({
-                      ...prev,
-                      course_id: option?.value.toString() ?? '',
-                      tee_id: '',
-                    }));
-                    setHoles([]);
-                    setHoleScores([]);
-                  }}
-                  additional={{ page: 1 }}
-                  placeholder="Select Course"
-                  isClearable
-                  styles={selectStyles}
-                  noOptionsMessage={() => "Course not found. Use + button to add course."}
-                />
+                {showDataSkeleton ? (
+                  <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+                ) : (
+                  <AsyncPaginate
+                    value={selectedCourse}
+                    loadOptions={loadCourseOptions}
+                    onChange={(option) => {
+                      setSelectedCourse(option);
+                      setSelectedTee(null);
+                      setRound((prev) => ({
+                        ...prev,
+                        course_id: option?.value.toString() ?? '',
+                        tee_id: '',
+                      }));
+                      setHoles([]);
+                      setHoleScores([]);
+                    }}
+                    additional={{ page: 1 }}
+                    placeholder="Select Course"
+                    isClearable
+                    styles={selectStyles}
+                    isDisabled={disableFormControls}
+                    noOptionsMessage={() => "Course not found. Use + button to add course."}
+                  />
+                )}
               </div>
               <button
                 type="button"
                 onClick={() => router.push('/courses/search')}
                 className="btn btn-accent btn-add-course"
                 title="Search Global Database"
+                disabled={disableFormControls}
               >
                 <Plus/>
               </button>
@@ -818,133 +831,150 @@ function EditRoundContent() {
 
           <div className="form-row">
             <label className="form-label">Tee</label>
-            <AsyncPaginate
-              key={selectedCourse?.value || 'no-course'}
-              value={selectedTee}
-              loadOptions={(search, loadedOptions, additional) =>
-                loadTeeOptions(
-                  search,
-                  loadedOptions,
-                  additional as { page: number },
-                  selectedCourse?.value
-                )
-              }
-              onChange={async (option) => {
-                setSelectedTee(option);
-                const teeId = option?.value ?? '';
-                setRound((prev) => ({ ...prev, tee_id: teeId.toString() }));
-                updateSegmentOptions(option?.teeObj);
-
-                if (teeId) {
-                  const holesData = await fetchHoles(teeId, round.round_holes);
-                  const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
-                  setRound((prev) => ({ ...prev, par_total: totalPar }));
+            {showDataSkeleton ? (
+              <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+            ) : (
+              <AsyncPaginate
+                key={selectedCourse?.value || 'no-course'}
+                value={selectedTee}
+                loadOptions={(search, loadedOptions, additional) =>
+                  loadTeeOptions(
+                    search,
+                    loadedOptions,
+                    additional as { page: number },
+                    selectedCourse?.value
+                  )
                 }
-              }}
-              isDisabled={!selectedCourse}
-              placeholder="Select Tee"
-              isClearable
-              additional={{ page: 1 }}
-              styles={selectStyles}
-            />
-          </div>
+                onChange={async (option) => {
+                  setSelectedTee(option);
+                  const teeId = option?.value ?? '';
+                  setRound((prev) => ({ ...prev, tee_id: teeId.toString() }));
+                  updateSegmentOptions(option?.teeObj);
 
-          {segmentOptions.length > 1 && (
-            <div className="form-row">
-              <label className="form-label">Round Type</label>
-              <Select
-                value={segmentOptions.find(o => o.value === round.tee_segment) || segmentOptions[0]}
-                options={segmentOptions}
-                onChange={async (option: any) => {
-                  if (option) {
-                    const newSegment = option.value as TeeSegment;
-                    if (selectedTee?.teeObj) {
-                      try {
-                        const resolver = apiTeeToResolver(selectedTee.teeObj);
-                        const ctx = resolveTeeContext(resolver, newSegment);
-                        setRound(prev => ({ ...prev, tee_segment: newSegment, par_total: ctx.parTotal }));
-                      } catch {
-                        setRound(prev => ({ ...prev, tee_segment: newSegment }));
-                      }
-                    } else {
-                      setRound(prev => ({ ...prev, tee_segment: newSegment }));
-                    }
-                    // Re-fetch holes (double9 duplicates client-side)
-                    if (round.tee_id) {
-                      await fetchHoles(Number(round.tee_id), [], newSegment);
-                    }
+                  if (teeId) {
+                    const holesData = await fetchHoles(teeId, round.round_holes);
+                    const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
+                    setRound((prev) => ({ ...prev, par_total: totalPar }));
                   }
                 }}
+                isDisabled={disableFormControls || !selectedCourse}
+                placeholder="Select Tee"
+                isClearable
+                additional={{ page: 1 }}
                 styles={selectStyles}
-                isSearchable={false}
               />
+            )}
+          </div>
+
+          {(showDataSkeleton || segmentOptions.length > 1) && (
+            <div className="form-row">
+              <label className="form-label">Round Type</label>
+              {showDataSkeleton ? (
+                <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+              ) : (
+                <Select
+                  value={segmentOptions.find(o => o.value === round.tee_segment) || segmentOptions[0]}
+                  options={segmentOptions}
+                  onChange={async (option: any) => {
+                    if (option) {
+                      const newSegment = option.value as TeeSegment;
+                      if (selectedTee?.teeObj) {
+                        try {
+                          const resolver = apiTeeToResolver(selectedTee.teeObj);
+                          const ctx = resolveTeeContext(resolver, newSegment);
+                          setRound(prev => ({ ...prev, tee_segment: newSegment, par_total: ctx.parTotal }));
+                        } catch {
+                          setRound(prev => ({ ...prev, tee_segment: newSegment }));
+                        }
+                      } else {
+                        setRound(prev => ({ ...prev, tee_segment: newSegment }));
+                      }
+                      // Re-fetch holes (double9 duplicates client-side)
+                      if (round.tee_id) {
+                        await fetchHoles(Number(round.tee_id), [], newSegment);
+                      }
+                    }
+                  }}
+                  styles={selectStyles}
+                  isSearchable={false}
+                  isDisabled={disableFormControls}
+                />
+              )}
             </div>
           )}
 
-          {initialized && (
-            <>
-              <div className="stats-tabs">
-                <button
-                  type="button"
-                  className={`stats-tab ${!isHBH ? 'active' : ''}`}
-                  onClick={() => {
-                    if (isHBH) toggleHoleByHole();
-                  }}
-                >
-                  Quick
-                </button>
-                <button
-                  type="button"
-                  className={`stats-tab ${isHBH ? 'active' : ''}`}
-                  onClick={() => {
-                    if (!isHBH) toggleHoleByHole();
-                  }}
-                >
-                  Hole-by-Hole
-                </button>
-              </div>
+          <div className="stats-tabs">
+            <button
+              type="button"
+              className={`stats-tab ${!isHBH ? 'active' : ''}`}
+              onClick={() => {
+                if (isHBH) toggleHoleByHole();
+              }}
+              disabled={disableFormControls}
+            >
+              Quick
+            </button>
+            <button
+              type="button"
+              className={`stats-tab ${isHBH ? 'active' : ''}`}
+              onClick={() => {
+                if (!isHBH) toggleHoleByHole();
+              }}
+              disabled={disableFormControls}
+            >
+              Hole-by-Hole
+            </button>
+          </div>
 
-              <button
-                type="button"
-                className="btn btn-toggle"
-                onClick={() =>
-                  setRound((prev) => ({ ...prev, advanced_stats: hasAdvanced ? 0 : 1 }))
-                }
-              >
-                {hasAdvanced ? 'Remove Advanced Stats' : 'Add Advanced Stats'}
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            className="btn btn-toggle"
+            onClick={() =>
+              setRound((prev) => ({ ...prev, advanced_stats: hasAdvanced ? 0 : 1 }))
+            }
+            disabled={disableFormControls}
+          >
+            {hasAdvanced ? 'Remove Advanced Stats' : 'Add Advanced Stats'}
+          </button>
 
           {!isHBH && (
             <div className="form-row">
               <label className="form-label">Par</label>
-              <input type="text" value={round.par_total ?? ''} className="form-input" disabled />
+              {showDataSkeleton ? (
+                <SkeletonBlock className="skeleton-input" />
+              ) : (
+                <input type="text" value={round.par_total ?? ''} className="form-input" disabled />
+              )}
             </div>
           )}
 
           {!isHBH && (
             <div className="form-row">
               <label className="form-label">Score</label>
-              <input
-                type="text"
-                pattern="[0-9]*"
-                name="score"
-                value={formatValue(round.score)}
-                onChange={handleChange}
-                onFocus={(e) => {
-                  const len = e.target.value.length;
-                  e.target.setSelectionRange(len, len);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.currentTarget.blur();
-                  }
-                }}
-                enterKeyHint="done"
-                className="form-input"
-                required
-              />
+              {showDataSkeleton ? (
+                <SkeletonBlock className="skeleton-input" />
+              ) : (
+                <input
+                  type="text"
+                  pattern="[0-9]*"
+                  name="score"
+                  value={formatValue(round.score)}
+                  onChange={handleChange}
+                  onFocus={(e) => {
+                    const len = e.target.value.length;
+                    e.target.setSelectionRange(len, len);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  enterKeyHint="done"
+                  className="form-input"
+                  required
+                  disabled={disableFormControls}
+                />
+              )}
             </div>
           )}
 
@@ -961,24 +991,29 @@ function EditRoundContent() {
               return (
                 <div key={field} className="form-row">
                   <label className="form-label">{labelMap[field]}</label>
-                  <input
-                    type="text"
-                    pattern="[0-9]*"
-                    name={field}
-                    value={formatValue(round[field as keyof Round] as number)}
-                    onChange={handleChange}
-                    onFocus={(e) => {
-                      const len = e.target.value.length;
-                      e.target.setSelectionRange(len, len);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    enterKeyHint="done"
-                    className="form-input"
-                  />
+                  {showDataSkeleton ? (
+                    <SkeletonBlock className="skeleton-input" />
+                  ) : (
+                    <input
+                      type="text"
+                      pattern="[0-9]*"
+                      name={field}
+                      value={formatValue(round[field as keyof Round] as number)}
+                      onChange={handleChange}
+                      onFocus={(e) => {
+                        const len = e.target.value.length;
+                        e.target.setSelectionRange(len, len);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      enterKeyHint="done"
+                      className="form-input"
+                      disabled={disableFormControls}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -987,31 +1022,36 @@ function EditRoundContent() {
 
           <div className="form-row">
             <label className="form-label">Notes</label>
-            <textarea
-              name="notes"
-              value={round.notes}
-              onChange={(e) => {
-                handleChange(e);
-                e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
-              }}
-              onFocus={(e) => {
-                const len = e.target.value.length;
-                e.target.setSelectionRange(len, len);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }
-              }}
-              rows={3}
-              className="form-input"
-              maxLength={500}
-              placeholder="Add any notes about your round (max 500 chars)"
-              wrap='soft'
-              enterKeyHint="done"
-            />
+            {showDataSkeleton ? (
+              <SkeletonBlock className="skeleton-input" style={{ height: 84 }} />
+            ) : (
+              <textarea
+                name="notes"
+                value={round.notes}
+                onChange={(e) => {
+                  handleChange(e);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                onFocus={(e) => {
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  }
+                }}
+                rows={3}
+                className="form-input"
+                maxLength={500}
+                placeholder="Add any notes about your round (max 500 chars)"
+                wrap='soft'
+                enterKeyHint="done"
+                disabled={disableFormControls}
+              />
+            )}
           </div>
 
           <div className="form-actions">
@@ -1030,11 +1070,12 @@ function EditRoundContent() {
                 });
               }}
               className="btn btn-cancel"
+              disabled={saving}
             >
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="btn btn-save">
-              {loading ? 'Updating...' : 'Update Round'}
+            <button type="submit" disabled={disableFormControls} className="btn btn-save">
+              {saving ? 'Updating...' : 'Update Round'}
             </button>
           </div>
         </form>
@@ -1045,7 +1086,7 @@ function EditRoundContent() {
 
 export default function EditRoundPage() {
   return (
-    <Suspense fallback={<p className="loading-text">Loading...</p>}>
+    <Suspense fallback={null}>
       <EditRoundContent />
     </Suspense>
   );

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, TriangleAlert, X, Loader2 } from 'lucide-react';
+import { AuthCardSkeleton } from '@/components/skeleton/PageSkeletons';
 
 function WaitlistConfirmForm() {
   const router = useRouter();
@@ -138,7 +139,7 @@ function WaitlistConfirmForm() {
 
 export default function WaitlistConfirmPage() {
   return (
-    <Suspense fallback={<div className="loading-text">Loading...</div>}>
+    <Suspense fallback={<AuthCardSkeleton />}>
       <WaitlistConfirmForm />
     </Suspense>
   );

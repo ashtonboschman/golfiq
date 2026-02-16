@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { Check, TriangleAlert, X, Loader2 } from 'lucide-react';
+import { AuthCardSkeleton } from '@/components/skeleton/PageSkeletons';
 
 function VerifyEmailForm() {
   const router = useRouter();
@@ -148,7 +149,7 @@ function VerifyEmailForm() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<div className="loading-text">Loading...</div>}>
+    <Suspense fallback={<AuthCardSkeleton />}>
       <VerifyEmailForm />
     </Suspense>
   );

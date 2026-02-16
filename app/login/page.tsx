@@ -86,6 +86,24 @@ export default function LoginPage() {
         }
 
         if (result?.ok) {
+          try {
+            localStorage.setItem('golfiq:auth', '1');
+            const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+            if (sessionRes.ok) {
+              const sessionData = await sessionRes.json();
+              const userTheme = sessionData?.user?.theme;
+              if (typeof userTheme === 'string' && userTheme.length > 0) {
+                localStorage.setItem('golfiq:theme', userTheme);
+                document.documentElement.className = document.documentElement.className
+                  .split(' ')
+                  .filter(cls => !cls.startsWith('theme-'))
+                  .concat(`theme-${userTheme}`)
+                  .join(' ');
+              }
+            }
+          } catch {
+            // noop
+          }
           router.push('/dashboard');
         }
       } else {

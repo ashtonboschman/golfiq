@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import UserHeaderCard from '@/components/UserHeaderCard';
 import UserStatsCard from '@/components/UserStatsCard';
 import UserActionsCard from '@/components/UserActionsCard';
+import { UserDetailsSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface UserData {
   user: any;
@@ -55,7 +56,7 @@ export default function UserDetailsPage() {
     }
   }, [id, status, router]);
 
-  if (loading) return <p className="loading-text">Loading user...</p>;
+  if (loading) return <UserDetailsSkeleton />;
   if (!data) return <p className="error-text">User not found</p>;
 
   const { user, stats, relationship, permissions } = data;

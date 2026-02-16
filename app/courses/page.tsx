@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '../providers';
 import CourseCard from '@/components/CourseCard';
+import { CourseListSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface Location {
   city?: string | null;
@@ -46,6 +47,8 @@ export default function CoursesPage() {
   const [waitingForLocation, setWaitingForLocation] = useState(true);
 
   const observer = useRef<IntersectionObserver | null>(null);
+  const didInitialFetchRef = useRef(false);
+  const prevDebouncedSearchRef = useRef('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -151,6 +154,8 @@ export default function CoursesPage() {
       setPage(1);
       setHasMore(true);
       fetchCourses(1, '', true);
+      didInitialFetchRef.current = true;
+      prevDebouncedSearchRef.current = '';
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, locationChecked]);
@@ -167,11 +172,14 @@ export default function CoursesPage() {
 
   // Handle search changes
   useEffect(() => {
+    if (!didInitialFetchRef.current) return;
     if (status === 'authenticated' && locationChecked) {
+      if (debouncedSearch === prevDebouncedSearchRef.current) return;
       setCourses([]);
       setPage(1);
       setHasMore(true);
       fetchCourses(1, debouncedSearch, true);
+      prevDebouncedSearchRef.current = debouncedSearch;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
@@ -191,7 +199,15 @@ export default function CoursesPage() {
     [loading, hasMore, page, debouncedSearch]
   );
 
-  if (status === 'loading' || !locationChecked) return <p className="loading-text">Loading...</p>;
+  if (status === 'unauthenticated') return null;
+
+  const waitingForInitialFetch = status === 'authenticated' && locationChecked && !didInitialFetchRef.current;
+  const showInitialListSkeleton =
+    status === 'loading' ||
+    waitingForLocation ||
+    !locationChecked ||
+    waitingForInitialFetch ||
+    (loading && courses.length === 0);
 
   return (
     <div className="page-stack">
@@ -200,6 +216,7 @@ export default function CoursesPage() {
         placeholder="Search Courses"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        disabled={status !== 'authenticated' || waitingForLocation || !locationChecked}
         onFocus={(e) => {
           const len = e.target.value.length;
           e.target.setSelectionRange(len, len);
@@ -214,7 +231,9 @@ export default function CoursesPage() {
         max={250}
       />
 
-      {courses.length === 0 && !loading ? (
+      {showInitialListSkeleton ? (
+        <CourseListSkeleton count={16} />
+      ) : courses.length === 0 && !loading ? (
         <div style={{ textAlign: 'center'}}>
           <p className='secondary-text'>
             No courses found{search ? ' matching your search' : ''}.
@@ -247,7 +266,7 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {loading && <p className='loading-text'>Loading courses...</p>}
+      {loading && courses.length > 0 && <CourseListSkeleton count={2} />}
     </div>
   );
 }

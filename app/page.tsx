@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
+import { Suspense } from 'react';
 import { authOptions } from '@/lib/auth-config';
 import LandingHeader from '@/components/landing/LandingHeader';
 import Hero from '@/components/landing/Hero';
@@ -94,7 +95,9 @@ export default async function LandingPage() {
           <Hero />
           <Features />
           <InsightsCTA />
-          <WaitlistForm />
+          <Suspense fallback={null}>
+            <WaitlistForm />
+          </Suspense>
         </main>
         <LandingFooter />
       </div>

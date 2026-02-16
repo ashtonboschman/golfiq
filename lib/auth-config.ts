@@ -52,6 +52,11 @@ export const authOptions: NextAuthOptions = {
           id: user.id.toString(),
           email: user.email,
           name: user.username,
+          avatar_url: user.profile?.avatarUrl ?? null,
+          first_name: user.profile?.firstName ?? null,
+          last_name: user.profile?.lastName ?? null,
+          theme: user.profile?.theme ?? 'dark',
+          subscription_tier: user.subscriptionTier ?? 'free',
         };
       },
     }),
@@ -69,6 +74,11 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
+        token.avatar_url = (user as any).avatar_url ?? null;
+        token.first_name = (user as any).first_name ?? null;
+        token.last_name = (user as any).last_name ?? null;
+        token.theme = (user as any).theme ?? 'dark';
+        token.subscription_tier = (user as any).subscription_tier ?? 'free';
       }
       return token;
     },
@@ -77,6 +87,11 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
+        session.user.avatar_url = (token.avatar_url as string | null | undefined) ?? null;
+        session.user.first_name = (token.first_name as string | null | undefined) ?? null;
+        session.user.last_name = (token.last_name as string | null | undefined) ?? null;
+        session.user.theme = (token.theme as string | undefined) ?? 'dark';
+        session.user.subscription_tier = (token.subscription_tier as string | undefined) ?? 'free';
       }
       return session;
     },

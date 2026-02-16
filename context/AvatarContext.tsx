@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import { fetchProfileCached } from '@/lib/client/profileCache';
 
 interface AvatarContextType {
   avatarUrl: string | null;
@@ -19,17 +20,32 @@ export const useAvatar = () => {
 };
 
 export function AvatarProvider({ children }: { children: ReactNode }) {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
+  const userId = session?.user?.id ? String(session.user.id) : null;
+  const sessionAvatarUrl = session?.user?.avatar_url ?? null;
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const previousUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const fetchAvatar = async () => {
-      if (status !== 'authenticated') return;
+    if (status === 'loading') return;
 
+    if (status !== 'authenticated' || !userId) {
+      previousUserIdRef.current = null;
+      setAvatarUrl(null);
+      return;
+    }
+
+    const userChanged = previousUserIdRef.current !== userId;
+    previousUserIdRef.current = userId;
+    if (userChanged) {
+      setAvatarUrl(sessionAvatarUrl);
+    }
+
+    let canceled = false;
+    const fetchAvatar = async () => {
       try {
-        const res = await fetch('/api/users/profile');
-        if (res.ok) {
-          const data = await res.json();
+        const data = await fetchProfileCached(userId);
+        if (!canceled && data?.profile) {
           setAvatarUrl(data.profile.avatar_url);
         }
       } catch (err) {
@@ -38,7 +54,10 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
     };
 
     fetchAvatar();
-  }, [status]);
+    return () => {
+      canceled = true;
+    };
+  }, [status, userId, sessionAvatarUrl]);
 
   const updateAvatar = (url: string | null) => {
     setAvatarUrl(url);

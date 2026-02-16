@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { TriangleAlert, Eye, EyeOff, Check } from 'lucide-react';
+import { AuthCardSkeleton } from '@/components/skeleton/PageSkeletons';
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -246,7 +247,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="loading-text">Loading...</div>}>
+    <Suspense fallback={<AuthCardSkeleton />}>
       <ResetPasswordForm />
     </Suspense>
   );

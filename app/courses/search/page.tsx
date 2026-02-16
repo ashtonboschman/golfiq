@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
+import { CoursesSearchSkeleton } from '@/components/skeleton/PageSkeletons';
 
 export default function CourseSearchPage() {
   const { data: session, status } = useSession();
@@ -15,7 +16,7 @@ export default function CourseSearchPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [importingCourseId, setImportingCourseId] = useState<number | null>(null);
 
-  if (status === 'loading') return <p className="loading-text">Loading...</p>;
+  if (status === 'loading') return <CoursesSearchSkeleton />;
   if (status === 'unauthenticated') {
     router.replace('/login');
     return null;

@@ -10,6 +10,7 @@ import { useUploadThing } from '@/lib/uploadthing';
 import { useAvatar } from '@/context/AvatarContext';
 import { Mail, SquarePen, Trash2, Upload, Eye, EyeOff } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
+import { SkeletonBlock, SkeletonCircle } from '@/components/skeleton/Skeleton';
 
 interface Profile {
   email: string;
@@ -53,6 +54,7 @@ export default function ProfilePage() {
   const [originalProfile, setOriginalProfile] = useState<Profile>(profile);
   const [favoriteCourseOption, setFavoriteCourseOption] = useState<CourseOption | null>(null);
   const [originalFavoriteCourseOption, setOriginalFavoriteCourseOption] = useState<CourseOption | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -112,7 +114,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       if (status !== 'authenticated') return;
-      setLoading(true);
+      setProfileLoading(true);
       try {
         const res = await fetch('/api/users/profile');
 
@@ -160,7 +162,7 @@ export default function ProfilePage() {
         console.error(err);
         showMessage(err.message || 'Error loading profile', 'error');
       } finally {
-        setLoading(false);
+        setProfileLoading(false);
       }
     };
 
@@ -456,16 +458,26 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
+    const clearThemeAuthMarker = () => {
+      try {
+        localStorage.removeItem('golfiq:auth');
+      } catch {
+        // noop
+      }
+    };
+
     if (hasChanges) {
       showConfirm({
         message: 'You have unsaved changes. Are you sure you want to leave?',
         onConfirm: async () => {
           sessionStorage.removeItem('profile-has-changes');
+          clearThemeAuthMarker();
           await signOut({ redirect: false });
           router.replace('/login');
         }
       });
     } else {
+      clearThemeAuthMarker();
       await signOut({ redirect: false });
       router.replace('/login');
     }
@@ -485,12 +497,15 @@ export default function ProfilePage() {
     }
   };
 
-  if (status === 'loading') return <p className="loading-text">Loading...</p>;
+  if (status === 'unauthenticated') return null;
+
+  const showDataSkeleton = status === 'loading' || profileLoading;
+  const disableActions = loading || showDataSkeleton;
 
   return (
     <div className="page-stack">
       {/* Email Verification Banner */}
-      {profile.email_verified === false && (
+      {!showDataSkeleton && profile.email_verified === false && (
         <div className="info-banner warning">
           <div className="info-banner-content">
             <div className="info-banner-icon"><Mail size={50}/></div>
@@ -514,16 +529,20 @@ export default function ProfilePage() {
 
       <form onSubmit={handleSave} className="card">
         <div ref={avatarMenuRef} className="avatar-wrapper">
-          <img
-            src={profile.avatar_url || '/avatars/default.png'}
-            alt="User Avatar"
-            className="avatar-image"
-          />
-          {!uploadingAvatar && (
+          {showDataSkeleton ? (
+            <SkeletonCircle size={202} />
+          ) : (
+            <img
+              src={profile.avatar_url || '/avatars/default.png'}
+              alt="User Avatar"
+              className="avatar-image"
+            />
+          )}
+          {!showDataSkeleton && !uploadingAvatar && (
             <button
               type="button"
               onClick={() => setShowAvatarMenu(!showAvatarMenu)}
-              disabled={loading}
+              disabled={disableActions}
               className="avatar-edit-button"
               title="Edit Avatar"
             >
@@ -531,7 +550,7 @@ export default function ProfilePage() {
             </button>
           )}
 
-          {showAvatarMenu && !uploadingAvatar && (
+          {showAvatarMenu && !showDataSkeleton && !uploadingAvatar && (
             <div className="avatar-menu">
               <input
                 type="file"
@@ -539,7 +558,7 @@ export default function ProfilePage() {
                 accept="image/*"
                 onChange={handleAvatarUpload}
                 style={{ display: 'none' }}
-                disabled={uploadingAvatar || loading}
+                disabled={uploadingAvatar || disableActions}
               />
               <label
                 htmlFor="avatar-upload"
@@ -564,136 +583,168 @@ export default function ProfilePage() {
         </div>
 
         <label className="form-label">Email</label>
-        <input type="email" value={profile.email} disabled className="form-input disabled" />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-input" />
+        ) : (
+          <input type="email" value={profile.email} disabled className="form-input disabled" />
+        )}
 
         <label className="form-label">First Name</label>
-        <input
-          type="text"
-          value={profile.first_name || ''}
-          disabled={loading}
-          onChange={(e) => handleChange('first_name', e.target.value)}
-          onFocus={(e) => {
-            const len = e.target.value.length;
-            e.target.setSelectionRange(len, len);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.currentTarget.blur();
-            }
-          }}
-          enterKeyHint="done"
-          className="form-input"
-        />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-input" />
+        ) : (
+          <input
+            type="text"
+            value={profile.first_name || ''}
+            disabled={disableActions}
+            onChange={(e) => handleChange('first_name', e.target.value)}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            enterKeyHint="done"
+            className="form-input"
+          />
+        )}
 
         <label className="form-label">Last Name</label>
-        <input
-          type="text"
-          value={profile.last_name || ''}
-          disabled={loading}
-          onChange={(e) => handleChange('last_name', e.target.value)}
-          onFocus={(e) => {
-            const len = e.target.value.length;
-            e.target.setSelectionRange(len, len);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.currentTarget.blur();
-            }
-          }}
-          enterKeyHint="done"
-          className="form-input"
-        />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-input" />
+        ) : (
+          <input
+            type="text"
+            value={profile.last_name || ''}
+            disabled={disableActions}
+            onChange={(e) => handleChange('last_name', e.target.value)}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            enterKeyHint="done"
+            className="form-input"
+          />
+        )}
 
         <label className="form-label">Bio</label>
-        <textarea
-          name="bio"
-          value={profile.bio || ''}
-          disabled={loading}
-          onChange={(e) => {
-            handleChange('bio', e.target.value);
-            e.target.style.height = 'auto';
-            e.target.style.height = `${e.target.scrollHeight}px`;
-          }}
-          onFocus={(e) => {
-            const len = e.target.value.length;
-            e.target.setSelectionRange(len, len);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }}
-          rows={4}
-          className="form-input"
-          maxLength={250}
-          placeholder="Tell us a bit about yourself! (max 250 chars)"
-          wrap='soft'
-          enterKeyHint="done"
-        />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-input" style={{ height: 102 }} />
+        ) : (
+          <textarea
+            name="bio"
+            value={profile.bio || ''}
+            disabled={disableActions}
+            onChange={(e) => {
+              handleChange('bio', e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
+            onFocus={(e) => {
+              const len = e.target.value.length;
+              e.target.setSelectionRange(len, len);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+            rows={4}
+            className="form-input"
+            maxLength={250}
+            placeholder="Tell us a bit about yourself! (max 250 chars)"
+            wrap='soft'
+            enterKeyHint="done"
+          />
+        )}
 
         <label className="form-label">Gender</label>
-        <Select
-          value={{ value: profile.gender || 'unspecified', label: profile.gender === 'male' ? 'Male' : profile.gender === 'female' ? 'Female' : 'Unspecified' }}
-          isDisabled={loading}
-          onChange={(option) => option && handleChange('gender', option.value)}
-          options={[
-            { value: 'male', label: 'Male' },
-            { value: 'female', label: 'Female' },
-            { value: 'unspecified', label: 'Unspecified' },
-          ]}
-          isSearchable={false}
-          styles={selectStyles}
-        />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+        ) : (
+          <Select
+            value={{ value: profile.gender || 'unspecified', label: profile.gender === 'male' ? 'Male' : profile.gender === 'female' ? 'Female' : 'Unspecified' }}
+            isDisabled={disableActions}
+            onChange={(option) => option && handleChange('gender', option.value)}
+            options={[
+              { value: 'male', label: 'Male' },
+              { value: 'female', label: 'Female' },
+              { value: 'unspecified', label: 'Unspecified' },
+            ]}
+            isSearchable={false}
+            styles={selectStyles}
+          />
+        )}
 
         <label className="form-label">Default Tee</label>
-        <Select
-          value={{ value: profile.default_tee || 'blue', label: (profile.default_tee || 'blue').charAt(0).toUpperCase() + (profile.default_tee || 'blue').slice(1) }}
-          isDisabled={loading}
-          onChange={(option) => option && handleChange('default_tee', option.value)}
-          options={[
-            { value: 'black', label: 'Black' },
-            { value: 'blue', label: 'Blue' },
-            { value: 'white', label: 'White' },
-            { value: 'red', label: 'Red' },
-            { value: 'gold', label: 'Gold' },
-          ]}
-          isSearchable={false}
-          styles={selectStyles}
-        />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+        ) : (
+          <Select
+            value={{ value: profile.default_tee || 'blue', label: (profile.default_tee || 'blue').charAt(0).toUpperCase() + (profile.default_tee || 'blue').slice(1) }}
+            isDisabled={disableActions}
+            onChange={(option) => option && handleChange('default_tee', option.value)}
+            options={[
+              { value: 'black', label: 'Black' },
+              { value: 'blue', label: 'Blue' },
+              { value: 'white', label: 'White' },
+              { value: 'red', label: 'Red' },
+              { value: 'gold', label: 'Gold' },
+            ]}
+            isSearchable={false}
+            styles={selectStyles}
+          />
+        )}
 
         <label className="form-label">Favorite Course</label>
-        <AsyncPaginate
-          value={favoriteCourseOption}
-          loadOptions={loadCourseOptions}
-          onChange={(selected) => {
-            setFavoriteCourseOption(selected); // Update the option state
-            setFavoriteCourse(
-              selected?.value ? { id: selected.value, course_name: selected.label } : null
-            );
-            // Immediately mark as having changes for reliable navigation blocking
-            sessionStorage.setItem('profile-has-changes', 'true');
-          }}
-          isDisabled={loading}
-          isClearable={true}
-          additional={{ page: 1 }}
-          placeholder="Search or Select Course"
-          styles={selectStyles}
-        />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+        ) : (
+          <AsyncPaginate
+            value={favoriteCourseOption}
+            loadOptions={loadCourseOptions}
+            onChange={(selected) => {
+              setFavoriteCourseOption(selected); // Update the option state
+              setFavoriteCourse(
+                selected?.value ? { id: selected.value, course_name: selected.label } : null
+              );
+              // Immediately mark as having changes for reliable navigation blocking
+              sessionStorage.setItem('profile-has-changes', 'true');
+            }}
+            isDisabled={disableActions}
+            isClearable={true}
+            additional={{ page: 1 }}
+            placeholder="Search or Select Course"
+            styles={selectStyles}
+          />
+        )}
 
         <label className="form-label">Dashboard Visibility</label>
-        <Select
-          value={{ value: profile.dashboard_visibility || 'private', label: (profile.dashboard_visibility || 'private').charAt(0).toUpperCase() + (profile.dashboard_visibility || 'private').slice(1) }}
-          isDisabled={loading}
-          onChange={(option) => option && handleChange('dashboard_visibility', option.value)}
-          options={[
-            { value: 'private', label: 'Private' },
-            { value: 'friends', label: 'Friends' },
-            { value: 'public', label: 'Public' },
-          ]}
-          isSearchable={false}
-          styles={selectStyles}
-        />
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+        ) : (
+          <Select
+            value={{ value: profile.dashboard_visibility || 'private', label: (profile.dashboard_visibility || 'private').charAt(0).toUpperCase() + (profile.dashboard_visibility || 'private').slice(1) }}
+            isDisabled={disableActions}
+            onChange={(option) => option && handleChange('dashboard_visibility', option.value)}
+            options={[
+              { value: 'private', label: 'Private' },
+              { value: 'friends', label: 'Friends' },
+              { value: 'public', label: 'Public' },
+            ]}
+            isSearchable={false}
+            styles={selectStyles}
+          />
+        )}
 
         {hasChanges && (
           <div className="form-actions">
@@ -701,11 +752,11 @@ export default function ProfilePage() {
               type="button"
               className="btn btn-cancel"
               onClick={handleCancel}
-              disabled={loading}
+              disabled={disableActions}
             >
               Cancel
             </button>
-            <button type="submit" className="btn btn-save" disabled={loading}>
+            <button type="submit" className="btn btn-save" disabled={disableActions}>
               {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
@@ -732,7 +783,7 @@ export default function ProfilePage() {
               enterKeyHint="done"
               className="form-input"
               required
-              disabled={loading}
+              disabled={disableActions}
               max={100}
             />
             <button
@@ -774,7 +825,7 @@ export default function ProfilePage() {
               enterKeyHint="done"
               className="form-input"
               required
-              disabled={loading}
+              disabled={disableActions}
               max={100}
             />
             <button
@@ -816,7 +867,7 @@ export default function ProfilePage() {
               enterKeyHint="done"
               className="form-input"
               required
-              disabled={loading}
+              disabled={disableActions}
               max={100}
             />
             <button
@@ -852,11 +903,11 @@ export default function ProfilePage() {
                 setShowNewPassword(false);
                 setShowConfirmPassword(false);
               }}
-              disabled={loading}
+              disabled={disableActions}
             >
               Cancel
             </button>
-            <button type="submit" className="btn btn-save" disabled={loading}>
+            <button type="submit" className="btn btn-save" disabled={disableActions}>
               {loading ? 'Updating...' : 'Update Password'}
             </button>
           </div>
@@ -867,7 +918,7 @@ export default function ProfilePage() {
             type="button"
             className="btn btn-edit"
             onClick={() => setShowPasswordForm(true)}
-            disabled={loading}
+            disabled={disableActions}
           >
             Change Password
           </button>
@@ -879,13 +930,13 @@ export default function ProfilePage() {
           type="button"
           className="btn btn-edit"
           onClick={() => handleNavigation('/settings')}
-          disabled={loading}
+          disabled={disableActions}
         >
           Settings
         </button>
       </div>
       <div className="card">
-        <button type="button" className="btn btn-logout" onClick={handleLogout} disabled={loading}>
+        <button type="button" className="btn btn-logout" onClick={handleLogout} disabled={disableActions}>
           Logout
         </button>
       </div>

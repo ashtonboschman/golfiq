@@ -10,6 +10,7 @@ import { useMessage } from '@/app/providers';
 import { useTheme } from '@/context/ThemeContext';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
+import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -19,8 +20,6 @@ export default function SettingsPage() {
   const { showMessage, showConfirm } = useMessage();
   const [exporting, setExporting] = useState(false);
   const { theme, setTheme, availableThemes } = useTheme();
-  const [showStrokesGained, setShowStrokesGained] = useState(false);
-  const [loadingProfile, setLoadingProfile] = useState(true);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
@@ -28,27 +27,6 @@ export default function SettingsPage() {
       router.push('/login?redirect=/settings');
     }
   }, [status, router]);
-
-  // Fetch user profile to get current showStrokesGained preference
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch('/api/users/profile');
-        if (res.ok) {
-          const data = await res.json();
-          setShowStrokesGained(data.profile?.showStrokesGained ?? false);
-        }
-      } catch (error) {
-        console.error('Failed to fetch profile:', error);
-      } finally {
-        setLoadingProfile(false);
-      }
-    };
-
-    if (status === 'authenticated') {
-      fetchProfile();
-    }
-  }, [status]);
 
   const handleManageSubscription = async () => {
     setManagingSubscription(true);
@@ -115,26 +93,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleToggleStrokesGained = async (value: boolean) => {
-    try {
-      const res = await fetch('/api/users/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ show_strokes_gained: value }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to update preference');
-      }
-
-      setShowStrokesGained(value);
-      showMessage('Preference updated successfully!', 'success');
-    } catch (error: any) {
-      console.error('Update preference error:', error);
-      showMessage(error.message || 'Failed to update preference', 'error');
-    }
-  };
-
   const handleDeleteAccount = () => {
     showConfirm({
       message:
@@ -153,6 +111,11 @@ export default function SettingsPage() {
           }
 
           showMessage(data.message || 'Account deleted successfully.', 'success');
+          try {
+            localStorage.removeItem('golfiq:auth');
+          } catch {
+            // noop
+          }
           await signOut({ redirect: false });
           router.replace('/');
         } catch (error: any) {
@@ -164,13 +127,12 @@ export default function SettingsPage() {
     });
   };
 
-  if (status === 'loading') {
-    return <p className='loading-text'>Loading...</p>;
-  }
-
   if (status === 'unauthenticated') {
     return null;
   }
+
+  const showSessionSkeleton = status === 'loading';
+  const showSubscriptionSkeleton = showSessionSkeleton || loading;
 
   const isCancelScheduled = subscriptionStatus === 'active' && cancelAtPeriodEnd;
   const isExpired = Boolean(endsAt && endsAt.getTime() <= Date.now());
@@ -183,14 +145,21 @@ export default function SettingsPage() {
               <div className="subscription-info">
                 <div className="subscription-info-row">
                   <span className="subscription-label">Current Plan</span>
-                  <SubscriptionBadge size="medium" />
+                  {showSubscriptionSkeleton ? (
+                    <SkeletonBlock width={78} height={24} style={{ borderRadius: 999 }} />
+                  ) : (
+                    <SubscriptionBadge size="medium" />
+                  )}
                 </div>
 
-                {loading && (
-                  <p className="subscription-detail">Loading subscription details...</p>
-                )}
-
-                {!loading && (
+                {showSubscriptionSkeleton ? (
+                  <div className="subscription-detail-box">
+                    <SkeletonBlock width="80%" height={14} />
+                    <SkeletonBlock width="65%" height={14} />
+                    <SkeletonBlock width="88%" height={14} />
+                    <SkeletonBlock className="skeleton-btn" height={44} style={{ marginTop: 8 }} />
+                  </div>
+                ) : (
                   <>
                     {tier === 'free' && (
                       <div className="subscription-detail-box">
@@ -271,75 +240,50 @@ export default function SettingsPage() {
             <div className="settings-card">
               <div className="settings-theme-container">
                 <label className="form-label">Theme</label>
-                {!loading && !isPremium && (
+                {!showSubscriptionSkeleton && !isPremium && (
                   <span className="settings-theme-description">
                     Upgrade to Premium to unlock additional themes!
                   </span>
                 )}
-                <Select
-                  value={availableThemes.find(t => t.value === theme)}
-                  onChange={(option) => {
-                    if (!option) return;
+                {showSessionSkeleton ? (
+                  <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+                ) : (
+                  <Select
+                    value={availableThemes.find(t => t.value === theme)}
+                    onChange={(option) => {
+                      if (!option) return;
 
-                    const themeInfo = availableThemes.find(t => t.value === option.value);
+                      const themeInfo = availableThemes.find(t => t.value === option.value);
 
-                    if (themeInfo?.premiumOnly && !loading && !isPremium) {
-                      showMessage('This theme is only available for Premium users. Upgrade to unlock!', 'error');
-                      router.push('/pricing');
-                      return;
-                    }
+                      if (themeInfo?.premiumOnly && !showSubscriptionSkeleton && !isPremium) {
+                        showMessage('This theme is only available for Premium users. Upgrade to unlock!', 'error');
+                        router.push('/pricing');
+                        return;
+                      }
 
-                    setTheme(option.value);
-                    showMessage('Theme updated successfully!', 'success');
-                  }}
-                  options={availableThemes.map(t => ({
-                    ...t,
-                    label: t.premiumOnly && !loading && !isPremium ? `${t.label} (Premium)` : t.label,
-                    isDisabled: t.premiumOnly && !loading && !isPremium,
-                  }))}
-                  isSearchable={false}
-                  styles={selectStyles}
-                  className="settings-theme-select"
-                />
+                      setTheme(option.value);
+                      showMessage('Theme updated successfully!', 'success');
+                    }}
+                    options={availableThemes.map(t => ({
+                      ...t,
+                      label: t.premiumOnly && !showSubscriptionSkeleton && !isPremium ? `${t.label} (Premium)` : t.label,
+                      isDisabled: t.premiumOnly && !showSubscriptionSkeleton && !isPremium,
+                    }))}
+                    isSearchable={false}
+                    styles={selectStyles}
+                    className="settings-theme-select"
+                  />
+                )}
               </div>
             </div>
           </section>
-
-          {/* Preferences Section */}
-          {!loading && isPremium && (
-            <section className="settings-section">
-              <div className="settings-card">
-                <div className="preferences-container">
-                  <label className="form-label">Preferences</label>
-
-                  <div className="preference-row">
-                    <div className="preference-info">
-                      <div className="preference-title">Show Strokes Gained</div>
-                      <div className="preference-description">
-                        Display strokes gained data in round statistics
-                      </div>
-                    </div>
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={showStrokesGained}
-                        onChange={(e) => handleToggleStrokesGained(e.target.checked)}
-                        disabled={loadingProfile}
-                      />
-                      <span className="toggle-slider" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
 
           {/* Data Export Section */}
           <section className="settings-section">
             <div className="settings-card">
               <div className="settings-export-container">
                 <label className="form-label">Export</label>
-                {!loading && !isPremium && (
+                {!showSubscriptionSkeleton && !isPremium && (
                   <span className="settings-export-upgrade">
                     Upgrade to Premium for unlimited exports plus Json!
                   </span>
@@ -347,15 +291,15 @@ export default function SettingsPage() {
                 <button
                   className="btn btn-secondary"
                   onClick={() => handleExportData('csv')}
-                  disabled={exporting}
+                  disabled={exporting || showSessionSkeleton}
                 >
                   <Download/>{exporting ? ' Exporting...' : ' Export CSV'}
                 </button>
-                {!loading && isPremium && (
+                {!showSubscriptionSkeleton && isPremium && (
                   <button
                     className="btn btn-secondary"
                     onClick={() => handleExportData('json')}
-                    disabled={exporting}
+                    disabled={exporting || showSessionSkeleton}
                   >
                     <Download/>{exporting ? ' Exporting...' : ' Export JSON'}
                   </button>
@@ -394,7 +338,7 @@ export default function SettingsPage() {
                 <button
                   className="btn btn-logout"
                   onClick={handleDeleteAccount}
-                  disabled={deletingAccount}
+                  disabled={deletingAccount || showSessionSkeleton}
                 >
                   {deletingAccount ? 'Deleting...' : 'Delete Account'}
                 </button>

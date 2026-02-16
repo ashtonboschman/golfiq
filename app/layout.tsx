@@ -92,10 +92,41 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const themeBootstrapScript = `
+    (function() {
+      try {
+        var key = 'golfiq:theme';
+        var authKey = 'golfiq:auth';
+        var path = window.location.pathname;
+        var publicDarkRoutes = {
+          '/': true,
+          '/login': true,
+          '/register': true,
+          '/forgot-password': true,
+          '/reset-password': true,
+          '/about': true,
+          '/privacy': true,
+          '/terms': true,
+          '/contact': true
+        };
+        if (publicDarkRoutes[path]) return;
+        if (localStorage.getItem(authKey) !== '1') return;
+        var theme = localStorage.getItem(key);
+        if (!theme) return;
+        var root = document.documentElement;
+        var classes = root.className
+          .split(' ')
+          .filter(function(c) { return c && c.indexOf('theme-') !== 0; });
+        classes.push('theme-' + theme);
+        root.className = classes.join(' ');
+      } catch (e) {}
+    })();
+  `;
 
   return (
-    <html lang="en" className={`${inter.variable} ${space_grotesk.variable} theme-dark`}>
+    <html lang="en" className={`${inter.variable} ${space_grotesk.variable} theme-dark`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body>

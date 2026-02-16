@@ -734,6 +734,11 @@ select option {
   cursor: pointer;
 }
 
+.footer-menu-inner button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
 .footer-menu-inner button.active {
   color: var(--color-accent);
 }
@@ -785,14 +790,46 @@ select option {
   height: 100%;
 }
 
-.header .logo {
+.header .logo-wrap {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   cursor: pointer;
-  font-size: 2.1rem;
-  text-align: center;
+  display: flex;
+  align-items: center;
   justify-content: center;
+}
+
+.header .logo {
+  display: none;
+  height: 40px;
+  width: auto;
+  user-select: none;
+  pointer-events: none;
+}
+
+.theme-dark .header .logo-theme-dark,
+.theme-light .header .logo-theme-light,
+.theme-sunrise .header .logo-theme-sunrise,
+.theme-twilight .header .logo-theme-twilight,
+.theme-classic .header .logo-theme-classic,
+.theme-metallic .header .logo-theme-metallic,
+.theme-oceanic .header .logo-theme-oceanic,
+.theme-aurora .header .logo-theme-aurora,
+.theme-forest .header .logo-theme-forest,
+.theme-floral .header .logo-theme-floral {
+  display: block;
+}
+
+/* Fallback in case no theme class is present */
+html:not([class*="theme-"]) .header .logo-theme-dark {
+  display: block;
+}
+
+.header .logo-wrap:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+  text-align: center;
 }
 
 .header .left-button {
@@ -833,6 +870,10 @@ select option {
   object-fit: cover;
   z-index: 10;
   display: flex;
+}
+
+.header-avatar-placeholder {
+  background-color: var(--color-secondary-surface);
 }
 
 .avatar-dropdown {
@@ -1465,6 +1506,229 @@ select option {
 .loading-text {
   color: var(--color-secondary-text);
   padding: var(--padding);
+}
+
+/* Skeleton Loading */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--border-radius);
+  background-color: var(--color-secondary-surface);
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary-text) 4%, var(--color-secondary-surface)) 0%,
+    color-mix(in srgb, var(--color-primary-text) 10%, var(--color-secondary-surface)) 45%,
+    color-mix(in srgb, var(--color-primary-text) 4%, var(--color-secondary-surface)) 100%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-base-shimmer 2.6s linear infinite;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-120%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-primary-text) 8%, transparent) 35%,
+    color-mix(in srgb, var(--color-primary-text) 18%, transparent) 50%,
+    color-mix(in srgb, var(--color-primary-text) 8%, transparent) 65%,
+    transparent 100%
+  );
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-primary-text) 8%, transparent) 35%,
+    color-mix(in srgb, var(--color-primary-text) 18%, transparent) 50%,
+    color-mix(in srgb, var(--color-primary-text) 8%, transparent) 65%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 2s linear infinite;
+  will-change: transform;
+}
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-small);
+}
+
+.skeleton-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap-small);
+}
+
+.skeleton-btn {
+  width: 100%;
+  display: block;
+}
+
+.skeleton-select,
+.skeleton-input {
+  width: 100%;
+}
+
+.skeleton-select {
+  height: 44px;
+  box-sizing: border-box;
+}
+
+.skeleton-input {
+  height: 42px;
+  box-sizing: border-box;
+}
+
+.skeleton-round-card {
+  align-items: stretch;
+  gap: 0;
+  padding-bottom: calc(var(--padding) + 5px);
+}
+
+.skeleton-round-card-advanced {
+  padding-bottom: calc(var(--padding) - 4px);
+}
+
+.skeleton-round-top {
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-round-bottom {
+  margin-top: 15px;
+}
+
+.round-insights-line {
+  flex: 1;
+}
+
+.skeleton-dashboard-stat-card {
+  min-height: 95px;
+}
+
+.skeleton-dashboard-stat-title {
+  width: 45%;
+}
+
+.skeleton-dashboard-stat-value {
+  width: 35%;
+}
+
+.dashboard-live-label-skeleton-card {
+  min-height: auto;
+}
+
+.dashboard-live-label-skeleton-value {
+  height: 2.4rem;
+  width: 33%;
+}
+
+.skeleton-trend-title {
+  width: 32%;
+}
+
+.skeleton-chart-area {
+  width: 100%;
+  flex: 1;
+  min-height: 220px;
+}
+
+.skeleton-chart-area-short {
+  width: 100%;
+  min-height: 56px;
+}
+
+.skeleton-note-line {
+  width: 56%;
+  margin-inline: auto;
+}
+
+.skeleton-round-title {
+  width: 85%;
+}
+
+.skeleton-tee-tag {
+  width: 70px;
+  border-radius: 999px;
+}
+
+.skeleton-holes-tag {
+  width: 75px;
+  border-radius: 999px;
+}
+
+.skeleton-round-location {
+  width: 27.5%;
+}
+
+.skeleton-round-date {
+  width: 13%;
+}
+
+.skeleton-round-metric {
+  width: 50%;
+}
+
+.skeleton-round-grid-advanced {
+  row-gap: calc(var(--gap-small) + 5px);
+}
+
+.skeleton-insight-message-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.skeleton-insights-updated {
+  width: 48%;
+}
+
+.skeleton-insights-meta-button {
+  width: clamp(138px, 30%, 172px);
+  min-width: 138px;
+  flex-shrink: 0;
+}
+
+.skeleton-course-card {
+  padding-block: calc(var(--padding) - 3.5px);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes skeleton-base-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .skeleton-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* Dashboard Stat Cards */
@@ -3509,14 +3773,17 @@ input[type='date'].form-input {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: var(--gap-small);
 }
 
 .stats-header-container {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--gap-small);
+  min-width: 0;
 }
 
 .stats-holes-tees-container {
@@ -4973,6 +5240,23 @@ input[type='date'].form-input {
 
 .insight-message-text {
   display: inline;
+}
+
+.insight-message-skeleton {
+  min-height: 47px;
+  display: flex;
+  align-items: center;
+}
+
+.insight-message-skeleton .insight-message-content {
+  width: 100%;
+}
+
+.insight-message-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
 }
 
 .insight-level-great {

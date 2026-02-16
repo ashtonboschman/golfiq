@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import RoundCard from '@/components/RoundCard';
 import { Plus } from 'lucide-react';
+import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface Round {
   id: number;
@@ -28,8 +29,29 @@ interface Round {
   net_score: number | null;
 }
 
+const ROUNDS_REQUEST_DEDUPE_MS = 1200;
+const roundsRequestCache = new Map<string, { startedAt: number; promise: Promise<{ status: number; data: any }> }>();
+
+function fetchRoundsWithDedupe(url: string, userId: string): Promise<{ status: number; data: any }> {
+  const requestKey = `${userId}:${url}`;
+  const now = Date.now();
+  const cached = roundsRequestCache.get(requestKey);
+  if (cached && now - cached.startedAt < ROUNDS_REQUEST_DEDUPE_MS) {
+    return cached.promise;
+  }
+
+  const promise = fetch(url).then(async (res) => ({
+    status: res.status,
+    data: await res.json().catch(() => ({})),
+  }));
+
+  roundsRequestCache.set(requestKey, { startedAt: now, promise });
+  return promise;
+}
+
 export default function RoundsPage() {
   const { data: session, status } = useSession();
+  const userId = session?.user?.id ? String(session.user.id) : null;
   const router = useRouter();
   const { showMessage, clearMessage, showConfirm } = useMessage();
 
@@ -41,6 +63,9 @@ export default function RoundsPage() {
   const [hasMore, setHasMore] = useState(true);
 
   const observer = useRef<IntersectionObserver | null>(null);
+  const didInitialFetchRef = useRef(false);
+  const prevDebouncedSearchRef = useRef('');
+  const prevUserIdRef = useRef<string | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -48,6 +73,13 @@ export default function RoundsPage() {
       router.replace('/login');
     }
   }, [status, router]);
+
+  useEffect(() => {
+    if (prevUserIdRef.current !== userId) {
+      roundsRequestCache.clear();
+      prevUserIdRef.current = userId;
+    }
+  }, [userId]);
 
   // Debounce search input
   useEffect(() => {
@@ -64,20 +96,20 @@ export default function RoundsPage() {
 
     try {
       const searchParam = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '';
-      const res = await fetch(`/api/rounds?limit=20&page=${pageToFetch}${searchParam}`);
+      const url = `/api/rounds?limit=20&page=${pageToFetch}${searchParam}`;
+      const cacheScope = userId ?? 'anon';
+      const { status: responseStatus, data: responseData } = await fetchRoundsWithDedupe(url, cacheScope);
 
-      if (res.status === 401 || res.status === 403) {
+      if (responseStatus === 401 || responseStatus === 403) {
         router.replace('/login');
         return;
       }
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || errData.error || 'Error fetching rounds');
+      if (responseStatus < 200 || responseStatus >= 300) {
+        throw new Error(responseData.message || responseData.error || 'Error fetching rounds');
       }
 
-      const result = await res.json();
-      const roundsData = result.rounds || [];
+      const roundsData = responseData.rounds || [];
 
       const flattenedRounds: Round[] = roundsData.map((r: any) => ({
         id: Number(r.id),
@@ -121,26 +153,31 @@ export default function RoundsPage() {
     } finally {
       setLoading(false);
     }
-  }, [router, clearMessage, showMessage]);
+  }, [router, clearMessage, showMessage, userId]);
 
   // Initial load
   useEffect(() => {
-    if (status === 'authenticated') {
+    if (status === 'authenticated' && userId) {
       setRounds([]);
       setPage(1);
       setHasMore(true);
       fetchRounds(1, '', true);
+      didInitialFetchRef.current = true;
+      prevDebouncedSearchRef.current = '';
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, userId]);
 
   // Handle search changes
   useEffect(() => {
+    if (!didInitialFetchRef.current) return;
     if (status === 'authenticated') {
+      if (debouncedSearch === prevDebouncedSearchRef.current) return;
       setRounds([]);
       setPage(1);
       setHasMore(true);
       fetchRounds(1, debouncedSearch, true);
+      prevDebouncedSearchRef.current = debouncedSearch;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
@@ -188,37 +225,46 @@ export default function RoundsPage() {
     });
   };
 
+  if (status === 'unauthenticated') {
+    return null;
+  }
+
+  const showInitialListSkeleton = status === 'loading' || (loading && rounds.length === 0);
+
   return (
     <div className="page-stack">
-      {status !== 'loading' && (
-        <>
-          <button onClick={() => router.push('/rounds/add?from=rounds')} className="btn btn-add">
-            <Plus/> Add Round
-          </button>
+      <button
+        onClick={() => router.push('/rounds/add?from=rounds')}
+        className="btn btn-add"
+        disabled={status !== 'authenticated'}
+      >
+        <Plus/> Add Round
+      </button>
 
-          <input
-            type="text"
-            placeholder="Search Rounds"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onFocus={(e) => {
-              const len = e.target.value.length;
-              e.target.setSelectionRange(len, len);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.currentTarget.blur();
-              }
-            }}
-            enterKeyHint="search"
-            className="form-input"
-            max={250}
-          />
-        </>
-      )}
+      <input
+        type="text"
+        placeholder="Search Rounds"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        disabled={status !== 'authenticated'}
+        onFocus={(e) => {
+          const len = e.target.value.length;
+          e.target.setSelectionRange(len, len);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          }
+        }}
+        enterKeyHint="search"
+        className="form-input"
+        max={250}
+      />
 
-      {rounds.length === 0 && !loading ? (
-        status !== 'loading' && <p className='secondary-text'>No rounds found.</p>
+      {showInitialListSkeleton ? (
+        <RoundListSkeleton count={12} useGridList />
+      ) : rounds.length === 0 && !loading ? (
+        <p className='secondary-text'>No rounds found.</p>
       ) : (
         <div className="grid grid-1">
           {rounds.map((round, index) => {
@@ -236,7 +282,7 @@ export default function RoundsPage() {
         </div>
       )}
 
-      {loading && <p className='loading-text'>Loading rounds...</p>}
+      {loading && rounds.length > 0 && <RoundListSkeleton count={2} useGridList />}
     </div>
   );
 }

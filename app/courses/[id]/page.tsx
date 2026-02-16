@@ -7,6 +7,7 @@ import { useMessage } from '@/app/providers';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import { Landmark, MapPin, Plus } from 'lucide-react';
+import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 
 interface Hole {
   id: number;
@@ -143,6 +144,8 @@ export default function CourseDetailsPage() {
     }));
   }, [teesGrouped]);
 
+  const showDataSkeleton = status === 'loading' || loading;
+
   const computeTotals = (list: Hole[]) =>
     list.reduce(
       (acc, h) => {
@@ -153,8 +156,7 @@ export default function CourseDetailsPage() {
       { par: 0, yards: 0 }
     );
 
-  if (loading) return <p className="loading-text">Loading course details...</p>;
-  if (!course) return null;
+  if (!showDataSkeleton && !course) return null;
 
   const holes = selectedTee?.holes || [];
   const hasHandicap = holes.some((h) => h.handicap != null);
@@ -168,6 +170,7 @@ export default function CourseDetailsPage() {
       <button
         className="btn btn-add"
         onClick={() =>
+          course &&
           router.push(
             `/rounds/add?courseId=${course.id}&courseName=${encodeURIComponent(
               course.course_name
@@ -176,25 +179,42 @@ export default function CourseDetailsPage() {
             )}&from=${encodeURIComponent(`/courses/${course.id}`)}`
           )
         }
-        disabled={!allTees.length}
+        disabled={showDataSkeleton || !course || !allTees.length}
       >
         <Plus/> Add Round
       </button>
 
       <div className="card course-card">
         <div className="course-name-container">
-          <h1 className="course-name">{course.course_name}</h1>
-          <p className="round-holes-tag">
-            {selectedTee?.number_of_holes} Holes
-          </p>
+          {showDataSkeleton ? (
+            <SkeletonBlock width="42%" height={25} />
+          ) : (
+            <h1 className="course-name">{course?.course_name ?? ''}</h1>
+          )}
+          {showDataSkeleton ? (
+            <SkeletonBlock className="skeleton-holes-tag" height={22} />
+          ) : (
+            <p className="round-holes-tag">
+              {selectedTee?.number_of_holes} Holes
+            </p>
+          )}
         </div>
-        <p className="course-club">
-          <strong><Landmark size='14'/></strong> {course.club_name}
-        </p>
-        <p className="course-location">
-          <strong><MapPin size='14'/></strong> {course.location.address}, {course.location.city}, {course.location.state},{' '}
-          {course.location.country}
-        </p>
+        <div className="course-club">
+          <strong><Landmark size='14'/></strong>{' '}
+          {showDataSkeleton ? (
+            <SkeletonBlock width="34%" height={14} style={{ display: 'inline-block' }} />
+          ) : (
+            course?.club_name ?? ''
+          )}
+        </div>
+        <div className="course-location">
+          <strong><MapPin size='14'/></strong>{' '}
+          {showDataSkeleton ? (
+            <SkeletonBlock width="56%" height={14} style={{ display: 'inline-block' }} />
+          ) : (
+            `${course?.location.address ?? ''}, ${course?.location.city ?? ''}, ${course?.location.state ?? ''}, ${course?.location.country ?? ''}`
+          )}
+        </div>
       </div>
 
       <div className="card tee-select-card">
@@ -202,7 +222,9 @@ export default function CourseDetailsPage() {
           <strong >Select Tee</strong>
         </label>
 
-        {allTees.length > 0 ? (
+        {showDataSkeleton ? (
+          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+        ) : allTees.length > 0 ? (
           <Select
             value={
               selectedTee
@@ -227,21 +249,32 @@ export default function CourseDetailsPage() {
         )}
       </div>
 
-      {selectedTee && (
+      {(showDataSkeleton || selectedTee) && (
         <div className="card course-scorecard-meta">
           <div>
-            <strong className='form-label'>Par</strong> {selectedTee.par_total}
+            <strong className='form-label'>Par</strong>{' '}
+            {showDataSkeleton ? <SkeletonBlock width={32} height={14} style={{ display: 'inline-block' }} /> : selectedTee?.par_total}
           </div>
           <div>
-            <strong className='form-label'>Yards</strong> {selectedTee.total_yards}
+            <strong className='form-label'>Yards</strong>{' '}
+            {showDataSkeleton ? <SkeletonBlock width={48} height={14} style={{ display: 'inline-block' }} /> : selectedTee?.total_yards}
           </div>
           <div>
-            <strong className='form-label'>Rating / Slope</strong> {selectedTee.course_rating} / {selectedTee.slope_rating}
+            <strong className='form-label'>Rating / Slope</strong>{' '}
+            {showDataSkeleton ? (
+              <SkeletonBlock width={72} height={14} style={{ display: 'inline-block' }} />
+            ) : (
+              `${selectedTee?.course_rating} / ${selectedTee?.slope_rating}`
+            )}
           </div>
         </div>
       )}
 
-      {selectedTee && holes.length > 0 && (
+      {showDataSkeleton ? (
+        <div className="card course-scorecard-wrapper">
+          <SkeletonBlock width="100%" height={241} />
+        </div>
+      ) : selectedTee && holes.length > 0 && (
         <div className="card course-scorecard-wrapper">
           <table className="course-scorecard-left">
             <thead>

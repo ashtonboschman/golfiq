@@ -7,6 +7,7 @@ import LeaderboardCard from '@/components/LeaderboardCard';
 import LeaderboardHeader from '@/components/LeaderboardHeader';
 import PullToRefresh from '@/components/PullToRefresh';
 import { Crown } from 'lucide-react';
+import { LeaderboardRowsSkeleton, LeaderboardSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface LeaderboardUser {
   user_id: number;
@@ -20,8 +21,29 @@ interface LeaderboardUser {
   rank: number;
 }
 
+const LEADERBOARD_REQUEST_DEDUPE_MS = 1200;
+const leaderboardRequestCache = new Map<string, { startedAt: number; promise: Promise<{ status: number; data: any }> }>();
+
+function fetchLeaderboardWithDedupe(url: string, userId: string): Promise<{ status: number; data: any }> {
+  const requestKey = `${userId}:${url}`;
+  const now = Date.now();
+  const cached = leaderboardRequestCache.get(requestKey);
+  if (cached && now - cached.startedAt < LEADERBOARD_REQUEST_DEDUPE_MS) {
+    return cached.promise;
+  }
+
+  const promise = fetch(url).then(async (res) => ({
+    status: res.status,
+    data: await res.json().catch(() => ({})),
+  }));
+
+  leaderboardRequestCache.set(requestKey, { startedAt: now, promise });
+  return promise;
+}
+
 export default function LeaderboardPage() {
   const { data: session, status } = useSession();
+  const userId = session?.user?.id ? String(session.user.id) : null;
   const router = useRouter();
 
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
@@ -36,23 +58,35 @@ export default function LeaderboardPage() {
   const [hasMore, setHasMore] = useState(true);
 
   const observer = useRef<IntersectionObserver | null>(null);
+  const prevUserIdRef = useRef<string | null>(null);
 
   // redirect unauthenticated users
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
   }, [status, router]);
 
+  useEffect(() => {
+    if (prevUserIdRef.current !== userId) {
+      leaderboardRequestCache.clear();
+      setUsers([]);
+      setPage(1);
+      setHasMore(true);
+      setShowingLimited(false);
+      setTotalUsers(0);
+      prevUserIdRef.current = userId;
+    }
+  }, [userId]);
+
   // fetch leaderboard whenever scope or sort changes
   useEffect(() => {
-    if (status !== 'authenticated') return;
+    if (status !== 'authenticated' || !userId) return;
 
     const fetchLeaderboard = async (pageToFetch: number, reset = false) => {
       setLoading(true);
       try {
-        const res = await fetch(
-          `/api/leaderboard?scope=${scope}&limit=25&page=${pageToFetch}&sortBy=${sortBy}&sortOrder=${sortOrder}`
-        );
-        const data = await res.json();
+        const url = `/api/leaderboard?scope=${scope}&limit=25&page=${pageToFetch}&sortBy=${sortBy}&sortOrder=${sortOrder}`;
+        const { status: responseStatus, data } = await fetchLeaderboardWithDedupe(url, userId);
+        if (responseStatus < 200 || responseStatus >= 300) return;
         if (data.type === 'success') {
           const newUsers: LeaderboardUser[] = data.users || [];
 
@@ -80,7 +114,7 @@ export default function LeaderboardPage() {
     setPage(1);
     setHasMore(true);
     fetchLeaderboard(1, true);
-  }, [status, scope, sortBy, sortOrder, refreshKey]);
+  }, [status, userId, scope, sortBy, sortOrder, refreshKey]);
 
   // infinite scroll observer
   const lastUserRef = useCallback(
@@ -92,10 +126,10 @@ export default function LeaderboardPage() {
           const fetchMore = async () => {
             setLoading(true);
             try {
-              const res = await fetch(
-                `/api/leaderboard?scope=${scope}&limit=25&page=${page + 1}&sortBy=${sortBy}&sortOrder=${sortOrder}`
-              );
-              const data = await res.json();
+              const url = `/api/leaderboard?scope=${scope}&limit=25&page=${page + 1}&sortBy=${sortBy}&sortOrder=${sortOrder}`;
+              const cacheScope = userId ?? 'anon';
+              const { status: responseStatus, data } = await fetchLeaderboardWithDedupe(url, cacheScope);
+              if (responseStatus < 200 || responseStatus >= 300) return;
               if (data.type === 'success') {
                 const newUsers: LeaderboardUser[] = data.users || [];
                 setUsers(prev => {
@@ -117,7 +151,7 @@ export default function LeaderboardPage() {
       });
       if (node) observer.current.observe(node);
     },
-    [loading, hasMore, page, scope, sortBy, sortOrder]
+    [loading, hasMore, page, scope, sortBy, sortOrder, userId]
   );
 
   const handleSort = (key: string) => {
@@ -177,7 +211,7 @@ export default function LeaderboardPage() {
     setRefreshKey(k => k + 1);
   }, []);
 
-  if (status === 'loading') return <p className="loading-text">Loading...</p>;
+  if (status === 'loading') return <LeaderboardSkeleton />;
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
@@ -222,7 +256,7 @@ export default function LeaderboardPage() {
         );
       })}
 
-      {loading && <p className="loading-text">Loading more users...</p>}
+      {loading && <LeaderboardRowsSkeleton count={25} />}
     </div>
     </PullToRefresh>
   );

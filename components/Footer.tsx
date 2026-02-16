@@ -12,13 +12,29 @@ import {
 } from '@/lib/insights/insightsNudge';
 
 export default function Footer() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const user = session?.user;
   const router = useRouter();
   const pathname = usePathname();
   const { incomingRequests } = useFriends();
   const { showConfirm } = useMessage();
   const [hasInsightsNudge, setHasInsightsNudge] = useState(false);
+  const publicRoutes = new Set([
+    '/',
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/about',
+    '/privacy',
+    '/terms',
+    '/contact',
+    '/waitlist-confirm',
+    '/verify-email',
+  ]);
+  const isPublicRoute = publicRoutes.has(pathname);
+  const showPersistentShell = status === 'loading' && !isPublicRoute;
+  const isInteractive = status === 'authenticated' && !!user;
 
   // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
@@ -60,7 +76,7 @@ export default function Footer() {
     return pathname.startsWith(path);
   };
 
-  const hasIncomingRequests = incomingRequests.length > 0;
+  const hasIncomingRequests = isInteractive && incomingRequests.length > 0;
   const showInsightsBadge = hasInsightsNudge && !pathname.startsWith('/insights');
 
   useEffect(() => {
@@ -83,7 +99,7 @@ export default function Footer() {
     }
   }, [pathname]);
 
-  if (!user) return null;
+  if (!isInteractive && !showPersistentShell) return null;
 
   return (
     <footer className="footer-menu">
@@ -92,7 +108,11 @@ export default function Footer() {
           <button
             key={path}
             className={isButtonActive(path) ? 'active' : ''}
-            onClick={() => navigateWithWarning(path)}
+            onClick={() => {
+              if (!isInteractive) return;
+              navigateWithWarning(path);
+            }}
+            disabled={!isInteractive}
           >
             <span className="icon relative">
               {icon}

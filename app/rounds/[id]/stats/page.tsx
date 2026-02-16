@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { Check, Edit, X, Trash2, Crown } from 'lucide-react';
 import { Confidence } from '@prisma/client';
 import RoundInsights from '@/components/RoundInsights';
+import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface HoleDetail {
   hole_number: number;
@@ -79,8 +80,7 @@ export default function RoundStatsPage() {
 
   const [stats, setStats] = useState<RoundStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showStrokesGained, setShowStrokesGained] = useState(false);
-  const { isPremium } = useSubscription();
+  const { isPremium, loading: subscriptionLoading } = useSubscription();
 
   const roundId = params?.id as string;
 
@@ -90,25 +90,6 @@ export default function RoundStatsPage() {
       router.replace('/login');
     }
   }, [status, router]);
-
-  // Fetch user preference for showing strokes gained
-  useEffect(() => {
-    const fetchPreference = async () => {
-      try {
-        const res = await fetch('/api/users/profile');
-        if (res.ok) {
-          const data = await res.json();
-          setShowStrokesGained(data.profile?.showStrokesGained ?? false);
-        }
-      } catch (error) {
-        console.error('Failed to fetch profile:', error);
-      }
-    };
-
-    if (status === 'authenticated') {
-      fetchPreference();
-    }
-  }, [status]);
 
   // Fetch round statistics
   useEffect(() => {
@@ -136,26 +117,26 @@ export default function RoundStatsPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/rounds/${roundId}/stats`);
+      const statsRes = await fetch(`/api/rounds/${roundId}/stats`);
 
-      if (res.status === 401 || res.status === 403) {
+      if (statsRes.status === 401 || statsRes.status === 403) {
         showMessage('Unauthorized access', 'error');
         router.replace('/rounds');
         return;
       }
 
-      if (res.status === 404) {
+      if (statsRes.status === 404) {
         showMessage('Round not found', 'error');
         router.replace('/rounds');
         return;
       }
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
+      if (!statsRes.ok) {
+        const errData = await statsRes.json().catch(() => ({}));
         throw new Error(errData.message || 'Error fetching round statistics');
       }
 
-      const result = await res.json();
+      const result = await statsRes.json();
       setStats(result.stats);
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -190,11 +171,7 @@ export default function RoundStatsPage() {
   };
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="stats-loading-container">
-        <p className='loading-text'>Loading statistics...</p>
-      </div>
-    );
+    return <RoundStatsPageSkeleton />;
   }
 
   if (!stats) {
@@ -337,10 +314,14 @@ export default function RoundStatsPage() {
         </div>
 
         {/* Intelligent Insights */}
-        <RoundInsights roundId={roundId} isPremium={isPremium} />
+        <RoundInsights
+          roundId={roundId}
+          isPremium={isPremium}
+          isPremiumLoading={subscriptionLoading}
+        />
 
         {/* Strokes Gained Summary Card */}
-        {isPremium && showStrokesGained && (
+        {isPremium && (
           <div className="stats-score-summary">
             <div className="stats-score-grid">
                 {stats.handicap_at_round !== null && (

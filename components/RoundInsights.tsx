@@ -1,12 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, Lock, RefreshCw, Flame, CircleCheck, CircleAlert, Info } from 'lucide-react';
+import { RoundInsightsSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface RoundInsightsProps {
   roundId: string;
   isPremium: boolean;
+  isPremiumLoading?: boolean;
+  initialInsightsPayload?: unknown;
 }
 
 type RoundInsightsResponse = {
@@ -19,6 +23,71 @@ type InsightLevel = 'great' | 'success' | 'warning' | 'info';
 
 const DEFAULT_LEVEL: InsightLevel = 'info';
 const SHOW_POST_ROUND_REGENERATE = false;
+const ROUND_INSIGHTS_CACHE_TTL_MS = 30_000;
+
+type RoundInsightsCacheEntry = {
+  data: RoundInsightsResponse;
+  fetchedAt: number;
+};
+
+const roundInsightsCache = new Map<string, RoundInsightsCacheEntry>();
+const roundInsightsInFlight = new Map<string, Promise<RoundInsightsResponse>>();
+
+function getRoundInsightsCacheKey(roundId: string, isPremium: boolean, userId: string): string {
+  return `${userId}:${roundId}:${isPremium ? 'premium' : 'free'}`;
+}
+
+function readRoundInsightsCache(cacheKey: string): RoundInsightsResponse | null {
+  const cached = roundInsightsCache.get(cacheKey);
+  if (!cached) return null;
+
+  if (Date.now() - cached.fetchedAt > ROUND_INSIGHTS_CACHE_TTL_MS) {
+    roundInsightsCache.delete(cacheKey);
+    return null;
+  }
+
+  return cached.data;
+}
+
+function writeRoundInsightsCache(cacheKey: string, data: RoundInsightsResponse): void {
+  roundInsightsCache.set(cacheKey, {
+    data,
+    fetchedAt: Date.now(),
+  });
+}
+
+async function fetchRoundInsights(roundId: string, isPremium: boolean): Promise<RoundInsightsResponse> {
+  const res = await fetch(`/api/rounds/${roundId}/insights`, {
+    credentials: 'include',
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    return { messages: [], visible_count: 0 };
+  }
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to fetch insights');
+  }
+
+  return normalizeInsightsPayload(data.insights, isPremium);
+}
+
+function getOrCreateRoundInsightsRequest(
+  cacheKey: string,
+  roundId: string,
+  isPremium: boolean,
+): Promise<RoundInsightsResponse> {
+  const existingRequest = roundInsightsInFlight.get(cacheKey);
+  if (existingRequest) return existingRequest;
+
+  const request = fetchRoundInsights(roundId, isPremium).finally(() => {
+    roundInsightsInFlight.delete(cacheKey);
+  });
+
+  roundInsightsInFlight.set(cacheKey, request);
+  return request;
+}
 
 function stripMessagePrefix(message: string): string {
   return message.replace(/^(?:🔥|✅|⚠️|ℹ️)\s*/u, '').trim();
@@ -67,29 +136,54 @@ function LevelIcon({ level }: { level: InsightLevel }) {
   return <Info size={18} className="insight-message-icon insight-level-info" />;
 }
 
-export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps) {
+export default function RoundInsights({
+  roundId,
+  isPremium,
+  isPremiumLoading = false,
+  initialInsightsPayload,
+}: RoundInsightsProps) {
   const router = useRouter();
-  const [insights, setInsights] = useState<RoundInsightsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: session } = useSession();
+  const viewerUserId = session?.user?.id ? String(session.user.id) : 'anon';
+  const cacheKey = getRoundInsightsCacheKey(roundId, isPremium, viewerUserId);
+  const normalizedInitialInsights = useMemo(
+    () => (initialInsightsPayload ? normalizeInsightsPayload(initialInsightsPayload, isPremium) : null),
+    [initialInsightsPayload, isPremium],
+  );
+  const initialCachedInsights = readRoundInsightsCache(cacheKey);
+  const initialInsights = initialCachedInsights ?? normalizedInitialInsights;
+  const [insights, setInsights] = useState<RoundInsightsResponse | null>(initialInsights);
+  const [loading, setLoading] = useState(!initialInsights);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fetchedCacheKeyRef = useRef<string | null>(initialInsights ? cacheKey : null);
 
-  const fetchInsights = async () => {
+  useEffect(() => {
+    if (!normalizedInitialInsights) return;
+
+    writeRoundInsightsCache(cacheKey, normalizedInitialInsights);
+    setInsights((prev) => prev ?? normalizedInitialInsights);
+    setLoading(false);
+    setError(null);
+    fetchedCacheKeyRef.current = cacheKey;
+  }, [cacheKey, normalizedInitialInsights]);
+
+  const fetchInsights = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+
     try {
-      const res = await fetch(`/api/rounds/${roundId}/insights`, {
-        credentials: 'include',
-      });
-
-      // If the viewer isn't authenticated (or can't access this round), don't spam console.
-      if (res.status === 401 || res.status === 403) {
-        setInsights({ messages: [], visible_count: 0 });
+      const cached = readRoundInsightsCache(cacheKey);
+      if (cached) {
+        setInsights(cached);
         setError(null);
         return;
       }
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to fetch insights');
-      setInsights(normalizeInsightsPayload(data.insights, isPremium));
+      const nextInsights = await getOrCreateRoundInsightsRequest(cacheKey, roundId, isPremium);
+      writeRoundInsightsCache(cacheKey, nextInsights);
+      setInsights(nextInsights);
       setError(null);
     } catch (err: any) {
       console.error('Error fetching insights:', err);
@@ -100,8 +194,11 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
   };
 
   useEffect(() => {
-    fetchInsights();
-  }, [roundId, isPremium]);
+    if (isPremiumLoading) return;
+    if (fetchedCacheKeyRef.current === cacheKey) return;
+    fetchedCacheKeyRef.current = cacheKey;
+    fetchInsights(true);
+  }, [cacheKey, isPremiumLoading]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -119,7 +216,9 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to regenerate insights');
-      setInsights(normalizeInsightsPayload(data.insights, isPremium));
+      const nextInsights = normalizeInsightsPayload(data.insights, isPremium);
+      writeRoundInsightsCache(cacheKey, nextInsights);
+      setInsights(nextInsights);
       setError(null);
     } catch (err: any) {
       console.error('Error regenerating insights:', err);
@@ -146,21 +245,20 @@ export default function RoundInsights({ roundId, isPremium }: RoundInsightsProps
             {regenerating ? <RefreshCw className="spinning" size={16} /> : <RefreshCw size={16} />} Regenerate
           </button>
         )}
-        <span className={`insights-badge ${isPremium ? 'is-premium' : 'is-free'}`}>
-          {isPremium ? 'Premium' : 'Free'}
-        </span>
+        {isPremiumLoading ? (
+          <span className="skeleton" style={{ display: 'inline-block', width: 78, height: 24, borderRadius: 999 }} />
+        ) : (
+          <span className={`insights-badge ${isPremium ? 'is-premium' : 'is-free'}`}>
+            {isPremium ? 'Premium' : 'Free'}
+          </span>
+        )}
       </div>
     </div>
   );
 
-  if (loading) return (
-    <div className="card insights-card">
-      <Header />
-      <div className="insights-loading">
-        <p>Analyzing your round...</p>
-      </div>
-    </div>
-  );
+  const showSkeletonContent = isPremiumLoading || loading;
+
+  if (showSkeletonContent) return <RoundInsightsSkeleton />;
 
   if (error) return (
     <div className="card insights-card">

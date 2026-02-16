@@ -4,6 +4,7 @@ import { Check, AlertCircle, Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
+import { AuthCardSkeleton } from '@/components/skeleton/PageSkeletons';
 
 function SubscriptionSuccessContent() {
   const { status } = useSession();
@@ -178,7 +179,7 @@ function SubscriptionSuccessContent() {
 
 export default function SubscriptionSuccessPage() {
   return (
-    <Suspense fallback={<div className="loading-text">Loading...</div>}>
+    <Suspense fallback={<AuthCardSkeleton />}>
       <SubscriptionSuccessContent />
     </Suspense>
   );

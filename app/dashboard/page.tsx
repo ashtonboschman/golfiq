@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
@@ -13,6 +13,7 @@ import { selectStyles } from '@/lib/selectStyles';
 import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
 import { formatDate, formatHandicap, formatNumber, formatPercent, formatToPar } from '@/lib/formatters';
+import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
 
 
 interface DashboardStats {
@@ -54,7 +55,7 @@ interface DashboardStats {
   };
 }
 
-export default function DashboardPage({ userId: propUserId }: { userId?: number }) {
+function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { showMessage, clearMessage } = useMessage();
@@ -231,8 +232,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
     sessionStorage.setItem(`upgrade-modal-shown-${totalRoundsForModal}`, 'true');
   };
 
-  if (loading) return <p className="loading-text">Loading dashboard...</p>;
-  if (error) return <p className="error-text">{error}</p>;
+  if (error && !loading) return <p className="error-text">{error}</p>;
 
   const displayRounds = (stats.all_rounds ?? []).map((r: any) => ({
     ...r,
@@ -381,6 +381,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
         <button
           className="btn btn-add"
           onClick={() => router.push('/rounds/add?from=dashboard')}
+          disabled={loading}
         >
           <Plus/> Add Round
         </button>
@@ -388,6 +389,8 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       <div className="dashboard-filters">
         <Select
+          instanceId="dashboard-stats-mode"
+          inputId="dashboard-stats-mode-input"
           value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
           onChange={(option) => option && setStatsMode(option.value)}
           options={[
@@ -396,10 +399,13 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             { value: '18', label: '18 Holes' },
           ]}
           isSearchable={false}
+          isDisabled={loading}
           styles={selectStyles}
           menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
         />
         <Select
+          instanceId="dashboard-date-filter"
+          inputId="dashboard-date-filter-input"
           value={{
             value: dateFilter,
             label:
@@ -425,7 +431,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
             { value: '365', label: `Last Year ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
           ]}
           isSearchable={false}
-          isDisabled={subscriptionLoading} // only disable while loading
+          isDisabled={subscriptionLoading || loading} // disable while loading
           styles={selectStyles}
           menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
           className={
@@ -440,7 +446,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
       )}
 
       {/* Premium upgrade CTA for limited users */}
-      {stats.limitedToLast20 && stats.totalRoundsInDb && stats.totalRoundsInDb > 20 && (
+      {!loading && stats.limitedToLast20 && stats.totalRoundsInDb && stats.totalRoundsInDb > 20 && (
         <div className="info-banner warning">
           <div className="info-banner-content">
             <div className="info-banner-icon"><TriangleAlert size={50}/></div>
@@ -462,56 +468,104 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
         </div>
       )}
 
-      <div className="grid grid-2">
-        <div className="card dashboard-stat-card" style={{ position: 'relative' }}>
-          <InfoTooltip text="GolfIQ Handicap Index (WHS-based)" />
-          <h3>Handicap</h3>
-          <p>{formatHandicap(stats.handicap)}</p>
-        </div>
-        {[
-          ['Average', showToPar ? stats.average_to_par : stats.average_score, showToPar ? 'Average score relative to par' : 'Average score', true],
-          ['Best', showToPar ? stats.best_to_par : stats.best_score, showToPar ? 'Best score relative to par' : 'Best score', true],
-          ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, showToPar ? 'Worst score relative to par' : 'Worst score', true],
-          ['Total', totalRounds, 'Total amount of rounds played', false],
-          ['Par 3', par3_avg, 'Average score on par 3 holes', false],
-          ['Par 4', par4_avg, 'Average score on par 4 holes', false],
-          ['Par 5', par5_avg, 'Average score on par 5 holes', false],
-        ].map(([label, val, tooltip, isToggleable]) => (
-          <div
-            className="card dashboard-stat-card"
-            key={label as string}
-            style={{
-              position: 'relative',
-              cursor: isToggleable ? 'pointer' : 'default',
-              transition: 'all 0.2s ease',
-            }}
-            onClick={() => isToggleable && setShowToPar((p) => !p)}
-          >
-            {isToggleable && (
-            <span className="toggle-icon icon-edge">
-              {showToPar ? <ToggleRight /> : <ToggleLeft />}
-            </span>
-            )}
-            {tooltip && <InfoTooltip text={tooltip as string} />}
-            <h3>{label}</h3>
-            <p>{(isToggleable && showToPar) ? formatToPar(val as number) : formatNumber(val as number)}</p>
+      {loading ? (
+        <>
+          <div className="grid grid-2">
+            <div className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card" style={{ position: 'relative' }}>
+              <InfoTooltip text="GolfIQ Handicap Index (WHS-based)" />
+              <h3>Handicap</h3>
+              <div className="skeleton skeleton-dashboard-stat-value dashboard-live-label-skeleton-value" />
+            </div>
+            {[
+              ['Average', showToPar ? 'Average score relative to par' : 'Average score', true],
+              ['Best', showToPar ? 'Best score relative to par' : 'Best score', true],
+              ['Worst', showToPar ? 'Worst score relative to par' : 'Worst score', true],
+              ['Total', 'Total amount of rounds played', false],
+              ['Par 3', 'Average score on par 3 holes', false],
+              ['Par 4', 'Average score on par 4 holes', false],
+              ['Par 5', 'Average score on par 5 holes', false],
+            ].map(([label, tooltip, isToggleable]) => (
+              <div
+                className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card"
+                key={`dash-stat-skeleton-${label as string}`}
+                style={{
+                  position: 'relative',
+                  cursor: isToggleable ? 'pointer' : 'default',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {isToggleable && (
+                  <span className="toggle-icon icon-edge">
+                    {showToPar ? <ToggleRight /> : <ToggleLeft />}
+                  </span>
+                )}
+                {tooltip && <InfoTooltip text={tooltip as string} />}
+                <h3>{label}</h3>
+                <div className="skeleton skeleton-dashboard-stat-value dashboard-live-label-skeleton-value" />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>      
-      <TrendCard
-          trendData={scoreChartData}
-          accentColor={accentColor}
-          surfaceColor={surfaceColor}
-          textColor={textColor}
-          gridColor={gridColor}
-          height={300}
-          label='Score Trend'
-        />
+          <div className="trend-card" style={{ height: 300 }}>
+            <h3 className="insights-centered-title">Score Trend</h3>
+            <div className="skeleton skeleton-chart-area" />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-2">
+            <div className="card dashboard-stat-card" style={{ position: 'relative' }}>
+              <InfoTooltip text="GolfIQ Handicap Index (WHS-based)" />
+              <h3>Handicap</h3>
+              <p>{formatHandicap(stats.handicap)}</p>
+            </div>
+            {[
+              ['Average', showToPar ? stats.average_to_par : stats.average_score, showToPar ? 'Average score relative to par' : 'Average score', true],
+              ['Best', showToPar ? stats.best_to_par : stats.best_score, showToPar ? 'Best score relative to par' : 'Best score', true],
+              ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, showToPar ? 'Worst score relative to par' : 'Worst score', true],
+              ['Total', totalRounds, 'Total amount of rounds played', false],
+              ['Par 3', par3_avg, 'Average score on par 3 holes', false],
+              ['Par 4', par4_avg, 'Average score on par 4 holes', false],
+              ['Par 5', par5_avg, 'Average score on par 5 holes', false],
+            ].map(([label, val, tooltip, isToggleable]) => (
+              <div
+                className="card dashboard-stat-card"
+                key={label as string}
+                style={{
+                  position: 'relative',
+                  cursor: isToggleable ? 'pointer' : 'default',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => isToggleable && setShowToPar((p) => !p)}
+              >
+                {isToggleable && (
+                <span className="toggle-icon icon-edge">
+                  {showToPar ? <ToggleRight /> : <ToggleLeft />}
+                </span>
+                )}
+                {tooltip && <InfoTooltip text={tooltip as string} />}
+                <h3>{label}</h3>
+                <p>{(isToggleable && showToPar) ? formatToPar(val as number) : formatNumber(val as number)}</p>
+              </div>
+            ))}
+          </div>
+          <TrendCard
+              trendData={scoreChartData}
+              accentColor={accentColor}
+              surfaceColor={surfaceColor}
+              textColor={textColor}
+              gridColor={gridColor}
+              height={300}
+              label='Score Trend'
+            />
+        </>
+      )}
       <div className="section">
         <div className="card last-five-rounds-card">
           <h3>Last 5 Rounds</h3>
         </div>
-        {lastRounds.length === 0 ? (
+        {loading ? (
+          <RoundListSkeleton count={5} metricCount={4} showHolesTag={false} />
+        ) : lastRounds.length === 0 ? (
           <p className='secondary-text'>No rounds recorded.</p>
         ) : (
           <div className="rounds-list">
@@ -527,11 +581,11 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
         )}
       </div>
 
-      <button className="btn btn-toggle" onClick={() => setShowAdvanced((p) => !p)}>
+      <button className="btn btn-toggle" onClick={() => setShowAdvanced((p) => !p)} disabled={loading}>
         {showAdvanced ? 'Hide Advanced Stats' : 'Show Advanced Stats'}
       </button>
 
-      {showAdvanced && (
+      {!loading && showAdvanced && (
         <div className="grid grid-2">
           {[
             ['FIR', stats.fir_avg, '%', 'Average fairways in regulation % per round'],
@@ -552,7 +606,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
         </div>
       )}
 
-      {showAdvanced && (
+      {!loading && showAdvanced && (
         <TrendCard
           trendData={firGirData}
           accentColor={accentColor}    
@@ -569,7 +623,7 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
 
       {/* Upgrade modal - shows at 3 rounds, then every 5 rounds */}
       <UpgradeModal
-        isOpen={showUpgradeModal && status === 'authenticated'}
+        isOpen={!loading && showUpgradeModal && status === 'authenticated'}
         onClose={handleCloseUpgradeModal}
         title="Unlock Premium Insights"
         message={getModalMessage()}
@@ -583,6 +637,14 @@ export default function DashboardPage({ userId: propUserId }: { userId?: number 
         ]}
       />
     </div>
+  );
+}
+
+export default function DashboardPage({ userId }: { userId?: number }) {
+  return (
+    <Suspense fallback={null}>
+      <DashboardContent userId={userId} />
+    </Suspense>
   );
 }
 

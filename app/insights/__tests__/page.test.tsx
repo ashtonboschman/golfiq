@@ -227,7 +227,7 @@ describe('/insights page', () => {
     (global as any).fetch = jest.fn();
   });
 
-  it('renders free gating with one visible card and 4 blurred previews + CTA', async () => {
+  it('renders free gating with one visible card and 5 blurred previews + CTA', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ insights: makeInsights(false) }),
@@ -235,12 +235,12 @@ describe('/insights page', () => {
 
     const { container } = render(<InsightsPage />);
 
-    await screen.findByText('Overall Insights');
+    await screen.findByText('Card 1 summary');
     expect(screen.getByText('Free')).toBeInTheDocument();
     expect(screen.getByText('Card 1 summary')).toBeInTheDocument();
     expect(screen.getByText('Unlock full Overall Insights')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Unlock Full Insights' })).toBeInTheDocument();
-    expect(container.querySelectorAll('.overall-insight-fake')).toHaveLength(4);
+    expect(container.querySelectorAll('.overall-insight-fake')).toHaveLength(5);
   });
 
   it('renders SG/projection sections as locked blur overlays for free with only one unlock button', async () => {
@@ -251,7 +251,7 @@ describe('/insights page', () => {
 
     const { container } = render(<InsightsPage />);
 
-    await screen.findByText('Overall Insights');
+    await screen.findByText('Strokes Gained Trend (Premium)');
 
     expect(screen.getByText('Strokes Gained Trend (Premium)')).toBeInTheDocument();
     expect(screen.getByText('SG Component Breakdown (Premium)')).toBeInTheDocument();
@@ -286,7 +286,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('Overall Insights');
+    await screen.findByText('Card 6 projection');
     expect(screen.getByText('Premium')).toBeInTheDocument();
     expect(screen.getByText('Card 1 summary')).toBeInTheDocument();
     expect(screen.getByText('Card 6 projection')).toBeInTheDocument();
@@ -302,7 +302,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('Scoring');
+    await screen.findByText('75.2');
     expect(screen.getByText('75.2')).toBeInTheDocument();
     expect(screen.getByText('75.7')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();

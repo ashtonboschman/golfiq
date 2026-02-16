@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Trash2, CheckCircle, XCircle, Download } from 'lucide-react';
+import { AdminPanelSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface WaitlistEntry {
   id: string;
@@ -146,11 +147,7 @@ export default function AdminWaitlistPage() {
   };
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="page-stack">
-        <p className="loading-text">Loading admin panel...</p>
-      </div>
-    );
+    return <AdminPanelSkeleton />;
   }
 
   return (

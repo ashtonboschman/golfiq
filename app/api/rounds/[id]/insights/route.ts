@@ -155,12 +155,11 @@ async function getViewerEntitlements(userId: bigint): Promise<ViewerEntitlements
     where: { id: userId },
     select: {
       subscriptionTier: true,
-      profile: { select: { showStrokesGained: true } },
     },
   });
 
   const isPremium = user?.subscriptionTier === 'premium' || user?.subscriptionTier === 'lifetime';
-  const showStrokesGained = user?.profile?.showStrokesGained ?? true;
+  const showStrokesGained = true;
   return { isPremium, showStrokesGained };
 }
 

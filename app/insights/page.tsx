@@ -840,7 +840,7 @@ export default function InsightsPage() {
   const aiPreviewCards = useMemo(() => {
     if (isPremiumContext || !insights?.cards?.length) return [];
     const start = 1;
-    const count = Math.min(4, Math.max(0, insights.cards.length - 1));
+    const count = Math.min(5, Math.max(0, insights.cards.length - 1));
     return insights.cards.slice(start, start + count);
   }, [insights, isPremiumContext]);
 
@@ -896,8 +896,8 @@ export default function InsightsPage() {
     };
   }, [insights, modePayload, accentColor]);
 
-  if (status === 'loading' || loading) return <p className="loading-text">Loading insights...</p>;
   if (status === 'unauthenticated') return null;
+  const showSkeletonContent = status === 'loading' || loading;
 
   return (
     <div className="page-stack">
@@ -908,9 +908,13 @@ export default function InsightsPage() {
             <h3>Overall Insights</h3>
           </div>
           <div className="overall-insights-actions">
-            <span className={`insights-badge ${isPremiumContext ? 'is-premium' : 'is-free'}`}>
-              {isPremiumContext ? 'Premium' : 'Free'}
-            </span>
+            {showSkeletonContent ? (
+              <span className="skeleton" style={{ display: 'inline-block', width: 78, height: 24, borderRadius: 999 }} />
+            ) : (
+              <span className={`insights-badge ${isPremiumContext ? 'is-premium' : 'is-free'}`}>
+                {isPremiumContext ? 'Premium' : 'Free'}
+              </span>
+            )}
           </div>
         </div>
         <div className="overall-insights-meta">
@@ -921,7 +925,7 @@ export default function InsightsPage() {
             type="button"
             className="btn btn-toggle"
             onClick={handleRegenerate}
-            disabled={regenerating}
+            disabled={regenerating || showSkeletonContent || !insights}
           >
             {regenerating ? <RefreshCw className="spinning" size={16} /> : <RefreshCw size={16} />} Regenerate
           </button>
@@ -929,7 +933,18 @@ export default function InsightsPage() {
         {error && <p className="error-text">{error}</p>}
 
         <div className="insights-content">
-          {isPremiumContext ? (
+          {showSkeletonContent ? (
+            Array.from({ length: 6 }).map((_, idx) => (
+              <div key={`overall-insight-skeleton-${idx}`} className="insight-message insight-message-skeleton">
+                <div className="insight-message-content">
+                  <div className="insight-message-skeleton-lines">
+                    <span className="skeleton" style={{ width: '92%', height: 14 }} />
+                    <span className="skeleton" style={{ width: '72%', height: 14 }} />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : isPremiumContext ? (
             (insights?.cards ?? []).map((card, idx) => (
               <OverallInsightMessage key={`card-${idx}`} card={card} index={idx} />
             ))
@@ -952,7 +967,7 @@ export default function InsightsPage() {
                 <div className="insights-locked-preview-stack">
                   {(aiPreviewCards.length
                     ? aiPreviewCards
-                    : ['Premium insight preview', 'Premium insight preview', 'Premium insight preview', 'Premium insight preview']
+                    : ['Premium insight preview', 'Premium insight preview', 'Premium insight preview', 'Premium insight preview', 'Premium insight preview']
                   ).map((card, idx) => (
                     <div key={`blur-card-${idx}`} className="overall-insight-fake">
                       <OverallInsightMessage card={card} index={idx + 1} />
@@ -967,6 +982,8 @@ export default function InsightsPage() {
 
       <div className="dashboard-filters">
         <Select
+          instanceId="insights-stats-mode"
+          inputId="insights-stats-mode-input"
           value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
           onChange={(option) => option && setStatsMode(option.value as StatsMode)}
           options={[
@@ -975,6 +992,7 @@ export default function InsightsPage() {
             { value: '18', label: '18 Holes' },
           ]}
           isSearchable={false}
+          isDisabled={showSkeletonContent}
           styles={selectStyles}
           menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
         />
@@ -984,6 +1002,130 @@ export default function InsightsPage() {
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
 
+      {showSkeletonContent ? (
+        <>
+          <div className="insights-top-grid">
+            <div className="card dashboard-stat-card comparison-bar-card">
+              <div className="comparison-bar-header">
+                <h3>Scoring</h3>
+              </div>
+              <div className="comparison-bar-row">
+                <span className="comparison-bar-label">Recent</span>
+                <div className="comparison-bar-track">
+                  <span className="skeleton" style={{ display: 'inline-block', width: '62%', height: 10, borderRadius: 999 }} />
+                </div>
+                <span className="comparison-bar-value">
+                  <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                </span>
+              </div>
+              <div className="comparison-bar-row">
+                <span className="comparison-bar-label">Average</span>
+                <div className="comparison-bar-track">
+                  <span className="skeleton" style={{ display: 'inline-block', width: '55%', height: 10, borderRadius: 999 }} />
+                </div>
+                <span className="comparison-bar-value">
+                  <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                </span>
+              </div>
+              <span className="comparison-bar-delta">
+                <span className="skeleton" style={{ display: 'inline-block', width: 110, height: 14 }} />
+              </span>
+            </div>
+            <div className="card dashboard-stat-card comparison-bar-card consistency-card">
+              <div className="comparison-bar-header">
+                <h3>Scoring Consistency</h3>
+              </div>
+              <span className="skeleton" style={{ display: 'block', width: '40%', height: 28, borderRadius: 999, marginInline: 'auto' }} />
+              <span className="skeleton" style={{ display: 'block', width: '50%', height: 14, marginInline: 'auto' }} />
+            </div>
+          </div>
+
+          <div className="trend-card" style={{ height: 300 }}>
+            <h3 className="insights-centered-title">Handicap Trend</h3>
+            <div className="skeleton skeleton-chart-area" />
+          </div>
+
+          <section className="insights-sg-section">
+            <div className="trend-card" style={{ height: 300 }}>
+              <h3 className="insights-centered-title">Strokes Gained Trend</h3>
+              <div className="skeleton skeleton-chart-area" />
+            </div>
+            <div className="card dashboard-stat-card sg-delta-card">
+              <div className="comparison-bar-header">
+                <h3 className="insights-centered-title">SG Component Delta</h3>
+              </div>
+              <div className="sg-delta-list">
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <div key={`sg-skeleton-${idx}`} className="sg-delta-row">
+                    <span className="sg-delta-label">
+                      <span className="skeleton" style={{ display: 'inline-block', width: 88, height: 14 }} />
+                    </span>
+                    <div className="sg-delta-track">
+                      <span className="sg-delta-midline" />
+                      <span className="skeleton" style={{ display: 'inline-block', width: '55%', height: 10, borderRadius: 999 }} />
+                    </div>
+                    <span className="sg-delta-value">
+                      <span className="skeleton" style={{ display: 'inline-block', width: 52, height: 14 }} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <div className="grid grid-2 insights-performance-grid">
+            {['Driving Accuracy', 'Approach Accuracy', 'Putting', 'Penalties'].map((title) => (
+              <div key={`performance-skeleton-${title}`} className="card dashboard-stat-card comparison-bar-card">
+                <div className="comparison-bar-header">
+                  <h3>{title}</h3>
+                </div>
+                <div className="comparison-bar-row">
+                  <span className="comparison-bar-label">Recent</span>
+                  <div className="comparison-bar-track">
+                    <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 10, borderRadius: 999 }} />
+                  </div>
+                  <span className="comparison-bar-value">
+                    <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                  </span>
+                </div>
+                <div className="comparison-bar-row">
+                  <span className="comparison-bar-label">Average</span>
+                  <div className="comparison-bar-track">
+                    <span className="skeleton" style={{ display: 'inline-block', width: '52%', height: 10, borderRadius: 999 }} />
+                  </div>
+                  <span className="comparison-bar-value">
+                    <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                  </span>
+                </div>
+                <span className="comparison-bar-delta">
+                  <span className="skeleton" style={{ display: 'inline-block', width: 100, height: 14 }} />
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="card dashboard-stat-card trajectory-card">
+            <div className="trajectory-header">
+              <h3>Performance Trajectory</h3>
+            </div>
+            <div className="trajectory-status-row">
+              <span className="skeleton" style={{ display: 'inline-block', width: 110, height: 28, borderRadius: 999 }} />
+              <span className="skeleton" style={{ display: 'inline-block', width: 200, height: 14 }} />
+            </div>
+            <div className="trajectory-pill-grid">
+              <div className="trajectory-pill">
+                <span className="trajectory-pill-label">Score Range</span>
+                <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+              </div>
+              <div className="trajectory-pill">
+                <span className="trajectory-pill-label">HCP Range</span>
+                <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
       {modePayload && insights && (
         <div className="insights-top-grid">
           <ComparisonBarCard
@@ -1289,6 +1431,8 @@ export default function InsightsPage() {
             )}
           </div>
         </LockedSection>
+      )}
+        </>
       )}
 
     </div>

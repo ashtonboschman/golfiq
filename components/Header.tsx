@@ -5,7 +5,6 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { useTheme } from '@/context/ThemeContext';
 import { useMessage } from '@/app/providers';
 
 const LOGO_BY_THEME: Record<string, string> = {
@@ -21,16 +20,28 @@ const LOGO_BY_THEME: Record<string, string> = {
   floral: '/logos/wordmark/golfiq-wordmark-floral.png',
 };
 
+const PUBLIC_ROUTES = new Set([
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/about',
+  '/privacy',
+  '/terms',
+  '/contact',
+  '/waitlist-confirm',
+  '/verify-email',
+]);
+
 export default function Header() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const user = session?.user;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { avatarUrl } = useAvatar();
-  const { theme } = useTheme();
   const { showConfirm } = useMessage();
-  const logoSrc = LOGO_BY_THEME[theme] || '/logos/wordmark/golfiq-wordmark.png';
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -40,6 +51,8 @@ export default function Header() {
 
   // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
+  const isPublicRoute = PUBLIC_ROUTES.has(pathname);
+  const shouldShowAvatarSlot = !!user || (status === 'loading' && !isPublicRoute);
 
   // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
@@ -90,12 +103,14 @@ export default function Header() {
             sessionStorage.removeItem('profile-has-changes');
           }
           setDropdownOpen(false);
+          clearThemeAuthMarker();
           await signOut({ redirect: false });
           router.replace('/login');
         }
       });
     } else {
       setDropdownOpen(false);
+      clearThemeAuthMarker();
       await signOut({ redirect: false });
       router.replace('/login');
     }
@@ -181,6 +196,15 @@ export default function Header() {
     }
   };
 
+  const handleLogoClick = () => {
+    if (user) {
+      navigateWithWarning('/dashboard');
+    } else {
+      // On other pages (login, register, etc.), go to landing page
+      router.push('/');
+    }
+  };
+
   return (
     <header className="header">
       <div className="header-inner">
@@ -196,68 +220,87 @@ export default function Header() {
           <div style={{ width: '40px' }} /> // Spacer to keep logo centered
         )}
 
-        
-        <img
-          src={logoSrc}
-          alt="GolfIQ"
-          height="40"
-          onClick={() => {
-            if (user) {
-              navigateWithWarning('/dashboard');
-            } else {
-              // On other pages (login, register, etc.), go to landing page
-              router.push('/');
+        <div
+          className="logo-wrap"
+          onClick={handleLogoClick}
+          title={user ? 'Dashboard' : 'Home'}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleLogoClick();
             }
           }}
-          className="logo"
-          title={user ? "Dashboard" : "Home"}
-        />
-
-        {user && (
-        <div className="avatar-container" ref={dropdownRef}>
-          <img
-            src={avatarUrl || '/avatars/default.png'}
-            alt="User Avatar"
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="right-button"
-            title="User Menu"
-          />
-          {dropdownOpen && (
-            <div className="card avatar-dropdown">
-              <button
-                className="btn btn-secondary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDropdownOpen(false);
-                  navigateWithWarning('/profile');
-                }}
-              >
-                Profile
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDropdownOpen(false);
-                  navigateWithWarning('/settings');
-                }}
-              >
-                Settings
-              </button>
-              <button
-                className="btn btn-logout"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleLogout();
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          )}
+        >
+          {Object.entries(LOGO_BY_THEME).map(([themeKey, src]) => (
+            <img
+              key={themeKey}
+              src={src}
+              alt="GolfIQ"
+              height="40"
+              className={`logo logo-theme-${themeKey}`}
+              draggable={false}
+            />
+          ))}
         </div>
-      )}
+
+        {shouldShowAvatarSlot && (
+          <div className="avatar-container" ref={dropdownRef}>
+            {user ? (
+              <img
+                src={avatarUrl || '/avatars/default.png'}
+                alt="User Avatar"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="right-button"
+                title="User Menu"
+              />
+            ) : (
+              <div className="right-button header-avatar-placeholder" aria-hidden="true" />
+            )}
+            {user && dropdownOpen && (
+              <div className="card avatar-dropdown">
+                <button
+                  className="btn btn-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDropdownOpen(false);
+                    navigateWithWarning('/profile');
+                  }}
+                >
+                  Profile
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDropdownOpen(false);
+                    navigateWithWarning('/settings');
+                  }}
+                >
+                  Settings
+                </button>
+                <button
+                  className="btn btn-logout"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleLogout();
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );
 }
+  const clearThemeAuthMarker = () => {
+    try {
+      localStorage.removeItem('golfiq:auth');
+    } catch {
+      // noop
+    }
+  };

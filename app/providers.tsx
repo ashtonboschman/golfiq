@@ -5,6 +5,7 @@ import { createContext, useState, useContext, useCallback, ReactNode } from 'rea
 import { FriendsProvider } from '@/context/FriendsContext';
 import { AvatarProvider } from '@/context/AvatarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import AuthCacheReset from '@/components/AuthCacheReset';
 import { usePathname, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 import { usePostHog } from 'posthog-js/react'
@@ -70,6 +71,7 @@ export function useMessage() {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
+      <AuthCacheReset />
       <ThemeProvider>
         <MessageProvider>
           <AvatarProvider>

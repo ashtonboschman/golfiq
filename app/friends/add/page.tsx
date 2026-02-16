@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useFriends } from '@/context/FriendsContext';
 import FriendCard from '@/components/FriendCard';
 import { FriendUser } from '@/lib/friendUtils';
+import { FriendsAddSkeleton } from '@/components/skeleton/PageSkeletons';
 
 export default function AddFriendsPage() {
   const { data: session, status } = useSession();
@@ -95,7 +96,7 @@ export default function AddFriendsPage() {
     });
   };
 
-  if (status === 'loading') return <p className="loading-text">Loading...</p>;
+  if (status === 'loading') return <FriendsAddSkeleton />;
 
   return (
     <div className="page-stack">

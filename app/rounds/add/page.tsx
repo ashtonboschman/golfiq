@@ -896,7 +896,7 @@ function AddRoundContent() {
     );
   };
 
-  if (status === 'loading') return <p className="loading-text">Loading...</p>;
+  if (status === 'loading') return null;
 
   return (
     <div className="page-stack">
@@ -1174,7 +1174,7 @@ function AddRoundContent() {
 
 export default function AddRoundPage() {
   return (
-    <Suspense fallback={<p className="loading-text">Loading...</p>}>
+    <Suspense fallback={null}>
       <AddRoundContent />
     </Suspense>
   );

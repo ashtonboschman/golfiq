@@ -24,6 +24,9 @@ const SESSIONS_KEY = 'golfiq_pwa_sessions';
 const PAGES_KEY = 'golfiq_pwa_pages_seen';
 const SESSION_MARKER_KEY = 'golfiq_pwa_session_active';
 const UPDATE_PENDING_KEY = 'golfiq_pwa_update_pending';
+const PWA_CONFIG_CACHE_KEY = 'golfiq_pwa_config_cache';
+const PWA_CONFIG_CACHE_TS_KEY = 'golfiq_pwa_config_cache_ts';
+const PWA_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_SW_VERSION =
   process.env.NEXT_PUBLIC_SW_VERSION ||
   process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ||
@@ -196,6 +199,18 @@ export default function PwaManager() {
 
   useEffect(() => {
     const init = async () => {
+      const cachedRaw = sessionStorage.getItem(PWA_CONFIG_CACHE_KEY);
+      const cachedTs = parseIntSafe(sessionStorage.getItem(PWA_CONFIG_CACHE_TS_KEY));
+      if (cachedRaw && cachedTs && getNow() - cachedTs < PWA_CONFIG_CACHE_TTL_MS) {
+        try {
+          setConfig(JSON.parse(cachedRaw) as PwaConfig);
+          return;
+        } catch {
+          sessionStorage.removeItem(PWA_CONFIG_CACHE_KEY);
+          sessionStorage.removeItem(PWA_CONFIG_CACHE_TS_KEY);
+        }
+      }
+
       try {
         const response = await fetch('/api/pwa/config', { cache: 'no-store' });
         if (!response.ok) {
@@ -204,6 +219,8 @@ export default function PwaManager() {
         }
         const nextConfig = (await response.json()) as PwaConfig;
         setConfig(nextConfig);
+        sessionStorage.setItem(PWA_CONFIG_CACHE_KEY, JSON.stringify(nextConfig));
+        sessionStorage.setItem(PWA_CONFIG_CACHE_TS_KEY, String(getNow()));
       } catch {
         setConfig(FALLBACK_CONFIG);
       }
