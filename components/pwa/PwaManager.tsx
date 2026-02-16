@@ -27,6 +27,7 @@ const UPDATE_PENDING_KEY = 'golfiq_pwa_update_pending';
 const PWA_CONFIG_CACHE_KEY = 'golfiq_pwa_config_cache';
 const PWA_CONFIG_CACHE_TS_KEY = 'golfiq_pwa_config_cache_ts';
 const PWA_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
+const SHOW_UPDATE_PROMPT = false;
 const DEFAULT_SW_VERSION =
   process.env.NEXT_PUBLIC_SW_VERSION ||
   process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ||
@@ -166,7 +167,7 @@ export default function PwaManager() {
 
         if (registration.waiting) {
           setUpdateReady(true);
-          if (!updateToastTrackedRef.current) {
+          if (SHOW_UPDATE_PROMPT && !updateToastTrackedRef.current) {
             updateToastTrackedRef.current = true;
             posthog.capture('pwa_update_toast_shown', { version: config.version, source: config.source });
           }
@@ -179,7 +180,7 @@ export default function PwaManager() {
             if (worker.state === 'installed' && navigator.serviceWorker.controller) {
               setUpdateReady(true);
               setUpdateRegistration(registration);
-              if (!updateToastTrackedRef.current) {
+              if (SHOW_UPDATE_PROMPT && !updateToastTrackedRef.current) {
                 updateToastTrackedRef.current = true;
                 posthog.capture('pwa_update_toast_shown', { version: config.version, source: config.source });
               }
@@ -349,7 +350,7 @@ export default function PwaManager() {
 
   return (
     <>
-      {updateReady && (
+      {SHOW_UPDATE_PROMPT && updateReady && (
         <div className="pwa-update-toast" role="status" aria-live="polite">
           <p>Update available.</p>
           <button className="btn btn-accent" type="button" onClick={handleApplyUpdate}>
