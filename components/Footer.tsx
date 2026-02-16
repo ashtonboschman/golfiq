@@ -62,7 +62,7 @@ export default function Footer() {
   };
 
   const buttons = [
-    { path: '/', icon: <LayoutDashboard/>, label: 'Dashboard' },
+    { path: '/dashboard', icon: <LayoutDashboard/>, label: 'Dashboard' },
     { path: '/rounds', icon: <LandPlot/>, label: 'Rounds' },
     { path: '/courses', icon: <MapPin/>, label: 'Courses' },
     { path: '/insights', icon: <TrendingUp/>, label: 'Insights' },
@@ -71,7 +71,7 @@ export default function Footer() {
   ];
 
   const isButtonActive = (path: string) => {
-    if (path === '/') return pathname === '/' || pathname === '/dashboard';
+    if (path === '/dashboard') return pathname === '/dashboard' || pathname === '/';
     if (path === '/friends' && pathname.startsWith('/users/')) return true;
     return pathname.startsWith(path);
   };

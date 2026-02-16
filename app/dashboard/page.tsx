@@ -55,6 +55,50 @@ interface DashboardStats {
   };
 }
 
+function DashboardFallback() {
+  return (
+    <div className="page-stack" aria-hidden="true">
+      <button className="btn btn-add" disabled>
+        <Plus /> Add Round
+      </button>
+
+      <div className="dashboard-filters">
+        <div className="skeleton skeleton-select" style={{ height: 44 }} />
+        <div className="skeleton skeleton-select" style={{ height: 44 }} />
+      </div>
+
+      <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
+
+      <div className="grid grid-2">
+        {Array.from({ length: 8 }).map((_, idx) => (
+          <div
+            className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card"
+            key={`dashboard-fallback-stat-${idx}`}
+          >
+            <div className="skeleton skeleton-dashboard-stat-value dashboard-live-label-skeleton-value" />
+          </div>
+        ))}
+      </div>
+
+      <div className="trend-card" style={{ height: 300 }}>
+        <h3 className="insights-centered-title">Score Trend</h3>
+        <div className="skeleton skeleton-chart-area" />
+      </div>
+
+      <div className="section">
+        <div className="card last-five-rounds-card">
+          <h3>Last 5 Rounds</h3>
+        </div>
+        <RoundListSkeleton count={5} metricCount={4} showHolesTag={false} />
+      </div>
+
+      <button className="btn btn-toggle" disabled>
+        Show Advanced Stats
+      </button>
+    </div>
+  );
+}
+
 function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -642,7 +686,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
 export default function DashboardPage({ userId }: { userId?: number }) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<DashboardFallback />}>
       <DashboardContent userId={userId} />
     </Suspense>
   );
