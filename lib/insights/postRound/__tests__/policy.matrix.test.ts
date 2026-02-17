@@ -57,7 +57,8 @@ function buildInputForCombo(index: number): PostRoundPolicyInput {
 
 function expectedM2Outcome(input: PostRoundPolicyInput): string {
   const worst = input.worstMeasured;
-  if (!worst || input.measuredComponents.length === 0) return 'M2-A';
+  if (!worst || input.measuredComponents.length < 2) return 'M2-A';
+  if (Math.abs(worst.value) <= 0.3) return 'M2-C';
   if (worst.value < 0) return 'M2-D';
   if (worst.value > 0) return 'M2-E';
   return 'M2-C';
@@ -88,17 +89,17 @@ describe('deterministic policy matrix coverage', () => {
     expect(out.messages[0].startsWith('??')).toBe(false);
   });
 
-  test('M1 threshold boundary: best > 0 is M1-C, < 0 is M1-B, = 0 is M1-D', () => {
+  test('M1 threshold boundary: |best| <= 0.3 is M1-D, > 0.3 is M1-C, < -0.3 is M1-B', () => {
     const base: PostRoundPolicyInput = {
       score: 75,
       toPar: 3,
       avgScore: 74,
       band: 'expected',
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.1 },
+        { name: 'off_tee', label: 'Off The Tee', value: 0.4 },
         { name: 'approach', label: 'Approach', value: -0.4 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.1 },
+      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.4 },
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.4 },
       opportunityIsWeak: false,
       residualDominant: false,
@@ -112,20 +113,20 @@ describe('deterministic policy matrix coverage', () => {
     const negative = buildDeterministicPostRoundInsights({
       ...base,
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+        { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
         { name: 'approach', label: 'Approach', value: -0.4 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
     });
     expect(negative.outcomes[0]).toBe('M1-B');
 
     const neutral = buildDeterministicPostRoundInsights({
       ...base,
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0 },
+        { name: 'off_tee', label: 'Off The Tee', value: 0.3 },
         { name: 'approach', label: 'Approach', value: -0.4 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0 },
+      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.3 },
     });
     expect(neutral.outcomes[0]).toBe('M1-D');
   });

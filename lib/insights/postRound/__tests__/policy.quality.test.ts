@@ -20,7 +20,6 @@ const BASE: PostRoundPolicyInput = {
 };
 
 const QUALITY_BANNED = [
-  /\bconfidence\b/i,
   /\bbe aggressive\b/i,
   /\bdecision-?making\b/i,
   /\btrust your swing\b/i,

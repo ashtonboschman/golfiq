@@ -66,7 +66,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -87,7 +87,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -103,7 +103,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -119,7 +119,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -135,7 +135,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -162,7 +162,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -181,7 +181,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -199,7 +199,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -218,7 +218,7 @@ describe('overall projection + trajectory', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
       currentHandicapOverride: 2.8,
     });
@@ -229,3 +229,4 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection_ranges!.handicapLow!).toBeGreaterThanOrEqual(1.8);
   });
 });
+

@@ -147,7 +147,7 @@ describe('/api/insights/overall contract', () => {
     });
     mockedPrisma.overallInsight.findUnique.mockResolvedValue({
       userId: BigInt(1),
-      modelUsed: 'deterministic-v2',
+      modelUsed: 'overall-deterministic-v1',
       insights: { cards: Array.from({ length: 6 }, () => ''), tier_context: { isPremium: true } },
       dataHash: 'outdated-hash',
       variantOffset: 9,
@@ -168,7 +168,7 @@ describe('/api/insights/overall contract', () => {
     });
     mockedPrisma.overallInsight.findUnique.mockResolvedValue({
       userId: BigInt(1),
-      modelUsed: 'deterministic-v2',
+      modelUsed: 'overall-deterministic-v1',
       insights: { cards: Array.from({ length: 6 }, () => ''), tier_context: { isPremium: true } },
       dataHash: 'some-hash',
       variantOffset: 4,
@@ -182,3 +182,5 @@ describe('/api/insights/overall contract', () => {
     expect(upsertArgs.update.variantOffset).toBe(5);
   });
 });
+
+

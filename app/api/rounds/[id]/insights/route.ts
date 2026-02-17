@@ -366,7 +366,7 @@ async function generateInsightsInternal(
       message_levels: onboardingInsights.messageLevels,
       message_outcomes: onboardingInsights.outcomes,
       generated_at: new Date().toISOString(),
-      model: 'deterministic-v1',
+      model: 'post-round-deterministic-v1',
       variant_offset: generationOptions.previousVariantOffset,
       free_visible_count: 3,
       generation_count: MAX_INSIGHTS,
@@ -404,11 +404,11 @@ async function generateInsightsInternal(
       create: {
         roundId,
         userId,
-        modelUsed: 'deterministic-v1',
+        modelUsed: 'post-round-deterministic-v1',
         insights: insightsData,
       },
       update: {
-        modelUsed: 'deterministic-v1',
+        modelUsed: 'post-round-deterministic-v1',
         insights: insightsData,
         updatedAt: new Date(),
       },
@@ -506,7 +506,7 @@ async function generateInsightsInternal(
     message_levels: deterministicInsights.messageLevels,
     message_outcomes: deterministicInsights.outcomes,
     generated_at: new Date().toISOString(),
-    model: 'deterministic-v1',
+    model: 'post-round-deterministic-v1',
     variant_offset: variantOffset,
     free_visible_count: freeVisibleCount,
     generation_count: MAX_INSIGHTS,
@@ -538,11 +538,11 @@ async function generateInsightsInternal(
     create: {
       roundId,
       userId,
-      modelUsed: 'deterministic-v1',
+      modelUsed: 'post-round-deterministic-v1',
       insights: insightsData,
     },
     update: {
-      modelUsed: 'deterministic-v1',
+      modelUsed: 'post-round-deterministic-v1',
       insights: insightsData,
       updatedAt: new Date(),
     },
@@ -550,3 +550,4 @@ async function generateInsightsInternal(
 
   return savedInsights.insights;
 }
+

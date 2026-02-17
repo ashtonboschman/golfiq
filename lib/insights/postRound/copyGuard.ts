@@ -1,6 +1,5 @@
 export const BANNED_TOKENS: readonly string[] = [
   'consider',
-  'could',
   'might',
   'seems',
   'challenge',
@@ -14,9 +13,6 @@ export const BANNED_TOKENS: readonly string[] = [
   'improve your efficiency',
   'keep a close eye on',
   'round context',
-  '—',
-  '–',
-  '&mdash;',
 ];
 
 export function assertNoBannedCopy(

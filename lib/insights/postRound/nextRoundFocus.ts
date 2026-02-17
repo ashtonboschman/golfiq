@@ -24,16 +24,16 @@ export type BuildNextRoundFocusOutput = {
 };
 
 const TRACKING_CLAUSE_VARIANTS = [
-  'Track {missingList} next round so GolfIQ can compute accurate SG components and tie recommendations to the right area.',
-  'Track {missingList} next round so GolfIQ can compute the missing SG components and link feedback to the right area.',
-  'Track {missingList} next round so GolfIQ can compute a complete measured SG breakdown and keep recommendations accurate.',
-  'Track {missingList} next round so GolfIQ can compute measured SG components and keep your feedback tied to real inputs.',
-  'Track {missingList} next round so GolfIQ can compute the measured components and avoid mis-attributing your results.',
-  'Track {missingList} next round so GolfIQ can compute the measured SG pieces and anchor recommendations to the correct area.',
-  'Track {missingList} next round so GolfIQ can compute a full component breakdown and keep insights specific.',
-  'Track {missingList} next round so GolfIQ can compute the missing components and keep insights tied to what you tracked.',
-  'Track {missingList} next round so GolfIQ can compute measured SG components and keep the opportunity call accurate.',
-  'Track {missingList} next round so GolfIQ can compute a reliable component breakdown and keep recommendations targeted.',
+  'Track {missingList} next round to unlock a true SG breakdown and keep the feedback specific.',
+  'Track {missingList} next time so the insights can point to the exact area that moved the score.',
+  'Add {missingList} next round to see where strokes were won or lost across the round.',
+  'Track {missingList} so the SG components are based on real inputs, not guesswork.',
+  'Log {missingList} next time to unlock strengths and opportunities by category.',
+  'Track {missingList} so the breakdown can separate driving, approach, putting, and penalties.',
+  'Add {missingList} next round so the opportunity call is backed by measured data.',
+  'Track {missingList} next time to get a reliable component view and more targeted recommendations.',
+  'Log {missingList} so the measured components reflect what actually happened in the round.',
+  'Track {missingList} next round to fill in the missing pieces and tighten up the insights.',
 ] as const;
 
 const GENERIC_ACTION_VARIANTS = [
@@ -42,9 +42,9 @@ const GENERIC_ACTION_VARIANTS = [
   'Play to the widest part of the hole and avoid low-percentage recovery lines.',
   'Set a single process goal: pick a target, commit, and accept the result on every swing.',
   'Prioritize staying in play: take the safe line when trouble brings double into play.',
-  'Commit to one conservative strategy rule today: when in doubt, aim away from penalty zones.',
+  'Commit to one conservative strategy rule: when in doubt, aim away from penalty zones.',
   'Keep it simple: choose a clear target and a committed swing on every full shot.',
-  'Make one repeatable gain: commit to a pre-shot routine and keep misses on the safe side.',
+  'Build one repeatable gain: commit to a pre-shot routine and keep misses on the safe side.',
   'Manage risk first: choose the target that keeps your next shot playable even on a miss.',
   'Focus on execution: pick a target and commit to the shot shape that keeps the ball in play.',
 ] as const;
@@ -66,8 +66,8 @@ const PUTTING_ACTION_VARIANTS = [
   'On long putts, choose a leave zone inside three feet and roll pace to that window.',
   'For lag putts, prioritize speed to finish within three feet and make the second putt routine.',
   'Before every putt outside 15 feet, commit to a pace that finishes hole-high within three feet.',
-  'Use one speed rule: on lags, roll it to finish within three feet, not makeable.',
-  'On mid-range putts, commit to a start line and a firm pace that takes out most break.',
+  'Use one speed rule: on lags, roll it to finish within three feet, not to hole it.',
+  'On mid-range putts, commit to a start line and a firm pace that reduces the amount of break you have to play.',
   'On downhill putts, aim to die it at the hole so the comeback stays inside three feet.',
   'On uphill putts, commit to pace that finishes 1 to 2 feet past to reduce short-miss probability.',
   'Pick a precise start line and hold it, then match speed to that line instead of steering.',
@@ -96,7 +96,7 @@ const OFF_TEE_ACTION_VARIANTS = [
   'On tight holes, hit the tee shot to the widest part of the fairway and commit to it.',
   'Use one tee-shot rule: if a miss brings trouble, aim to the safe side and swing smooth.',
   'Pick a clear start line and commit, then accept the result without steering mid-swing.',
-  'On driver holes with trouble, choose 3 wood or hybrid if it keeps your miss in play.',
+  'On holes where driver brings trouble, choose 3 wood or hybrid if it keeps your miss in play.',
   'Prioritize staying in play: choose the target that keeps both sides playable on a miss.',
   'On tee shots, commit to the safe side and avoid lines that only work with a perfect strike.',
 ] as const;

@@ -30,7 +30,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-A',
     messageIndex: 0,
     expectedOutcome: 'M1-A',
-    expectedMessageFragment: 'Measured SG components were not available',
+    expectedMessageFragment: 'logged without advanced stats',
     input: {
       ...baseInput,
       measuredComponents: [],
@@ -45,9 +45,9 @@ const cases: OutcomeCase[] = [
     expectedMessageFragment: 'held up best among your measured areas',
     input: {
       ...baseInput,
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
         { name: 'approach', label: 'Approach', value: -0.6 },
       ],
     },
@@ -80,7 +80,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-A',
     messageIndex: 1,
     expectedOutcome: 'M2-A',
-    expectedMessageFragment: 'Measured SG components were not available for a leak call',
+    expectedMessageFragment: 'score-only round',
     input: {
       ...baseInput,
       measuredComponents: [],
@@ -106,7 +106,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-D',
     messageIndex: 1,
     expectedOutcome: 'M2-D',
-    expectedMessageFragment: 'clearest measured leak',
+    expectedMessageFragment: 'clearest measured opportunity',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.8 },
@@ -173,7 +173,7 @@ const cases: OutcomeCase[] = [
 
 describe('post-round deterministic policy outcome contracts', () => {
   test.each(cases)('$key', ({ input, expectedOutcome, expectedMessageFragment, messageIndex }) => {
-    const out = buildDeterministicPostRoundInsights(input);
+    const out = buildDeterministicPostRoundInsights(input, { fixedVariantIndex: 0 });
     expect(out.outcomes[messageIndex]).toBe(expectedOutcome);
     expect(out.messages[messageIndex]).toContain(expectedMessageFragment);
   });
@@ -181,7 +181,7 @@ describe('post-round deterministic policy outcome contracts', () => {
   test('all documented outcomes are reachable', () => {
     const reached = new Set<string>();
     for (const item of cases) {
-      const out = buildDeterministicPostRoundInsights(item.input);
+      const out = buildDeterministicPostRoundInsights(item.input, { fixedVariantIndex: 0 });
       reached.add(out.outcomes[0]);
       reached.add(out.outcomes[1]);
       reached.add(out.outcomes[2]);

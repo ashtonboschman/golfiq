@@ -85,7 +85,7 @@ describe('overall insights helpers', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -114,3 +114,4 @@ describe('overall insights helpers', () => {
     expect(shouldAutoRefreshOverall(null, null, 'abc')).toBe(true);
   });
 });
+

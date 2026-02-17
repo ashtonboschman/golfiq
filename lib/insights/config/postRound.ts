@@ -1,6 +1,7 @@
 export const POST_ROUND_THRESHOLDS = {
   sgWeakness: -1.0,
   sgLargeWeakness: -2.0,
+  sgNeutralEps: 0.3,
   sgToughRound: -5.0,
   sgBelowExpectations: -2.0,
   sgAboveExpectations: 2.0,

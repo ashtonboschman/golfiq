@@ -32,7 +32,10 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.outcomes).toEqual(['M1-A', 'M2-A', 'M3-A']);
     expect(out.messageLevels).toEqual(['success', 'warning', 'info']);
-    expect(out.messages[0]).toContain('Measured SG components were not available');
+    expect(out.messages[0]).toContain('logged without advanced stats');
+    expect(out.messages[1]).toContain('score-only round');
+    expect(out.messages[1]).not.toContain('{residualSuffix}');
+    expect(out.messages[1]).not.toContain('Residual was');
   });
 
   test('M1-B / M2-D / M3-C with residual sentence when large', () => {
@@ -71,6 +74,26 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.outcomes[0]).toBe('M1-C');
     expect(out.messages[0]).toContain('was your strongest measured area');
+  });
+
+  test('uses penalties-safe positive copy for M1-C', () => {
+    const comps = [
+      { name: 'penalties' as const, label: 'Penalties', value: 0.7 },
+      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.1 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        band: 'above',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[0]).toBe('M1-C');
+    expect(out.messages[0]).toContain('Penalty damage was limited');
+    expect(out.messages[0]).not.toContain('top measured contributor');
   });
 
   test('M1-D and M2-C for exact zero values', () => {
@@ -130,5 +153,66 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.messages[0]).toContain('(9 greens in regulation)');
     expect(out.messages[1]).toContain('(7 fairways)');
+  });
+
+  test('forces M2-A when only one measured component exists, even if worstMeasured is incorrectly populated', () => {
+    const single = [{ name: 'off_tee' as const, label: 'Off The Tee', value: 0.1 }];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        band: 'above',
+        measuredComponents: single,
+        bestMeasured: single[0],
+        worstMeasured: single[0],
+        missing: { fir: false, gir: true, putts: true, penalties: true },
+        residualValue: 0.6,
+        residualDominant: true,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-A');
+    expect(out.messages[1]).not.toContain('Off The Tee');
+    expect(out.messages[1]).not.toContain('{residualSuffix}');
+    expect(out.messages[1]).not.toContain('Residual was');
+  });
+
+  test('keeps residual sentence for component-based M2 messages', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.6 },
+      { name: 'approach' as const, label: 'Approach', value: -1.2 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        residualValue: -2.0,
+        residualDominant: true,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-D');
+    expect(out.messages[1]).toContain('Residual was');
+  });
+
+  test('uses penalties-safe positive copy for M2-E', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: 1.1 },
+      { name: 'penalties' as const, label: 'Penalties', value: 0.4 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        band: 'above',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-E');
+    expect(out.messages[1]).toContain('Penalties were positive');
+    expect(out.messages[1]).toContain('Risk management helped');
   });
 });

@@ -168,7 +168,7 @@ export async function generateAndStoreOverallInsights(userId: bigint, forceManua
   });
   if (!user) throw new Error('User not found');
   const isPremium = isPremiumUser(user);
-  const model = 'deterministic-v2';
+  const model = 'overall-deterministic-v1';
   const leaderboardStats = await prisma.userLeaderboardStats.findUnique({
     where: { userId },
     select: { handicap: true },
@@ -333,3 +333,5 @@ export async function GET(request: NextRequest) {
     return errorResponse(error.message || 'Failed to load overall insights', 500);
   }
 }
+
+

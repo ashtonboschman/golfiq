@@ -468,21 +468,13 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
   });
 }
 
-// Helper to trigger insights generation for premium users
+// Helper to trigger post-round insights generation for edited rounds.
 async function triggerInsightsGeneration(roundId: bigint, userId: bigint, forceRegenerate = false): Promise<void> {
-  // Check if user is premium or lifetime
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { subscriptionTier: true },
-  });
-
-  if (user?.subscriptionTier === 'premium' || user?.subscriptionTier === 'lifetime') {
-    try {
-      await generateInsights(roundId, userId, undefined, { forceRegenerate });
-    } catch (error) {
-      // Silently fail - insights can be generated later if needed
-      console.error('Failed to generate insights:', error);
-    }
+  try {
+    await generateInsights(roundId, userId, undefined, { forceRegenerate });
+  } catch (error) {
+    // Silently fail - insights can be generated later if needed
+    console.error('Failed to generate insights:', error);
   }
 }
 

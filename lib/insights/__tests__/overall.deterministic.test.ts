@@ -50,7 +50,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -70,7 +70,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -92,7 +92,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -118,7 +118,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -130,7 +130,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -152,7 +152,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -178,7 +178,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -235,7 +235,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -257,7 +257,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds: [mkRound({})],
       isPremium: false,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -279,7 +279,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds: [mkRound({})],
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -304,7 +304,7 @@ describe('deterministic overall cards', () => {
     const payload = computeOverallPayload({
       rounds: [mkRound({})],
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -347,7 +347,7 @@ describe('deterministic overall cards', () => {
     const basePayload = computeOverallPayload({
       rounds,
       isPremium: true,
-      model: 'deterministic-v1',
+      model: 'overall-deterministic-v1',
       cards: Array.from({ length: 6 }, () => ''),
     });
 
@@ -365,7 +365,7 @@ describe('deterministic overall cards', () => {
       const payload = computeOverallPayload({
         rounds,
         isPremium: true,
-        model: 'deterministic-v1',
+        model: 'overall-deterministic-v1',
         cards,
       });
       return { drill, cards, payload };
@@ -412,3 +412,4 @@ describe('deterministic overall cards', () => {
     expect(d0).toBe(d1);
   });
 });
+

@@ -1,4 +1,5 @@
 import { assertNoBannedCopy } from '@/lib/insights/postRound/copyGuard';
+import { POST_ROUND_THRESHOLDS } from '@/lib/insights/config/postRound';
 import {
   buildNextRoundFocusText,
   type BuildNextRoundFocusOutput,
@@ -65,16 +66,16 @@ type BuiltMessage = {
 };
 
 const M1_A_VARIANTS = [
-  '{scoreSentence} Measured SG components were not available for this round.',
-  '{scoreSentence} No measured SG components were available for this round.',
-  '{scoreSentence} This round did not include enough measured stats to compute SG components.',
-  '{scoreSentence} SG components were unavailable because measured stats were not recorded.',
-  '{scoreSentence} Measured SG components are unavailable for this round based on the stats recorded.',
-  '{scoreSentence} There were no measured SG components available from the data recorded this round.',
-  "{scoreSentence} Measured SG components were not computed from this round's recorded stats.",
-  "{scoreSentence} SG component breakdown was unavailable from this round's measured inputs.",
-  '{scoreSentence} This round is missing measured inputs needed for SG component breakdown.',
-  '{scoreSentence} Measured SG breakdown was not available for this round.',
+  '{scoreSentence} This was logged without advanced stats, so there is not enough detail to compute SG components.',
+  '{scoreSentence} This was a score-only round, so SG components are not available from this round.',
+  '{scoreSentence} No advanced stats were recorded, so GolfIQ can not compute SG components for this round.',
+  '{scoreSentence} Without FIR, GIR, putts, or penalties, a component breakdown is not available.',
+  '{scoreSentence} This round does not include enough tracked detail to compute SG components.',
+  '{scoreSentence} Too few tracked stats were recorded to compute SG components for this round.',
+  '{scoreSentence} Advanced stat tracking is missing, so SG components can not be calculated for this round.',
+  '{scoreSentence} SG components were not computed because advanced stats were not logged for this round.',
+  '{scoreSentence} No tracked stats were available to compute SG components this round.',
+  '{scoreSentence} SG components need advanced stats, so they are not available for this round.',
 ] as const;
 
 const M1_B_VARIANTS = [
@@ -82,11 +83,11 @@ const M1_B_VARIANTS = [
   '{scoreSentence} Among measured areas, {BestLabel} was your least costly at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} {BestLabel} was your steadiest measured area at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} {BestLabel} was your best measured hold-up at {bestSigned1} strokes{evidence}.',
-  '{scoreSentence} Compared to other measured areas, {BestLabel} was the smallest leak at {bestSigned1} strokes{evidence}.',
-  '{scoreSentence} {BestLabel} was the strongest of the measured areas despite the round, at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} {BestLabel} was your most stable measured area at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} {BestLabel} was your most controlled measured area at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} Even on this round, {BestLabel} was your strongest measured area at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} Your best measured result came from {BestLabel} at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} {BestLabel} led your measured areas at {bestSigned1} strokes{evidence}.',
-  '{scoreSentence} {BestLabel} was your top measured area at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} {BestLabel} was the best of your measured components at {bestSigned1} strokes{evidence}.',
 ] as const;
 
@@ -96,7 +97,7 @@ const M1_C_VARIANTS = [
   '{scoreSentence} {BestLabel} produced your best measured gain at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} {BestLabel} drove your best measured performance at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} {BestLabel} was your top measured contributor at {bestSigned1} strokes{evidence}.',
-  '{scoreSentence} {BestLabel} was the clearest measured strength at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} {BestLabel} was your clearest measured strength at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} In measured terms, {BestLabel} led the round at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} {BestLabel} delivered your best measured edge at {bestSigned1} strokes{evidence}.',
   '{scoreSentence} Your strongest measured area was {BestLabel} at {bestSigned1} strokes{evidence}.',
@@ -104,55 +105,81 @@ const M1_C_VARIANTS = [
 ] as const;
 
 const M1_D_VARIANTS = [
-  '{scoreSentence} {BestLabel} was neutral among your measured areas at 0.0 strokes{evidence}.',
-  '{scoreSentence} {BestLabel} finished neutral in measured SG at 0.0 strokes{evidence}.',
-  '{scoreSentence} {BestLabel} was flat in measured SG at 0.0 strokes{evidence}.',
-  '{scoreSentence} {BestLabel} came in neutral at 0.0 strokes in the measured breakdown{evidence}.',
-  '{scoreSentence} {BestLabel} was even at 0.0 strokes among measured components{evidence}.',
-  '{scoreSentence} {BestLabel} was level at 0.0 strokes in measured SG{evidence}.',
-  '{scoreSentence} {BestLabel} was neutral at 0.0 strokes in your measured areas{evidence}.',
-  '{scoreSentence} {BestLabel} landed at 0.0 strokes in measured SG{evidence}.',
-  '{scoreSentence} {BestLabel} posted 0.0 strokes in measured SG{evidence}.',
-  '{scoreSentence} {BestLabel} was neutral at 0.0 strokes based on the measured stats{evidence}.',
+  '{scoreSentence} {BestLabel} was neutral among your measured areas at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} {BestLabel} finished neutral in measured SG at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} {BestLabel} was flat in measured SG at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} {BestLabel} came in neutral at {bestSigned1} strokes in the measured breakdown{evidence}.',
+  '{scoreSentence} {BestLabel} was even at {bestSigned1} strokes among measured components{evidence}.',
+  '{scoreSentence} {BestLabel} was level at {bestSigned1} strokes in measured SG{evidence}.',
+  '{scoreSentence} {BestLabel} was neutral at {bestSigned1} strokes in your measured areas{evidence}.',
+  '{scoreSentence} {BestLabel} landed at {bestSigned1} strokes in measured SG{evidence}.',
+  '{scoreSentence} {BestLabel} posted {bestSigned1} strokes in measured SG{evidence}.',
+  '{scoreSentence} {BestLabel} was neutral at {bestSigned1} strokes based on the measured stats{evidence}.',
 ] as const;
 
 const M2_A_VARIANTS = [
-  'Measured SG components were not available for a leak call.{residualSuffix}',
-  'No measured SG components were available to identify a leak.{residualSuffix}',
-  'Measured components were unavailable, so no leak area can be called.{residualSuffix}',
-  'There were no measured SG components available to identify an opportunity.{residualSuffix}',
-  'Measured SG breakdown was unavailable, so no opportunity area can be selected.{residualSuffix}',
-  'No measured SG breakdown was available for an opportunity call.{residualSuffix}',
-  'Measured SG components were unavailable for selecting a weakest area.{residualSuffix}',
-  'Measured components were not recorded, so no leak area can be determined.{residualSuffix}',
-  'This round lacks measured components needed to identify a leak.{residualSuffix}',
-  'Measured SG components were not present for an opportunity call.{residualSuffix}',
+  'There are not enough measured components to make an opportunity call.',
+  'Not enough measured detail is available to identify a clear opportunity area.',
+  'Measured components are not sufficient to select a single opportunity area.',
+  'GolfIQ needs measured components to call an opportunity area.',
+  'No measured breakdown is available, so there is no opportunity call for this round.',
+  'This round lacks the measured component detail needed for an opportunity call.',
+  'There is not enough measured data to compare categories and pick an opportunity.',
+  'An opportunity call requires measured components across categories.',
+  'Measured inputs do not support a specific opportunity call for this round.',
+  'No measured component set is available to support an opportunity call.',
+] as const;
+
+const M2_A_NONE_VARIANTS = [
+  'This was a score-only round, so there is not enough detail to isolate a specific opportunity.',
+  'With only a total score, GolfIQ can not tell which category drove the result.',
+  'Score-only rounds show the outcome, but not what created it across categories.',
+  'Without advanced stats, this round can not be broken into off the tee, approach, putting, and penalties.',
+  'There is not enough tracked detail to attribute performance to specific areas.',
+  'Without FIR, GIR, putts, or penalties, the score stands alone without category detail.',
+  'Advanced stats were not logged, so the opportunity area is unknown for this round.',
+  'The score is clear, but the biggest opportunity is unknown without tracked stats.',
+  'This round shows overall play, but advanced stats are needed to surface a clear opportunity.',
+  'Track FIR, GIR, putts, or penalties next time to unlock area-specific strengths and opportunities.',
+] as const;
+
+const M2_A_SINGLE_VARIANTS = [
+  'Only one measured area was available, so GolfIQ can not compare categories to find the clearest opportunity.',
+  'One tracked category is a good start, but it is not enough to isolate a single opportunity area.',
+  'With a single measured component, there is not enough context to pick the clearest opportunity area.',
+  'Measured detail was limited to one area, so an opportunity comparison is not available.',
+  'Only one category was tracked, so GolfIQ can not compare areas to see what mattered most.',
+  'GolfIQ needs at least two measured components to identify a clear opportunity area.',
+  'You tracked some detail, but more categories are needed to label an opportunity with confidence.',
+  'With only one measured category, this round does not support a category-level opportunity call.',
+  'Add one or two more tracked stats next round so GolfIQ can identify strengths and opportunities.',
+  'Keep tracking more categories next round so GolfIQ can pinpoint your clearest opportunity.',
 ] as const;
 
 const M2_C_VARIANTS = [
-  '{WorstLabel} was neutral at 0.0 strokes.{residualSuffix}',
-  '{WorstLabel} finished neutral at 0.0 strokes in measured SG.{residualSuffix}',
-  '{WorstLabel} was flat at 0.0 strokes in the measured breakdown.{residualSuffix}',
-  '{WorstLabel} landed at 0.0 strokes among measured components.{residualSuffix}',
-  '{WorstLabel} was even at 0.0 strokes based on measured stats.{residualSuffix}',
-  '{WorstLabel} posted 0.0 strokes in measured SG.{residualSuffix}',
-  '{WorstLabel} was level at 0.0 strokes in measured SG.{residualSuffix}',
-  '{WorstLabel} came in neutral at 0.0 strokes.{residualSuffix}',
-  '{WorstLabel} registered 0.0 strokes in the measured breakdown.{residualSuffix}',
-  '{WorstLabel} was neutral at 0.0 strokes for this round.{residualSuffix}',
+  '{WorstLabel} was neutral at {worstSigned1} strokes.{residualSuffix}',
+  '{WorstLabel} finished neutral at {worstSigned1} strokes in measured SG.{residualSuffix}',
+  '{WorstLabel} was flat at {worstSigned1} strokes in the measured breakdown.{residualSuffix}',
+  '{WorstLabel} landed at {worstSigned1} strokes among measured components.{residualSuffix}',
+  '{WorstLabel} was even at {worstSigned1} strokes based on measured stats.{residualSuffix}',
+  '{WorstLabel} posted {worstSigned1} strokes in measured SG.{residualSuffix}',
+  '{WorstLabel} was level at {worstSigned1} strokes in measured SG.{residualSuffix}',
+  '{WorstLabel} came in neutral at {worstSigned1} strokes.{residualSuffix}',
+  '{WorstLabel} registered {worstSigned1} strokes in the measured breakdown.{residualSuffix}',
+  '{WorstLabel} was neutral at {worstSigned1} strokes for this round.{residualSuffix}',
 ] as const;
 
 const M2_D_VARIANTS = [
-  '{WorstLabel} was your clearest measured leak at {worstSigned1} strokes{evidence}.{residualSuffix}',
+  '{WorstLabel} was your clearest measured opportunity at {worstSigned1} strokes{evidence}.{residualSuffix}',
   '{WorstLabel} cost the most among measured areas at {worstSigned1} strokes{evidence}.{residualSuffix}',
   '{WorstLabel} was the biggest measured loss at {worstSigned1} strokes{evidence}.{residualSuffix}',
-  '{WorstLabel} was the main measured leak at {worstSigned1} strokes{evidence}.{residualSuffix}',
+  '{WorstLabel} was the biggest measured opportunity at {worstSigned1} strokes{evidence}.{residualSuffix}',
   '{WorstLabel} was the largest measured drag at {worstSigned1} strokes{evidence}.{residualSuffix}',
   '{WorstLabel} accounted for the largest measured loss at {worstSigned1} strokes{evidence}.{residualSuffix}',
   '{WorstLabel} was the clearest measured fix at {worstSigned1} strokes{evidence}.{residualSuffix}',
   '{WorstLabel} was your weakest measured area at {worstSigned1} strokes{evidence}.{residualSuffix}',
   '{WorstLabel} was the most costly measured component at {worstSigned1} strokes{evidence}.{residualSuffix}',
-  '{WorstLabel} was the largest measured leak in this round at {worstSigned1} strokes{evidence}.{residualSuffix}',
+  '{WorstLabel} was the primary measured opportunity at {worstSigned1} strokes{evidence}.{residualSuffix}',
 ] as const;
 
 const M2_E_VARIANTS = [
@@ -166,6 +193,30 @@ const M2_E_VARIANTS = [
   '{WorstLabel} ended positive at {worstSigned1} strokes. {followUp}{residualSuffix}',
   '{WorstLabel} produced {worstSigned1} strokes in measured SG. {followUp}{residualSuffix}',
   '{WorstLabel} remained positive at {worstSigned1} strokes. {followUp}{residualSuffix}',
+] as const;
+
+const M1_C_PENALTIES_VARIANTS = [
+  '{scoreSentence} Penalty damage was limited at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} Penalties were well managed at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} Risk management in penalties came in at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} Penalties stayed controlled at {bestSigned1} strokes{evidence}.',
+  '{scoreSentence} Penalty impact was contained at {bestSigned1} strokes{evidence}.',
+] as const;
+
+const M2_D_PENALTIES_VARIANTS = [
+  'Penalties were your clearest measured opportunity at {worstSigned1} strokes{evidence}.{residualSuffix}',
+  'Penalties were the biggest measured drag at {worstSigned1} strokes{evidence}.{residualSuffix}',
+  'Penalty strokes were costly at {worstSigned1} in measured SG{evidence}.{residualSuffix}',
+  'Penalties were the most costly measured component at {worstSigned1} strokes{evidence}.{residualSuffix}',
+  'Penalty damage was largest at {worstSigned1} strokes{evidence}.{residualSuffix}',
+] as const;
+
+const M2_E_PENALTIES_VARIANTS = [
+  'Penalties were positive at {worstSigned1} strokes. Risk management helped this round.{residualSuffix}',
+  'Penalties came in positive at {worstSigned1} strokes. Risk control stayed solid.{residualSuffix}',
+  'Penalty impact stayed favorable at {worstSigned1} strokes. Keep that risk discipline.{residualSuffix}',
+  'Penalties remained in a positive range at {worstSigned1} strokes. Controlled misses helped.{residualSuffix}',
+  'Penalty management was positive at {worstSigned1} strokes. Continue choosing conservative targets into trouble.{residualSuffix}',
 ] as const;
 
 const RESIDUAL_POSITIVE_VARIANTS = [
@@ -231,8 +282,8 @@ function strokeWord(value: number): string {
   return Math.abs(value - 1) < 0.001 ? 'stroke' : 'strokes';
 }
 
-function areaVerb(component: PolicyMeasuredComponent): 'was' | 'were' {
-  return component.name === 'penalties' ? 'were' : 'was';
+function isNeutralMeasuredValue(value: number): boolean {
+  return Math.abs(value) <= POST_ROUND_THRESHOLDS.sgNeutralEps;
 }
 
 function pluralize(n: number, singular: string, plural: string): string {
@@ -354,9 +405,19 @@ function buildMessage1(input: PostRoundPolicyInput, variantOptions: VariantOptio
     evidence: evidenceToken,
   };
 
-  if (input.bestMeasured.value > 0) {
+  if (isNeutralMeasuredValue(input.bestMeasured.value)) {
     return {
-      text: pickTemplate('message1', 'M1-C', M1_C_VARIANTS, messageVariantOptions, commonReplacements),
+      text: pickTemplate('message1', 'M1-D', M1_D_VARIANTS, messageVariantOptions, commonReplacements),
+      level,
+      outcome: 'M1-D',
+    };
+  }
+
+  if (input.bestMeasured.value > 0) {
+    const positiveVariants =
+      input.bestMeasured.name === 'penalties' ? M1_C_PENALTIES_VARIANTS : M1_C_VARIANTS;
+    return {
+      text: pickTemplate('message1', 'M1-C', positiveVariants, messageVariantOptions, commonReplacements),
       level,
       outcome: 'M1-C',
     };
@@ -371,9 +432,9 @@ function buildMessage1(input: PostRoundPolicyInput, variantOptions: VariantOptio
   }
 
   return {
-    text: pickTemplate('message1', 'M1-D', M1_D_VARIANTS, messageVariantOptions, commonReplacements),
+    text: pickTemplate('message1', 'M1-B', M1_B_VARIANTS, messageVariantOptions, commonReplacements),
     level,
-    outcome: 'M1-D',
+    outcome: 'M1-B',
   };
 }
 
@@ -383,40 +444,60 @@ function buildMessage2(input: PostRoundPolicyInput, variantOptions: VariantOptio
     seed: variantOptions.seed ? `${variantOptions.seed}|m2` : undefined,
   };
   const level: InsightLevel = input.band === 'great' || input.band === 'above' ? 'success' : 'warning';
-  const residualSuffix = buildResidualSuffix(input, variantOptions);
+  const hasEnoughMeasuredForM2 = input.measuredComponents.length >= 2;
+  const hasOpportunityComponent = hasEnoughMeasuredForM2 && Boolean(input.worstMeasured);
+  const residualSuffix = hasOpportunityComponent ? buildResidualSuffix(input, variantOptions) : '';
 
-  if (!input.worstMeasured || input.measuredComponents.length === 0) {
+  if (!hasOpportunityComponent || !input.worstMeasured) {
+    const measuredCount = input.measuredComponents.length;
+    const variants =
+      measuredCount === 0
+        ? M2_A_NONE_VARIANTS
+        : measuredCount === 1
+          ? M2_A_SINGLE_VARIANTS
+          : M2_A_VARIANTS;
+
     return {
-      text: pickTemplate('message2', 'M2-A', M2_A_VARIANTS, messageVariantOptions, {
-        residualSuffix,
-      }),
+      text: pickTemplate('message2', 'M2-A', variants, messageVariantOptions, {}),
       level,
       outcome: 'M2-A',
     };
   }
 
-  const evidence = buildComponentEvidenceDetail(input.worstMeasured, input.roundEvidence);
+  const worstMeasured = input.worstMeasured;
+  const evidence = buildComponentEvidenceDetail(worstMeasured, input.roundEvidence);
   const replacements = {
-    WorstLabel: input.worstMeasured.label,
-    worstSigned1: formatSignedOneDecimal(input.worstMeasured.value),
+    WorstLabel: worstMeasured.label,
+    worstSigned1: formatSignedOneDecimal(worstMeasured.value),
     evidence: evidence ? ` (${evidence})` : '',
-    followUp: input.worstMeasured.name === 'penalties'
+    followUp: worstMeasured.name === 'penalties'
       ? 'Continuing to manage risk here supports consistent scoring.'
       : 'Continuing to build here supports consistent scoring.',
     residualSuffix,
   };
 
-  if (input.worstMeasured.value < 0) {
+  if (isNeutralMeasuredValue(worstMeasured.value)) {
     return {
-      text: pickTemplate('message2', 'M2-D', M2_D_VARIANTS, messageVariantOptions, replacements),
+      text: pickTemplate('message2', 'M2-C', M2_C_VARIANTS, messageVariantOptions, replacements),
+      level,
+      outcome: 'M2-C',
+    };
+  }
+
+  if (worstMeasured.value < 0) {
+    const leakVariants = worstMeasured.name === 'penalties' ? M2_D_PENALTIES_VARIANTS : M2_D_VARIANTS;
+    return {
+      text: pickTemplate('message2', 'M2-D', leakVariants, messageVariantOptions, replacements),
       level,
       outcome: 'M2-D',
     };
   }
 
-  if (input.worstMeasured.value > 0) {
+  if (worstMeasured.value > 0) {
+    const positiveVariants =
+      worstMeasured.name === 'penalties' ? M2_E_PENALTIES_VARIANTS : M2_E_VARIANTS;
     return {
-      text: pickTemplate('message2', 'M2-E', M2_E_VARIANTS, messageVariantOptions, replacements),
+      text: pickTemplate('message2', 'M2-E', positiveVariants, messageVariantOptions, replacements),
       level,
       outcome: 'M2-E',
     };
@@ -472,4 +553,5 @@ export function buildDeterministicPostRoundInsights(
     outcomes: [m1.outcome, m2.outcome, m3.outcome],
   };
 }
+
 

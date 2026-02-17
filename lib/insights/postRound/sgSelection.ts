@@ -63,12 +63,13 @@ function pickOpportunityComponent(
   components: MeasuredSgComponent[],
   best: MeasuredSgComponent | null,
 ): MeasuredSgComponent | null {
-  if (components.length === 0) return null;
+  // Need at least two measured components to call out an opportunity distinct from best.
+  if (components.length < 2) return null;
   const worst = [...components].sort((a, b) => a.value - b.value)[0];
   if (!best || worst.name !== best.name) return worst;
 
   const alternatives = components.filter((component) => component.name !== best.name);
-  if (!alternatives.length) return worst;
+  if (!alternatives.length) return null;
   return alternatives.sort((a, b) => a.value - b.value)[0];
 }
 

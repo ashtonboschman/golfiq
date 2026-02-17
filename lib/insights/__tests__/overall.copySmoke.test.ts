@@ -91,13 +91,13 @@ describe('overall copy safety smoke', () => {
   const premiumBase = computeOverallPayload({
     rounds,
     isPremium: true,
-    model: 'deterministic-v1',
+    model: 'overall-deterministic-v1',
     cards: Array.from({ length: 6 }, () => ''),
   });
   const freeBase = computeOverallPayload({
     rounds,
     isPremium: false,
-    model: 'deterministic-v1',
+    model: 'overall-deterministic-v1',
     cards: Array.from({ length: 6 }, () => ''),
   });
 
@@ -444,3 +444,4 @@ describe('overall copy safety smoke', () => {
     }
   });
 });
+

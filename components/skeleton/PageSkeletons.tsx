@@ -194,10 +194,9 @@ export function RoundInsightsSkeleton() {
       </div>
       <div className="insights-content">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={`round-insight-message-skeleton-${index}`} className="insight-message">
+          <div key={`round-insight-message-skeleton-${index}`} className="insight-message insight-message-skeleton">
             <div className="insight-message-content skeleton-insight-message-content">
-              <SkeletonCircle size={16} />
-              <SkeletonText className="round-insights-line" lines={1} lineHeight={14} />
+              <SkeletonText className="round-insights-line" lines={2} lineHeight={14} lastLineWidth="88%" />
             </div>
           </div>
         ))}

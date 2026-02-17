@@ -78,3 +78,42 @@ describe('SG observability state space (16 combinations)', () => {
     });
   }
 });
+
+describe('runMeasuredSgSelection opportunity selection', () => {
+  test('single-component measured input returns null opportunity', () => {
+    const selection = runMeasuredSgSelection(
+      {
+        offTee: -0.6,
+        approach: null,
+        putting: null,
+        penalties: null,
+        residual: -1.2,
+        total: -1.8,
+      },
+      -1.0,
+    );
+
+    expect(selection.best?.name).toBe('off_tee');
+    expect(selection.opportunity).toBeNull();
+    expect(selection.opportunityIsWeak).toBe(false);
+  });
+
+  test('two-component measured input picks distinct best and opportunity', () => {
+    const selection = runMeasuredSgSelection(
+      {
+        offTee: 0.2,
+        approach: -1.1,
+        putting: null,
+        penalties: null,
+        residual: -0.3,
+        total: -1.2,
+      },
+      -1.0,
+    );
+
+    expect(selection.best).not.toBeNull();
+    expect(selection.opportunity).not.toBeNull();
+    expect(selection.best?.name).not.toBe(selection.opportunity?.name);
+    expect(selection.opportunity?.name).toBe('approach');
+  });
+});

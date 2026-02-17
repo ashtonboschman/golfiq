@@ -59,6 +59,7 @@ function writeRoundInsightsCache(cacheKey: string, data: RoundInsightsResponse):
 async function fetchRoundInsights(roundId: string, isPremium: boolean): Promise<RoundInsightsResponse> {
   const res = await fetch(`/api/rounds/${roundId}/insights`, {
     credentials: 'include',
+    cache: 'no-store',
   });
 
   if (res.status === 401 || res.status === 403) {
@@ -156,7 +157,7 @@ export default function RoundInsights({
   const [loading, setLoading] = useState(!initialInsights);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fetchedCacheKeyRef = useRef<string | null>(initialInsights ? cacheKey : null);
+  const fetchedCacheKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!normalizedInitialInsights) return;
@@ -165,10 +166,9 @@ export default function RoundInsights({
     setInsights((prev) => prev ?? normalizedInitialInsights);
     setLoading(false);
     setError(null);
-    fetchedCacheKeyRef.current = cacheKey;
   }, [cacheKey, normalizedInitialInsights]);
 
-  const fetchInsights = async (showLoading = false) => {
+  const fetchInsights = async ({ showLoading = false, forceRefresh = false }: { showLoading?: boolean; forceRefresh?: boolean } = {}) => {
     if (showLoading) {
       setLoading(true);
     }
@@ -178,7 +178,9 @@ export default function RoundInsights({
       if (cached) {
         setInsights(cached);
         setError(null);
-        return;
+        if (!forceRefresh) {
+          return;
+        }
       }
 
       const nextInsights = await getOrCreateRoundInsightsRequest(cacheKey, roundId, isPremium);
@@ -197,8 +199,9 @@ export default function RoundInsights({
     if (isPremiumLoading) return;
     if (fetchedCacheKeyRef.current === cacheKey) return;
     fetchedCacheKeyRef.current = cacheKey;
-    fetchInsights(true);
-  }, [cacheKey, isPremiumLoading]);
+    const hasCached = Boolean(readRoundInsightsCache(cacheKey) ?? normalizedInitialInsights);
+    fetchInsights({ showLoading: !hasCached, forceRefresh: true });
+  }, [cacheKey, isPremiumLoading, normalizedInitialInsights]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
