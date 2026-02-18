@@ -1,4 +1,4 @@
-import { Edit, Sparkles, Trash2 } from 'lucide-react';
+import { Edit, Info, Sparkles, Trash2 } from 'lucide-react';
 import { SkeletonBlock, SkeletonCard, SkeletonCircle, SkeletonText } from '@/components/skeleton/Skeleton';
 
 type RoundListSkeletonProps = {
@@ -535,11 +535,16 @@ export function RoundStatsPageSkeleton() {
         </div>
 
         <div className="stats-score-summary">
+          <div className="stats-summary-header">
+            <h3 className="stats-summary-title">Round Summary</h3>
+          </div>
           <div className="stats-score-grid">
-            {Array.from({ length: 6 }).map((_, index) => (
+            {['Total Score', 'vs Par', 'FIR', 'GIR', 'Putts/Hole', 'Penalties'].map((label, index) => (
               <div key={`round-score-summary-${index}`}>
                 <SkeletonBlock width="44%" height={29} style={{ marginInline: 'auto' }} />
-                <SkeletonBlock width="37%" height={12} style={{ marginInline: 'auto', marginTop: 6 }} />
+                <div className="stats-score-label" style={{ marginTop: 6 }}>
+                  {label}
+                </div>
                 {(index === 1 || index === 4) && (
                   <SkeletonBlock width="26%" height={12} style={{ marginInline: 'auto', marginTop: 4 }} />
                 )}
@@ -551,11 +556,21 @@ export function RoundStatsPageSkeleton() {
         <RoundInsightsSkeleton />
 
         <div className="stats-score-summary">
+          <div className="stats-summary-header">
+            <h3 className="stats-summary-title">Strokes Gained</h3>
+            <span className="info-tooltip-container" aria-hidden="true">
+              <span className="info-tooltip-icon">
+                <Info />
+              </span>
+            </span>
+          </div>
           <div className="stats-score-grid">
-            {Array.from({ length: 6 }).map((_, index) => (
+            {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Residual'].map((label, index) => (
               <div key={`round-sg-summary-${index}`}>
                 <SkeletonBlock width="44%" height={29} style={{ marginInline: 'auto' }} />
-                <SkeletonBlock width="32%" height={12} style={{ marginInline: 'auto', marginTop: 6 }} />
+                <div className="stats-score-label" style={{ marginTop: 6 }}>
+                  {label}
+                </div>
               </div>
             ))}
           </div>

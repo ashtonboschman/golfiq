@@ -1913,12 +1913,20 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   text-align: left;
 }
 
+.info-tooltip-content.measuring {
+  visibility: hidden;
+}
+
 .info-tooltip-content.right {
   right: 0;
+  transform: none;
+  text-align: left;
 }
 
 .info-tooltip-content.left {
   left: 0;
+  transform: none;
+  text-align: left;
 }
 
 .info-tooltip-content.center {
@@ -3835,6 +3843,30 @@ input[type='date'].form-input {
   border: 1px solid var(--color-border);
 }
 
+.stats-summary-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-small);
+  min-height: 24px;
+  margin-bottom: var(--gap);
+}
+
+.stats-summary-header .info-tooltip-container {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.stats-summary-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--color-primary-text);
+}
+
 .stats-score-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -3874,15 +3906,129 @@ input[type='date'].form-input {
 }
 
 .stats-section-title {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: bold;
   padding-bottom: var(--gap);
+}
+
+.stats-section-title-centered {
+  text-align: center;
 }
 
 .stats-par-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: var(--gap);
+}
+
+.stats-par-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.stats-par-chart-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) 110px;
+  gap: var(--gap-small);
+  align-items: center;
+  background-color: var(--color-secondary-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 0.7rem var(--padding);
+}
+
+.stats-par-chart-meta {
+  min-width: 0;
+}
+
+.stats-par-chart-par {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary-text);
+  line-height: 1.1;
+}
+
+.stats-par-chart-holes {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--color-secondary-text);
+  line-height: 1.1;
+}
+
+.stats-par-chart-track-wrap {
+  min-width: 0;
+}
+
+.stats-par-chart-track {
+  position: relative;
+  height: 14px;
+  background-color: var(--color-primary-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.stats-par-chart-center {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--color-secondary-text);
+  opacity: 0.75;
+}
+
+.stats-par-chart-delta {
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.stats-par-chart-point {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-primary-surface);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.stats-par-chart-delta.is-better,
+.stats-par-chart-point.is-better {
+  background-color: var(--color-green);
+}
+
+.stats-par-chart-delta.is-worse,
+.stats-par-chart-point.is-worse {
+  background-color: var(--color-red);
+}
+
+.stats-par-chart-delta.is-even,
+.stats-par-chart-point.is-even {
+  background-color: var(--color-secondary-text);
+}
+
+.stats-par-chart-values {
+  min-width: 0;
+  text-align: right;
+}
+
+.stats-par-chart-average {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary-text);
+  line-height: 1.1;
+}
+
+.stats-par-chart-vs {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--color-secondary-text);
+  line-height: 1.1;
 }
 
 .stats-par-card {
@@ -3898,11 +4044,15 @@ input[type='date'].form-input {
   font-weight: bold;
   margin-bottom: 10px;
   color: var(--color-primary-text);
+  text-align: center;
 }
 
 .stats-par-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  max-width: 180px;
+  margin: 0.2rem auto;
 }
 
 .stats-par-label {
@@ -3920,6 +4070,13 @@ input[type='date'].form-input {
 
 .stats-par-value.under-par {
   color: var(--color-green);
+}
+
+@media (max-width: 640px) {
+  .stats-par-chart-row {
+    grid-template-columns: 72px minmax(0, 1fr) 96px;
+    padding: 0.6rem 0.65rem;
+  }
 }
 
 .stats-table-wrapper {

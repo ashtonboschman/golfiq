@@ -116,4 +116,79 @@ describe('runMeasuredSgSelection opportunity selection', () => {
     expect(selection.best?.name).not.toBe(selection.opportunity?.name);
     expect(selection.opportunity?.name).toBe('approach');
   });
+
+  test('9-hole normalization can tighten weak-separation threshold', () => {
+    const unscaled = runMeasuredSgSelection(
+      {
+        offTee: 0.1,
+        approach: -0.2,
+        putting: -0.45,
+        penalties: null,
+        residual: -0.2,
+        total: -0.8,
+      },
+      -1.0,
+    );
+    expect(unscaled.weakSeparation).toBe(true);
+
+    const scaled = runMeasuredSgSelection(
+      {
+        offTee: 0.1,
+        approach: -0.2,
+        putting: -0.45,
+        penalties: null,
+        residual: -0.2,
+        total: -0.8,
+      },
+      -0.5,
+      { weakSeparationDelta: 0.2, dominanceAbsoluteFloor: 0.5 },
+    );
+    expect(scaled.weakSeparation).toBe(false);
+  });
+
+  test('9-hole normalization can lower residual dominance absolute floor', () => {
+    const unscaled = runMeasuredSgSelection(
+      {
+        offTee: -0.2,
+        approach: -0.4,
+        putting: -0.3,
+        penalties: null,
+        residual: 0.7,
+        total: -1.0,
+      },
+      -1.0,
+    );
+    expect(unscaled.residualDominant).toBe(false);
+
+    const scaled = runMeasuredSgSelection(
+      {
+        offTee: -0.2,
+        approach: -0.4,
+        putting: -0.3,
+        penalties: null,
+        residual: 0.7,
+        total: -1.0,
+      },
+      -0.5,
+      { weakSeparationDelta: 0.2, dominanceAbsoluteFloor: 0.5 },
+    );
+    expect(scaled.residualDominant).toBe(true);
+  });
+
+  test('residual dominance avoids ratio-only trigger when total SG is near zero', () => {
+    const selection = runMeasuredSgSelection(
+      {
+        offTee: -0.4,
+        approach: 0.2,
+        putting: 0.1,
+        penalties: null,
+        residual: 0.2,
+        total: 0.2,
+      },
+      -1.0,
+      { dominanceAbsoluteFloor: 0.1, totalFloorForRatio: 0.5 },
+    );
+
+    expect(selection.residualDominant).toBe(false);
+  });
 });

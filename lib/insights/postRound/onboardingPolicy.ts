@@ -53,17 +53,20 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
   }
 
   const scoreLine = `${input.score} (${formatToPar(input.toPar)})`;
+  const ctaBetter =
+    'Next round: Log your score to unlock trend insights. If you can, track fairways, greens, putts, and penalties for a clearer read on what is working and where to keep building.';
+  const ctaWorse =
+    'Next round: Log your score to unlock trend insights. If you can, track fairways, greens, putts, and penalties for a clearer read on where shots are slipping and what to tighten first.';
+  const ctaSame =
+    'Next round: Log your score to unlock trend insights. If you can, track fairways, greens, putts, and penalties for a clearer read on what is stable and what could move the score.';
 
-  if (input.roundNumber <= 1) {
+  if (input.roundNumber === 1) {
     return {
       messages: [
-        withGuard(`You logged your first round: ${scoreLine}. Nice start.`, 'OB-1'),
+        withGuard(`Round 1 logged: ${scoreLine}.`, 'OB-1'),
+        withGuard('Nice start. Two more rounds give you enough history for real trend feedback.', 'OB-1'),
         withGuard(
-          'GolfIQ post-round insights will get more specific once you have a small baseline. Log two more rounds to unlock trend-based feedback.',
-          'OB-1',
-        ),
-        withGuard(
-          'Next round focus: Keep logging your score. If you can, also track FIR, GIR, putts, and penalties so GolfIQ can compute your measured SG components once trends unlock.',
+          'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties for clearer insight into what helped and what hurt.',
           'OB-1',
         ),
       ],
@@ -74,7 +77,6 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
 
   const previousScore = input.previousScore ?? input.score;
   const delta = input.score - previousScore;
-  const same = Math.abs(delta) < 0.1;
   const better = delta < -0.1;
   const worse = delta > 0.1;
   const absDelta = Math.abs(delta);
@@ -86,17 +88,11 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
       return {
         messages: [
           withGuard(
-            `Round 2 logged: ${scoreLine}, better than your first round by ${absDeltaText} ${strokeLabel}.`,
+            `Round 2 logged: ${scoreLine}, ${absDeltaText} ${strokeLabel} better than your first round.`,
             'OB-2-BETTER',
           ),
-          withGuard(
-            'Good signal. One more round and GolfIQ can start describing your early trend with more confidence.',
-            'OB-2-BETTER',
-          ),
-          withGuard(
-            'Next round focus: Log your score again to unlock trend insights. If possible, track FIR, GIR, putts, and penalties so GolfIQ can compute your measured SG components once trends unlock.',
-            'OB-2-BETTER',
-          ),
+          withGuard('Good move. One more round and your early trend will be much clearer.', 'OB-2-BETTER'),
+          withGuard(ctaBetter, 'OB-2-BETTER'),
         ],
         messageLevels: ['success', 'info', 'info'],
         outcomes: ['OB-2-BETTER', 'OB-2-BETTER', 'OB-2-BETTER'],
@@ -110,14 +106,8 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
             `Round 2 logged: ${scoreLine}, ${absDeltaText} ${strokeLabel} higher than your first round.`,
             'OB-2-WORSE',
           ),
-          withGuard(
-            'Totally normal early on. One more round and GolfIQ can start describing your early trend with more confidence.',
-            'OB-2-WORSE',
-          ),
-          withGuard(
-            'Next round focus: Log your score again to unlock trend insights. If possible, track FIR, GIR, putts, and penalties so GolfIQ can compute your measured SG components once trends unlock.',
-            'OB-2-WORSE',
-          ),
+          withGuard('That happens. One more round and your starting trend will settle in.', 'OB-2-WORSE'),
+          withGuard(ctaWorse, 'OB-2-WORSE'),
         ],
         messageLevels: ['success', 'info', 'info'],
         outcomes: ['OB-2-WORSE', 'OB-2-WORSE', 'OB-2-WORSE'],
@@ -127,33 +117,28 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
     return {
       messages: [
         withGuard(`Round 2 logged: ${scoreLine}, matching your first round.`, 'OB-2-SAME'),
-        withGuard(
-          'That consistency is useful. One more round and GolfIQ can start describing your early trend with more confidence.',
-          'OB-2-SAME',
-        ),
-        withGuard(
-          'Next round focus: Log your score again to unlock trend insights. If possible, track FIR, GIR, putts, and penalties so GolfIQ can compute your measured SG components once trends unlock.',
-          'OB-2-SAME',
-        ),
+        withGuard('That early consistency is useful. One more round and the trend view unlocks.', 'OB-2-SAME'),
+        withGuard(ctaSame, 'OB-2-SAME'),
       ],
       messageLevels: ['success', 'info', 'info'],
       outcomes: ['OB-2-SAME', 'OB-2-SAME', 'OB-2-SAME'],
     };
   }
 
+  // Round 3
   if (better) {
     return {
       messages: [
         withGuard(
-          `Round 3 logged: ${scoreLine}, better than last round by ${absDeltaText} ${strokeLabel}.`,
+          `Round 3 logged: ${scoreLine}, ${absDeltaText} ${strokeLabel} better than last round.`,
           'OB-3-BETTER',
         ),
         withGuard(
-          'You now have enough rounds for trend-based insights. Your handicap is unlocked, and your measured breakdown will become more reliable as you keep logging.',
+          'Three rounds complete. Your trend view and handicap are now live, and the more you track, the sharper the breakdown gets.',
           'OB-3-BETTER',
         ),
         withGuard(
-          'Next round focus: Full post-round insights unlock on your next round. Keep tracking FIR, GIR, putts, and penalties to maximize accuracy.',
+          'Next round: Full post-round insights start. Track fairways, greens, putts, and penalties for the clearest read on what is working and where to keep building.',
           'OB-3-BETTER',
         ),
       ],
@@ -170,11 +155,11 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
           'OB-3-WORSE',
         ),
         withGuard(
-          'You now have enough rounds for trend-based insights. Your handicap is unlocked, and your measured breakdown will become more reliable as you keep logging.',
+          'Three rounds complete. Your trend view and handicap are now live, and the more you track, the sharper the breakdown gets.',
           'OB-3-WORSE',
         ),
         withGuard(
-          'Next round focus: Full post-round insights unlock on your next round. Keep tracking FIR, GIR, putts, and penalties to maximize accuracy.',
+          'Next round: Full post-round insights start. Track fairways, greens, putts, and penalties for the clearest read on where shots are slipping and what to tighten first.',
           'OB-3-WORSE',
         ),
       ],
@@ -187,11 +172,11 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
     messages: [
       withGuard(`Round 3 logged: ${scoreLine}, matching last round.`, 'OB-3-SAME'),
       withGuard(
-        'You now have enough rounds for trend-based insights. Your handicap is unlocked, and your measured breakdown will become more reliable as you keep logging.',
+        'Three rounds complete. Your trend view and handicap are now live, and the more you track, the sharper the breakdown gets.',
         'OB-3-SAME',
       ),
       withGuard(
-        'Next round focus: Full post-round insights unlock on your next round. Keep tracking FIR, GIR, putts, and penalties to maximize accuracy.',
+        'Next round: Full post-round insights start. Track fairways, greens, putts, and penalties for the clearest read on what is stable and what could move the score.',
         'OB-3-SAME',
       ),
     ],

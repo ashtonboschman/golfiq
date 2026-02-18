@@ -14,6 +14,7 @@ export type BuildNextRoundFocusInput = {
   missing: MissingStats;
   worstMeasured: SgMeasuredComponentName | null;
   worstMeasuredValue?: number | null;
+  measuredLeakStrongThreshold?: number;
   opportunityIsWeak: boolean;
   weakSeparation: boolean;
 } & VariantOptions;
@@ -24,81 +25,81 @@ export type BuildNextRoundFocusOutput = {
 };
 
 const TRACKING_CLAUSE_VARIANTS = [
-  'Track {missingList} next round to unlock a true SG breakdown and keep the feedback specific.',
-  'Track {missingList} next time so the insights can point to the exact area that moved the score.',
-  'Add {missingList} next round to see where strokes were won or lost across the round.',
-  'Track {missingList} so the SG components are based on real inputs, not guesswork.',
-  'Log {missingList} next time to unlock strengths and opportunities by category.',
-  'Track {missingList} so the breakdown can separate driving, approach, putting, and penalties.',
-  'Add {missingList} next round so the opportunity call is backed by measured data.',
-  'Track {missingList} next time to get a reliable component view and more targeted recommendations.',
-  'Log {missingList} so the measured components reflect what actually happened in the round.',
-  'Track {missingList} next round to fill in the missing pieces and tighten up the insights.',
+  "Track {missingList} so we can show what helped and what hurt.",
+  "To get clearer feedback, track {missingList}.",
+  "Add {missingList} so we can see where shots were won or lost.",
+  "Log {missingList} so strengths and leaks show up in the right place.",
+  "For a clearer breakdown, track {missingList}.",
+  "Add {missingList} so driving, approach, putting, and penalties separate cleanly.",
+  "Track {missingList} to cut guesswork and sharpen the takeaways.",
+  "Log {missingList} so your next focus is backed by real round detail.",
+  "To see where strokes are coming from, track {missingList}.",
+  "Keep tracking consistent and add {missingList}.",
 ] as const;
 
 const GENERIC_ACTION_VARIANTS = [
-  'Pick conservative targets into trouble and commit to one clear shot plan on every hole.',
-  'Choose clubs that keep your common miss in play, even if it leaves a longer next shot.',
-  'Play to the widest part of the hole and avoid low-percentage recovery lines.',
-  'Set a single process goal: pick a target, commit, and accept the result on every swing.',
-  'Prioritize staying in play: take the safe line when trouble brings double into play.',
-  'Commit to one conservative strategy rule: when in doubt, aim away from penalty zones.',
-  'Keep it simple: choose a clear target and a committed swing on every full shot.',
-  'Build one repeatable gain: commit to a pre-shot routine and keep misses on the safe side.',
-  'Manage risk first: choose the target that keeps your next shot playable even on a miss.',
-  'Focus on execution: pick a target and commit to the shot shape that keeps the ball in play.',
+  "Play to the widest target available and commit to that start line without steering.",
+  "Choose the line that keeps your common miss playable, even if it leaves a longer approach.",
+  "When trouble is in play, shift your target far enough to remove it from your miss pattern.",
+  "Before every full swing, identify the safe side and commit to that line.",
+  "Treat each hole as a two-shot plan: first keep it in play, then attack from position.",
+  "When unsure, aim to the center of the fairway or green and accept the longer putt.",
+  "If a shot feels tight, widen your target until a miss still leaves a playable next shot.",
+  "Pick the target that removes penalty first, then swing with commitment.",
+  "Favor position over distance when the landing area narrows.",
+  "Make your decision early, pick a specific start line, and swing without second guessing.",
 ] as const;
 
 const PENALTIES_ACTION_VARIANTS = [
-  'When penalty trouble is in play, take the safer target even if it leaves a longer next shot.',
-  'When out of position, choose the punch-out that guarantees a clean next shot instead of a hero line.',
-  'Pick targets that remove penalty from the miss: aim away from out of bounds and hazards by default.',
-  'On tee shots with penalty in play, choose the club that keeps your biggest miss short of trouble.',
-  'Use a single rule: if a miss brings penalty, aim to the widest safe zone, not the pin line.',
-  'When the shot window is tight, take the lay-up or safe side that keeps double off the card.',
-  'Commit to conservative lines: avoid recovery shots that require a perfect strike to stay in play.',
-  'Before each shot, identify the penalty side and aim to take it out of play.',
-  'Choose the target that keeps the ball playable on your common miss, even if it sacrifices distance.',
-  'When hazards frame the shot, prioritize a safe miss and accept the longer approach.',
+  "When penalty is in play, aim to remove it from your miss and accept the longer next shot.",
+  "If you are out of position, take the punch-out that guarantees a clean next swing.",
+  "On penalty-lined holes, pick the club and target that keep your biggest miss short of trouble.",
+  "Before each full shot, identify the penalty side and choose a target that takes it out of play.",
+  "Choose conservative lines into trouble and protect the card from doubles.",
+  "When the shot window is tight, take the safe side or the lay-up and keep the ball in play.",
+  "If a miss brings penalty, play for the safe miss so one swing does not turn into two shots of damage.",
+  "When trouble is on both sides, pick the side that still leaves a playable next shot on a miss.",
+  "Use one rule today: no penalty is worth extra distance. Keep it in play and move on.",
+  "When you are tempted to force a line, step back and choose the option that avoids penalty first.",
 ] as const;
 
 const PUTTING_ACTION_VARIANTS = [
-  'On long putts, choose a leave zone inside three feet and roll pace to that window.',
-  'For lag putts, prioritize speed to finish within three feet and make the second putt routine.',
-  'Before every putt outside 15 feet, commit to a pace that finishes hole-high within three feet.',
-  'Use one speed rule: on lags, roll it to finish within three feet, not to hole it.',
-  'On mid-range putts, commit to a start line and a firm pace that reduces the amount of break you have to play.',
-  'On downhill putts, aim to die it at the hole so the comeback stays inside three feet.',
-  'On uphill putts, commit to pace that finishes 1 to 2 feet past to reduce short-miss probability.',
-  'Pick a precise start line and hold it, then match speed to that line instead of steering.',
-  'On putts over 20 feet, choose the simplest read and commit to speed over perfect line.',
-  'Make speed your anchor: choose a leave zone inside three feet and roll every lag to that window.',
+  "On lag putts, make speed the priority and aim to finish inside three feet.",
+  "Pick a leave zone and roll pace to that window instead of chasing a perfect line.",
+  "On putts outside 15 feet, commit to speed that finishes hole-high with a short second putt.",
+  "On downhill putts, let the pace die at the hole so the comeback stays manageable.",
+  "Anchor the round on pace control and keep long putts inside three feet.",
+  "On mid-range putts, choose a start line and match speed to it without steering.",
+  "Treat every long putt like a two-putt plan by leaving yourself a simple second putt.",
+  "When the read is unclear, pick the simplest line and focus on pace that leaves a tap-in.",
+  "On slippery putts, favor dying speed. Protect the comeback putt and avoid the three-putt.",
+  "Commit to your read, then roll it with pace you can repeat. Do not guide it at the hole.",
 ] as const;
 
 const APPROACH_ACTION_VARIANTS = [
-  'Aim for the center of the green on approaches when the pin is tucked or trouble is near.',
-  'Choose the club that covers the front and plays to the middle, not the perfect number.',
-  'When the pin is risky, aim at the fat side and take two-putt pars.',
-  'Use one rule: if missing short brings trouble, take one more club and swing smooth.',
-  'Commit to a conservative target on approaches and accept longer birdie putts over short-siding.',
-  'On approaches, pick a middle-green target and commit to the swing that produces your stock flight.',
-  'When the green is protected, play to the widest landing area and avoid short-siding.',
-  'Default to center-green unless the pin is clearly safe for your dispersion.',
-  'Choose targets that keep misses on the green or fringe rather than in the worst miss zone.',
-  'Play approaches to the safe half of the green and avoid flags that require perfect distance control.',
+  "Default to a center-green target unless the flag is clearly safe for your dispersion.",
+  "When the pin is protected, play to the fat side and take two-putt pars.",
+  "Choose the club that covers the front and holds the middle instead of chasing a perfect number.",
+  "If missing short brings trouble, take one more club and make a smooth swing.",
+  "Aim to the widest landing area and accept longer birdie putts.",
+  "Play approaches to the safe half and keep misses on green or fringe.",
+  "When in doubt, pick the middle and trust that 25 feet is still a good look.",
+  "Avoid short-siding by favoring targets that leave an uphill chip or a long putt, not a recovery shot.",
+  "If the flag is tucked, aim for the center and let a good swing earn the closer look.",
+  "Pick a conservative target, commit to your stock flight, and let the result be what it is.",
 ] as const;
 
 const OFF_TEE_ACTION_VARIANTS = [
-  'Pick a target that keeps your common miss in play and commit to that shot shape.',
-  'When trouble squeezes the landing zone, take the club that keeps the ball short of penalty.',
-  'Choose a conservative start line and prioritize fairway or first cut over max distance.',
-  'Aim away from penalty and accept a longer approach to keep doubles off the card.',
-  'On tight holes, hit the tee shot to the widest part of the fairway and commit to it.',
-  'Use one tee-shot rule: if a miss brings trouble, aim to the safe side and swing smooth.',
-  'Pick a clear start line and commit, then accept the result without steering mid-swing.',
-  'On holes where driver brings trouble, choose 3 wood or hybrid if it keeps your miss in play.',
-  'Prioritize staying in play: choose the target that keeps both sides playable on a miss.',
-  'On tee shots, commit to the safe side and avoid lines that only work with a perfect strike.',
+  "Pick a start line that keeps your common miss in play and commit to that shape.",
+  "On tight holes, choose the club that keeps trouble out of play.",
+  "Aim away from penalty and accept a longer approach to protect the card.",
+  "When the landing zone is narrow, prioritize fairway or first cut over maximum distance.",
+  "Set a conservative target and swing to it without steering mid-swing.",
+  "If a miss brings penalty, take the safe side and keep the next shot playable.",
+  "When driver brings the worst outcome into play, choose the club that keeps the hole simple.",
+  "Pick one tee-shot goal: stay in play. Distance only matters after the ball is safe.",
+  "On pressure tee shots, widen the target and commit to a confident swing, not a perfect one.",
+  "Favor the side that removes trouble. One club down is fine if it keeps you playing forward.",
 ] as const;
 
 function getAreaActionVariants(area: SgMeasuredComponentName | null): readonly string[] {
@@ -142,10 +143,12 @@ function pickActionSentence(
 
 export function buildNextRoundFocusText(input: BuildNextRoundFocusInput): BuildNextRoundFocusOutput {
   const missingCount = getMissingCount(input.missing);
+  const measuredLeakStrongThreshold =
+    input.measuredLeakStrongThreshold ?? POST_ROUND_RESIDUAL.measuredLeakStrong;
   const hasStrongMeasuredLeak =
     typeof input.worstMeasuredValue === 'number' &&
     Number.isFinite(input.worstMeasuredValue) &&
-    input.worstMeasuredValue <= POST_ROUND_RESIDUAL.measuredLeakStrong;
+    input.worstMeasuredValue <= measuredLeakStrongThreshold;
   const options: VariantOptions = {
     seed: input.seed,
     offset: input.offset,
@@ -163,7 +166,8 @@ export function buildNextRoundFocusText(input: BuildNextRoundFocusInput): BuildN
   } else if (missingCount === 1) {
     outcome = 'M3-B';
     trackingClause = pickTrackingClause(input.missing, options);
-    actionSentence = pickActionSentence(input.worstMeasured, options, outcome);
+    const useAreaAction = Boolean(input.worstMeasured && (input.opportunityIsWeak || hasStrongMeasuredLeak));
+    actionSentence = pickActionSentence(useAreaAction ? input.worstMeasured : null, options, outcome);
   } else if (
     !input.worstMeasured ||
     !input.opportunityIsWeak ||
@@ -179,6 +183,6 @@ export function buildNextRoundFocusText(input: BuildNextRoundFocusInput): BuildN
   const body = trackingClause ? `${trackingClause} ${actionSentence}` : actionSentence;
   return {
     outcome,
-    text: `Next round focus: ${body}`.trim(),
+    text: `Next round: ${body}`.trim(),
   };
 }

@@ -3,7 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
-import { POST_ROUND_MESSAGE_MAX_CHARS, POST_ROUND_THRESHOLDS } from '@/lib/insights/config/postRound';
+import {
+  POST_ROUND_MESSAGE_MAX_CHARS,
+  POST_ROUND_RESIDUAL,
+  POST_ROUND_THRESHOLDS,
+  resolvePostRoundStrokeScale,
+} from '@/lib/insights/config/postRound';
 import { getMissingStats } from '@/lib/insights/postRound/missingStats';
 import { buildOnboardingPostRoundInsights } from '@/lib/insights/postRound/onboardingPolicy';
 import { runMeasuredSgSelection } from '@/lib/insights/postRound/sgSelection';
@@ -447,7 +452,8 @@ async function generateInsightsInternal(
 
   const totalSg = sgComponents?.sgTotal != null ? Number(sgComponents.sgTotal) : null;
 
-  const weaknessThreshold = POST_ROUND_THRESHOLDS.sgWeakness * (currentHolesPlayed === 9 ? 0.5 : 1);
+  const strokeScale = resolvePostRoundStrokeScale(currentHolesPlayed);
+  const weaknessThreshold = POST_ROUND_THRESHOLDS.sgWeakness * strokeScale;
   const measuredSelection = runMeasuredSgSelection(
     {
       offTee: sgComponents?.sgOffTee != null ? Number(sgComponents.sgOffTee) : null,
@@ -458,6 +464,11 @@ async function generateInsightsInternal(
       total: totalSg,
     },
     weaknessThreshold,
+    {
+      dominanceAbsoluteFloor: POST_ROUND_RESIDUAL.dominanceAbsoluteFloor * strokeScale,
+      weakSeparationDelta: POST_ROUND_RESIDUAL.weakSeparationDelta * strokeScale,
+      totalFloorForRatio: POST_ROUND_RESIDUAL.dominanceAbsoluteFloor * strokeScale,
+    },
   );
 
   const missingStats = getMissingStats({
@@ -480,6 +491,7 @@ async function generateInsightsInternal(
     weakSeparation: measuredSelection.weakSeparation,
     missing: missingStats,
     residualValue: sgComponents?.sgResidual != null ? Number(sgComponents.sgResidual) : null,
+    holesPlayed: currentHolesPlayed,
     roundEvidence: {
       fairwaysHit: round.firHit != null ? Number(round.firHit) : null,
       fairwaysPossible: currentContext.nonPar3Holes,

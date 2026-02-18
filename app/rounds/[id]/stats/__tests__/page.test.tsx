@@ -120,8 +120,9 @@ describe('/rounds/[id]/stats page', () => {
     render(<RoundStatsPage />);
 
     await screen.findByText('Pebble Beach');
-    expect(screen.getByText('SG Total')).toBeInTheDocument();
-    expect(screen.getByText('SG Off Tee')).toBeInTheDocument();
+    expect(screen.getByText('Total')).toBeInTheDocument();
+    expect(screen.getByText('Off Tee')).toBeInTheDocument();
+    expect(screen.getByText('Residual')).toBeInTheDocument();
   });
 
   it('does not render strokes gained summary for free users', async () => {
@@ -133,7 +134,7 @@ describe('/rounds/[id]/stats page', () => {
     render(<RoundStatsPage />);
 
     await screen.findByText('Pebble Beach');
-    expect(screen.queryByText('SG Total')).not.toBeInTheDocument();
+    expect(screen.queryByText('Off Tee')).not.toBeInTheDocument();
   });
 
   it('fetches round stats endpoint and does not call profile endpoint', async () => {
@@ -152,4 +153,3 @@ describe('/rounds/[id]/stats page', () => {
     expect(allCalls.some((url) => url.includes('/api/users/profile'))).toBe(false);
   });
 });
-

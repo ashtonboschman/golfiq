@@ -33,9 +33,9 @@ const GOLDEN_CASES: GoldenCase[] = [
     },
     expected: {
       messages: [
-        'You shot 75 (+3), which is 1.0 stroke above your recent average of 74.0. Off The Tee was neutral among your measured areas at +0.2 strokes.',
-        'Putting was your clearest measured opportunity at -2.1 strokes.',
-        'Next round focus: On long putts, choose a leave zone inside three feet and roll pace to that window.',
+        'You shot 75 (+3), which is 1.0 stroke above your recent average of 74.0. Off The Tee was close to even at +0.2 strokes.',
+        'Putting was the biggest leak at 2.1 strokes.',
+        'Next round: On lag putts, make speed the priority and aim to finish inside three feet.',
       ],
       messageLevels: ['success', 'warning', 'info'],
       outcomes: ['M1-D', 'M2-D', 'M3-C'],
@@ -63,11 +63,11 @@ const GOLDEN_CASES: GoldenCase[] = [
     },
     expected: {
       messages: [
-        'You shot 68 (-4), which is 4.0 strokes better than your recent average of 72.0. Off The Tee was your strongest measured area at +1.3 strokes.',
-        'Putting was your clearest measured opportunity at -0.6 strokes.',
-        'Next round focus: On long putts, choose a leave zone inside three feet and roll pace to that window.',
+        'You shot 68 (-4), which is 4.0 strokes better than your recent average of 72.0. Off The Tee gained 1.3 strokes and was the clearest bright spot.',
+        'Putting was the biggest leak at 0.6 strokes.',
+        'Next round: On lag putts, make speed the priority and aim to finish inside three feet.',
       ],
-      messageLevels: ['great', 'success', 'info'],
+      messageLevels: ['great', 'warning', 'info'],
       outcomes: ['M1-C', 'M2-D', 'M3-C'],
     },
   },
@@ -88,9 +88,9 @@ const GOLDEN_CASES: GoldenCase[] = [
     },
     expected: {
       messages: [
-        'You shot 82 (+10), which is 2.8 strokes above your recent average of 79.2. Putting held up best among your measured areas at -1.4 strokes.',
-        'Only one measured area was available, so GolfIQ can not compare categories to find the clearest opportunity.',
-        'Next round focus: Track FIR, GIR, and penalties next round to unlock a true SG breakdown and keep the feedback specific. Pick conservative targets into trouble and commit to one clear shot plan on every hole.',
+        'You shot 82 (+10), which is 2.8 strokes above your recent average of 79.2. Only Putting was tracked this round, and it cost 1.4 strokes.',
+        'Only one part of the round was tracked, so we cannot compare areas and name a clear opportunity.',
+        'Next round: Track FIR, GIR, and penalties so we can show what helped and what hurt. Play to the widest target, commit to the swing, and accept the result.',
       ],
       messageLevels: ['success', 'warning', 'info'],
       outcomes: ['M1-B', 'M2-A', 'M3-A'],
@@ -117,9 +117,9 @@ const GOLDEN_CASES: GoldenCase[] = [
     },
     expected: {
       messages: [
-        'You shot 74 (+2), which matches your recent average. Off The Tee was neutral among your measured areas at +0.1 strokes.',
-        'Approach was your clearest measured opportunity at -0.4 strokes.',
-        'Next round focus: Pick conservative targets into trouble and commit to one clear shot plan on every hole.',
+        'You shot 74 (+2), which matches your recent average. Off The Tee was close to even at +0.1 strokes.',
+        'Approach was the biggest leak at 0.4 strokes.',
+        'Next round: Play to the widest target, commit to the swing, and accept the result.',
       ],
       messageLevels: ['success', 'warning', 'info'],
       outcomes: ['M1-D', 'M2-D', 'M3-E'],
@@ -142,11 +142,11 @@ const GOLDEN_CASES: GoldenCase[] = [
     },
     expected: {
       messages: [
-        'You shot 90 (+18). This was logged without advanced stats, so there is not enough detail to compute SG components.',
-        'This was a score-only round, so there is not enough detail to isolate a specific opportunity.',
-        'Next round focus: Track FIR, GIR, putts, and penalties next round to unlock a true SG breakdown and keep the feedback specific. Pick conservative targets into trouble and commit to one clear shot plan on every hole.',
+        'You shot 90 (+18).',
+        'This landed close to your recent average. With only score logged, we cannot break the round into specific areas.',
+        'Next round: Track FIR, GIR, putts, and penalties so we can show what helped and what hurt. Play to the widest target, commit to the swing, and accept the result.',
       ],
-      messageLevels: ['success', 'warning', 'info'],
+      messageLevels: ['success', 'success', 'info'],
       outcomes: ['M1-A', 'M2-A', 'M3-A'],
     },
   },
@@ -157,4 +157,3 @@ describe('post-round deterministic policy golden fixtures', () => {
     expect(buildDeterministicPostRoundInsights(input)).toEqual(expected);
   });
 });
-

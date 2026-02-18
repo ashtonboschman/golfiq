@@ -127,6 +127,6 @@ describe('/api/rounds/[id]/insights route contract', () => {
     );
 
     expect(insights.message_outcomes[2]).toBe('M3-C');
-    expect(insights.messages[2].startsWith('Next round focus:')).toBe(true);
+    expect(insights.messages[2].startsWith('Next round:')).toBe(true);
   });
 });

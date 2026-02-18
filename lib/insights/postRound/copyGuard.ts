@@ -2,7 +2,6 @@ export const BANNED_TOKENS: readonly string[] = [
   'consider',
   'might',
   'seems',
-  'challenge',
   'needs more focus',
   'significant impact',
   'crucial',

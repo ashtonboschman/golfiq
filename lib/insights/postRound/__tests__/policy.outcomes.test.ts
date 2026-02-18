@@ -30,7 +30,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-A',
     messageIndex: 0,
     expectedOutcome: 'M1-A',
-    expectedMessageFragment: 'logged without advanced stats',
+    expectedMessageFragment: 'You shot 75 (+3), which is 1.0 stroke above your recent average of 74.0.',
     input: {
       ...baseInput,
       measuredComponents: [],
@@ -42,7 +42,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-B',
     messageIndex: 0,
     expectedOutcome: 'M1-B',
-    expectedMessageFragment: 'held up best among your measured areas',
+    expectedMessageFragment: 'leaked the least at',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
@@ -56,7 +56,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-C',
     messageIndex: 0,
     expectedOutcome: 'M1-C',
-    expectedMessageFragment: 'was your strongest measured area',
+    expectedMessageFragment: 'gained 0.5 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.5 },
@@ -66,7 +66,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-D',
     messageIndex: 0,
     expectedOutcome: 'M1-D',
-    expectedMessageFragment: 'was neutral among your measured areas',
+    expectedMessageFragment: 'was close to even at 0.0 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0 },
@@ -80,7 +80,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-A',
     messageIndex: 1,
     expectedOutcome: 'M2-A',
-    expectedMessageFragment: 'score-only round',
+    expectedMessageFragment: 'This landed close to your recent average',
     input: {
       ...baseInput,
       measuredComponents: [],
@@ -92,7 +92,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-C',
     messageIndex: 1,
     expectedOutcome: 'M2-C',
-    expectedMessageFragment: 'neutral at 0.0 strokes',
+    expectedMessageFragment: 'finished close to even at 0.0 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0 },
@@ -106,7 +106,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-D',
     messageIndex: 1,
     expectedOutcome: 'M2-D',
-    expectedMessageFragment: 'clearest measured opportunity',
+    expectedMessageFragment: 'biggest leak at 0.8 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.8 },
@@ -116,7 +116,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-E',
     messageIndex: 1,
     expectedOutcome: 'M2-E',
-    expectedMessageFragment: 'positive at +0.4 strokes',
+    expectedMessageFragment: 'net positive at 0.4 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0.4 },
@@ -130,7 +130,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-A',
     messageIndex: 2,
     expectedOutcome: 'M3-A',
-    expectedMessageFragment: 'Track FIR, GIR, and putts next round',
+    expectedMessageFragment: 'Track FIR, GIR, and putts so we can show what helped and what hurt',
     input: {
       ...baseInput,
       missing: { fir: true, gir: true, putts: true, penalties: false },
@@ -140,7 +140,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-B',
     messageIndex: 2,
     expectedOutcome: 'M3-B',
-    expectedMessageFragment: 'Track penalties next round',
+    expectedMessageFragment: 'Track penalties so we can show what helped and what hurt',
     input: {
       ...baseInput,
       missing: { fir: false, gir: false, putts: false, penalties: true },
@@ -150,7 +150,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-C',
     messageIndex: 2,
     expectedOutcome: 'M3-C',
-    expectedMessageFragment: 'Next round focus:',
+    expectedMessageFragment: 'Next round:',
     input: {
       ...baseInput,
       missing: { fir: false, gir: false, putts: false, penalties: false },
@@ -161,7 +161,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-E',
     messageIndex: 2,
     expectedOutcome: 'M3-E',
-    expectedMessageFragment: 'Next round focus:',
+    expectedMessageFragment: 'Next round:',
     input: {
       ...baseInput,
       missing: { fir: false, gir: false, putts: false, penalties: false },

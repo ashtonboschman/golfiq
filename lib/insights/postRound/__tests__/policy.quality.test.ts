@@ -72,10 +72,10 @@ const COVERAGE_CASES: Array<{ name: string; input: PostRoundPolicyInput }> = [
 ];
 
 describe('post-round policy message quality guardrails', () => {
-  it('always prefixes Message 3 with "Next round focus:" for every variant', () => {
+  it('always prefixes Message 3 with "Next round:" for every variant', () => {
     for (let variantIndex = 0; variantIndex < 10; variantIndex += 1) {
       const out = buildDeterministicPostRoundInsights(BASE, { fixedVariantIndex: variantIndex });
-      expect(out.messages[2].startsWith('Next round focus:')).toBe(true);
+      expect(out.messages[2].startsWith('Next round:')).toBe(true);
     }
   });
 

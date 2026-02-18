@@ -25,7 +25,7 @@ const BASE: PostRoundPolicyInput = {
 describe('post-round message 3 rules', () => {
   test('message 3 has one action sentence and optional tracking sentence only', () => {
     const missing0 = buildDeterministicPostRoundInsights(BASE, { fixedVariantIndex: 0 });
-    expect(missing0.messages[2].startsWith('Next round focus:')).toBe(true);
+    expect(missing0.messages[2].startsWith('Next round:')).toBe(true);
     expect(countPeriods(missing0.messages[2])).toBe(1);
 
     const missing1 = buildDeterministicPostRoundInsights(
@@ -35,7 +35,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(missing1.messages[2].startsWith('Next round focus:')).toBe(true);
+    expect(missing1.messages[2].startsWith('Next round:')).toBe(true);
     expect(countPeriods(missing1.messages[2])).toBe(2);
 
     const missing2 = buildDeterministicPostRoundInsights(
@@ -45,7 +45,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(missing2.messages[2].startsWith('Next round focus:')).toBe(true);
+    expect(missing2.messages[2].startsWith('Next round:')).toBe(true);
     expect(countPeriods(missing2.messages[2])).toBe(2);
   });
 
@@ -138,5 +138,45 @@ describe('post-round message 3 rules', () => {
     );
     expect(nullResidual.messages[1]).not.toContain('Residual was');
     expect(nullResidual.messages[1].toLowerCase()).not.toContain('short game');
+  });
+
+  test('9-hole normalization lowers residual sentence threshold in message 2', () => {
+    const fullRound = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        holesPlayed: 18,
+        residualValue: 0.8,
+        residualDominant: false,
+      },
+      { fixedVariantIndex: 0 },
+    );
+    expect(fullRound.messages[1]).not.toContain('Residual was');
+
+    const nineHole = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        holesPlayed: 9,
+        residualValue: 0.8,
+        residualDominant: false,
+      },
+      { fixedVariantIndex: 0 },
+    );
+    expect(nineHole.messages[1]).toContain('Residual was +0.8 strokes');
+  });
+
+  test('M3-B uses broad action when one stat is missing but leak is not meaningful', () => {
+    const m3bBroad = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        missing: { fir: false, gir: false, putts: false, penalties: true },
+        worstMeasured: { name: 'approach', label: 'Approach', value: -0.4 },
+        opportunityIsWeak: false,
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(m3bBroad.outcomes[2]).toBe('M3-B');
+    expect(m3bBroad.messages[2]).toContain('Track penalties');
+    expect(m3bBroad.messages[2]).toContain('Play to the widest target');
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 
 export default function InfoTooltip({ text }: { text: string }) {
@@ -9,38 +9,58 @@ export default function InfoTooltip({ text }: { text: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<'center' | 'left' | 'right'>('center');
   const [vertical, setVertical] = useState<'above' | 'below'>('above');
+  const [isPositioned, setIsPositioned] = useState(false);
 
-  useEffect(() => {
-    if (show && tooltipRef.current) {
-      const timer = setTimeout(() => {
-        if (!tooltipRef.current || !containerRef.current) return;
-        const rect = tooltipRef.current.getBoundingClientRect();
-        const containerRect = containerRef.current.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        if (rect.right > viewportWidth - 10) {
-          setPosition('right');
-        } else if (rect.left < 10) {
-          setPosition('left');
-        } else {
-          setPosition('center');
-        }
-
-        const tooltipHeight = rect.height;
-        const availableTop = containerRect.top - 10;
-        const availableBottom = viewportHeight - containerRect.bottom - 10;
-        const nextVertical =
-          tooltipHeight > availableTop && availableBottom > availableTop ? 'below' : 'above';
-        setVertical(nextVertical);
-      }, 10);
-
-      return () => clearTimeout(timer);
+  useLayoutEffect(() => {
+    if (!show) {
+      setIsPositioned(false);
+      setPosition('center');
+      setVertical('above');
+      return;
     }
+    if (!tooltipRef.current || !containerRef.current) return;
 
-    setPosition('center');
-    setVertical('above');
-    return;
+    let rafId: number | null = null;
+    const edgePadding = 10;
+    const measureAndPlace = () => {
+      if (!tooltipRef.current || !containerRef.current) return;
+      const rect = tooltipRef.current.getBoundingClientRect();
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      if (rect.right > viewportWidth - edgePadding) {
+        setPosition('right');
+      } else if (rect.left < edgePadding) {
+        setPosition('left');
+      } else {
+        setPosition('center');
+      }
+
+      const tooltipHeight = rect.height;
+      const availableTop = containerRect.top - edgePadding;
+      const availableBottom = viewportHeight - containerRect.bottom - edgePadding;
+      const nextVertical =
+        tooltipHeight > availableTop && availableBottom > availableTop ? 'below' : 'above';
+      setVertical(nextVertical);
+      setIsPositioned(true);
+    };
+
+    const schedulePlacement = () => {
+      setIsPositioned(false);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(measureAndPlace);
+    };
+
+    schedulePlacement();
+
+    window.addEventListener('resize', schedulePlacement);
+    window.addEventListener('orientationchange', schedulePlacement);
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', schedulePlacement);
+      window.removeEventListener('orientationchange', schedulePlacement);
+    };
   }, [show]);
 
   useEffect(() => {
@@ -72,7 +92,7 @@ export default function InfoTooltip({ text }: { text: string }) {
       {show && (
         <div
           ref={tooltipRef}
-          className={`info-tooltip-content ${position} ${vertical}`}
+          className={`info-tooltip-content ${position} ${vertical} ${isPositioned ? 'ready' : 'measuring'}`}
         >
           {text}
           <div className={`info-tooltip-arrow ${position} ${vertical}`} />

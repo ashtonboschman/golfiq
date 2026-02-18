@@ -75,14 +75,27 @@ function expectedM3Outcome(input: PostRoundPolicyInput): string {
   return 'M3-C';
 }
 
+function expectedM2Level(input: PostRoundPolicyInput, outcome: string): 'success' | 'warning' | 'info' {
+  if (outcome === 'M2-E') return 'success';
+  if (outcome === 'M2-C') return 'success';
+  if (outcome === 'M2-A' && input.measuredComponents.length === 0) {
+    if (input.avgScore == null || !Number.isFinite(input.avgScore)) return 'success';
+    const nearDelta = (input.holesPlayed === 9 ? 0.5 : 1) * 1.5;
+    const delta = input.score - input.avgScore;
+    return delta > nearDelta ? 'warning' : 'success';
+  }
+  return 'warning';
+}
+
 describe('deterministic policy matrix coverage', () => {
   test.each(Array.from({ length: 16 }, (_, i) => i))('covers SG observability combo %s', (index) => {
     const input = buildInputForCombo(index);
     const out = buildDeterministicPostRoundInsights(input);
+    const expectedM2 = expectedM2Outcome(input);
 
-    expect(out.outcomes[1]).toBe(expectedM2Outcome(input));
+    expect(out.outcomes[1]).toBe(expectedM2);
     expect(out.outcomes[2]).toBe(expectedM3Outcome(input));
-    expect(out.messageLevels).toEqual(['success', 'warning', 'info']);
+    expect(out.messageLevels).toEqual(['success', expectedM2Level(input, expectedM2), 'info']);
     expect(out.messages[0].startsWith('??')).toBe(false);
     expect(out.messages[0].startsWith('?')).toBe(false);
     expect(out.messages[0].startsWith('??')).toBe(false);
@@ -164,6 +177,37 @@ describe('deterministic policy matrix coverage', () => {
     });
     expect(neutral.outcomes[1]).toBe('M2-D');
     expect(neutral.outcomes[2]).toBe('M3-E');
+  });
+
+  test('9-hole normalization scales strong-leak gate for message 3', () => {
+    const base: PostRoundPolicyInput = {
+      score: 39,
+      toPar: 3,
+      avgScore: 38.5,
+      band: 'expected',
+      measuredComponents: [
+        { name: 'off_tee', label: 'Off The Tee', value: 0.1 },
+        { name: 'approach', label: 'Approach', value: -0.6 },
+      ],
+      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.1 },
+      worstMeasured: { name: 'approach', label: 'Approach', value: -0.6 },
+      opportunityIsWeak: true,
+      residualDominant: false,
+      weakSeparation: true,
+      missing: { fir: false, gir: false, putts: false, penalties: false },
+    };
+
+    const fullRound = buildDeterministicPostRoundInsights({
+      ...base,
+      holesPlayed: 18,
+    });
+    expect(fullRound.outcomes[2]).toBe('M3-E');
+
+    const nineHole = buildDeterministicPostRoundInsights({
+      ...base,
+      holesPlayed: 9,
+    });
+    expect(nineHole.outcomes[2]).toBe('M3-C');
   });
 
   test('score context edge cases are deterministic around +/-0.1 threshold', () => {

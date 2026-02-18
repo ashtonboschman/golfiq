@@ -10,6 +10,7 @@ import { Check, Edit, X, Trash2, Crown } from 'lucide-react';
 import { Confidence } from '@prisma/client';
 import RoundInsights from '@/components/RoundInsights';
 import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
+import InfoTooltip from '@/components/InfoTooltip';
 
 interface HoleDetail {
   hole_number: number;
@@ -206,6 +207,34 @@ export default function RoundStatsPage() {
     return rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1);
   };
 
+  const formatScoreToPar = (value: number): string => {
+    if (value === 0) return 'E';
+    return value > 0 ? `+${value}` : `${value}`;
+  };
+
+  const sgTooltipText =
+    'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Putting, and Penalties use the stats you logged. Residual is scoring not explained by tracked stats.';
+
+  const PAR_DELTA_PER_HOLE_LIMIT = 1.5;
+  const PAR_DELTA_EPSILON = 0.001;
+  const parBreakdownRows = [...stats.scoring_by_par]
+    .map((item) => {
+      const parsedAverage = Number(item.average_score);
+      const averageValue = Number.isFinite(parsedAverage) ? parsedAverage : item.par;
+      const deltaPerHole = averageValue - item.par;
+      const clampedDeltaPerHole = Math.max(
+        -PAR_DELTA_PER_HOLE_LIMIT,
+        Math.min(PAR_DELTA_PER_HOLE_LIMIT, deltaPerHole)
+      );
+      return {
+        ...item,
+        averageValue,
+        deltaPerHole,
+        clampedDeltaPerHole,
+      };
+    })
+    .sort((a, b) => a.par - b.par);
+
   return (
     <div className="page-stack">
       <div className='card'>
@@ -251,6 +280,9 @@ export default function RoundStatsPage() {
 
         {/* Score Summary Card */}
         <div className="stats-score-summary">
+          <div className="stats-summary-header">
+            <h3 className="stats-summary-title">Round Summary</h3>
+          </div>
           <div className="stats-score-grid">
             <div>
               <div className="stats-score-value">
@@ -323,6 +355,10 @@ export default function RoundStatsPage() {
         {/* Strokes Gained Summary Card */}
         {isPremium && (
           <div className="stats-score-summary">
+            <div className="stats-summary-header">
+              <h3 className="stats-summary-title">Strokes Gained</h3>
+              <InfoTooltip text={sgTooltipText} />
+            </div>
             <div className="stats-score-grid">
                 {stats.handicap_at_round !== null && (
                   <>
@@ -331,7 +367,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_total)}
                       </div>
                       <div className="stats-score-label">
-                        SG Total
+                        Total
                       </div>
                     </div>
                     <div>
@@ -339,7 +375,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_off_tee)}
                       </div>
                       <div className="stats-score-label">
-                        SG Off Tee
+                        Off Tee
                       </div>
                     </div>
                     <div>
@@ -347,7 +383,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_approach)}
                       </div>
                       <div className="stats-score-label">
-                        SG Approach
+                        Approach
                       </div>
                     </div>
                     <div>
@@ -355,7 +391,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_putting)}
                       </div>
                       <div className="stats-score-label">
-                        SG Putting
+                        Putting
                       </div>
                     </div>
                     <div>
@@ -363,7 +399,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_penalties)}
                       </div>
                       <div className="stats-score-label">
-                        SG Penalties
+                        Penalties
                       </div>
                     </div>
                     <div>
@@ -371,7 +407,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_residual)}
                       </div>
                       <div className="stats-score-label">
-                        SG Residual
+                        Residual
                       </div>
                     </div>
                   </>
@@ -395,33 +431,64 @@ export default function RoundStatsPage() {
         )}
 
         {/* Scoring by Par */}
-        {stats.scoring_by_par.length > 0 && (
+        {parBreakdownRows.length > 0 && (
           <div className="stats-section">
-            <h3 className="stats-section-title">
-              Scoring by Par
+            <h3 className="stats-section-title stats-section-title-centered">
+              Par Breakdown
             </h3>
-            <div className="stats-par-grid">
-              {stats.scoring_by_par.map((item) => (
-                <div key={item.par} className="stats-par-card">
-                  <div className="stats-par-card-title">
-                    Par {item.par}s ({item.holes} holes)
+            <div className="stats-par-chart">
+              {parBreakdownRows.map((item) => {
+                const isEvenDelta = Math.abs(item.deltaPerHole) < PAR_DELTA_EPSILON;
+                const normalizedWidth =
+                  (Math.abs(item.clampedDeltaPerHole) / PAR_DELTA_PER_HOLE_LIMIT) * 50;
+                const deltaWidth = isEvenDelta ? 0 : Math.max(normalizedWidth, 1.5);
+                const deltaLeft = item.deltaPerHole < 0 ? 50 - deltaWidth : 50;
+                const pointLeft =
+                  item.deltaPerHole < 0 ? 50 - deltaWidth : item.deltaPerHole > 0 ? 50 + deltaWidth : 50;
+                const trendClass =
+                  item.deltaPerHole < -PAR_DELTA_EPSILON
+                    ? 'is-better'
+                    : item.deltaPerHole > PAR_DELTA_EPSILON
+                      ? 'is-worse'
+                      : 'is-even';
+
+                return (
+                  <div key={item.par} className="stats-par-chart-row">
+                    <div className="stats-par-chart-meta">
+                      <div className="stats-par-chart-par">Par {item.par}</div>
+                      <div className="stats-par-chart-holes">{item.holes} holes</div>
+                    </div>
+
+                    <div className="stats-par-chart-track-wrap">
+                      <div className="stats-par-chart-track">
+                        {!isEvenDelta && (
+                          <div
+                            className={`stats-par-chart-delta ${trendClass}`}
+                            style={{
+                              left: `${deltaLeft}%`,
+                              width: `${deltaWidth}%`,
+                            }}
+                          />
+                        )}
+                        <div className="stats-par-chart-center" />
+                        <div
+                          className={`stats-par-chart-point ${trendClass}`}
+                          style={{ left: `${pointLeft}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="stats-par-chart-values">
+                      <div className="stats-par-chart-average">Avg {item.average_score}</div>
+                      <div
+                        className={`stats-par-chart-vs ${item.score_to_par > 0 ? 'over-par' : item.score_to_par < 0 ? 'under-par' : ''}`}
+                      >
+                        vs par {formatScoreToPar(item.score_to_par)}
+                      </div>
+                    </div>
                   </div>
-                  <div className="stats-par-row">
-                    <span className="stats-par-label">Average</span>
-                    <span className="stats-par-value">{item.average_score}</span>
-                  </div>
-                  <div className="stats-par-row">
-                    <span className="stats-par-label">Total Strokes</span>
-                    <span className="stats-par-value">{item.total_score}</span>
-                  </div>
-                  <div className="stats-par-row">
-                    <span className="stats-par-label">vs Par</span>
-                    <span className={`stats-par-value ${item.score_to_par > 0 ? 'over-par' : item.score_to_par < 0 ? 'under-par' : ''}`}>
-                      {item.score_to_par > 0 ? `+${item.score_to_par}` : item.score_to_par < 0 ? item.score_to_par : 'E'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -429,8 +496,8 @@ export default function RoundStatsPage() {
         {/* Hole-by-Hole Details */}
         {stats.hole_by_hole && stats.hole_details.length > 0 && (
           <div className="stats-section">
-            <h3 className="stats-section-title">
-              Hole-by-Hole Scorecard
+            <h3 className="stats-section-title stats-section-title-centered">
+              Scorecard
             </h3>
             <div className="stats-table-wrapper">
               <table className="stats-table">

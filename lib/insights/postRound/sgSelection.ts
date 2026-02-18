@@ -26,6 +26,12 @@ export type MeasuredSgSelection = {
   weakSeparation: boolean;
 };
 
+export type MeasuredSgSelectionThresholds = {
+  dominanceAbsoluteFloor?: number;
+  weakSeparationDelta?: number;
+  totalFloorForRatio?: number;
+};
+
 const COMPONENT_LABELS: Record<SgMeasuredComponentName, string> = {
   off_tee: 'Off The Tee',
   approach: 'Approach',
@@ -73,34 +79,47 @@ function pickOpportunityComponent(
   return alternatives.sort((a, b) => a.value - b.value)[0];
 }
 
-function computeResidualDominant(inputs: MeasuredSgInputs, components: MeasuredSgComponent[]): boolean {
+function computeResidualDominant(
+  inputs: MeasuredSgInputs,
+  components: MeasuredSgComponent[],
+  dominanceAbsoluteFloor: number,
+  totalFloorForRatio: number,
+): boolean {
   if (!isFiniteNumber(inputs.residual) || !isFiniteNumber(inputs.total)) return false;
 
   const residualAbs = Math.abs(inputs.residual);
-  if (residualAbs < POST_ROUND_RESIDUAL.dominanceAbsoluteFloor) return false;
+  if (residualAbs < dominanceAbsoluteFloor) return false;
 
   const maxMeasuredAbs = components.length
     ? Math.max(...components.map((component) => Math.abs(component.value)))
     : 0;
-  const totalAbs = Math.max(Math.abs(inputs.total), 0.001);
+  const totalAbs = Math.abs(inputs.total);
+  const ratioDominant =
+    totalAbs >= totalFloorForRatio &&
+    residualAbs / totalAbs >= POST_ROUND_RESIDUAL.dominanceRatio;
 
-  return residualAbs > maxMeasuredAbs || residualAbs / totalAbs >= POST_ROUND_RESIDUAL.dominanceRatio;
+  return residualAbs > maxMeasuredAbs || ratioDominant;
 }
 
-function computeWeakSeparation(components: MeasuredSgComponent[]): boolean {
+function computeWeakSeparation(components: MeasuredSgComponent[], weakSeparationDelta: number): boolean {
   if (components.length < 2) return false;
   const sorted = [...components].sort((a, b) => a.value - b.value);
   const delta = Math.abs(sorted[0].value - sorted[1].value);
-  return delta < POST_ROUND_RESIDUAL.weakSeparationDelta;
+  return delta < weakSeparationDelta;
 }
 
 export function runMeasuredSgSelection(
   inputs: MeasuredSgInputs,
   weaknessThreshold: number,
+  thresholds?: MeasuredSgSelectionThresholds,
 ): MeasuredSgSelection {
   const components = buildMeasuredComponents(inputs);
   const best = pickBestComponent(components);
   const opportunity = pickOpportunityComponent(components, best);
+  const dominanceAbsoluteFloor =
+    thresholds?.dominanceAbsoluteFloor ?? POST_ROUND_RESIDUAL.dominanceAbsoluteFloor;
+  const weakSeparationDelta = thresholds?.weakSeparationDelta ?? POST_ROUND_RESIDUAL.weakSeparationDelta;
+  const totalFloorForRatio = thresholds?.totalFloorForRatio ?? dominanceAbsoluteFloor;
 
   return {
     components,
@@ -108,7 +127,7 @@ export function runMeasuredSgSelection(
     opportunity,
     opportunityIsWeak: Boolean(opportunity && opportunity.value <= weaknessThreshold),
     componentCount: components.length,
-    residualDominant: computeResidualDominant(inputs, components),
-    weakSeparation: computeWeakSeparation(components),
+    residualDominant: computeResidualDominant(inputs, components, dominanceAbsoluteFloor, totalFloorForRatio),
+    weakSeparation: computeWeakSeparation(components, weakSeparationDelta),
   };
 }

@@ -12,9 +12,9 @@ describe('buildOnboardingPostRoundInsights', () => {
 
     expect(out.outcomes).toEqual(['OB-1', 'OB-1', 'OB-1']);
     expect(out.messages).toEqual([
-      'You logged your first round: 92 (+20). Nice start.',
-      'GolfIQ post-round insights will get more specific once you have a small baseline. Log two more rounds to unlock trend-based feedback.',
-      'Next round focus: Keep logging your score. If you can, also track FIR, GIR, putts, and penalties so GolfIQ can compute your measured SG components once trends unlock.',
+      'Round 1 logged: 92 (+20).',
+      'Nice start. Two more rounds give you enough history for real trend feedback.',
+      'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties for clearer insight into what helped and what hurt.',
     ]);
   });
 
@@ -68,7 +68,7 @@ describe('buildOnboardingPostRoundInsights', () => {
     expect(worse.outcomes).toEqual(['OB-3-WORSE', 'OB-3-WORSE', 'OB-3-WORSE']);
 
     for (const output of [better, same, worse]) {
-      expect(output.messages[2]).toContain('Full post-round insights unlock on your next round.');
+      expect(output.messages[2]).toContain('Full post-round insights start.');
     }
   });
 

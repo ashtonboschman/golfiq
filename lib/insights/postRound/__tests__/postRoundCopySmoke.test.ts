@@ -67,8 +67,8 @@ describe('post-round copy smoke checks', () => {
     expect(full.includes(' .')).toBe(false);
     expect(full.includes('..')).toBe(false);
 
-    expect(out.messages[2].startsWith('Next round focus:')).toBe(true);
-    const prefixMatches = out.messages[2].match(/Next round focus:/g) ?? [];
+    expect(out.messages[2].startsWith('Next round:')).toBe(true);
+    const prefixMatches = out.messages[2].match(/Next round:/g) ?? [];
     expect(prefixMatches.length).toBe(1);
   });
 });
