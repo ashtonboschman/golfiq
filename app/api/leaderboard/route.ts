@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     // FREE USERS — GLOBAL (LIMITED)
     // ============================================================
     if (scope === 'global' && !isPremium) {
-      const TOP_N = 2;
+      const TOP_N = 50;
 
       const topStats = await prisma.userLeaderboardStats.findMany({
         where: whereClause,
@@ -213,7 +213,7 @@ async function getCompetitionRank(
   sortOrder: SortOrder,
   stat: any,
   isPremiumOrFriend = true,
-  TOP_N = 2
+  TOP_N = 50
 ) {
   if (!isPremiumOrFriend) {
     // For free global users, anything beyond top N shows as TOP_N+1
