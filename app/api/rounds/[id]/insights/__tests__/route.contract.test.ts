@@ -94,11 +94,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
       roundId: BigInt(40),
-      sgTotal: -0.42,
-      sgOffTee: -0.24,
-      sgApproach: -0.81,
-      sgPutting: -1.15,
-      sgPenalties: -0.12,
+      sgTotal: -0.4,
+      sgOffTee: -0.2,
+      sgApproach: -0.8,
+      sgPutting: -1.2,
+      sgPenalties: -0.1,
       sgResidual: 1.9,
     });
   });
@@ -106,13 +106,13 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('keeps area-specific next-round focus when weak separation exists but a strong leak is present', async () => {
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.24 },
-        { name: 'approach', label: 'Approach', value: -0.81 },
-        { name: 'putting', label: 'Putting', value: -1.15 },
-        { name: 'penalties', label: 'Penalties', value: -0.12 },
+        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'approach', label: 'Approach', value: -0.8 },
+        { name: 'putting', label: 'Putting', value: -1.2 },
+        { name: 'penalties', label: 'Penalties', value: -0.1 },
       ],
-      best: { name: 'penalties', label: 'Penalties', value: -0.12 },
-      opportunity: { name: 'putting', label: 'Putting', value: -1.15 },
+      best: { name: 'penalties', label: 'Penalties', value: -0.1 },
+      opportunity: { name: 'putting', label: 'Putting', value: -1.2 },
       opportunityIsWeak: true,
       componentCount: 4,
       residualDominant: false,

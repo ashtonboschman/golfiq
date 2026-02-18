@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import UserHeaderCard from '@/components/UserHeaderCard';
 import UserStatsCard from '@/components/UserStatsCard';
 import UserActionsCard from '@/components/UserActionsCard';
-import { UserDetailsSkeleton } from '@/components/skeleton/PageSkeletons';
+import { SkeletonBlock, SkeletonCircle } from '@/components/skeleton/Skeleton';
 
 interface UserData {
   user: any;
@@ -56,16 +56,53 @@ export default function UserDetailsPage() {
     }
   }, [id, status, router]);
 
-  if (loading) return <UserDetailsSkeleton />;
-  if (!data) return <p className="error-text">User not found</p>;
+  const showDataSkeleton = status === 'loading' || loading;
+  if (!showDataSkeleton && !data) return <p className="error-text">User not found</p>;
 
-  const { user, stats, relationship, permissions } = data;
+  const user = data?.user;
+  const stats = data?.stats;
+  const permissions = data?.permissions;
 
   return (
     <div className="page-stack">
-      <UserHeaderCard user={user} />
-      <UserStatsCard stats={stats} />
-      <UserActionsCard userId={user.id} permissions={permissions} />
+      {showDataSkeleton ? (
+        <div className="card user-header-card">
+          <div className="avatar-wrapper">
+            <SkeletonCircle size={202} />
+          </div>
+          <label className="form-label">Name</label>
+          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <label className="form-label">Bio</label>
+          <SkeletonBlock width="100%" height={80} />
+          <label className="form-label">Favorite Course</label>
+          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+        </div>
+      ) : (
+        <UserHeaderCard user={user} />
+      )}
+
+      {showDataSkeleton ? (
+        <div className="card">
+          <label className="form-label">Handicap</label>
+          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <label className="form-label">Average To Par</label>
+          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <label className="form-label">Best To Par</label>
+          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <label className="form-label">Total Rounds</label>
+          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+        </div>
+      ) : (
+        <UserStatsCard stats={stats} />
+      )}
+
+      {showDataSkeleton ? (
+        <div className="card">
+          <SkeletonBlock className="skeleton-btn" height={41} />
+        </div>
+      ) : (
+        <UserActionsCard userId={user.id} permissions={permissions} />
+      )}
     </div>
   );
 }

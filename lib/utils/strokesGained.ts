@@ -21,7 +21,7 @@ interface SGInputs {
   roundId: bigint;
 }
 
-const round2 = (num: number) => Math.round(num * 100) / 100;
+const round1 = (num: number) => Math.round(num * 10) / 10;
 
 // Allow injection of Prisma client (for testing)
 export async function calculateStrokesGained(
@@ -259,13 +259,28 @@ export async function calculateStrokesGained(
   }
 
   // --- Round and return ---
+  // Persist SG at 1 decimal so stored values match UI precision.
+  // Keep conservation true at persisted precision by deriving residual from rounded totals/components.
+  const sgTotalRounded = round1(sgTotal);
+  const sgOffTeeRounded = sgComponentsMap.offTee !== null ? round1(sgComponentsMap.offTee) : null;
+  const sgApproachRounded = sgComponentsMap.approach !== null ? round1(sgComponentsMap.approach) : null;
+  const sgPuttingRounded = sgComponentsMap.putting !== null ? round1(sgComponentsMap.putting) : null;
+  const sgPenaltiesRounded = sgComponentsMap.penalties !== null ? round1(sgComponentsMap.penalties) : null;
+
+  const knownRoundedSum =
+    (sgOffTeeRounded ?? 0) +
+    (sgApproachRounded ?? 0) +
+    (sgPuttingRounded ?? 0) +
+    (sgPenaltiesRounded ?? 0);
+  const sgResidualRounded = round1(sgTotalRounded - knownRoundedSum);
+
   return {
-    sgTotal: round2(sgTotal),
-    sgOffTee: sgComponentsMap.offTee !== null ? round2(sgComponentsMap.offTee) : null,
-    sgApproach: sgComponentsMap.approach !== null ? round2(sgComponentsMap.approach) : null,
-    sgPutting: sgComponentsMap.putting !== null ? round2(sgComponentsMap.putting) : null,
-    sgPenalties: sgComponentsMap.penalties !== null ? round2(sgComponentsMap.penalties) : null,
-    sgResidual: round2(sgResidual),
+    sgTotal: sgTotalRounded,
+    sgOffTee: sgOffTeeRounded,
+    sgApproach: sgApproachRounded,
+    sgPutting: sgPuttingRounded,
+    sgPenalties: sgPenaltiesRounded,
+    sgResidual: sgResidualRounded,
     confidence,
     messages,
     partialAnalysis,
