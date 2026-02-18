@@ -506,7 +506,7 @@ export default function ProfilePage() {
     <div className="page-stack">
       {/* Email Verification Banner */}
       {!showDataSkeleton && profile.email_verified === false && (
-        <div className="info-banner warning">
+        <div className="info-banner warning profile-email-verify-banner">
           <div className="info-banner-content">
             <div className="info-banner-icon"><Mail size={50}/></div>
             <div className="info-banner-text">
@@ -515,15 +515,15 @@ export default function ProfilePage() {
                 Please verify your email address to access all features. Check your inbox for the verification link.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleResendVerification}
-              disabled={sendingVerification}
-              className="btn"
-            >
-              {sendingVerification ? 'Sending...' : 'Resend Email'}
-            </button>
           </div>
+          <button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={sendingVerification}
+            className="btn"
+          >
+            {sendingVerification ? 'Sending...' : 'Resend Email'}
+          </button>
         </div>
       )}
 

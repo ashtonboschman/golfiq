@@ -231,8 +231,8 @@ export default function LeaderboardPage() {
                 Currently showing top 50 players out of {totalUsers}. Upgrade to Premium to see the entire global leaderboard and your true ranking.
               </p>
             </div>
-            <button className="btn btn-upgrade" onClick={() => router.push('/pricing')}>See Full Leaderboard</button>
           </div>
+          <button className="btn btn-upgrade" onClick={() => router.push('/pricing')}>See Full Leaderboard</button>
         </div>
       )}
 

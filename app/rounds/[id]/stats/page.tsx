@@ -415,13 +415,13 @@ export default function RoundStatsPage() {
             </div>
             {/* Handicap required message for strokes gained */}
             {stats.handicap_at_round === null && (
-              <div className="info-banner warning">
+              <div className="info-banner warning stats-sg-handicap-banner">
                 <div className="info-banner-content">
                   <div className="info-banner-icon"><Crown size={50}/></div>
                   <div className="info-banner-text">
-                    <h4>Handicap Required for Strokes Gained</h4>
+                    <h4>Handicap Required</h4>
                     <p>
-                      To see strokes gained statistics, you need to establish a handicap by logging at least 3 rounds. Keep playing and your handicap will be calculated automatically.
+                      Log at least 3 rounds to establish your handicap and unlock Strokes Gained. Your handicap updates automatically as you keep playing.
                     </p>
                   </div>
                 </div>

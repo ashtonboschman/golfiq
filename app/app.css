@@ -3683,6 +3683,17 @@ input[type='date'].form-input {
   min-width: 0;
 }
 
+/* Keep the handicap-required SG banner icon on the left on small screens */
+.stats-sg-handicap-banner .info-banner-content {
+  align-items: center;
+  flex-wrap: nowrap;
+  margin-bottom: 0;
+}
+
+.stats-sg-handicap-banner .info-banner-text {
+  flex: 1 1 auto;
+}
+
 .info-banner-text h4 {
   margin: 0;
   font-weight: 600;
@@ -5627,6 +5638,12 @@ input[type='date'].form-input {
 
 .round-insights-lock-section .locked-overlay-card {
   width: min(420px, 100%);
+}
+
+@media (max-width: 640px) {
+  .round-insights-lock-section {
+    min-height: 280px;
+  }
 }
 
 @media (min-width: 900px) {
