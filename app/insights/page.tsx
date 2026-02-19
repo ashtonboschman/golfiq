@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Select from 'react-select';
@@ -10,6 +10,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
 import { formatHandicap, formatNumber } from '@/lib/formatters';
+import { SkeletonText } from '@/components/skeleton/Skeleton';
 
 type StatsMode = 'combined' | '9' | '18';
 
@@ -334,10 +335,10 @@ function getTrajectoryDeltaSummary(delta: number | null | undefined): { text: st
   if (delta == null || !Number.isFinite(delta)) {
     return { text: 'Log 5 rounds to unlock trajectory.', tone: 'none' };
   }
-  if (delta < -0.1) {
+  if (delta < -0.5) {
     return { text: `\u25BC  ${delta.toFixed(1)} strokes compared to average`, tone: 'up' };
   }
-  if (delta > 0.1) {
+  if (delta > 0.5) {
     return { text: `\u25B2 ${delta.toFixed(1)} strokes compared to average`, tone: 'down' };
   }
   return { text: '\u2192 Playing at your normal scoring level', tone: 'flat' };
@@ -573,7 +574,7 @@ export default function InsightsPage() {
     }
   }, [status, router]);
 
-  const fetchInsights = async (mode: StatsMode) => {
+  const fetchInsights = useCallback(async (mode: StatsMode) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/insights/overall?statsMode=${mode}`, { credentials: 'include' });
@@ -586,19 +587,18 @@ export default function InsightsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (status === 'authenticated') {
       fetchInsights(statsMode);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, statsMode]);
+  }, [fetchInsights, status, statsMode]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
     try {
-      const res = await fetch('/api/insights/overall/regenerate', {
+      const res = await fetch(`/api/insights/overall/regenerate?statsMode=${statsMode}`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -662,8 +662,7 @@ export default function InsightsPage() {
   const hasEnoughHandicapHistory = handicapProjectionPointCount >= 5;
   const premiumScoreProjectionUnlocked = Boolean(
     isPremiumContext &&
-      projection?.projectedScoreIn10 != null &&
-      (selectedModeProjection?.projectedScoreIn10 != null || projection?.projectedScoreIn10 != null),
+      selectedModeProjection?.projectedScoreIn10 != null,
   );
   const premiumHandicapProjectionUnlocked = Boolean(
     isPremiumContext &&
@@ -684,19 +683,13 @@ export default function InsightsPage() {
         high: selectedModeProjection.scoreHigh,
       };
     }
-    if (projectionRanges?.scoreLow != null && projectionRanges?.scoreHigh != null) {
-      return {
-        low: projectionRanges.scoreLow,
-        high: projectionRanges.scoreHigh,
-      };
-    }
-    const fallbackProjectedScore = selectedModeProjection?.projectedScoreIn10 ?? projection?.projectedScoreIn10 ?? null;
-    if (!hasModeStdDevForRanges || fallbackProjectedScore == null) return null;
+    const modeProjectedScore = selectedModeProjection?.projectedScoreIn10 ?? null;
+    if (!hasModeStdDevForRanges || modeProjectedScore == null) return null;
     return {
-      low: fallbackProjectedScore - consistency.stdDev!,
-      high: fallbackProjectedScore + consistency.stdDev!,
+      low: modeProjectedScore - consistency.stdDev!,
+      high: modeProjectedScore + consistency.stdDev!,
     };
-  }, [premiumScoreProjectionUnlocked, selectedModeProjection, projectionRanges, projection?.projectedScoreIn10, hasModeStdDevForRanges, consistency.stdDev]);
+  }, [premiumScoreProjectionUnlocked, selectedModeProjection, hasModeStdDevForRanges, consistency.stdDev]);
   const effectiveHandicapRange = useMemo(() => {
     if (!premiumHandicapProjectionUnlocked) return null;
     let rawLow: number | null = null;
@@ -762,6 +755,28 @@ export default function InsightsPage() {
     [penaltiesMetric.recent, penaltiesMetric.baseline],
   );
 
+  const sgRecentWindowRounds = useMemo(() => {
+    const raw = modePayload?.kpis.roundsRecent ?? insights?.tier_context?.recentWindow ?? 5;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return 5;
+    return Math.max(1, Math.round(parsed));
+  }, [modePayload?.kpis.roundsRecent, insights?.tier_context?.recentWindow]);
+  const sgBaselineWindowRounds = useMemo(() => {
+    const raw =
+      selectedModeProjection?.roundsUsed ??
+      modePayload?.trend?.labels?.length ??
+      insights?.tier_context?.maxRoundsUsed ??
+      sgRecentWindowRounds;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return sgRecentWindowRounds;
+    return Math.max(sgRecentWindowRounds, Math.round(parsed));
+  }, [
+    selectedModeProjection?.roundsUsed,
+    modePayload?.trend?.labels?.length,
+    insights?.tier_context?.maxRoundsUsed,
+    sgRecentWindowRounds,
+  ]);
+  const sgUseRecentAbsolute = sgBaselineWindowRounds <= sgRecentWindowRounds;
   const sgDeltaRows = useMemo(() => {
     if (!sgHasComponentData || !sgComponents) return [];
     const recent = sgComponents.recentAvg;
@@ -770,11 +785,12 @@ export default function InsightsPage() {
     return keys.map((key) => {
       const recentVal = recent[key];
       const baselineVal = baseline[key];
-      const rawDelta =
-        recentVal != null &&
-        baselineVal != null &&
-        Number.isFinite(recentVal) &&
-        Number.isFinite(baselineVal)
+      const rawDelta = sgUseRecentAbsolute
+        ? (recentVal != null && Number.isFinite(recentVal) ? recentVal : null)
+        : recentVal != null &&
+            baselineVal != null &&
+            Number.isFinite(recentVal) &&
+            Number.isFinite(baselineVal)
           ? recentVal - baselineVal
           : null;
       return {
@@ -783,7 +799,7 @@ export default function InsightsPage() {
         delta: normalizeDelta(rawDelta),
       };
     });
-  }, [sgHasComponentData, sgComponents]);
+  }, [sgHasComponentData, sgComponents, sgUseRecentAbsolute]);
 
   const sgMaxAbsDelta = useMemo(() => {
     const vals = sgDeltaRows
@@ -806,31 +822,11 @@ export default function InsightsPage() {
       delta: null as number | null,
     }));
   }, [sgHasAnyDelta, sgDeltaRows]);
-  const sgRecentWindowRounds = useMemo(() => {
-    const raw = modePayload?.kpis.roundsRecent ?? insights?.tier_context?.recentWindow ?? 5;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return 5;
-    return Math.max(1, Math.round(parsed));
-  }, [modePayload?.kpis.roundsRecent, insights?.tier_context?.recentWindow]);
-  const sgBaselineWindowRounds = useMemo(() => {
-    const raw =
-      selectedModeProjection?.roundsUsed ??
-      modePayload?.trend?.labels?.length ??
-      insights?.tier_context?.maxRoundsUsed ??
-      sgRecentWindowRounds;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return sgRecentWindowRounds;
-    return Math.max(sgRecentWindowRounds, Math.round(parsed));
-  }, [
-    selectedModeProjection?.roundsUsed,
-    modePayload?.trend?.labels?.length,
-    insights?.tier_context?.maxRoundsUsed,
-    sgRecentWindowRounds,
-  ]);
   const sgComponentDeltaTooltip = useMemo(
-    () =>
-      `Shows each strokes gained component delta comparing your recent ${formatRoundCountLabel(sgRecentWindowRounds)} versus your baseline window of ${formatRoundCountLabel(sgBaselineWindowRounds)} in this mode. Positive means better than baseline, negative means worse.`,
-    [sgRecentWindowRounds, sgBaselineWindowRounds],
+    () => sgUseRecentAbsolute
+      ? `Showing recent strokes gained component values from your ${formatRoundCountLabel(sgRecentWindowRounds)} in this mode. Baseline deltas unlock once you have more than ${sgRecentWindowRounds} rounds.`
+      : `Shows each strokes gained component delta comparing your recent ${formatRoundCountLabel(sgRecentWindowRounds)} versus your baseline window of ${formatRoundCountLabel(sgBaselineWindowRounds)} in this mode. Positive means better than baseline, negative means worse.`,
+    [sgRecentWindowRounds, sgBaselineWindowRounds, sgUseRecentAbsolute],
   );
   const aiPrimaryCard = useMemo(() => {
     if (!insights?.cards?.length) return null;
@@ -861,7 +857,6 @@ export default function InsightsPage() {
           data: sgTotal,
           borderColor: accentHighlight,
           backgroundColor: `${accentHighlight}22`,
-          fill: true,
           tension: 0.3,
           pointRadius: 5,
           pointBackgroundColor: accentHighlight,
@@ -885,7 +880,6 @@ export default function InsightsPage() {
           data: handicap,
           borderColor: accentColor,
           backgroundColor: `${accentColor}22`,
-          fill: true,
           tension: 0.3,
           pointRadius: 5,
           pointBackgroundColor: accentColor,
@@ -898,6 +892,9 @@ export default function InsightsPage() {
 
   if (status === 'unauthenticated') return null;
   const showSkeletonContent = status === 'loading' || loading;
+  const overallInsightsTooltip = isPremiumContext
+    ? 'Overall Insights compares your recent rounds (up to 5) against your overall average to detect form trends.'
+    : 'Overall Insights compares your recent rounds (up to 5) against your last 20 rounds to detect form trends.';
 
   return (
     <div className="page-stack">
@@ -906,6 +903,7 @@ export default function InsightsPage() {
           <div className="insights-title">
             <Sparkles size={20} />
             <h3>Overall Insights</h3>
+            <InfoTooltip text={overallInsightsTooltip} />
           </div>
           <div className="overall-insights-actions">
             {showSkeletonContent ? (
@@ -936,11 +934,8 @@ export default function InsightsPage() {
           {showSkeletonContent ? (
             Array.from({ length: 6 }).map((_, idx) => (
               <div key={`overall-insight-skeleton-${idx}`} className="insight-message insight-message-skeleton">
-                <div className="insight-message-content">
-                  <div className="insight-message-skeleton-lines">
-                    <span className="skeleton" style={{ width: '92%', height: 14 }} />
-                    <span className="skeleton" style={{ width: '72%', height: 14 }} />
-                  </div>
+                <div className="insight-message-content skeleton-insight-message-content">
+                  <SkeletonText className="round-insights-line" lines={2} lineHeight={14} lastLineWidth="88%" />
                 </div>
               </div>
             ))
@@ -959,7 +954,7 @@ export default function InsightsPage() {
               <LockedSection
                 locked
                 title="Unlock full Overall Insights"
-                subtitle="See what’s costing you strokes, your SG breakdown, and projected ranges."
+                subtitle="See what's costing you strokes, your SG breakdown, and projected ranges."
                 showCta
                 ctaLabel="Unlock Full Insights"
                 onCtaClick={() => router.push('/pricing')}
@@ -1012,7 +1007,7 @@ export default function InsightsPage() {
               <div className="comparison-bar-row">
                 <span className="comparison-bar-label">Recent</span>
                 <div className="comparison-bar-track">
-                  <span className="skeleton" style={{ display: 'inline-block', width: '62%', height: 10, borderRadius: 999 }} />
+                  <span className="comparison-bar-fill skeleton" style={{ width: '62%' }} />
                 </div>
                 <span className="comparison-bar-value">
                   <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
@@ -1021,7 +1016,7 @@ export default function InsightsPage() {
               <div className="comparison-bar-row">
                 <span className="comparison-bar-label">Average</span>
                 <div className="comparison-bar-track">
-                  <span className="skeleton" style={{ display: 'inline-block', width: '55%', height: 10, borderRadius: 999 }} />
+                  <span className="comparison-bar-fill skeleton" style={{ width: '55%' }} />
                 </div>
                 <span className="comparison-bar-value">
                   <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
@@ -1055,20 +1050,42 @@ export default function InsightsPage() {
                 <h3 className="insights-centered-title">SG Component Delta</h3>
               </div>
               <div className="sg-delta-list">
-                {Array.from({ length: 5 }).map((_, idx) => (
-                  <div key={`sg-skeleton-${idx}`} className="sg-delta-row">
-                    <span className="sg-delta-label">
-                      <span className="skeleton" style={{ display: 'inline-block', width: 88, height: 14 }} />
-                    </span>
-                    <div className="sg-delta-track">
-                      <span className="sg-delta-midline" />
-                      <span className="skeleton" style={{ display: 'inline-block', width: '55%', height: 10, borderRadius: 999 }} />
+                {Array.from({ length: 5 }).map((_, idx) => {
+                  const isNeutral = idx === 2;
+                  const isNegative = idx % 2 === 1;
+                  const barWidth = isNeutral ? '2px' : idx === 4 ? '20%' : '28%';
+                  const barLeft = isNeutral
+                    ? 'calc(50% - 1px)'
+                    : isNegative
+                      ? `calc(50% - ${barWidth})`
+                      : '50%';
+
+                  return (
+                    <div key={`sg-skeleton-${idx}`} className="sg-delta-row">
+                      <span className="sg-delta-label">
+                        <span className="skeleton" style={{ display: 'inline-block', width: 88, height: 14 }} />
+                      </span>
+                      <div className="sg-delta-track">
+                        <span className="sg-delta-midline" />
+                        <span
+                          className="skeleton"
+                          style={{
+                            display: 'block',
+                            position: 'absolute',
+                            left: barLeft,
+                            top: 0,
+                            width: barWidth,
+                            height: '100%',
+                            borderRadius: 999,
+                          }}
+                        />
+                      </div>
+                      <span className="sg-delta-value">
+                        <span className="skeleton" style={{ display: 'inline-block', width: 52, height: 14 }} />
+                      </span>
                     </div>
-                    <span className="sg-delta-value">
-                      <span className="skeleton" style={{ display: 'inline-block', width: 52, height: 14 }} />
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </section>
@@ -1082,7 +1099,7 @@ export default function InsightsPage() {
                 <div className="comparison-bar-row">
                   <span className="comparison-bar-label">Recent</span>
                   <div className="comparison-bar-track">
-                    <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 10, borderRadius: 999 }} />
+                    <span className="comparison-bar-fill skeleton" style={{ width: '58%' }} />
                   </div>
                   <span className="comparison-bar-value">
                     <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
@@ -1091,7 +1108,7 @@ export default function InsightsPage() {
                 <div className="comparison-bar-row">
                   <span className="comparison-bar-label">Average</span>
                   <div className="comparison-bar-track">
-                    <span className="skeleton" style={{ display: 'inline-block', width: '52%', height: 10, borderRadius: 999 }} />
+                    <span className="comparison-bar-fill skeleton" style={{ width: '52%' }} />
                   </div>
                   <span className="comparison-bar-value">
                     <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
@@ -1150,7 +1167,7 @@ export default function InsightsPage() {
           <div className="card dashboard-stat-card comparison-bar-card consistency-card">
             <div className="comparison-bar-header">
               <h3>Scoring Consistency</h3>
-              <InfoTooltip text="Based on your last 10 rounds. Lower variation means your scoring is more repeatable." />
+              <InfoTooltip text="Based on your last 5 rounds. Lower variation means your scoring is more repeatable." />
             </div>
             <p className="consistency-badge">{formatConsistencyLabel(consistencyLabel)}</p>
             {consistency.stdDev != null && (
@@ -1388,7 +1405,7 @@ export default function InsightsPage() {
                       <span className="trajectory-pill-value">
                         {effectiveScoreRange
                           ? `${Math.round(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.round(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
-                          : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? projection?.projectedScoreIn10 ?? null)}`}
+                          : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? null)}`}
                       </span>
                     </div>
                     <div className="trajectory-pill">

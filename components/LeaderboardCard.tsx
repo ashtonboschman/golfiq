@@ -48,6 +48,7 @@ export default function LeaderboardCard({
         <div className="leaderboard-cell left">
           <div className="avatar-name-wrapper">
             {user.avatar_url && (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={user.avatar_url}
                 alt={`${user.first_name} ${user.last_name ?? ''}`}

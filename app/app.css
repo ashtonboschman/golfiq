@@ -5354,7 +5354,33 @@ input[type='date'].form-input {
   gap: 10px;
 }
 
-.insights-title svg {
+.insights-title .info-tooltip-container {
+  position: relative;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  line-height: 1;
+}
+
+.insights-title .info-tooltip-icon {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.insights-title .info-tooltip-icon svg {
+  width: 20px;
+  height: 20px;
+  color: var(--color-secondary-text);
+}
+
+.insights-title > svg {
   color: var(--color-accent);
 }
 
@@ -5413,18 +5439,12 @@ input[type='date'].form-input {
 .insight-message-skeleton {
   min-height: 47px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .insight-message-skeleton .insight-message-content {
   width: 100%;
-}
-
-.insight-message-skeleton-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
+  padding-left: 26px;
 }
 
 .insight-level-great {
@@ -5504,6 +5524,12 @@ input[type='date'].form-input {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.overall-insights-actions .info-tooltip-container {
+  position: relative;
+  top: 0;
+  right: 0;
 }
 
 .overall-insights-meta {

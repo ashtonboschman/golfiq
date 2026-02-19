@@ -66,12 +66,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const scoreToParFormatted = formatScoreToPar(scoreToPar);
     const netToParFormatted = formatScoreToPar(netToPar);
 
-    // Get totals from Round table (only if advanced stats were tracked)
-    const hasAdvancedStats = round.advancedStats;
-    const totalGIR = hasAdvancedStats ? (round.girHit ?? null) : null;
-    const totalFIR = hasAdvancedStats ? (round.firHit ?? null) : null;
-    const totalPutts = hasAdvancedStats ? (round.putts ?? null) : null;
-    const totalPenalties = hasAdvancedStats ? (round.penalties ?? null) : null;
+    // Totals are nullable; use values directly.
+    const totalGIR = round.girHit ?? null;
+    const totalFIR = round.firHit ?? null;
+    const totalPutts = round.putts ?? null;
+    const totalPenalties = round.penalties ?? null;
 
     // Scoring breakdown by par
     const scoringByPar: Record<number, { holes: number; totalScore: number; totalPar: number }> = {
@@ -111,19 +110,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
       };
     });
 
-    // Calculate percentages (only if advanced stats were tracked)
+    // Calculate percentages when totals are available.
     const totalHoles = ctx.holes;
-    const girPercentage = hasAdvancedStats && totalGIR !== null && totalHoles > 0
+    const girPercentage = totalGIR !== null && totalHoles > 0
       ? ((totalGIR / totalHoles) * 100).toFixed(0)
       : null;
 
     // FIR only applies to par 4s and 5s - use resolved context
     const totalFIRHoles = ctx.nonPar3Holes;
-    const firPercentage = hasAdvancedStats && totalFIR !== null && totalFIRHoles > 0
+    const firPercentage = totalFIR !== null && totalFIRHoles > 0
       ? ((totalFIR / totalFIRHoles) * 100).toFixed(0)
       : null;
 
-    const puttsPerHole = hasAdvancedStats && totalPutts !== null && totalHoles > 0
+    const puttsPerHole = totalPutts !== null && totalHoles > 0
       ? (totalPutts / totalHoles).toFixed(2)
       : null;
 
@@ -135,7 +134,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         holes: data.holes,
         total_score: data.totalScore,
         total_par: data.totalPar,
-        average_score: (data.totalScore / data.holes).toFixed(2),
+        average_score: (data.totalScore / data.holes).toFixed(1),
         score_to_par: data.totalScore - data.totalPar,
       }));
 
@@ -194,7 +193,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
       // Additional round info
       notes: round.notes,
       hole_by_hole: round.holeByHole,
-      advanced_stats: round.advancedStats,
 
       // Strokes gained results
       sg_total: sgTotal,

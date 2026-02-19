@@ -167,7 +167,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [status, router]);
+  }, [status, router, showMessage]);
 
   // Close avatar menu when clicking outside
   useEffect(() => {
@@ -532,6 +532,7 @@ export default function ProfilePage() {
           {showDataSkeleton ? (
             <SkeletonCircle size={202} />
           ) : (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={profile.avatar_url || '/avatars/default.png'}
               alt="User Avatar"

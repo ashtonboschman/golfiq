@@ -89,7 +89,7 @@ export function DashboardSkeleton() {
         <SkeletonCard className="last-five-rounds-card">
           <SkeletonBlock width={120} height={22} style={{ marginInline: 'auto' }} />
         </SkeletonCard>
-        <RoundListSkeleton count={5} metricCount={4} showHolesTag={false} />
+        <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
       </div>
       <SkeletonBlock className="skeleton-btn" height={44} />
     </div>

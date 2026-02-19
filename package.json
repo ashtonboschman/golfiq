@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lifetime:grant": "tsx scripts/grant-lifetime.ts",
     "lifetime:revoke": "tsx scripts/revoke-lifetime.ts",
     "lifetime:list": "tsx scripts/list-lifetime.ts",

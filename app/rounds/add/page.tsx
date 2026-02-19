@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, Suspense } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from 'react';
 import { GroupBase } from 'react-select';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -12,7 +12,7 @@ import { getLocalDateString } from '@/lib/dateUtils';
 import { Plus } from 'lucide-react';
 import Select from 'react-select';
 import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSegment } from '@/lib/tee/resolveTeeContext';
-import { markInsightsNudgePending } from '@/lib/insights/insightsNudge';
+import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -46,7 +46,6 @@ interface Round {
   putts: number | null;
   penalties: number | null;
   round_holes: any[];
-  advanced_stats: number;
   par_total?: number | null;
 }
 
@@ -108,7 +107,6 @@ function AddRoundContent() {
     putts: null,
     penalties: null,
     round_holes: [],
-    advanced_stats: 1,
   });
 
   const [segmentOptions, setSegmentOptions] = useState<{ value: TeeSegment; label: string }[]>([]);
@@ -126,7 +124,7 @@ function AddRoundContent() {
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
   // Update segment options when a tee is selected
-  const updateSegmentOptions = (teeObj: any) => {
+  const updateSegmentOptions = useCallback((teeObj: any) => {
     if (!teeObj) {
       setSegmentOptions([]);
       setRound(prev => ({ ...prev, tee_segment: 'full' }));
@@ -137,10 +135,9 @@ function AddRoundContent() {
     setSegmentOptions(segments);
     // Default to 'full'
     setRound(prev => ({ ...prev, tee_segment: 'full' }));
-  };
+  }, []);
 
   const isHBH = round.hole_by_hole === 1;
-  const hasAdvanced = round.advanced_stats === 1;
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -217,19 +214,16 @@ function AddRoundContent() {
         hole_id: h.hole_id,
         pass: h.pass,
         score: h.score,
-        fir_hit: hasAdvanced ? h.fir_hit : null,
-        gir_hit: hasAdvanced ? h.gir_hit : null,
-        putts: hasAdvanced ? h.putts : null,
-        penalties: hasAdvanced ? h.penalties : null,
+        fir_hit: h.fir_hit,
+        gir_hit: h.gir_hit,
+        putts: h.putts,
+        penalties: h.penalties,
       }));
       payload.score = getTotalScore(filteredHoleScores);
-
-      if (hasAdvanced) {
-        ['fir_hit', 'gir_hit', 'putts', 'penalties'].forEach(
-          (f) => (payload[f] = filteredHoleScores.reduce((s, h) => s + (h[f as keyof HoleScore] as number ?? 0), 0))
-        );
-      }
-    } else if (hasAdvanced) {
+      ['fir_hit', 'gir_hit', 'putts', 'penalties'].forEach(
+        (f) => (payload[f] = filteredHoleScores.reduce((s, h) => s + (h[f as keyof HoleScore] as number ?? 0), 0))
+      );
+    } else {
       ['fir_hit', 'gir_hit', 'putts', 'penalties'].forEach((f) => (payload[f] = round[f as keyof Round]));
     }
     return payload;
@@ -314,7 +308,7 @@ function AddRoundContent() {
     }
   };
 
-  const fetchTees = async (courseId: number) => {
+  const fetchTees = useCallback(async (courseId: number) => {
     if (!courseId) return [];
     try {
       const res = await fetch(`/api/tees?course_id=${courseId}`);
@@ -325,9 +319,9 @@ function AddRoundContent() {
       showMessage('Error fetching tees.', 'error');
       return [];
     }
-  };
+  }, [showMessage]);
 
-  const autoSelectTee = (teesArray: any[]) => {
+  const autoSelectTee = useCallback((teesArray: any[]) => {
     const profile = userProfileRef.current;
     if (!profile || teesArray.length === 0) {
       return;
@@ -421,9 +415,9 @@ function AddRoundContent() {
         setRound((prev) => ({ ...prev, par_total: matchedTee.par_total }));
       }
     }
-  };
+  }, [updateSegmentOptions]);
 
-  const fetchHoles = async (teeId: number, existingRoundHoles: any[] = [], segment?: TeeSegment) => {
+  const fetchHoles = useCallback(async (teeId: number, existingRoundHoles: any[] = [], segment?: TeeSegment) => {
     if (!teeId) return [];
     try {
       const res = await fetch(`/api/tees/${teeId}/holes`);
@@ -491,7 +485,7 @@ function AddRoundContent() {
       showMessage('Error fetching holes.', 'error');
       return [];
     }
-  };
+  }, [showMessage]);
 
   // Initialize from URL params
   useEffect(() => {
@@ -533,7 +527,7 @@ function AddRoundContent() {
     };
 
     initAddRound();
-  }, [status, initialized, searchParams]);
+  }, [status, initialized, searchParams, fetchTees, fetchHoles, autoSelectTee, updateSegmentOptions]);
 
   // Fetch holes when tee changes
   useEffect(() => {
@@ -544,7 +538,7 @@ function AddRoundContent() {
     };
 
     initHoles();
-  }, [round.tee_id]);
+  }, [round.tee_id, round.tee_segment, initialized, fetchHoles]);
 
   // Calculate max FIR (non-par-3 holes) and max GIR (total holes) — segment-aware
   const maxFir = useMemo(() => {
@@ -646,10 +640,10 @@ function AddRoundContent() {
     const newHBH = round.hole_by_hole === 1 ? 0 : 1;
 
     if (newHBH === 1) {
-      // Switching TO hole-by-hole mode
+      // Switching to During Round mode
       // Validate that a tee is selected
       if (!round.tee_id) {
-        showMessage('Please select a tee before enabling hole-by-hole mode.', 'error');
+        showMessage('Please select a tee before enabling During Round mode.', 'error');
         return;
       }
 
@@ -722,7 +716,7 @@ function AddRoundContent() {
       // Keep the current score when switching to HBH mode instead of nulling it
       setRound((prev) => ({ ...prev, hole_by_hole: 1 }));
     } else {
-      // Switching FROM hole-by-hole mode
+      // Switching from During Round mode
       setRound((prev) => ({
         ...prev,
         hole_by_hole: 0,
@@ -740,7 +734,7 @@ function AddRoundContent() {
     }
 
     if (!isHBH && (round.score === null || round.score === undefined)) {
-      showMessage('Score is required in Quick Score mode.', 'error');
+      showMessage('Score is required in After Round mode.', 'error');
       return;
     }
 
@@ -766,6 +760,7 @@ function AddRoundContent() {
       if (!res.ok) throw new Error(data.message || 'Error saving round');
 
       markInsightsNudgePending();
+      markRoundInsightsRefreshPending(String(data.roundId));
 
       // Keep loading state true during navigation to prevent flash
       // Replace history so back button goes to rounds page, not add page
@@ -790,23 +785,21 @@ function AddRoundContent() {
         hasScore = true;
       }
       if (h.par !== null) totals.par += h.par;
-      if (hasAdvanced) {
-        if (h.fir_hit !== null) {
-          totals.fir_hit += h.fir_hit;
-          hasFir = true;
-        }
-        if (h.gir_hit !== null) {
-          totals.gir_hit += h.gir_hit;
-          hasGir = true;
-        }
-        if (h.putts !== null) {
-          totals.putts += h.putts;
-          hasPutts = true;
-        }
-        if (h.penalties !== null) {
-          totals.penalties += h.penalties;
-          hasPenalties = true;
-        }
+      if (h.fir_hit !== null) {
+        totals.fir_hit += h.fir_hit;
+        hasFir = true;
+      }
+      if (h.gir_hit !== null) {
+        totals.gir_hit += h.gir_hit;
+        hasGir = true;
+      }
+      if (h.putts !== null) {
+        totals.putts += h.putts;
+        hasPutts = true;
+      }
+      if (h.penalties !== null) {
+        totals.penalties += h.penalties;
+        hasPenalties = true;
       }
     });
 
@@ -852,7 +845,6 @@ function AddRoundContent() {
                 gir_hit={h.gir_hit}
                 putts={h.putts}
                 penalties={h.penalties}
-                hasAdvanced={hasAdvanced}
                 isExpanded={isExpanded}
                 isCompleted={isCompleted}
                 onChange={(_, field, value) => handleHoleScoreChange(actualIdx, field, value)}
@@ -873,22 +865,18 @@ function AddRoundContent() {
               <div className="hole-field">
                 <strong>Score</strong> {show(totals.score)}
               </div>
-              {hasAdvanced && (
-                <>
-                  <div className="hole-field">
-                    <strong>FIR</strong> {show(totals.fir_hit)}
-                  </div>
-                  <div className="hole-field">
-                    <strong>Putts</strong> {show(totals.putts)}
-                  </div>
-                  <div className="hole-field">
-                    <strong>GIR</strong> {show(totals.gir_hit)}
-                  </div>
-                  <div className="hole-field">
-                    <strong>Penalties</strong> {show(totals.penalties)}
-                  </div>
-                </>
-              )}
+              <div className="hole-field">
+                <strong>FIR</strong> {show(totals.fir_hit)}
+              </div>
+              <div className="hole-field">
+                <strong>Putts</strong> {show(totals.putts)}
+              </div>
+              <div className="hole-field">
+                <strong>GIR</strong> {show(totals.gir_hit)}
+              </div>
+              <div className="hole-field">
+                <strong>Penalties</strong> {show(totals.penalties)}
+              </div>
             </div>
           </div>
         )}
@@ -1016,6 +1004,7 @@ function AddRoundContent() {
 
           {initialized && (
             <>
+              <label className="form-label">How are you logging this round?</label>
               <div className="stats-tabs">
                 <button
                   type="button"
@@ -1024,7 +1013,7 @@ function AddRoundContent() {
                     if (isHBH) toggleHoleByHole();
                   }}
                 >
-                  Quick
+                  After Round
                 </button>
                 <button
                   type="button"
@@ -1033,19 +1022,12 @@ function AddRoundContent() {
                     if (!isHBH) toggleHoleByHole();
                   }}
                 >
-                  Hole-by-Hole
+                  During Round
                 </button>
               </div>
-
-              <button
-                type="button"
-                className="btn btn-toggle"
-                onClick={() =>
-                  setRound((prev) => ({ ...prev, advanced_stats: hasAdvanced ? 0 : 1 }))
-                }
-              >
-                {hasAdvanced ? 'Remove Advanced Stats' : 'Add Advanced Stats'}
-              </button>
+              <p className="combined-note">
+                {isHBH ? 'Log each hole live during your round.' : 'Enter total score quickly after you finish.'}
+              </p>
             </>
           )}
 
@@ -1081,8 +1063,11 @@ function AddRoundContent() {
             </div>
           )}
 
+          {!isHBH && (
+            <p className="combined-note">Track at least 2 stats for stronger insights.</p>
+          )}
+
           {!isHBH &&
-            hasAdvanced &&
             ['fir_hit', 'gir_hit', 'putts', 'penalties'].map((field) => {
               const labelMap: Record<string, string> = {
                 fir_hit: 'Fairways In Regulation',

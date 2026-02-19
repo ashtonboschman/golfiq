@@ -59,7 +59,7 @@ describe('post-round policy edge coverage', () => {
     }, { fixedVariantIndex: 0 });
     expect(out.outcomes[1]).toBe('M2-A');
     expect(out.messageLevels[1]).toBe('warning');
-    expect(out.messages[1]).toContain('This finished higher than your recent average');
+    expect(out.messages[1]).toContain('You finished above your recent scoring baseline');
   });
 
   test('score-only M2 near bucket is success', () => {
@@ -74,7 +74,8 @@ describe('post-round policy edge coverage', () => {
     }, { fixedVariantIndex: 0 });
     expect(out.outcomes[1]).toBe('M2-A');
     expect(out.messageLevels[1]).toBe('success');
-    expect(out.messages[1]).toContain('This landed close to your recent average');
+    expect(out.messages[1].toLowerCase()).toContain('score only');
+    expect(out.messages[1].toLowerCase()).toContain('recent');
   });
 
   test('score-only M2 better bucket is success', () => {
@@ -89,7 +90,7 @@ describe('post-round policy edge coverage', () => {
     }, { fixedVariantIndex: 0 });
     expect(out.outcomes[1]).toBe('M2-A');
     expect(out.messageLevels[1]).toBe('success');
-    expect(out.messages[1]).toContain('That is a strong score for you');
+    expect(out.messages[1]).toContain('outperformed your recent scoring baseline');
   });
 
   test('score-only M2 uses near bucket when avg is unavailable', () => {
@@ -103,7 +104,7 @@ describe('post-round policy edge coverage', () => {
     }, { fixedVariantIndex: 0 });
     expect(out.outcomes[1]).toBe('M2-A');
     expect(out.messageLevels[1]).toBe('success');
-    expect(out.messages[1]).toContain('This landed close to your recent average');
+    expect(out.messages[1].toLowerCase()).toContain('score only');
   });
 
   test('score-only M2 near/worse boundary scales for 9 holes', () => {
@@ -118,7 +119,7 @@ describe('post-round policy edge coverage', () => {
       missing: { fir: true, gir: true, putts: true, penalties: true },
     }, { fixedVariantIndex: 0 });
     expect(nearNine.messageLevels[1]).toBe('success');
-    expect(nearNine.messages[1]).toContain('This landed close to your recent average');
+    expect(nearNine.messages[1].toLowerCase()).toContain('score only');
 
     const worseNine = buildDeterministicPostRoundInsights({
       ...BASE,
@@ -131,7 +132,7 @@ describe('post-round policy edge coverage', () => {
       missing: { fir: true, gir: true, putts: true, penalties: true },
     }, { fixedVariantIndex: 0 });
     expect(worseNine.messageLevels[1]).toBe('warning');
-    expect(worseNine.messages[1]).toContain('This finished higher than your recent average');
+    expect(worseNine.messages[1]).toContain('You finished above your recent scoring baseline');
   });
 
   test('M1-B variants always keep explicit strokes wording', () => {

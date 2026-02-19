@@ -56,6 +56,7 @@ export default function FriendCard({ friend, onAction, showDetails = true }: Fri
   return (
     <div className="friend-card">
       <Link href={`/users/${targetUserId}`} className="friend-info clickable">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="friend-img"
           src={friend.avatar_url || '/avatars/default.png'}

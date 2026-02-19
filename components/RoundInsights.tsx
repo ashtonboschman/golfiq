@@ -2,9 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, Lock, RefreshCw, Flame, CircleCheck, CircleAlert, Info } from 'lucide-react';
 import { RoundInsightsSkeleton } from '@/components/skeleton/PageSkeletons';
+import { consumeRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 
 interface RoundInsightsProps {
   roundId: string;
@@ -147,11 +148,15 @@ export default function RoundInsights({
   const { data: session } = useSession();
   const viewerUserId = session?.user?.id ? String(session.user.id) : 'anon';
   const cacheKey = getRoundInsightsCacheKey(roundId, isPremium, viewerUserId);
+  const shouldBypassCache = useMemo(
+    () => consumeRoundInsightsRefreshPending(roundId),
+    [roundId],
+  );
   const normalizedInitialInsights = useMemo(
     () => (initialInsightsPayload ? normalizeInsightsPayload(initialInsightsPayload, isPremium) : null),
     [initialInsightsPayload, isPremium],
   );
-  const initialCachedInsights = readRoundInsightsCache(cacheKey);
+  const initialCachedInsights = shouldBypassCache ? null : readRoundInsightsCache(cacheKey);
   const initialInsights = initialCachedInsights ?? normalizedInitialInsights;
   const [insights, setInsights] = useState<RoundInsightsResponse | null>(initialInsights);
   const [loading, setLoading] = useState(!initialInsights);
@@ -168,40 +173,43 @@ export default function RoundInsights({
     setError(null);
   }, [cacheKey, normalizedInitialInsights]);
 
-  const fetchInsights = async ({ showLoading = false, forceRefresh = false }: { showLoading?: boolean; forceRefresh?: boolean } = {}) => {
-    if (showLoading) {
-      setLoading(true);
-    }
-
-    try {
-      const cached = readRoundInsightsCache(cacheKey);
-      if (cached) {
-        setInsights(cached);
-        setError(null);
-        if (!forceRefresh) {
-          return;
-        }
+  const fetchInsights = useCallback(
+    async ({ showLoading = false, forceRefresh = false }: { showLoading?: boolean; forceRefresh?: boolean } = {}) => {
+      if (showLoading) {
+        setLoading(true);
       }
 
-      const nextInsights = await getOrCreateRoundInsightsRequest(cacheKey, roundId, isPremium);
-      writeRoundInsightsCache(cacheKey, nextInsights);
-      setInsights(nextInsights);
-      setError(null);
-    } catch (err: any) {
-      console.error('Error fetching insights:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        const cached = shouldBypassCache ? null : readRoundInsightsCache(cacheKey);
+        if (cached) {
+          setInsights(cached);
+          setError(null);
+          if (!forceRefresh) {
+            return;
+          }
+        }
+
+        const nextInsights = await getOrCreateRoundInsightsRequest(cacheKey, roundId, isPremium);
+        writeRoundInsightsCache(cacheKey, nextInsights);
+        setInsights(nextInsights);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching insights:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [cacheKey, isPremium, roundId, shouldBypassCache],
+  );
 
   useEffect(() => {
     if (isPremiumLoading) return;
     if (fetchedCacheKeyRef.current === cacheKey) return;
     fetchedCacheKeyRef.current = cacheKey;
-    const hasCached = Boolean(readRoundInsightsCache(cacheKey) ?? normalizedInitialInsights);
+    const hasCached = Boolean((shouldBypassCache ? null : readRoundInsightsCache(cacheKey)) ?? normalizedInitialInsights);
     fetchInsights({ showLoading: !hasCached, forceRefresh: true });
-  }, [cacheKey, isPremiumLoading, normalizedInitialInsights]);
+  }, [cacheKey, fetchInsights, isPremiumLoading, normalizedInitialInsights, shouldBypassCache]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);

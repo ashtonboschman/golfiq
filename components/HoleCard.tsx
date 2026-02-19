@@ -1,5 +1,5 @@
-import { memo, useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { memo, useState } from 'react';
+import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import BinaryNullToggle from './BinaryNullToggle';
 
 interface HoleCardProps {
@@ -10,7 +10,6 @@ interface HoleCardProps {
   gir_hit: number | null;
   putts: number | null;
   penalties: number | null;
-  hasAdvanced: boolean;
   isExpanded?: boolean;
   isCompleted?: boolean;
   onChange: (hole: number, field: string, value: any) => void;
@@ -26,7 +25,6 @@ const HoleCard = memo(({
   gir_hit,
   putts,
   penalties,
-  hasAdvanced,
   isExpanded = true,
   isCompleted = false,
   onChange,
@@ -40,17 +38,14 @@ const HoleCard = memo(({
   const [localPutts, setLocalPutts] = useState<number | null>(putts);
   const [localPenalties, setLocalPenalties] = useState<number | null>(penalties);
 
-  // Reset local state when card expands or when props change
-  useEffect(() => {
-    if (isExpanded) {
-      // Default score to par if not yet set
-      setLocalScore(score ?? par);
-      setLocalFirHit(fir_hit);
-      setLocalGirHit(gir_hit);
-      setLocalPutts(putts);
-      setLocalPenalties(penalties);
-    }
-  }, [isExpanded, score, fir_hit, gir_hit, putts, penalties, par]);
+  const syncLocalStateFromProps = () => {
+    setLocalScore(score ?? par);
+    setLocalFirHit(fir_hit);
+    setLocalGirHit(gir_hit);
+    setLocalPutts(putts);
+    setLocalPenalties(penalties);
+  };
+
   // Commit all local changes to parent
   const handleCommit = () => {
     onChange(hole, 'score', localScore);
@@ -78,6 +73,8 @@ const HoleCard = memo(({
       case 'penalties':
         currentValue = localPenalties;
         setValue = setLocalPenalties;
+        break;
+      default:
         break;
     }
 
@@ -119,9 +116,13 @@ const HoleCard = memo(({
     setValue(newValue);
   };
 
-  const displayValue = (val: number | null) => {
-    if (val === null) return '--';
-    return val;
+  const displayValue = (val: number | null) => (val === null ? '--' : val);
+
+  const handleHeaderClick = () => {
+    if (!isExpanded) {
+      syncLocalStateFromProps();
+    }
+    onToggleExpand?.(hole);
   };
 
   return (
@@ -129,7 +130,7 @@ const HoleCard = memo(({
       {/* Header - always visible */}
       <div
         className="accordion-hole-header"
-        onClick={() => onToggleExpand?.(hole)}
+        onClick={handleHeaderClick}
         style={{ cursor: onToggleExpand ? 'pointer' : 'default' }}
       >
         <div className="accordion-hole-header-left">
@@ -140,10 +141,12 @@ const HoleCard = memo(({
         <div className="accordion-hole-header-right">
           {!isExpanded && isCompleted && score !== null && (
             <span className="accordion-hole-summary">
-              Score: {score}{hasAdvanced && putts !== null && ` • Putts: ${putts}`}
+              Score: {score}{putts !== null && ` - Putts: ${putts}`}
             </span>
           )}
-          {onToggleExpand && (isExpanded ? <ChevronUp className="accordion-icon" /> : <ChevronDown className="accordion-icon" />)}
+          {onToggleExpand && (
+            isExpanded ? <ChevronUp className="accordion-icon" /> : <ChevronDown className="accordion-icon" />
+          )}
         </div>
       </div>
 
@@ -160,7 +163,7 @@ const HoleCard = memo(({
                 onClick={() => handleStepperChange('score', -1)}
                 disabled={(localScore ?? par ?? 4) <= 1}
               >
-                –
+                -
               </button>
               <div className="stepper-value">{displayValue(localScore)}</div>
               <button
@@ -174,74 +177,70 @@ const HoleCard = memo(({
             </div>
           </div>
 
-          {hasAdvanced && (
-            <>
-              {/* FIR */}
-              <div className="stepper-field">
-                <label className="stepper-label">Fairway In Regulation</label>
-                <BinaryNullToggle
-                  value={localFirHit}
-                  onChange={setLocalFirHit}
-                  disabled={par === 3}
-                />
-              </div>
+          {/* FIR */}
+          <div className="stepper-field">
+            <label className="stepper-label">Fairway In Regulation</label>
+            <BinaryNullToggle
+              value={localFirHit}
+              onChange={setLocalFirHit}
+              disabled={par === 3}
+            />
+          </div>
 
-              {/* GIR */}
-              <div className="stepper-field">
-                <label className="stepper-label">Green In Regulation</label>
-                <BinaryNullToggle
-                  value={localGirHit}
-                  onChange={setLocalGirHit}
-                />
-              </div>
+          {/* GIR */}
+          <div className="stepper-field">
+            <label className="stepper-label">Green In Regulation</label>
+            <BinaryNullToggle
+              value={localGirHit}
+              onChange={setLocalGirHit}
+            />
+          </div>
 
-              {/* Putts */}
-              <div className="stepper-field">
-                <label className="stepper-label">Putts</label>
-                <div className="stepper-controls">
-                  <button
-                    type="button"
-                    className="stepper-btn stepper-minus"
-                    onClick={() => handleStepperChange('putts', -1)}
-                  >
-                    –
-                  </button>
-                  <div className="stepper-value">{displayValue(localPutts)}</div>
-                  <button
-                    type="button"
-                    className="stepper-btn stepper-plus"
-                    onClick={() => handleStepperChange('putts', 1)}
-                    disabled={localPutts !== null && localPutts >= 6}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
+          {/* Putts */}
+          <div className="stepper-field">
+            <label className="stepper-label">Putts</label>
+            <div className="stepper-controls">
+              <button
+                type="button"
+                className="stepper-btn stepper-minus"
+                onClick={() => handleStepperChange('putts', -1)}
+              >
+                -
+              </button>
+              <div className="stepper-value">{displayValue(localPutts)}</div>
+              <button
+                type="button"
+                className="stepper-btn stepper-plus"
+                onClick={() => handleStepperChange('putts', 1)}
+                disabled={localPutts !== null && localPutts >= 6}
+              >
+                +
+              </button>
+            </div>
+          </div>
 
-              {/* Penalties */}
-              <div className="stepper-field">
-                <label className="stepper-label">Penalties</label>
-                <div className="stepper-controls">
-                  <button
-                    type="button"
-                    className="stepper-btn stepper-minus"
-                    onClick={() => handleStepperChange('penalties', -1)}
-                  >
-                    –
-                  </button>
-                  <div className="stepper-value">{displayValue(localPenalties)}</div>
-                  <button
-                    type="button"
-                    className="stepper-btn stepper-plus"
-                    onClick={() => handleStepperChange('penalties', 1)}
-                    disabled={localPenalties !== null && localPenalties >= 4}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+          {/* Penalties */}
+          <div className="stepper-field">
+            <label className="stepper-label">Penalties</label>
+            <div className="stepper-controls">
+              <button
+                type="button"
+                className="stepper-btn stepper-minus"
+                onClick={() => handleStepperChange('penalties', -1)}
+              >
+                -
+              </button>
+              <div className="stepper-value">{displayValue(localPenalties)}</div>
+              <button
+                type="button"
+                className="stepper-btn stepper-plus"
+                onClick={() => handleStepperChange('penalties', 1)}
+                disabled={localPenalties !== null && localPenalties >= 4}
+              >
+                +
+              </button>
+            </div>
+          </div>
 
           {/* Next Button - only show if onNext is provided */}
           {onNext && (

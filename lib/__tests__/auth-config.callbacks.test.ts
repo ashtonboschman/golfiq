@@ -49,11 +49,18 @@ describe('authOptions callbacks', () => {
       } as any,
     );
 
-    expect(session.user.id).toBe('7');
-    expect(session.user.email).toBe('golfer@example.com');
-    expect(session.user.name).toBe('Golfer');
-    expect(session.user.theme).toBe('oceanic');
-    expect(session.user.subscription_tier).toBe('lifetime');
+    const user = session.user as {
+      id?: string;
+      email?: string | null;
+      name?: string | null;
+      theme?: string;
+      subscription_tier?: string;
+    };
+
+    expect(user.id).toBe('7');
+    expect(user.email).toBe('golfer@example.com');
+    expect(user.name).toBe('Golfer');
+    expect(user.theme).toBe('oceanic');
+    expect(user.subscription_tier).toBe('lifetime');
   });
 });
-

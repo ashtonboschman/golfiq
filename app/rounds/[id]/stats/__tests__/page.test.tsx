@@ -87,7 +87,6 @@ const statsPayload = {
   hole_details: [],
   notes: null,
   hole_by_hole: false,
-  advanced_stats: false,
   sg_total: 0.8,
   sg_off_tee: 0.2,
   sg_approach: 0.3,

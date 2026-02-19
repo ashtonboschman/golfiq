@@ -27,6 +27,7 @@ describe('post-round message 3 rules', () => {
     const missing0 = buildDeterministicPostRoundInsights(BASE, { fixedVariantIndex: 0 });
     expect(missing0.messages[2].startsWith('Next round:')).toBe(true);
     expect(countPeriods(missing0.messages[2])).toBe(1);
+    expect(missing0.messages[2]).toMatch(/^Next round: .*[.!?]$/);
 
     const missing1 = buildDeterministicPostRoundInsights(
       {
@@ -37,6 +38,7 @@ describe('post-round message 3 rules', () => {
     );
     expect(missing1.messages[2].startsWith('Next round:')).toBe(true);
     expect(countPeriods(missing1.messages[2])).toBe(2);
+    expect(missing1.messages[2]).toMatch(/^Next round: .*[.!?] [A-Z].*[.!?]$/);
 
     const missing2 = buildDeterministicPostRoundInsights(
       {
@@ -47,6 +49,7 @@ describe('post-round message 3 rules', () => {
     );
     expect(missing2.messages[2].startsWith('Next round:')).toBe(true);
     expect(countPeriods(missing2.messages[2])).toBe(2);
+    expect(missing2.messages[2]).toMatch(/^Next round: .*[.!?] [A-Z].*[.!?]$/);
   });
 
   test('broad focus branch triggers when no meaningful leak is available', () => {
@@ -106,7 +109,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(absTrigger.messages[1]).toContain('Residual was +1.6 strokes');
+    expect(absTrigger.messages[1]).toContain('+1.6 strokes');
 
     const dominantTrigger = buildDeterministicPostRoundInsights(
       {
@@ -116,7 +119,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(dominantTrigger.messages[1]).toContain('Residual was +1.2 strokes');
+    expect(dominantTrigger.messages[1]).toContain('+1.2 strokes');
 
     const noTrigger = buildDeterministicPostRoundInsights(
       {
@@ -126,7 +129,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(noTrigger.messages[1]).not.toContain('Residual was');
+    expect(noTrigger.messages[1]).not.toContain('+1.2 strokes');
 
     const nullResidual = buildDeterministicPostRoundInsights(
       {
@@ -136,7 +139,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(nullResidual.messages[1]).not.toContain('Residual was');
+    expect(nullResidual.messages[1]).not.toContain('strokes of swing coming from areas that were not tracked');
     expect(nullResidual.messages[1].toLowerCase()).not.toContain('short game');
   });
 
@@ -161,7 +164,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(nineHole.messages[1]).toContain('Residual was +0.8 strokes');
+    expect(nineHole.messages[1]).toContain('+0.8 strokes');
   });
 
   test('M3-B uses broad action when one stat is missing but leak is not meaningful', () => {
@@ -178,5 +181,39 @@ describe('post-round message 3 rules', () => {
     expect(m3bBroad.outcomes[2]).toBe('M3-B');
     expect(m3bBroad.messages[2]).toContain('Track penalties');
     expect(m3bBroad.messages[2]).toContain('Play to the widest target');
+  });
+
+  test('tracking-first gate stays M3-A even when measured weakness is extreme', () => {
+    const trackingFirst = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        missing: { fir: true, gir: true, putts: false, penalties: false },
+        worstMeasured: { name: 'approach', label: 'Approach', value: -3.2 },
+        opportunityIsWeak: true,
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(trackingFirst.outcomes[2]).toBe('M3-A');
+    expect(trackingFirst.messages[2]).toContain('Track FIR and GIR');
+    expect(trackingFirst.messages[2]).toContain('Play to the widest target');
+    expect(trackingFirst.messages[2]).not.toContain('Default to a center-green target');
+  });
+
+  test('M3-B area-specific action follows worstMeasured area only', () => {
+    const m3bApproach = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        missing: { fir: false, gir: false, putts: false, penalties: true },
+        worstMeasured: { name: 'approach', label: 'Approach', value: -1.4 },
+        opportunityIsWeak: false,
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(m3bApproach.outcomes[2]).toBe('M3-B');
+    expect(m3bApproach.messages[2]).toContain('Track penalties');
+    expect(m3bApproach.messages[2]).toContain('Default to a center-green target');
+    expect(m3bApproach.messages[2]).not.toContain('When penalty is in play');
   });
 });

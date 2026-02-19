@@ -274,7 +274,6 @@ export default function RoundsPage() {
                 <RoundCard
                   round={round}
                   showHoles={true}
-                  showAdvanced={true}
                 />
               </div>
             );

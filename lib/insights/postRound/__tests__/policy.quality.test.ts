@@ -88,4 +88,47 @@ describe('post-round policy message quality guardrails', () => {
       }
     }
   });
+
+  it('avoids "today" phrasing in M3 next-round actions across variants', () => {
+    const penaltiesFocus: PostRoundPolicyInput = {
+      ...BASE,
+      worstMeasured: { name: 'penalties', label: 'Penalties', value: -1.6 },
+      opportunityIsWeak: true,
+      weakSeparation: false,
+      missing: { fir: false, gir: false, putts: false, penalties: false },
+    };
+
+    for (let variantIndex = 0; variantIndex < 10; variantIndex += 1) {
+      const out = buildDeterministicPostRoundInsights(penaltiesFocus, { fixedVariantIndex: variantIndex });
+      expect(out.outcomes[2]).toBe('M3-C');
+      expect(out.messages[2]).not.toMatch(/\btoday\b/i);
+    }
+  });
+
+  it('avoids "leaks" and "damage" in M3 copy across sampled variants', () => {
+    const trackingHeavy: PostRoundPolicyInput = {
+      ...BASE,
+      missing: { fir: true, gir: true, putts: false, penalties: true },
+      measuredComponents: [{ name: 'putting', label: 'Putting', value: -1.4 }],
+      bestMeasured: { name: 'putting', label: 'Putting', value: -1.4 },
+      worstMeasured: { name: 'putting', label: 'Putting', value: -1.4 },
+      opportunityIsWeak: true,
+      weakSeparation: false,
+    };
+
+    const penaltiesFocus: PostRoundPolicyInput = {
+      ...BASE,
+      missing: { fir: false, gir: false, putts: false, penalties: false },
+      worstMeasured: { name: 'penalties', label: 'Penalties', value: -1.6 },
+      opportunityIsWeak: true,
+      weakSeparation: false,
+    };
+
+    for (let variantIndex = 0; variantIndex < 10; variantIndex += 1) {
+      const withTracking = buildDeterministicPostRoundInsights(trackingHeavy, { fixedVariantIndex: variantIndex });
+      const withPenalties = buildDeterministicPostRoundInsights(penaltiesFocus, { fixedVariantIndex: variantIndex });
+      expect(withTracking.messages[2]).not.toMatch(/\bleaks\b/i);
+      expect(withPenalties.messages[2]).not.toMatch(/\bdamage\b/i);
+    }
+  });
 });

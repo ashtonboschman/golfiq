@@ -107,6 +107,11 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.sg).toBeTruthy();
     expect(body.insights.sg.trend.sgTotal.length).toBeGreaterThan(0);
     expect(body.insights.cards).toHaveLength(6);
+    expect(body.insights.cards_by_mode).toBeTruthy();
+    expect(body.insights.cards_by_mode).toHaveProperty('combined');
+    expect(body.insights.cards_by_mode).toHaveProperty('9');
+    expect(body.insights.cards_by_mode).toHaveProperty('18');
+    expect(body.insights.cards).toEqual(body.insights.cards_by_mode['9']);
     expect(body.insights.mode_payload.combined.kpis.avgSgTotalRecent).toBeNull();
     expect(body.insights.projection.projectedScoreIn10).toBeNull();
     expect(body.insights.projection.projectedHandicapIn10).toBeNull();
@@ -131,6 +136,8 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.sg_locked).toBe(false);
     expect(body.insights.sg).toBeTruthy();
     expect(body.insights.cards).toHaveLength(6);
+    expect(body.insights.cards_by_mode).toBeTruthy();
+    expect(body.insights.cards).toEqual(body.insights.cards_by_mode['18']);
     expect(body.insights.mode_payload).toHaveProperty('combined');
     expect(body.insights.mode_payload).toHaveProperty('9');
     expect(body.insights.mode_payload).toHaveProperty('18');

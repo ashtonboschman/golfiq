@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { Check, TriangleAlert, X, Loader2 } from 'lucide-react';
@@ -16,16 +16,7 @@ function VerifyEmailForm() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const tokenParam = searchParams.get('token');
-    if (tokenParam) {
-      setToken(tokenParam);
-      // Automatically verify when page loads with token
-      verifyEmail(tokenParam);
-    }
-  }, [searchParams]);
-
-  const verifyEmail = async (verificationToken: string) => {
+  const verifyEmail = useCallback(async (verificationToken: string) => {
     if (!verificationToken) {
       setError('Invalid verification link. Please check your email for the correct link.');
       return;
@@ -57,7 +48,16 @@ function VerifyEmailForm() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showMessage]);
+
+  useEffect(() => {
+    const tokenParam = searchParams.get('token');
+    if (tokenParam) {
+      setToken(tokenParam);
+      // Automatically verify when page loads with token
+      verifyEmail(tokenParam);
+    }
+  }, [searchParams, verifyEmail]);
 
   if (loading) {
     return (

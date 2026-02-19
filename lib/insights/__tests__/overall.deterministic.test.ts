@@ -31,6 +31,31 @@ function mkRound(partial: Partial<OverallRoundPoint>): OverallRoundPoint {
 }
 
 describe('deterministic overall cards', () => {
+  it('uses recent absolute SG values for strength/opportunity in early samples', () => {
+    const rounds: OverallRoundPoint[] = Array.from({ length: 5 }, (_, i) =>
+      mkRound({
+        id: BigInt(i + 1),
+        date: new Date(`2026-01-${String(31 - i).padStart(2, '0')}T12:00:00Z`),
+        sgOffTee: 0.8,
+        sgApproach: -0.6,
+        sgPutting: -0.2,
+        sgPenalties: 0.1,
+      }),
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    expect(payload.analysis.strength.name).toBe('off_tee');
+    expect(payload.analysis.strength.value).toBe(0.8);
+    expect(payload.analysis.opportunity.name).toBe('approach');
+    expect(payload.analysis.opportunity.value).toBe(-0.6);
+  });
+
   it('uses SG delta (recent vs baseline) for strength/opportunity selection', () => {
     const rounds: OverallRoundPoint[] = [];
     for (let i = 0; i < 10; i++) {
@@ -56,6 +81,223 @@ describe('deterministic overall cards', () => {
 
     expect(payload.analysis.strength.name).toBe('penalties');
     expect(payload.analysis.opportunity.name).toBe('approach');
+  });
+
+  it('does not assign the same component to strength and opportunity when only one SG component is tracked', () => {
+    const rounds: OverallRoundPoint[] = Array.from({ length: 8 }, (_, i) =>
+      mkRound({
+        id: BigInt(i + 1),
+        date: new Date(`2026-01-${String(31 - i).padStart(2, '0')}T12:00:00Z`),
+        sgOffTee: i < 5 ? 0.4 : 0.1,
+        sgApproach: null,
+        sgPutting: null,
+        sgPenalties: null,
+      }),
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    expect(payload.analysis.strength.name).toBe('off_tee');
+    expect(payload.analysis.opportunity.name).toBeNull();
+
+    const cards = buildDeterministicOverallCards({
+      payload,
+      recommendedDrill: 'Use one simple pre-shot routine on every shot.',
+      missingStats: { fir: false, gir: false, putts: false, penalties: false },
+      isPremium: true,
+      variantSeedBase: 'single-stat-seed',
+      variantOffset: 0,
+    });
+
+    expect(cards[1]).toContain('Strength:');
+    expect(cards[2]).toContain('Opportunity:');
+    expect(cards[2]).not.toContain('Off the Tee');
+  });
+
+  it('keeps strength and opportunity distinct when component deltas tie', () => {
+    const rounds: OverallRoundPoint[] = Array.from({ length: 10 }, (_, i) =>
+      mkRound({
+        id: BigInt(i + 1),
+        date: new Date(`2026-01-${String(31 - i).padStart(2, '0')}T12:00:00Z`),
+        // all components have zero recent-vs-baseline delta
+        sgOffTee: 0.1,
+        sgApproach: 0.1,
+        sgPutting: 0.1,
+        sgPenalties: 0.1,
+      }),
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    expect(payload.analysis.strength.name).not.toBeNull();
+    expect(payload.analysis.opportunity.name).not.toBeNull();
+    expect(payload.analysis.strength.name).not.toBe(payload.analysis.opportunity.name);
+  });
+
+  it('shows explicit mode-empty copy when selected mode has no rounds', () => {
+    const rounds: OverallRoundPoint[] = Array.from({ length: 6 }, (_, i) =>
+      mkRound({
+        id: BigInt(i + 1),
+        date: new Date(`2026-01-${String(31 - i).padStart(2, '0')}T12:00:00Z`),
+        holes: 18,
+      }),
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    const cards = buildDeterministicOverallCards({
+      payload,
+      recommendedDrill: 'Use one simple pre-shot routine on every shot.',
+      missingStats: { fir: false, gir: false, putts: false, penalties: false },
+      isPremium: true,
+      variantSeedBase: 'mode-empty-seed',
+      variantOffset: 0,
+      mode: '9',
+    });
+
+    expect(cards[0]).toBeTruthy();
+    expect(cards[0]).toMatch(/9-hole/i);
+    expect(cards[0]).toMatch(/not enough|no .* rounds|empty|not available|unlock|needs round history|waiting/i);
+  });
+
+  it('uses not-available trajectory wording instead of stable when data is missing', () => {
+    const payload = computeOverallPayload({
+      rounds: [mkRound({ holes: 18 })],
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+    payload.projection_by_mode['9'].trajectory = 'unknown';
+
+    const cards = buildDeterministicOverallCards({
+      payload,
+      recommendedDrill: 'Use one simple pre-shot routine on every shot.',
+      missingStats: { fir: false, gir: false, putts: false, penalties: false },
+      isPremium: true,
+      variantSeedBase: 'trajectory-unknown-seed',
+      variantOffset: 0,
+      mode: '9',
+    });
+
+    expect(cards[5]).toContain('Projection:');
+    expect(cards[5].toLowerCase()).toContain('not available');
+    expect(cards[5].toLowerCase()).not.toContain('trajectory is stable');
+  });
+
+  it('uses negative-stretch strength phrasing when best component is still negative', () => {
+    const rounds: OverallRoundPoint[] = [];
+    for (let i = 0; i < 10; i++) {
+      const isRecent = i < 5;
+      rounds.push(
+        mkRound({
+          id: BigInt(i + 1),
+          date: new Date(`2026-01-${String(31 - i).padStart(2, '0')}T12:00:00Z`),
+          sgOffTee: isRecent ? -1.1 : -0.5, // -0.6 delta
+          sgApproach: isRecent ? -1.0 : -0.4, // -0.6 delta
+          sgPutting: isRecent ? -0.7 : -0.2, // -0.5 delta (least negative)
+          sgPenalties: isRecent ? -1.2 : -0.3, // -0.9 delta
+        }),
+      );
+    }
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    const cards = buildDeterministicOverallCards({
+      payload,
+      recommendedDrill: 'Use one simple pre-shot routine on every shot.',
+      missingStats: { fir: false, gir: false, putts: false, penalties: false },
+      isPremium: true,
+      variantSeedBase: 'negative-strength-seed',
+      variantOffset: 0,
+    });
+
+    expect(cards[1]).toContain('Strength:');
+    expect(cards[1]).toMatch(/least costly|least damage|steadiest|still below|still under|negative|least leaky|wrong side of neutral|holding up best|losing strokes|most resilient|maintaining the highest level|strongest relative performer|limiting losses|best relative control|strongest area available/i);
+    expect(cards[1]).not.toMatch(/clearest edge|front-runner|top lever|strongest results/i);
+  });
+
+  it('uses low-coverage strength phrasing when negative strength is also low coverage', () => {
+    const payload = computeOverallPayload({
+      rounds: [mkRound({})],
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    payload.mode_payload.combined.narrative.strength = {
+      name: 'putting',
+      value: -0.2,
+      label: 'Putting',
+      coverageRecent: 1,
+      lowCoverage: true,
+    };
+
+    const cards = buildDeterministicOverallCards({
+      payload,
+      recommendedDrill: 'Use one simple pre-shot routine on every shot.',
+      missingStats: { fir: false, gir: false, putts: false, penalties: false },
+      isPremium: true,
+      variantSeedBase: 'negative-low-coverage-strength-seed',
+      variantOffset: 0,
+    });
+
+    expect(cards[1]).toContain('Strength:');
+    expect(cards[1]).toMatch(/limited recent coverage|small sample|early strength|leads so far|at this stage|coverage remains light|more data needed|first at this stage|thin dataset/i);
+  });
+
+  it('treats 9-hole delta of 0.5 strokes as near baseline for card 1', () => {
+    const rounds: OverallRoundPoint[] = [
+      mkRound({ id: BigInt(1), date: new Date('2026-01-31T12:00:00Z'), holes: 9, score: 41, toPar: 5, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(2), date: new Date('2026-01-30T12:00:00Z'), holes: 9, score: 41, toPar: 5, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(3), date: new Date('2026-01-29T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(4), date: new Date('2026-01-28T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(5), date: new Date('2026-01-27T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(6), date: new Date('2026-01-26T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(7), date: new Date('2026-01-25T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(8), date: new Date('2026-01-24T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(9), date: new Date('2026-01-23T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+      mkRound({ id: BigInt(10), date: new Date('2026-01-22T12:00:00Z'), holes: 9, score: 40, toPar: 4, nonPar3Holes: 7 }),
+    ];
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    const cards = buildDeterministicOverallCards({
+      payload,
+      recommendedDrill: 'Use one simple pre-shot routine on every shot.',
+      missingStats: { fir: false, gir: false, putts: false, penalties: false },
+      isPremium: true,
+      variantSeedBase: 'mode-9-threshold-seed',
+      variantOffset: 0,
+      mode: '9',
+    });
+
+    expect(cards[0]).toContain('Latest round');
+    expect(cards[0]).toMatch(/holding|stable|matching|close|aligned|steady|in sync|level/i);
   });
 
   it('allows strength/opportunity selection with at least 1 recent SG sample and marks low coverage', () => {
@@ -106,7 +348,7 @@ describe('deterministic overall cards', () => {
     });
 
     expect(cards[1]).toMatch(/limited recent|small recent sample|small sample|early coverage|early signal|current sample|so far|small number|at this stage/);
-    expect(cards[2]).toMatch(/limited recent|small recent sample|small sample|early coverage|early signal|current sample|so far|small number|at this stage/);
+    expect(cards[2]).toMatch(/limited recent|small recent sample|small sample|early coverage|early signal|current sample|in this sample|so far|small number|at this stage|still early|differences remain small|tightly grouped|bottom-ranked|currently lowest|trails slightly/);
   });
 
   it('does not infer short_game opportunity from residual', () => {
@@ -125,7 +367,7 @@ describe('deterministic overall cards', () => {
     expect(payload.analysis.opportunity.name).not.toBe('short_game');
   });
 
-  it('switches drill and strategy cards to tracking-first when 3+ stats are missing', () => {
+  it('keeps card 4 tracking-first and avoids repeating tracking text in card 5 when 3+ stats are missing', () => {
     const rounds = [mkRound({ firHit: null, girHit: null })];
     const payload = computeOverallPayload({
       rounds,
@@ -143,11 +385,12 @@ describe('deterministic overall cards', () => {
       variantOffset: 0,
     });
 
-    expect(cards[3]).toMatch(/^Priority first: (track|log|add|record|capture)/);
-    expect(cards[4]).toMatch(/complete tracking|full tracking|log full stats|record missing stats|prioritize in-play outcomes and full tracking/);
+    expect(cards[3]).toMatch(/^Priority first: (track|log|add|record|capture)/i);
+    expect(cards[4]).toContain('On-course strategy:');
+    expect(cards[4]).not.toContain('Tracking');
   });
 
-  it('keeps drill/strategy visible with low-coverage phrasing when 1-2 stats are missing', () => {
+  it('keeps card 5 actionable and adds a light tracking nudge when 1-2 stats are missing', () => {
     const rounds = [mkRound({ firHit: null, girHit: null })];
     const payload = computeOverallPayload({
       rounds,
@@ -170,7 +413,8 @@ describe('deterministic overall cards', () => {
     expect(cards[3]).toMatch(/log|track|record|add/);
     expect(cards[3]).not.toContain('Priority first: track');
     expect(cards[4]).toContain('On-course strategy:');
-    expect(cards[4]).toMatch(/track|log|record|include|capture|plus/);
+    expect(cards[4]).toMatch(/tee|green|pace|target|risk|line|penalt|putt|approach/i);
+    expect(cards[4]).toContain('Tracking');
   });
 
   it('keeps card 5 prefix uniform across normal, low-coverage, and track-first paths', () => {
@@ -285,6 +529,7 @@ describe('deterministic overall cards', () => {
 
     payload.projection.projectedScoreIn10 = 72;
     payload.projection.projectedHandicapIn10 = 9.4;
+    payload.projection_by_mode.combined.projectedScoreIn10 = 72;
 
     const cards = buildDeterministicOverallCards({
       payload,

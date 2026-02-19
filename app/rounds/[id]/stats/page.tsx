@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
@@ -62,7 +62,6 @@ interface RoundStats {
   hole_details: HoleDetail[];
   notes: string | null;
   hole_by_hole: boolean;
-  advanced_stats: boolean;
   sg_total: number | null;
   sg_off_tee: number | null;
   sg_approach: number | null;
@@ -85,35 +84,7 @@ export default function RoundStatsPage() {
 
   const roundId = params?.id as string;
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.replace('/login');
-    }
-  }, [status, router]);
-
-  // Fetch round statistics
-  useEffect(() => {
-    if (status === 'authenticated' && roundId) {
-      fetchStats();
-    }
-  }, [status, roundId]);
-
-  // Refetch stats when page becomes visible (e.g., returning from edit page)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && status === 'authenticated' && roundId) {
-        fetchStats();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [status, roundId]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     clearMessage();
     setLoading(true);
 
@@ -145,7 +116,35 @@ export default function RoundStatsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clearMessage, roundId, router, showMessage]);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+    }
+  }, [status, router]);
+
+  // Fetch round statistics
+  useEffect(() => {
+    if (status === 'authenticated' && roundId) {
+      fetchStats();
+    }
+  }, [status, roundId, fetchStats]);
+
+  // Refetch stats when page becomes visible (e.g., returning from edit page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && status === 'authenticated' && roundId) {
+        fetchStats();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [status, roundId, fetchStats]);
 
   const handleDelete = async () => {
     showConfirm({
@@ -507,13 +506,11 @@ export default function RoundStatsPage() {
                     <th>Par | Yrd</th>
                     <th>Score</th>
                     <th>+/-</th>
-                    {stats.advanced_stats && (
-                      <>
-                        <th>F | G</th>
-                        <th>Putts</th>
-                        <th>Pen</th>
-                      </>
-                    )}
+                    <>
+                      <th>F | G</th>
+                      <th>Putts</th>
+                      <th>Pen</th>
+                    </>
                   </tr>
                 </thead>
                 <tbody>
@@ -529,35 +526,33 @@ export default function RoundStatsPage() {
                       <td className={`score-to-par ${hole.score_to_par > 0 ? 'over-par' : hole.score_to_par < 0 ? 'under-par' : ''}`}>
                         {hole.score_to_par_formatted}
                       </td>
-                      {stats.advanced_stats && (
-                        <>
-                          <td className="fg-cell">
-                            <span className="fg-left">
-                              {hole.fir_hit !== null
-                                ? hole.fir_hit === 1
-                                  ? <Check size={16} color="#28a065" />
-                                  : <X size={16} color="#e74c3c" />
-                                : '-'}
-                            </span>
+                      <>
+                        <td className="fg-cell">
+                          <span className="fg-left">
+                            {hole.fir_hit !== null
+                              ? hole.fir_hit === 1
+                                ? <Check size={16} color="#28a065" />
+                                : <X size={16} color="#e74c3c" />
+                              : '-'}
+                          </span>
 
-                            <span className="fg-separator">|</span>
+                          <span className="fg-separator">|</span>
 
-                            <span className="fg-right">
-                              {hole.gir_hit !== null
-                                ? hole.gir_hit === 1
-                                  ? <Check size={16} color="#28a065" />
-                                  : <X size={16} color="#e74c3c" />
-                                : '-'}
-                            </span>
-                          </td>
-                          <td>
-                            {hole.putts ?? '-'}
-                          </td>
-                          <td>
-                            {hole.penalties ?? '-'}
-                          </td>
-                        </>
-                      )}
+                          <span className="fg-right">
+                            {hole.gir_hit !== null
+                              ? hole.gir_hit === 1
+                                ? <Check size={16} color="#28a065" />
+                                : <X size={16} color="#e74c3c" />
+                              : '-'}
+                          </span>
+                        </td>
+                        <td>
+                          {hole.putts ?? '-'}
+                        </td>
+                        <td>
+                          {hole.penalties ?? '-'}
+                        </td>
+                      </>
                     </tr>
                   ))}
                 </tbody>

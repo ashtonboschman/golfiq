@@ -83,23 +83,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const shouldUseStoredThemeOnBoot = () => {
-    const pathname = window.location.pathname;
-    const publicDarkRoutes = new Set([
-      '/',
-      '/login',
-      '/register',
-      '/forgot-password',
-      '/reset-password',
-      '/about',
-      '/privacy',
-      '/terms',
-      '/contact',
-    ]);
-    if (publicDarkRoutes.has(pathname)) return false;
-    return readAuthMarker();
-  };
-
   useEffect(() => {
     const applyTheme = (newTheme: string) => {
       setThemeState(newTheme);
@@ -108,6 +91,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         .filter(cls => !cls.startsWith('theme-'))
         .concat(`theme-${newTheme}`)
         .join(' ');
+    };
+
+    const shouldUseStoredThemeOnBoot = () => {
+      const pathname = window.location.pathname;
+      const publicDarkRoutes = new Set([
+        '/',
+        '/login',
+        '/register',
+        '/forgot-password',
+        '/reset-password',
+        '/about',
+        '/privacy',
+        '/terms',
+        '/contact',
+      ]);
+      if (publicDarkRoutes.has(pathname)) return false;
+      return readAuthMarker();
     };
 
     if (!bootstrappedRef.current) {

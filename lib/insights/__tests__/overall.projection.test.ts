@@ -126,6 +126,22 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection.trajectory).toBe('flat');
   });
 
+  it('keeps trajectory flat for early samples (5 rounds or fewer)', () => {
+    const rounds = buildRounds(
+      [79, 78, 77, 76, 75],
+      [6.8, 6.7, 6.6, 6.5, 6.4],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    expect(payload.projection.trajectory).toBe('flat');
+  });
+
   it('keeps projection ranges centered around projected score/handicap (low handicap case)', () => {
     const rounds = buildRounds(
       [73, 74, 73, 74, 75, 74, 73, 74, 75, 74],

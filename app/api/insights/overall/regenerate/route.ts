@@ -6,6 +6,12 @@ import { generateAndStoreOverallInsights } from '@/app/api/insights/overall/rout
 
 const MANUAL_REFRESH_COOLDOWN_HOURS = 0;
 
+function parseMode(searchParams: URLSearchParams): 'combined' | '9' | '18' {
+  const mode = searchParams.get('statsMode');
+  if (mode === '9' || mode === '18' || mode === 'combined') return mode;
+  return 'combined';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const overallInsightModel = (prisma as any).overallInsight;
@@ -14,6 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = await requireAuth(request);
+    const mode = parseMode(new URL(request.url).searchParams);
 
     const existing = await overallInsightModel.findUnique({
       where: { userId },
@@ -31,7 +38,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const payload = await generateAndStoreOverallInsights(userId, true);
+    const payload = await generateAndStoreOverallInsights(userId, true, mode);
     return successResponse({ insights: payload });
   } catch (error: any) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {

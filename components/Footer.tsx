@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useFriends } from '../context/FriendsContext';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -18,7 +18,20 @@ export default function Footer() {
   const pathname = usePathname();
   const { incomingRequests } = useFriends();
   const { showConfirm } = useMessage();
-  const [hasInsightsNudge, setHasInsightsNudge] = useState(false);
+  const hasInsightsNudge = useSyncExternalStore(
+    (onStoreChange) => {
+      if (typeof window === 'undefined') return () => undefined;
+      const sync = () => onStoreChange();
+      window.addEventListener(INSIGHTS_NUDGE_EVENT, sync);
+      window.addEventListener('storage', sync);
+      return () => {
+        window.removeEventListener(INSIGHTS_NUDGE_EVENT, sync);
+        window.removeEventListener('storage', sync);
+      };
+    },
+    () => hasInsightsNudgePending(),
+    () => false,
+  );
   const publicRoutes = new Set([
     '/',
     '/login',
@@ -80,22 +93,8 @@ export default function Footer() {
   const showInsightsBadge = hasInsightsNudge && !pathname.startsWith('/insights');
 
   useEffect(() => {
-    setHasInsightsNudge(hasInsightsNudgePending());
-
-    const sync = () => setHasInsightsNudge(hasInsightsNudgePending());
-    window.addEventListener(INSIGHTS_NUDGE_EVENT, sync);
-    window.addEventListener('storage', sync);
-
-    return () => {
-      window.removeEventListener(INSIGHTS_NUDGE_EVENT, sync);
-      window.removeEventListener('storage', sync);
-    };
-  }, []);
-
-  useEffect(() => {
     if (pathname.startsWith('/insights')) {
       clearInsightsNudgePending();
-      setHasInsightsNudge(false);
     }
   }, [pathname]);
 

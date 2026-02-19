@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+/* eslint-disable @next/next/no-img-element */
 import Header from './Header';
 import Footer from './Footer';
 import Messages from './Messages';

@@ -42,7 +42,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-B',
     messageIndex: 0,
     expectedOutcome: 'M1-B',
-    expectedMessageFragment: 'leaked the least at',
+    expectedMessageFragment: 'held up best relative to the other measured areas',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
@@ -56,7 +56,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-C',
     messageIndex: 0,
     expectedOutcome: 'M1-C',
-    expectedMessageFragment: 'gained 0.5 strokes',
+    expectedMessageFragment: 'picking up 0.5 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.5 },
@@ -80,7 +80,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-A',
     messageIndex: 1,
     expectedOutcome: 'M2-A',
-    expectedMessageFragment: 'This landed close to your recent average',
+    expectedMessageFragment: 'score only',
     input: {
       ...baseInput,
       measuredComponents: [],
@@ -106,7 +106,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-D',
     messageIndex: 1,
     expectedOutcome: 'M2-D',
-    expectedMessageFragment: 'biggest leak at 0.8 strokes',
+    expectedMessageFragment: 'where the most strokes were lost at 0.8 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.8 },
@@ -130,7 +130,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-A',
     messageIndex: 2,
     expectedOutcome: 'M3-A',
-    expectedMessageFragment: 'Track FIR, GIR, and putts so we can show what helped and what hurt',
+    expectedMessageFragment: 'Track FIR, GIR, and putts',
     input: {
       ...baseInput,
       missing: { fir: true, gir: true, putts: true, penalties: false },
@@ -140,7 +140,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-B',
     messageIndex: 2,
     expectedOutcome: 'M3-B',
-    expectedMessageFragment: 'Track penalties so we can show what helped and what hurt',
+    expectedMessageFragment: 'Track penalties',
     input: {
       ...baseInput,
       missing: { fir: false, gir: false, putts: false, penalties: true },

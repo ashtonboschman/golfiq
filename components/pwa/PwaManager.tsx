@@ -91,15 +91,31 @@ export default function PwaManager() {
 
   const [config, setConfig] = useState<PwaConfig | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [supportsNativeInstallPrompt, setSupportsNativeInstallPrompt] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isIosSafari, setIsIosSafari] = useState(false);
-  const [dismissedUntil, setDismissedUntil] = useState(0);
-  const [sessionCount, setSessionCount] = useState(0);
-  const [pageVisitCount, setPageVisitCount] = useState(0);
+  const [supportsNativeInstallPrompt] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      ('BeforeInstallPromptEvent' in window || 'onbeforeinstallprompt' in window),
+  );
+  const [isStandalone, setIsStandalone] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      (isStandaloneDisplay() || localStorage.getItem(INSTALLED_KEY) === '1'),
+  );
+  const [isIosSafari] = useState(() => typeof window !== 'undefined' && isIosSafariBrowser());
+  const [dismissedUntil, setDismissedUntil] = useState(
+    () => (typeof window !== 'undefined' ? parseIntSafe(localStorage.getItem(DISMISS_KEY)) : 0),
+  );
+  const [sessionCount, setSessionCount] = useState(
+    () => (typeof window !== 'undefined' ? parseIntSafe(localStorage.getItem(SESSIONS_KEY)) : 0),
+  );
+  const [pageVisitCount, setPageVisitCount] = useState(
+    () => (typeof window !== 'undefined' ? parseSeenPages(localStorage.getItem(PAGES_KEY)).size : 0),
+  );
   const [updateReady, setUpdateReady] = useState(false);
   const [updateRegistration, setUpdateRegistration] = useState<ServiceWorkerRegistration | null>(null);
-  const [updatePending, setUpdatePending] = useState(false);
+  const [updatePending, setUpdatePending] = useState(
+    () => typeof window !== 'undefined' && sessionStorage.getItem(UPDATE_PENDING_KEY) === '1',
+  );
 
   const updateToastTrackedRef = useRef(false);
   const installPromptTrackedRef = useRef('');
@@ -126,10 +142,6 @@ export default function PwaManager() {
   ]);
 
   useEffect(() => {
-    setUpdatePending(sessionStorage.getItem(UPDATE_PENDING_KEY) === '1');
-  }, []);
-
-  useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const handleControllerChange = () => {
       sessionStorage.removeItem(UPDATE_PENDING_KEY);
@@ -145,8 +157,10 @@ export default function PwaManager() {
 
     if (!config.enabled) {
       disableServiceWorkers().catch(() => undefined);
-      setUpdateReady(false);
-      setDeferredPrompt(null);
+      window.setTimeout(() => {
+        setUpdateReady(false);
+        setDeferredPrompt(null);
+      }, 0);
       return;
     }
 
@@ -231,26 +245,23 @@ export default function PwaManager() {
   }, []);
 
   useEffect(() => {
-    setSupportsNativeInstallPrompt('BeforeInstallPromptEvent' in window || 'onbeforeinstallprompt' in window);
-    setIsStandalone(isStandaloneDisplay());
-    setIsIosSafari(isIosSafariBrowser());
+    const syncSessionCount = () => {
+      const markedInstalled = localStorage.getItem(INSTALLED_KEY) === '1';
+      if (markedInstalled) setIsStandalone(true);
 
-    const dismissedRaw = parseIntSafe(localStorage.getItem(DISMISS_KEY));
-    setDismissedUntil(dismissedRaw);
+      const hasSessionMarker = sessionStorage.getItem(SESSION_MARKER_KEY) === '1';
+      const currentSessions = parseIntSafe(localStorage.getItem(SESSIONS_KEY));
+      if (hasSessionMarker) {
+        setSessionCount(currentSessions);
+        return;
+      }
 
-    const markedInstalled = localStorage.getItem(INSTALLED_KEY) === '1';
-    if (markedInstalled) setIsStandalone(true);
-
-    const hasSessionMarker = sessionStorage.getItem(SESSION_MARKER_KEY) === '1';
-    const currentSessions = parseIntSafe(localStorage.getItem(SESSIONS_KEY));
-    if (hasSessionMarker) {
-      setSessionCount(currentSessions);
-    } else {
       const nextSessions = currentSessions + 1;
       localStorage.setItem(SESSIONS_KEY, String(nextSessions));
       sessionStorage.setItem(SESSION_MARKER_KEY, '1');
       setSessionCount(nextSessions);
-    }
+    };
+    syncSessionCount();
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -276,7 +287,8 @@ export default function PwaManager() {
     const seen = parseSeenPages(localStorage.getItem(PAGES_KEY));
     seen.add(pathname);
     localStorage.setItem(PAGES_KEY, JSON.stringify(Array.from(seen)));
-    setPageVisitCount(seen.size);
+    const syncPageCount = () => setPageVisitCount(seen.size);
+    syncPageCount();
   }, [pathname]);
 
   useEffect(() => {

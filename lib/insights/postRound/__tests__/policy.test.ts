@@ -33,9 +33,10 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.outcomes).toEqual(['M1-A', 'M2-A', 'M3-A']);
     expect(out.messageLevels).toEqual(['success', 'success', 'info']);
     expect(out.messages[0]).toContain('You shot 75 (+3), which is 1.0 stroke above your recent average of 74.0.');
-    expect(out.messages[1]).toContain('This landed close to your recent average');
+    expect(out.messages[1].toLowerCase()).toContain('score only');
+    expect(out.messages[1].toLowerCase()).toContain('recent');
     expect(out.messages[1]).not.toContain('{residualSuffix}');
-    expect(out.messages[1]).not.toContain('Residual was');
+    expect(out.messages[1]).not.toContain('+2.2 strokes');
   });
 
   test('M1-B / M2-D / M3-C with residual sentence when large', () => {
@@ -55,7 +56,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes).toEqual(['M1-B', 'M2-D', 'M3-C']);
-    expect(out.messages[1]).toContain('Residual was +2.2 strokes');
+    expect(out.messages[1]).toContain('+2.2 strokes');
   });
 
   test('M1-C when best measured value is positive', () => {
@@ -73,7 +74,8 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[0]).toBe('M1-C');
-    expect(out.messages[0]).toContain('Off The Tee gained 1.2 strokes');
+    expect(out.messages[0]).toContain('Off The Tee');
+    expect(out.messages[0]).toContain('1.2 strokes');
   });
 
   test('uses penalties-safe positive copy for M1-C', () => {
@@ -152,7 +154,8 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[0]).toBe('M1-B');
-    expect(out.messages[0]).toContain('Only Putting was tracked this round, and it cost 4.4 strokes (38 total putts).');
+    expect(out.messages[0]).toContain('Only Putting was tracked');
+    expect(out.messages[0]).toContain('(38 total putts)');
     expect(out.messages[0].toLowerCase()).not.toContain('best measured');
   });
 
@@ -219,7 +222,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.outcomes[1]).toBe('M2-A');
     expect(out.messages[1]).not.toContain('Off The Tee');
     expect(out.messages[1]).not.toContain('{residualSuffix}');
-    expect(out.messages[1]).not.toContain('Residual was');
+    expect(out.messages[1]).not.toContain('+0.6 strokes');
   });
 
   test('keeps residual sentence for component-based M2 messages', () => {
@@ -239,7 +242,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[1]).toBe('M2-D');
-    expect(out.messages[1]).toContain('Residual was');
+    expect(out.messages[1]).toContain('-2.0 strokes');
   });
 
   test('uses penalties-safe positive copy for M2-E', () => {
@@ -260,5 +263,50 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.outcomes[1]).toBe('M2-E');
     expect(out.messages[1]).toContain('Penalties remained a net positive');
     expect(out.messages[1]).toContain('Risk control held up');
+  });
+
+  test('score-only messages avoid specific component claims', () => {
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        measuredComponents: [],
+        bestMeasured: null,
+        worstMeasured: null,
+        missing: { fir: true, gir: true, putts: true, penalties: true },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[0]).toBe('M1-A');
+    expect(out.outcomes[1]).toBe('M2-A');
+    expect(out.messages[0]).not.toContain('Off The Tee');
+    expect(out.messages[0]).not.toContain('Approach');
+    expect(out.messages[0]).not.toContain('Putting');
+    expect(out.messages[0]).not.toContain('Penalties');
+    expect(out.messages[1]).not.toContain('Off The Tee');
+    expect(out.messages[1]).not.toContain('Approach');
+    expect(out.messages[1]).not.toContain('Putting');
+    expect(out.messages[1]).not.toContain('Penalties');
+  });
+
+  test('component labels in M1 and M2 align with selected best and worst components', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.6 },
+      { name: 'approach' as const, label: 'Approach', value: -1.3 },
+      { name: 'putting' as const, label: 'Putting', value: -0.1 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: true,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[0]).toBe('M1-C');
+    expect(out.outcomes[1]).toBe('M2-D');
+    expect(out.messages[0]).toContain('Off The Tee');
+    expect(out.messages[1]).toContain('Approach');
   });
 });

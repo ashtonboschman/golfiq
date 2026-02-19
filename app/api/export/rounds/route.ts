@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
         tee_segment: teeSegment,
         score: round.score,
         hole_by_hole: round.holeByHole,
-        advanced_stats: round.advancedStats,
         fir_hit: round.firHit,
         gir_hit: round.girHit,
         putts: round.putts,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Trash2, CheckCircle, XCircle, Download } from 'lucide-react';
@@ -33,19 +33,13 @@ export default function AdminWaitlistPage() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
-  useEffect(() => {
-    if (status === 'loading') return;
+  const showMessage = useCallback((msg: string, type: 'success' | 'error') => {
+    setMessage(msg);
+    setMessageType(type);
+    setTimeout(() => setMessage(''), 5000);
+  }, []);
 
-    const userId = session?.user?.id;
-    if (userId !== '1') {
-      router.push('/');
-      return;
-    }
-
-    fetchData();
-  }, [status, session, router]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/waitlist');
       const data = await res.json();
@@ -77,13 +71,19 @@ export default function AdminWaitlistPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showMessage]);
 
-  const showMessage = (msg: string, type: 'success' | 'error') => {
-    setMessage(msg);
-    setMessageType(type);
-    setTimeout(() => setMessage(''), 5000);
-  };
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    const userId = session?.user?.id;
+    if (userId !== '1') {
+      router.push('/');
+      return;
+    }
+
+    fetchData();
+  }, [status, session?.user?.id, router, fetchData]);
 
   const addToAllowlist = async (email: string) => {
     try {

@@ -89,12 +89,8 @@ function DashboardFallback() {
         <div className="card last-five-rounds-card">
           <h3>Last 5 Rounds</h3>
         </div>
-        <RoundListSkeleton count={5} metricCount={4} showHolesTag={false} />
+        <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
       </div>
-
-      <button className="btn btn-toggle" disabled>
-        Show Advanced Stats
-      </button>
     </div>
   );
 }
@@ -111,7 +107,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [statsMode, setStatsMode] = useState('combined');
   const [dateFilter, setDateFilter] = useState('all');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -355,8 +350,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           label: 'FIR %',
           data: trendData.map(d => d.fir_pct ?? null),
           borderColor: accentColor,
-          backgroundColor: `${accentColor}22`, // semi-transparent fill
-          fill: true,
+          backgroundColor: `${accentColor}22`,
           tension: 0.3,
           pointRadius: 5,
           pointBackgroundColor: accentColor,
@@ -368,7 +362,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           data: trendData.map(d => d.gir_pct ?? null),
           borderColor: accentHighlight,
           backgroundColor: `${accentHighlight}22`,
-          fill: true,
           tension: 0.3,
           pointRadius: 5,
           pointBackgroundColor: accentHighlight,
@@ -608,7 +601,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           <h3>Last 5 Rounds</h3>
         </div>
         {loading ? (
-          <RoundListSkeleton count={5} metricCount={4} showHolesTag={false} />
+          <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
         ) : lastRounds.length === 0 ? (
           <p className='secondary-text'>No rounds recorded.</p>
         ) : (
@@ -618,51 +611,63 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 key={round.id}
                 round={round}
                 disableClick={!isOwnDashboard}
-                showAdvanced={showAdvanced}
               />
             ))}
           </div>
         )}
       </div>
 
-      <button className="btn btn-toggle" onClick={() => setShowAdvanced((p) => !p)} disabled={loading}>
-        {showAdvanced ? 'Hide Advanced Stats' : 'Show Advanced Stats'}
-      </button>
+      {!loading && (
+        <div className="section">
+          <div className="card last-five-rounds-card">
+            <h3>Performance Metrics</h3>
+          </div>
+          <div className="grid grid-2">
+            {[
+              ['FIR', stats.fir_avg, '%', 'Average fairways in regulation % per round'],
+              ['GIR', stats.gir_avg, '%', 'Average greens in regulation % per round'],
+              ['Putts', stats.avg_putts, null, 'Average putts per round'],
+              ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round'],
+            ].map(([label, val, isPercent, tooltip]) => (
+              <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
+                {tooltip && <InfoTooltip text={tooltip as string} />}
+                <h3>{label}</h3>
+                <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number)}</p>
+              </div>
+            ))}
+          </div>
 
-      {!loading && showAdvanced && (
-        <div className="grid grid-2">
-          {[
-            ['FIR', stats.fir_avg, '%', 'Average fairways in regulation % per round'],
-            ['GIR', stats.gir_avg, '%', 'Average greens in regulation % per round'],
-            ['Putts', stats.avg_putts, null, 'Average putts per round'],
-            ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round'],
-            ['Scoring', scoringPerRound, null, 'Average birdies or better per round'],
-            ['Par', parPerRound, null, 'Average pars per round'],
-            ['Bogey', bogeyPerRound, null, 'Average bogeys per round'],
-            ['Blow Up', blowUpPerRound, null, 'Average double bogeys or worse per round'],
-          ].map(([label, val, isPercent, tooltip]) => (
-            <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
-              {tooltip && <InfoTooltip text={tooltip as string} />}
-              <h3>{label}</h3>
-              <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number)}</p>
-            </div>
-          ))}
+          <TrendCard
+            trendData={firGirData}
+            accentColor={accentColor}
+            surfaceColor={surfaceColor}
+            textColor={textColor}
+            gridColor={gridColor}
+            height={250}
+            yMin={0}      // start at 0%
+            yMax={100}    // end at 100%
+            yStep={25}
+            label='FIR & GIR Trend'
+          />
+
+          <div className="card last-five-rounds-card">
+            <h3>Scoring Distribution</h3>
+          </div>
+          <div className="grid grid-2">
+            {[
+              ['Scoring', scoringPerRound, null, 'Average birdies or better per round'],
+              ['Par', parPerRound, null, 'Average pars per round'],
+              ['Bogey', bogeyPerRound, null, 'Average bogeys per round'],
+              ['Blow Up', blowUpPerRound, null, 'Average double bogeys or worse per round'],
+            ].map(([label, val, isPercent, tooltip]) => (
+              <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
+                {tooltip && <InfoTooltip text={tooltip as string} />}
+                <h3>{label}</h3>
+                <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number)}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
-
-      {!loading && showAdvanced && (
-        <TrendCard
-          trendData={firGirData}
-          accentColor={accentColor}    
-          surfaceColor={surfaceColor}  
-          textColor={textColor}        
-          gridColor={gridColor}        
-          height={250}
-          yMin={0}      // start at 0%
-          yMax={100}    // end at 100%
-          yStep={25}
-          label='FIR & GIR Trend'
-        />
       )}
 
       {/* Upgrade modal - shows at 3 rounds, then every 5 rounds */}

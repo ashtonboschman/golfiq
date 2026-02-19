@@ -78,111 +78,111 @@ type PolicyThresholds = {
 };
 
 const M1_A_VARIANTS = [
-  "{scoreSentence} This was a score-only round, so there is no breakdown of what helped or hurt.",
-  "{scoreSentence} Only score was logged, so we cannot split this round into driving, approach, putting, and penalties.",
-  "{scoreSentence} With no stats like fairways, greens, putts, or penalties, there is not enough detail to break the round into parts.",
-  "{scoreSentence} Score is in, but there is not enough round detail to tell which parts of the game drove it.",
-  "{scoreSentence} A by-part breakdown needs a few tracked stats, and they were not logged for this round.",
-  "{scoreSentence} There is not enough tracked detail here to separate driving, approach, putting, and penalties.",
+  "{scoreSentence} This round was logged as score only, so a component breakdown is not available.",
+  "{scoreSentence} Only score was recorded, so the round cannot be split into strengths and weaknesses.",
+  "{scoreSentence} With no fairways, greens, putts, or penalties logged, there is not enough detail to isolate what drove the score.",
+  "{scoreSentence} The score is in, but there is not enough round detail to tie it to one part of the game.",
+  "{scoreSentence} With score-only logging, the round detail is too thin to point to one clear driver.",
+  "{scoreSentence} Because no supporting stats were logged, the takeaways stay broad for this round.",
 ] as const;
 
 const M1_B_VARIANTS = [
-  "{scoreSentence} {BestLabel} leaked the least at {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} gave up fewer strokes than your other measured areas at {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} was your steadiest measured area, losing {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} held up best among measured areas at {bestAbs1} strokes lost{evidence}.",
-  "{scoreSentence} {BestLabel} was the cleanest measured area at {bestAbs1} strokes lost{evidence}.",
-  "{scoreSentence} {BestLabel} was the smallest measured loss at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} held up best relative to the other measured areas at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was the steadiest measured area at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Among what was tracked, {BestLabel} had the smallest loss at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was the cleanest measured area at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was the least costly area at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was your steadiest area at {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M1_C_VARIANTS = [
-  "{scoreSentence} {BestLabel} gained {bestAbs1} strokes{evidence} and was the clearest bright spot.",
-  "{scoreSentence} {BestLabel} was your strongest measured area, adding {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} picked up {bestAbs1} strokes{evidence} and led your measured areas.",
-  "{scoreSentence} {BestLabel} gave you your biggest boost at {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} Your largest gain came from {BestLabel} at {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} was where you gained the most strokes at {bestAbs1}{evidence}.",
+  "{scoreSentence} {BestLabel} was the clearest bright spot, picking up {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Your best measured work came from {BestLabel} at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} carried this round the most, gaining {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} gave you the biggest boost at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} The largest gain came from {BestLabel} at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was the strongest measured area at {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M1_D_VARIANTS = [
-  "{scoreSentence} {BestLabel} was close to even at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} came in near neutral at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} was basically even at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} held steady at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was close to even at {bestSigned1} strokes{evidence}, which is a solid baseline.",
+  "{scoreSentence} {BestLabel} finished near neutral at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was basically even at {bestSigned1} strokes{evidence}, holding steady.",
   "{scoreSentence} {BestLabel} stayed around even at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was steady at {bestSigned1} strokes{evidence}.",
   "{scoreSentence} {BestLabel} finished near flat at {bestSigned1} strokes{evidence}.",
 ] as const;
 
 const M1_SINGLE_B_VARIANTS = [
-  "{scoreSentence} Only {BestLabel} was tracked this round, and it cost {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} You logged one stat this round: {BestLabel}, and it gave up {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} One area was measured - {BestLabel} - and it lost {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} With one tracked stat, {BestLabel} was the leak at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Only {BestLabel} was tracked, and it cost {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} With only {BestLabel} tracked, it finished at {bestAbs1} strokes lost{evidence}.",
+  "{scoreSentence} One area was tracked: {BestLabel}, and {bestAbs1} strokes were lost there{evidence}.",
+  "{scoreSentence} Only {BestLabel} was measured, and it gave away {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M1_SINGLE_C_VARIANTS = [
-  "{scoreSentence} Only {BestLabel} was tracked this round, and it gained {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} You logged one stat this round: {BestLabel}, and it picked up {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} One area was measured - {BestLabel} - and it gained {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} With one tracked stat, {BestLabel} was where you gained {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Only {BestLabel} was tracked, and it gained {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} With only {BestLabel} tracked, it added {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} One area was tracked: {BestLabel}, and it was a clear positive at {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Only {BestLabel} was measured, and it provided the gain at {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M1_SINGLE_D_VARIANTS = [
-  "{scoreSentence} Only {BestLabel} was tracked this round, and it finished near even at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} You only logged {BestLabel} this round, and it came in basically flat at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} One area was tracked: {BestLabel} at {bestSigned1} strokes{evidence}. That is close to even.",
-  "{scoreSentence} With one stat logged, {BestLabel} finished at {bestSigned1} strokes{evidence}, right around neutral.",
+  "{scoreSentence} Only {BestLabel} was tracked, and it finished near even at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} With only {BestLabel} tracked, it came in basically flat at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} One area was tracked: {BestLabel} at {bestSigned1} strokes{evidence}, right around neutral.",
+  "{scoreSentence} Only {BestLabel} was measured, finishing at {bestSigned1} strokes{evidence}.",
 ] as const;
 
 const M1_C_PENALTIES_VARIANTS = [
   "{scoreSentence} Penalties stayed under control and saved {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} Penalty damage was limited, saving {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Penalties stayed limited and saved {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} You kept extra shots off the card with penalties, saving {bestAbs1} strokes{evidence}.",
   "{scoreSentence} Penalties were a bright spot at {bestAbs1} strokes saved{evidence}.",
-  "{scoreSentence} You managed penalties well and gained {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M2_A_VARIANTS = [
-  "Not enough of the round was tracked to point to one clear area to work on.",
-  "There is not enough in the stats you logged to name one clear opportunity.",
-  "Too few parts of the round were logged to rank what helped or hurt the most.",
-  "We need a bit more tracked detail to confidently say where strokes were lost.",
-  "The round detail here is too thin to point to one clear place to focus.",
-  "There is not enough in the tracked numbers to name a single biggest leak.",
+  "Not enough of the round was tracked to name one clear focus.",
+  "There is not enough tracked detail to confidently identify the main place to focus.",
+  "Too few areas were measured to rank what mattered most.",
+  "With limited tracking, the next focus cannot be tied to one area yet.",
+  "The round detail here is too thin to point to one clear place to start.",
+  "With limited tracking, it is hard to isolate what cost the most.",
 ] as const;
 
 const M2_A_NONE_BETTER_VARIANTS = [
-  "That is a strong score for you. With only score logged, we cannot see which part of your game drove it.",
-  "This finished better than your recent average. With only score logged, we cannot tie that edge to a specific area.",
-  "This was an improvement on your recent scoring. With only score logged, we cannot pinpoint where the strokes came from.",
-  "A solid result for you. With only score logged, the source of the gain is not visible.",
-  "This came in under your recent average. With only score logged, we cannot isolate what created the margin.",
-  "A clear step forward in scoring. With only score logged, we cannot break down where the gain was made.",
+  "You outperformed your recent scoring baseline. Because this round was logged as score only, a component breakdown is not available.",
+  "This round came in meaningfully lower than your recent average. With score-only logging, the gain cannot be tied to one part of the game.",
+  "Scoring improved relative to your recent pattern. Since only score was recorded, the source of that improvement is not visible.",
+  "This was a clear step forward in scoring compared to your recent rounds. Without advanced stats from this round, what drove it cannot be isolated.",
+  "You finished below your recent average, continuing positive scoring movement. With score-only data, the margin cannot be traced to a specific area.",
+  "This round beat your recent scoring level. Because no advanced stats were logged, the internal breakdown is not available.",
 ] as const;
 
 const M2_A_NONE_NEAR_VARIANTS = [
-  "This landed close to your recent average. With only score logged, we cannot break the round into specific areas.",
-  "Right around your usual scoring range. With only score logged, we cannot tell what moved most in this round.",
-  "This was in line with your recent scoring. With only score logged, we cannot pinpoint what helped or hurt most.",
-  "A typical result for you. With only score logged, we cannot break the round into parts.",
-  "This came in near your normal number. With only score logged, we cannot isolate where strokes were won or lost.",
-  "This finished right at your usual scoring level. With only score logged, we cannot separate what carried and what slipped.",
+  "You finished in line with your recent scoring baseline. Because the round was logged as score only, strengths and trouble spots cannot be separated.",
+  "This result sits within your normal scoring range. With score-only logging, it is not possible to see which area moved most.",
+  "Scoring held steady relative to your recent average. Since only score was recorded, a component breakdown is not available.",
+  "This round tracked closely with your recent performance pattern. With score-only data, the round cannot be split into components.",
+  "You landed within your typical scoring window. Because only score was tracked, the story behind it remains broad.",
+  "This score matches your recent trend. Because this round was logged as score only, it is not possible to isolate what drove it.",
 ] as const;
 
 const M2_A_NONE_WORSE_VARIANTS = [
-  "This finished higher than your recent average. With only score logged, we cannot pinpoint where strokes got away.",
-  "A tougher score for you. With only score logged, we cannot isolate the main source of the loss.",
-  "This was above your usual range. With only score logged, we cannot identify which part cost the most.",
-  "This came in higher than you have been posting lately. With only score logged, we cannot locate the source of the loss.",
-  "This drifted above your recent scoring level. With only score logged, we cannot break down where strokes got away.",
-  "You gave back strokes compared to your recent average. With only score logged, we cannot see which area drove it.",
+  "You finished above your recent scoring baseline. Because this round was logged as score only, the main source of the extra strokes is not visible.",
+  "This round came in higher than your recent average. With score-only logging, where strokes were lost cannot be tied to one area.",
+  "Scoring slipped relative to your recent pattern. Since only score was recorded, the added strokes cannot be isolated.",
+  "This result moved outside your typical scoring range on the high side. With score-only data, the breakdown of where strokes accumulated is not available.",
+  "You gave back ground compared to your recent baseline. Because only score was tracked, the specific weakness cannot be identified.",
+  "This score sits above your recent trend. Without advanced stats from this round, the reason cannot be narrowed down.",
 ] as const;
 
 const M2_A_SINGLE_VARIANTS = [
-  "Only one part of the round was tracked, so we cannot compare areas and name a clear opportunity.",
-  "With just one tracked stat, there is not enough context to call the biggest leak.",
+  "Only one part of the round was tracked, so there is not enough context to compare areas and name a clear focus.",
+  "With just one tracked stat, there is not enough context to call out the main issue.",
   "One area was logged, but picking a focus needs at least two areas to compare.",
   "Tracking one thing is a good start, but it does not support a clear next focus yet.",
-  "With only one tracked area, we cannot rank what cost the most across the round.",
+  "With only one tracked area, there is not enough information to rank what cost the most.",
   "This round has one tracked piece, which is not enough to separate what mattered most.",
 ] as const;
 
@@ -196,27 +196,27 @@ const M2_C_VARIANTS = [
 ] as const;
 
 const M2_D_VARIANTS = [
-  "{WorstLabel} was the biggest leak at {worstAbs1} strokes{evidence}.{residualSuffix}",
-  "{WorstLabel} cost the most at {worstAbs1} strokes{evidence}.{residualSuffix}",
-  "{WorstLabel} was where most strokes got away at {worstAbs1} strokes{evidence}.{residualSuffix}",
-  "{WorstLabel} did the most damage at {worstAbs1} strokes{evidence}.{residualSuffix}",
-  "{WorstLabel} was the clearest area to tighten at {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "{WorstLabel} was where the most strokes were lost at {worstAbs1} strokes{evidence}.{residualSuffix}",
   "{WorstLabel} accounted for the largest loss at {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "{WorstLabel} was the clearest place to tighten up at {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "{WorstLabel} drove the biggest loss at {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "{WorstLabel} cost the most at {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "{WorstLabel} was the biggest swing area at {worstAbs1} strokes{evidence}.{residualSuffix}",
 ] as const;
 
 const M2_E_VARIANTS = [
-  "{WorstLabel} remained a net positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
-  "{WorstLabel} stayed a net positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
-  "{WorstLabel} still gained {worstAbs1} strokes and held up as a strength. {followUp}{residualSuffix}",
+  "{WorstLabel} still finished as a net positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
   "{WorstLabel} stayed positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
-  "{WorstLabel} finished as a net positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
+  "{WorstLabel} held up as a strength at {worstAbs1} strokes. {followUp}{residualSuffix}",
+  "{WorstLabel} remained a net positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
   "{WorstLabel} was still a net positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
+  "{WorstLabel} stayed a net positive at {worstAbs1} strokes. {followUp}{residualSuffix}",
 ] as const;
 
 const M2_D_PENALTIES_VARIANTS = [
-  "Penalties were the biggest leak at {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "Penalties were where the most strokes were lost at {worstAbs1} strokes{evidence}.{residualSuffix}",
   "Penalties cost the most at {worstAbs1} strokes{evidence}.{residualSuffix}",
-  "Penalty shots did the most damage at {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "Penalty shots accounted for the largest loss at {worstAbs1} strokes{evidence}.{residualSuffix}",
   "Penalties were the clearest area to tighten at {worstAbs1} strokes{evidence}.{residualSuffix}",
   "Penalties accounted for the largest loss at {worstAbs1} strokes{evidence}.{residualSuffix}",
 ] as const;
@@ -225,24 +225,24 @@ const M2_E_PENALTIES_VARIANTS = [
   "Penalties remained a net positive at {worstAbs1} strokes. Risk control held up.{residualSuffix}",
   "Penalties stayed positive at {worstAbs1} strokes. That kept extra shots off the card.{residualSuffix}",
   "Penalties finished as a net positive at {worstAbs1} strokes. Controlled misses mattered.{residualSuffix}",
-  "Penalty damage stayed limited, and penalties still gained {worstAbs1} strokes.{residualSuffix}",
+  "Penalties stayed under control, and penalties still gained {worstAbs1} strokes.{residualSuffix}",
   "Penalties ended as a net positive at {worstAbs1} strokes. Risk control stayed solid.{residualSuffix}",
 ] as const;
 
 const RESIDUAL_POSITIVE_VARIANTS = [
-  "Residual was {residualSigned1} strokes, meaning a meaningful chunk of scoring came from things that were not tracked.",
-  "Residual was {residualSigned1} strokes, so the tracked stats explain only part of what happened.",
-  "Residual was {residualSigned1} strokes, meaning there was important scoring swing outside the logged stats.",
-  "Residual was {residualSigned1} strokes, so part of the round is not captured by the stats you tracked.",
-  "Residual was {residualSigned1} strokes, meaning the numbers here tell only part of the story.",
+  "There was {residualSigned1} strokes of swing coming from areas that were not tracked this round.",
+  "About {residualSigned1} strokes came from parts of the round outside the tracked stats.",
+  "{residualSigned1} strokes came from things not captured in the tracked stats.",
+  "Some of the scoring swing, {residualSigned1} strokes, came from areas not tracked here.",
+  "The tracked stats explain part of the round, and {residualSigned1} strokes came from outside that picture.",
 ] as const;
 
 const RESIDUAL_NEGATIVE_VARIANTS = [
-  "Residual was {residualSigned1} strokes, meaning some scoring loss came from things that were not tracked.",
-  "Residual was {residualSigned1} strokes, so the tracked stats explain only part of the damage.",
-  "Residual was {residualSigned1} strokes, meaning there was scoring loss outside the logged stats.",
-  "Residual was {residualSigned1} strokes, so part of what hurt the score is not captured by the tracked stats.",
-  "Residual was {residualSigned1} strokes, meaning the tracked numbers explain only part of the loss.",
+  "There was {residualSigned1} strokes of loss coming from areas that were not tracked this round.",
+  "About {residualSigned1} strokes of loss came from parts of the round outside the tracked stats.",
+  "{residualSigned1} strokes came from things not captured in the tracked stats.",
+  "Some of the strokes lost, {residualSigned1} strokes, came from areas not tracked here.",
+  "The tracked stats explain part of the round, and {residualSigned1} strokes came from outside that picture.",
 ] as const;
 
 const RESIDUAL_SENTENCE_THRESHOLD_BASE = 1.5;
@@ -557,8 +557,8 @@ function buildMessage2(
     worstAbs1: formatAbsOneDecimal(worstMeasured.value),
     evidence: evidence ? ` (${evidence})` : '',
     followUp: worstMeasured.name === "penalties"
-      ? "Keeping penalties off the card keeps scoring steadier."
-      : "Keep leaning on that and scoring stays steadier.",
+      ? "Keeping penalties off the card supports steadier scoring."
+      : "If that holds, scoring stays steadier.",
     residualSuffix,
   };
 

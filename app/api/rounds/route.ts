@@ -16,7 +16,6 @@ type RoundWithRelations = {
   courseId: bigint;
   teeId: bigint;
   holeByHole: boolean;
-  advancedStats: boolean;
   holesPlayed: number;
   toPar: number | null;
   teeSegment: string;
@@ -54,7 +53,6 @@ function formatRoundRow(round: RoundWithRelations) {
     course_id: Number(round.courseId),
     tee_id: Number(round.teeId),
     hole_by_hole: round.holeByHole ? 1 : 0,
-    advanced_stats: round.advancedStats ? 1 : 0,
     date: round.date,
     score: round.score === null ? null : Number(round.score),
     net_score: round.netScore === null ? null : Number(round.netScore),
@@ -171,7 +169,6 @@ const createRoundSchema = z.object({
   notes: z.string().optional().default(''),
   tee_segment: z.enum(['full', 'front9', 'back9', 'double9']).optional().default('full'),
   hole_by_hole: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
-  advanced_stats: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(true),
   round_holes: z.array(z.object({
     hole_id: z.union([z.string(), z.number()]),
     pass: z.number().optional().default(1),
@@ -198,16 +195,16 @@ export async function POST(request: NextRequest) {
     const courseId = BigInt(data.course_id);
     const teeId = BigInt(data.tee_id);
 
-    // Validate score is provided if not hole-by-hole mode
+    // Validate score is provided for After Round mode
     if (!data.hole_by_hole && (data.score === null || data.score === undefined)) {
-      return errorResponse('Score is required in Quick Score mode', 400);
+      return errorResponse('Score is required in After Round mode', 400);
     }
 
     const insertScore = data.hole_by_hole ? 0 : data.score!;
-    const insertFir = !data.hole_by_hole && data.advanced_stats ? data.fir_hit ?? null : null;
-    const insertGir = !data.hole_by_hole && data.advanced_stats ? data.gir_hit ?? null : null;
-    const insertPutts = !data.hole_by_hole && data.advanced_stats ? data.putts ?? null : null;
-    const insertPenalties = !data.hole_by_hole && data.advanced_stats ? data.penalties ?? null : null;
+    const insertFir = !data.hole_by_hole ? data.fir_hit ?? null : null;
+    const insertGir = !data.hole_by_hole ? data.gir_hit ?? null : null;
+    const insertPutts = !data.hole_by_hole ? data.putts ?? null : null;
+    const insertPenalties = !data.hole_by_hole ? data.penalties ?? null : null;
 
     // Parse date from user input (YYYY-MM-DD format)
     // Use current UTC time to ensure proper ordering for rounds on the same day
@@ -259,7 +256,6 @@ export async function POST(request: NextRequest) {
         teeSegment,
         holesPlayed: ctx.holes,
         holeByHole: data.hole_by_hole,
-        advancedStats: data.advanced_stats,
         date: roundDate,
         score: insertScore,
         netScore,
@@ -284,15 +280,15 @@ export async function POST(request: NextRequest) {
           holeId: BigInt(h.hole_id),
           pass: h.pass ?? 1,
           score: h.score ?? 0,
-          firHit: data.advanced_stats ? h.fir_hit ?? null : null,
-          girHit: data.advanced_stats ? h.gir_hit ?? null : null,
-          putts: data.advanced_stats ? h.putts ?? null : null,
-          penalties: data.advanced_stats ? h.penalties ?? null : null,
+          firHit: h.fir_hit ?? null,
+          girHit: h.gir_hit ?? null,
+          putts: h.putts ?? null,
+          penalties: h.penalties ?? null,
         })),
       });
 
       // Recalculate round totals
-      await recalcRoundTotals(roundId, data.advanced_stats);
+      await recalcRoundTotals(roundId);
     }
 
     const sg = await calculateStrokesGained({ userId, roundId }, prisma);
@@ -363,7 +359,7 @@ async function triggerOverallInsightsGeneration(userId: bigint): Promise<void> {
 }
 
 // Helper to recalculate round totals from hole-by-hole data
-async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promise<void> {
+async function recalcRoundTotals(roundId: bigint): Promise<void> {
   const round = await prisma.round.findUnique({
     where: { id: roundId },
     select: {
@@ -421,16 +417,14 @@ async function recalcRoundTotals(roundId: bigint, advancedStats: boolean): Promi
     penalties: null,
   };
 
-  if (advancedStats) {
-    const sumField = (field: keyof typeof holes[0]) => {
-      const values = holes.map(h => h[field]).filter((v): v is number => v !== null);
-      return values.length ? values.reduce((a, b) => a + b, 0) : null;
-    };
-    totals.firHit = sumField('firHit');
-    totals.girHit = sumField('girHit');
-    totals.putts = sumField('putts');
-    totals.penalties = sumField('penalties');
-  }
+  const sumField = (field: keyof typeof holes[0]) => {
+    const values = holes.map(h => h[field]).filter((v): v is number => v !== null);
+    return values.length ? values.reduce((a, b) => a + b, 0) : null;
+  };
+  totals.firHit = sumField('firHit');
+  totals.girHit = sumField('girHit');
+  totals.putts = sumField('putts');
+  totals.penalties = sumField('penalties');
 
   await prisma.round.update({ where: { id: roundId }, data: totals });
 }

@@ -53,20 +53,14 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
   }
 
   const scoreLine = `${input.score} (${formatToPar(input.toPar)})`;
-  const ctaBetter =
-    'Next round: Log your score to unlock trend insights. If you can, track fairways, greens, putts, and penalties for a clearer read on what is working and where to keep building.';
-  const ctaWorse =
-    'Next round: Log your score to unlock trend insights. If you can, track fairways, greens, putts, and penalties for a clearer read on where shots are slipping and what to tighten first.';
-  const ctaSame =
-    'Next round: Log your score to unlock trend insights. If you can, track fairways, greens, putts, and penalties for a clearer read on what is stable and what could move the score.';
 
   if (input.roundNumber === 1) {
     return {
       messages: [
-        withGuard(`Round 1 logged: ${scoreLine}.`, 'OB-1'),
-        withGuard('Nice start. Two more rounds give you enough history for real trend feedback.', 'OB-1'),
+        withGuard(`You shot ${scoreLine}. That puts your first round on the board and sets a clear baseline.`, 'OB-1'),
+        withGuard('Good start. Early on, the goal is context. Two more rounds give enough history for patterns to start forming.', 'OB-1'),
         withGuard(
-          'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties for clearer insight into what helped and what hurt.',
+          'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer where strokes are coming from.',
           'OB-1',
         ),
       ],
@@ -88,11 +82,17 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
       return {
         messages: [
           withGuard(
-            `Round 2 logged: ${scoreLine}, ${absDeltaText} ${strokeLabel} better than your first round.`,
+            `You shot ${scoreLine}. That is ${absDeltaText} ${strokeLabel} better than your first round, a step in the right direction.`,
             'OB-2-BETTER',
           ),
-          withGuard('Good move. One more round and your early trend will be much clearer.', 'OB-2-BETTER'),
-          withGuard(ctaBetter, 'OB-2-BETTER'),
+          withGuard(
+            'Two rounds are enough to see movement, but not the full picture. One more round adds the context that makes direction clearer.',
+            'OB-2-BETTER',
+          ),
+          withGuard(
+            'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer what is driving the improvement.',
+            'OB-2-BETTER',
+          ),
         ],
         messageLevels: ['success', 'info', 'info'],
         outcomes: ['OB-2-BETTER', 'OB-2-BETTER', 'OB-2-BETTER'],
@@ -103,11 +103,17 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
       return {
         messages: [
           withGuard(
-            `Round 2 logged: ${scoreLine}, ${absDeltaText} ${strokeLabel} higher than your first round.`,
+           `You shot ${scoreLine}. That is ${absDeltaText} ${strokeLabel} higher than your first round, a move in the opposite direction.`,
             'OB-2-WORSE',
           ),
-          withGuard('That happens. One more round and your starting trend will settle in.', 'OB-2-WORSE'),
-          withGuard(ctaWorse, 'OB-2-WORSE'),
+          withGuard(
+            'Two rounds are enough to see movement, but not the full picture. One more round adds the context that makes direction clearer.',
+            'OB-2-WORSE',
+          ),
+          withGuard(
+            'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer what is pushing the score up.',
+            'OB-2-WORSE',
+          ),
         ],
         messageLevels: ['success', 'info', 'info'],
         outcomes: ['OB-2-WORSE', 'OB-2-WORSE', 'OB-2-WORSE'],
@@ -116,9 +122,18 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
 
     return {
       messages: [
-        withGuard(`Round 2 logged: ${scoreLine}, matching your first round.`, 'OB-2-SAME'),
-        withGuard('That early consistency is useful. One more round and the trend view unlocks.', 'OB-2-SAME'),
-        withGuard(ctaSame, 'OB-2-SAME'),
+        withGuard(
+          `You shot ${scoreLine}, matching your first round. That is an early sign of consistency.`,
+          'OB-2-SAME',
+        ),
+        withGuard(
+          'Two rounds are enough to see movement, but not the full picture. One more round adds the context that makes direction clearer.',
+          'OB-2-SAME',
+        ),
+        withGuard(
+          'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer what is keeping the score steady.',
+          'OB-2-SAME',
+        ),
       ],
       messageLevels: ['success', 'info', 'info'],
       outcomes: ['OB-2-SAME', 'OB-2-SAME', 'OB-2-SAME'],
@@ -130,15 +145,15 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
     return {
       messages: [
         withGuard(
-          `Round 3 logged: ${scoreLine}, ${absDeltaText} ${strokeLabel} better than last round.`,
+          `You shot ${scoreLine}. That is ${absDeltaText} ${strokeLabel} better than last round, a step in the right direction.`,
           'OB-3-BETTER',
         ),
         withGuard(
-          'Three rounds complete. Your trend view and handicap are now live, and the more you track, the sharper the breakdown gets.',
+          'Three rounds are now logged. That is enough history for patterns to start showing up with more confidence, and it establishes your first handicap.',
           'OB-3-BETTER',
         ),
         withGuard(
-          'Next round: Full post-round insights start. Track fairways, greens, putts, and penalties for the clearest read on what is working and where to keep building.',
+          'Next round: Full post-round insights start. If you can, track fairways, greens, putts, and penalties so it is clearer what is driving the improvement.',
           'OB-3-BETTER',
         ),
       ],
@@ -151,15 +166,15 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
     return {
       messages: [
         withGuard(
-          `Round 3 logged: ${scoreLine}, ${absDeltaText} ${strokeLabel} higher than last round.`,
+          `You shot ${scoreLine}. That is ${absDeltaText} ${strokeLabel} higher than last round, a move in the opposite direction.`,
           'OB-3-WORSE',
         ),
         withGuard(
-          'Three rounds complete. Your trend view and handicap are now live, and the more you track, the sharper the breakdown gets.',
+          'Three rounds are now logged. That is enough history for patterns to start showing up with more confidence, and it establishes your first handicap.',
           'OB-3-WORSE',
         ),
         withGuard(
-          'Next round: Full post-round insights start. Track fairways, greens, putts, and penalties for the clearest read on where shots are slipping and what to tighten first.',
+          'Next round: Full post-round insights start. If you can, track fairways, greens, putts, and penalties so it is clearer what is pushing the score up.',
           'OB-3-WORSE',
         ),
       ],
@@ -170,13 +185,16 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
 
   return {
     messages: [
-      withGuard(`Round 3 logged: ${scoreLine}, matching last round.`, 'OB-3-SAME'),
       withGuard(
-        'Three rounds complete. Your trend view and handicap are now live, and the more you track, the sharper the breakdown gets.',
+        `You shot ${scoreLine}, matching last round. That is a sign of consistency.`,
         'OB-3-SAME',
       ),
       withGuard(
-        'Next round: Full post-round insights start. Track fairways, greens, putts, and penalties for the clearest read on what is stable and what could move the score.',
+        'Three rounds are now logged. That is enough history for patterns to start showing up with more confidence, and it establishes your first handicap.',
+        'OB-3-SAME',
+      ),
+      withGuard(
+        'Next round: Full post-round insights start. If you can, track fairways, greens, putts, and penalties so it is clearer what is keeping the score steady.',
         'OB-3-SAME',
       ),
     ],

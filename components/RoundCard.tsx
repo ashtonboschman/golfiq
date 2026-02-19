@@ -21,13 +21,11 @@ interface RoundCardProps {
     notes?: string | null;
   };
   showHoles?: boolean;
-  showAdvanced?: boolean;
   disableClick?: boolean;
 }
 
 export default function RoundCard({
   round,
-  showAdvanced = false,
   showHoles = false,
   disableClick = false,
 }: RoundCardProps) {
@@ -102,26 +100,18 @@ export default function RoundCard({
           <div className="roundcard-info-row">
             <strong>Par</strong> {formatValue(par)}
           </div>
-          {showAdvanced && (
-            <div className="roundcard-info-row">
-              <strong>FIR</strong> {formatValue(round.fir_hit)}
-            </div>
-          )}
-          {showAdvanced && (
-            <div className="roundcard-info-row">
-              <strong>GIR</strong> {formatValue(round.gir_hit)}
-            </div>
-          )}
-          {showAdvanced && (
-            <div className="roundcard-info-row">
-              <strong>Putts</strong> {formatValue(round.putts)}
-            </div>
-          )}
-          {showAdvanced && (
-            <div className="roundcard-info-row">
-              <strong>Pen</strong> {formatValue(round.penalties)}
-            </div>
-          )}
+          <div className="roundcard-info-row">
+            <strong>FIR</strong> {formatValue(round.fir_hit)}
+          </div>
+          <div className="roundcard-info-row">
+            <strong>GIR</strong> {formatValue(round.gir_hit)}
+          </div>
+          <div className="roundcard-info-row">
+            <strong>Putts</strong> {formatValue(round.putts)}
+          </div>
+          <div className="roundcard-info-row">
+            <strong>Pen</strong> {formatValue(round.penalties)}
+          </div>
         </div>
         {!disableClick && (
           <div  className='roundcard-bottom-right'>

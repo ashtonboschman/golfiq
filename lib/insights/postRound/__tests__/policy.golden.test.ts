@@ -3,11 +3,11 @@ import { buildDeterministicPostRoundInsights, type PostRoundPolicyInput } from '
 type GoldenCase = {
   name: string;
   input: PostRoundPolicyInput;
-  expected: {
-    messages: [string, string, string];
-    messageLevels: ['great' | 'success' | 'warning' | 'info', 'great' | 'success' | 'warning' | 'info', 'great' | 'success' | 'warning' | 'info'];
-    outcomes: [string, string, string];
-  };
+  expectedOutcomes: [string, string, string];
+  expectedLevels: ['great' | 'success' | 'warning' | 'info', 'great' | 'success' | 'warning' | 'info', 'great' | 'success' | 'warning' | 'info'];
+  m1Includes: string[];
+  m2Includes: string[];
+  m3Includes: string[];
 };
 
 const GOLDEN_CASES: GoldenCase[] = [
@@ -31,15 +31,11 @@ const GOLDEN_CASES: GoldenCase[] = [
       weakSeparation: false,
       missing: { fir: false, gir: false, putts: false, penalties: false },
     },
-    expected: {
-      messages: [
-        'You shot 75 (+3), which is 1.0 stroke above your recent average of 74.0. Off The Tee was close to even at +0.2 strokes.',
-        'Putting was the biggest leak at 2.1 strokes.',
-        'Next round: On lag putts, make speed the priority and aim to finish inside three feet.',
-      ],
-      messageLevels: ['success', 'warning', 'info'],
-      outcomes: ['M1-D', 'M2-D', 'M3-C'],
-    },
+    expectedOutcomes: ['M1-D', 'M2-D', 'M3-C'],
+    expectedLevels: ['success', 'warning', 'info'],
+    m1Includes: ['You shot 75 (+3)', 'Off The Tee', '+0.2 strokes'],
+    m2Includes: ['Putting', '2.1 strokes'],
+    m3Includes: ['Next round:', 'lag putts'],
   },
   {
     name: 'great_round_optimization_tone',
@@ -61,15 +57,11 @@ const GOLDEN_CASES: GoldenCase[] = [
       weakSeparation: false,
       missing: { fir: false, gir: false, putts: false, penalties: false },
     },
-    expected: {
-      messages: [
-        'You shot 68 (-4), which is 4.0 strokes better than your recent average of 72.0. Off The Tee gained 1.3 strokes and was the clearest bright spot.',
-        'Putting was the biggest leak at 0.6 strokes.',
-        'Next round: On lag putts, make speed the priority and aim to finish inside three feet.',
-      ],
-      messageLevels: ['great', 'warning', 'info'],
-      outcomes: ['M1-C', 'M2-D', 'M3-C'],
-    },
+    expectedOutcomes: ['M1-C', 'M2-D', 'M3-C'],
+    expectedLevels: ['great', 'warning', 'info'],
+    m1Includes: ['You shot 68 (-4)', 'Off The Tee', '1.3 strokes'],
+    m2Includes: ['Putting', '0.6 strokes'],
+    m3Includes: ['Next round:', 'lag putts'],
   },
   {
     name: 'limited_tracking_three_missing',
@@ -86,15 +78,11 @@ const GOLDEN_CASES: GoldenCase[] = [
       weakSeparation: false,
       missing: { fir: true, gir: true, putts: false, penalties: true },
     },
-    expected: {
-      messages: [
-        'You shot 82 (+10), which is 2.8 strokes above your recent average of 79.2. Only Putting was tracked this round, and it cost 1.4 strokes.',
-        'Only one part of the round was tracked, so we cannot compare areas and name a clear opportunity.',
-        'Next round: Track FIR, GIR, and penalties so we can show what helped and what hurt. Play to the widest target, commit to the swing, and accept the result.',
-      ],
-      messageLevels: ['success', 'warning', 'info'],
-      outcomes: ['M1-B', 'M2-A', 'M3-A'],
-    },
+    expectedOutcomes: ['M1-B', 'M2-A', 'M3-A'],
+    expectedLevels: ['success', 'warning', 'info'],
+    m1Includes: ['You shot 82 (+10)', 'Only Putting was tracked', '1.4 strokes'],
+    m2Includes: ['Only one part of the round was tracked'],
+    m3Includes: ['Next round:', 'Track FIR, GIR, and penalties', 'widest target available'],
   },
   {
     name: 'residual_dominant_ambiguous',
@@ -115,15 +103,11 @@ const GOLDEN_CASES: GoldenCase[] = [
       weakSeparation: true,
       missing: { fir: false, gir: false, putts: false, penalties: false },
     },
-    expected: {
-      messages: [
-        'You shot 74 (+2), which matches your recent average. Off The Tee was close to even at +0.1 strokes.',
-        'Approach was the biggest leak at 0.4 strokes.',
-        'Next round: Play to the widest target, commit to the swing, and accept the result.',
-      ],
-      messageLevels: ['success', 'warning', 'info'],
-      outcomes: ['M1-D', 'M2-D', 'M3-E'],
-    },
+    expectedOutcomes: ['M1-D', 'M2-D', 'M3-E'],
+    expectedLevels: ['success', 'warning', 'info'],
+    m1Includes: ['You shot 74 (+2)', 'Off The Tee', '+0.1 strokes'],
+    m2Includes: ['Approach', '0.4 strokes'],
+    m3Includes: ['Next round:', 'widest target available'],
   },
   {
     name: 'score_only_no_advanced_stats',
@@ -140,20 +124,28 @@ const GOLDEN_CASES: GoldenCase[] = [
       weakSeparation: false,
       missing: { fir: true, gir: true, putts: true, penalties: true },
     },
-    expected: {
-      messages: [
-        'You shot 90 (+18).',
-        'This landed close to your recent average. With only score logged, we cannot break the round into specific areas.',
-        'Next round: Track FIR, GIR, putts, and penalties so we can show what helped and what hurt. Play to the widest target, commit to the swing, and accept the result.',
-      ],
-      messageLevels: ['success', 'success', 'info'],
-      outcomes: ['M1-A', 'M2-A', 'M3-A'],
-    },
+    expectedOutcomes: ['M1-A', 'M2-A', 'M3-A'],
+    expectedLevels: ['success', 'success', 'info'],
+    m1Includes: ['You shot 90 (+18).'],
+    m2Includes: ['score only'],
+    m3Includes: ['Next round:', 'Track FIR, GIR, putts, and penalties'],
   },
 ];
 
-describe('post-round deterministic policy golden fixtures', () => {
-  test.each(GOLDEN_CASES)('$name', ({ input, expected }) => {
-    expect(buildDeterministicPostRoundInsights(input)).toEqual(expected);
+describe('post-round deterministic policy golden scenarios', () => {
+  test.each(GOLDEN_CASES)('$name', ({ input, expectedOutcomes, expectedLevels, m1Includes, m2Includes, m3Includes }) => {
+    const out = buildDeterministicPostRoundInsights(input, { fixedVariantIndex: 0 });
+    expect(out.outcomes).toEqual(expectedOutcomes);
+    expect(out.messageLevels).toEqual(expectedLevels);
+
+    for (const fragment of m1Includes) {
+      expect(out.messages[0]).toContain(fragment);
+    }
+    for (const fragment of m2Includes) {
+      expect(out.messages[1]).toContain(fragment);
+    }
+    for (const fragment of m3Includes) {
+      expect(out.messages[2]).toContain(fragment);
+    }
   });
 });

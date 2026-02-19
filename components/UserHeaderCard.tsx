@@ -16,6 +16,7 @@ export default function UserHeaderCard({ user }: UserHeaderCardProps) {
   return (
     <div className="card user-header-card">
       <div className="avatar-wrapper">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={avatar_url || '/avatars/default.png'} alt="User Avatar" className="avatar-image" />
       </div>
       <label className="form-label">Name</label>

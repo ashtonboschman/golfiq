@@ -96,6 +96,25 @@ describe('runMeasuredSgSelection opportunity selection', () => {
     expect(selection.best?.name).toBe('off_tee');
     expect(selection.opportunity).toBeNull();
     expect(selection.opportunityIsWeak).toBe(false);
+    expect(selection.weakSeparation).toBe(false);
+  });
+
+  test('zero measured components keep weakSeparation false', () => {
+    const selection = runMeasuredSgSelection(
+      {
+        offTee: null,
+        approach: null,
+        putting: null,
+        penalties: null,
+        residual: -1.2,
+        total: -1.2,
+      },
+      -1.0,
+    );
+
+    expect(selection.componentCount).toBe(0);
+    expect(selection.opportunity).toBeNull();
+    expect(selection.weakSeparation).toBe(false);
   });
 
   test('two-component measured input picks distinct best and opportunity', () => {
@@ -190,5 +209,47 @@ describe('runMeasuredSgSelection opportunity selection', () => {
     );
 
     expect(selection.residualDominant).toBe(false);
+  });
+});
+
+describe('M3 threshold semantics', () => {
+  test('strong measured weakness uses signed <= threshold comparison', () => {
+    const strong = buildNextRoundFocusText({
+      missing: { fir: false, gir: false, putts: false, penalties: false },
+      worstMeasured: 'approach',
+      worstMeasuredValue: -1.9,
+      measuredStrongWeaknessThreshold: -1.0,
+      opportunityIsWeak: true,
+      weakSeparation: true,
+      fixedIndex: 0,
+    });
+    expect(strong.outcome).toBe('M3-C');
+
+    const notStrong = buildNextRoundFocusText({
+      missing: { fir: false, gir: false, putts: false, penalties: false },
+      worstMeasured: 'approach',
+      worstMeasuredValue: -0.9,
+      measuredStrongWeaknessThreshold: -1.0,
+      opportunityIsWeak: true,
+      weakSeparation: true,
+      fixedIndex: 0,
+    });
+    expect(notStrong.outcome).toBe('M3-E');
+  });
+
+  test('alias inputs override legacy threshold/weakness flags when both are provided', () => {
+    const aliasWins = buildNextRoundFocusText({
+      missing: { fir: false, gir: false, putts: false, penalties: false },
+      worstMeasured: 'approach',
+      worstMeasuredValue: -1.2,
+      measuredStrongWeaknessThreshold: -1.5,
+      measuredLeakStrongThreshold: -1.0,
+      opportunityBelowWeaknessThreshold: false,
+      opportunityIsWeak: true,
+      weakSeparation: true,
+      fixedIndex: 0,
+    });
+
+    expect(aliasWins.outcome).toBe('M3-E');
   });
 });

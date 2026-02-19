@@ -31,14 +31,13 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
 
     if (status !== 'authenticated' || !userId) {
       previousUserIdRef.current = null;
-      setAvatarUrl(null);
       return;
     }
 
     const userChanged = previousUserIdRef.current !== userId;
     previousUserIdRef.current = userId;
     if (userChanged) {
-      setAvatarUrl(sessionAvatarUrl);
+      queueMicrotask(() => setAvatarUrl(sessionAvatarUrl));
     }
 
     let canceled = false;
@@ -62,9 +61,10 @@ export function AvatarProvider({ children }: { children: ReactNode }) {
   const updateAvatar = (url: string | null) => {
     setAvatarUrl(url);
   };
+  const effectiveAvatarUrl = status === 'unauthenticated' ? null : avatarUrl;
 
   return (
-    <AvatarContext.Provider value={{ avatarUrl, updateAvatar }}>
+    <AvatarContext.Provider value={{ avatarUrl: effectiveAvatarUrl, updateAvatar }}>
       {children}
     </AvatarContext.Provider>
   );

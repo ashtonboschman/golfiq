@@ -10,14 +10,11 @@ export default function InfoTooltip({ text }: { text: string }) {
   const [position, setPosition] = useState<'center' | 'left' | 'right'>('center');
   const [vertical, setVertical] = useState<'above' | 'below'>('above');
   const [isPositioned, setIsPositioned] = useState(false);
+  const displayPosition = isPositioned ? position : 'center';
+  const displayVertical = isPositioned ? vertical : 'above';
 
   useLayoutEffect(() => {
-    if (!show) {
-      setIsPositioned(false);
-      setPosition('center');
-      setVertical('above');
-      return;
-    }
+    if (!show) return;
     if (!tooltipRef.current || !containerRef.current) return;
 
     let rafId: number | null = null;
@@ -28,6 +25,10 @@ export default function InfoTooltip({ text }: { text: string }) {
       const containerRect = containerRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
+      const headerEl = document.querySelector('.header');
+      const headerBottom =
+        headerEl instanceof HTMLElement ? headerEl.getBoundingClientRect().bottom : 0;
+      const topSafeBoundary = Math.max(edgePadding, headerBottom + edgePadding);
 
       if (rect.right > viewportWidth - edgePadding) {
         setPosition('right');
@@ -38,7 +39,7 @@ export default function InfoTooltip({ text }: { text: string }) {
       }
 
       const tooltipHeight = rect.height;
-      const availableTop = containerRect.top - edgePadding;
+      const availableTop = containerRect.top - topSafeBoundary;
       const availableBottom = viewportHeight - containerRect.bottom - edgePadding;
       const nextVertical =
         tooltipHeight > availableTop && availableBottom > availableTop ? 'below' : 'above';
@@ -83,7 +84,11 @@ export default function InfoTooltip({ text }: { text: string }) {
       <span
         onClick={(e) => {
           e.stopPropagation();
-          setShow(!show);
+          setShow((prev) => {
+            const next = !prev;
+            if (next) setIsPositioned(false);
+            return next;
+          });
         }}
         className="info-tooltip-icon"
       >
@@ -92,10 +97,10 @@ export default function InfoTooltip({ text }: { text: string }) {
       {show && (
         <div
           ref={tooltipRef}
-          className={`info-tooltip-content ${position} ${vertical} ${isPositioned ? 'ready' : 'measuring'}`}
+          className={`info-tooltip-content ${displayPosition} ${displayVertical} ${isPositioned ? 'ready' : 'measuring'}`}
         >
           {text}
-          <div className={`info-tooltip-arrow ${position} ${vertical}`} />
+          <div className={`info-tooltip-arrow ${displayPosition} ${displayVertical}`} />
         </div>
       )}
     </div>
