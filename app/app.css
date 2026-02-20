@@ -1509,6 +1509,40 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   padding: var(--padding);
 }
 
+.app-boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-bg);
+}
+
+.app-boot-loader {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-boot-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 3px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  border-top-color: var(--color-accent);
+  animation: spin 1s linear infinite;
+}
+
+.app-boot-logo {
+  position: relative;
+  z-index: 1;
+  border-radius: 10px;
+}
+
 /* Skeleton Loading */
 .skeleton {
   position: relative;

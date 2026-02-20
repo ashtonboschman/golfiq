@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import Header from './Header';
 import Footer from './Footer';
 import Messages from './Messages';
+import AppBootOverlay from './AppBootOverlay';
 
 function HeaderFallback() {
   return (
@@ -30,6 +31,7 @@ function HeaderFallback() {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-layout">
+      <AppBootOverlay />
       <Suspense fallback={<HeaderFallback />}>
         <Header />
       </Suspense>

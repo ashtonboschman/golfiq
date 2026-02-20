@@ -21,20 +21,6 @@ const LOGO_BY_THEME: Record<string, string> = {
   floral: '/logos/wordmark/golfiq-wordmark-floral.png',
 };
 
-const PUBLIC_ROUTES = new Set([
-  '/',
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
-  '/about',
-  '/privacy',
-  '/terms',
-  '/contact',
-  '/waitlist-confirm',
-  '/verify-email',
-]);
-
 export default function Header() {
   const { data: session, status } = useSession();
   const user = session?.user;
@@ -52,7 +38,6 @@ export default function Header() {
 
   // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
-  const isPublicRoute = PUBLIC_ROUTES.has(pathname);
   const shouldShowAvatarSlot = !!user;
 
   // Helper to navigate with warning if on add/edit page or profile with changes
