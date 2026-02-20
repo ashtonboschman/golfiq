@@ -27,10 +27,6 @@ export default function Hero() {
         <p className="landing-hero-subtitle">
           Track every round, uncover hidden weaknesses, and improve faster with Intelligent Insights built from your real performance data.
         </p>
-        <p className="landing-hero-subtitle">
-          Free forever. Upgrade when you want deeper insights.
-        </p>
-
         <div className="landing-hero-actions">
           <button onClick={scrollToWaitlist} className="btn btn-accent btn-large">
             Get Early Access

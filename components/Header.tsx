@@ -53,7 +53,7 @@ export default function Header() {
   // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
   const isPublicRoute = PUBLIC_ROUTES.has(pathname);
-  const shouldShowAvatarSlot = !!user || (status === 'loading' && !isPublicRoute);
+  const shouldShowAvatarSlot = !!user;
 
   // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
@@ -248,17 +248,13 @@ export default function Header() {
 
         {shouldShowAvatarSlot && (
           <div className="avatar-container" ref={dropdownRef}>
-            {user ? (
-              <img
-                src={avatarUrl || '/avatars/default.png'}
-                alt="User Avatar"
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="right-button"
-                title="User Menu"
-              />
-            ) : (
-              <div className="right-button header-avatar-placeholder" aria-hidden="true" />
-            )}
+            <img
+              src={avatarUrl || '/avatars/default.png'}
+              alt="User Avatar"
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="right-button"
+              title="User Menu"
+            />
             {user && dropdownOpen && (
               <div className="card avatar-dropdown">
                 <button

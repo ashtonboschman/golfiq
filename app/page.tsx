@@ -11,9 +11,18 @@ import WaitlistForm from '@/components/landing/WaitlistForm';
 import LandingFooter from '@/components/landing/LandingFooter';
 
 export const metadata: Metadata = {
-  title: 'GolfIQ | Intelligent Golf Analytics and Round Tracking',
+  title: 'GolfIQ Golf App | Round Tracking, Strokes Gained, and Handicap Insights',
   description:
-    'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ Intelligent Insights built from real round data and deterministic performance models.',
+    'GolfIQ is a golf app for round tracking, strokes gained analysis, and handicap trends. Get clear post-round and overall insights to lower your scores.',
+  keywords: [
+    'golf app',
+    'golf round tracker',
+    'strokes gained app',
+    'golf handicap tracker',
+    'golf stats app',
+    'golf performance analytics',
+    'GolfIQ',
+  ],
   alternates: {
     canonical: '/',
   },
@@ -22,9 +31,9 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: 'GolfIQ | Intelligent Golf Analytics and Round Tracking',
+    title: 'GolfIQ Golf App | Round Tracking, Strokes Gained, and Handicap Insights',
     description:
-      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ Intelligent Insights built from real round data and deterministic performance models.',
+      'GolfIQ is a golf app for round tracking, strokes gained analysis, and handicap trends. Get clear post-round and overall insights to lower your scores.',
     url: 'https://www.golfiq.ca/',
     siteName: 'GolfIQ',
     images: [
@@ -39,9 +48,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'GolfIQ | Intelligent Golf Analytics and Round Tracking',
+    title: 'GolfIQ Golf App | Round Tracking, Strokes Gained, and Handicap Insights',
     description:
-      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ Intelligent Insights built from real round data and deterministic performance models.',
+      'GolfIQ is a golf app for round tracking, strokes gained analysis, and handicap trends. Get clear post-round and overall insights to lower your scores.',
     images: ['/logos/share/golfiq-share.png'],
   },
 };
@@ -72,10 +81,21 @@ export default async function LandingPage() {
     '@type': 'WebSite',
     name: 'GolfIQ',
     url: 'https://www.golfiq.ca',
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: 'https://www.golfiq.ca/courses/search?q={search_term_string}',
-      'query-input': 'required name=search_term_string',
+  };
+
+  const softwareApplicationJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'GolfIQ',
+    applicationCategory: 'SportsApplication',
+    operatingSystem: 'Web',
+    url: 'https://www.golfiq.ca',
+    description:
+      'GolfIQ helps golfers track rounds, analyze strokes gained, monitor handicap trends, and improve through deterministic insights.',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
     },
   };
 
@@ -88,6 +108,10 @@ export default async function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationJsonLd) }}
       />
       <div className="landing-page">
         <LandingHeader />

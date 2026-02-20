@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
 import { useSubscription } from '@/hooks/useSubscription';
+import Image from 'next/image';
 import RoundCard from '@/components/RoundCard';
 import UpgradeModal from '@/components/UpgradeModal';
 import { Plus, TriangleAlert, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -90,6 +91,31 @@ function DashboardFallback() {
           <h3>Last 5 Rounds</h3>
         </div>
         <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
+      </div>
+    </div>
+  );
+}
+
+function DashboardAuthLoader() {
+  return (
+    <div
+      className="page-stack"
+      style={{
+        minHeight: 'calc(100vh - 140px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <Image
+          src="/logos/favicon/golfiq-icon-48.png"
+          alt="GolfIQ loading"
+          width={40}
+          height={40}
+          className="spinning"
+          priority
+        />
       </div>
     </div>
   );
@@ -270,6 +296,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     // Mark that we've shown the modal for this round count in this session
     sessionStorage.setItem(`upgrade-modal-shown-${totalRoundsForModal}`, 'true');
   };
+
+  if (status === 'loading' || status === 'unauthenticated') {
+    return <DashboardAuthLoader />;
+  }
 
   if (error && !loading) return <p className="error-text">{error}</p>;
 
@@ -691,7 +721,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
 export default function DashboardPage({ userId }: { userId?: number }) {
   return (
-    <Suspense fallback={<DashboardFallback />}>
+    <Suspense fallback={<DashboardAuthLoader />}>
       <DashboardContent userId={userId} />
     </Suspense>
   );

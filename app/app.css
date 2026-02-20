@@ -873,7 +873,8 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 }
 
 .header-avatar-placeholder {
-  background-color: var(--color-secondary-surface);
+  background-color: transparent;
+  border-color: transparent !important;
 }
 
 .avatar-dropdown {
