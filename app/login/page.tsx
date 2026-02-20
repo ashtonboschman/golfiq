@@ -23,9 +23,14 @@ export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
+  const [oauthLoadingProvider, setOauthLoadingProvider] = useState<'google' | 'apple' | null>(null);
+  const [handledOAuthError, setHandledOAuthError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [shouldRedirectToLanding, setShouldRedirectToLanding] = useState(false);
+  const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === '1';
+  const isAppleEnabled = process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED === '1';
+  const hasOauthEnabled = isGoogleEnabled || isAppleEnabled;
 
   // Lock scroll while on login page
   useEffect(() => {
@@ -51,6 +56,24 @@ export default function LoginPage() {
       setShouldRedirectToLanding(false);
     }
   }, [shouldRedirectToLanding, message, router]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+    if (!error) {
+      if (handledOAuthError) setHandledOAuthError(null);
+      return;
+    }
+    if (error === handledOAuthError) return;
+
+    if (error === 'WaitlistOnly') {
+      showMessage('GolfIQ is currently in private beta. Join our waitlist at golfiq.ca to be notified when we launch!', 'error');
+    } else if (error === 'OAuthSignin' || error === 'OAuthCallback') {
+      showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
+    }
+    setHandledOAuthError(error);
+  }, [handledOAuthError, showMessage]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -186,6 +209,22 @@ export default function LoginPage() {
       showMessage(err.message || 'An error occurred. Please try again.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOauthSignIn = async (provider: 'google' | 'apple') => {
+    clearMessage();
+    setOauthLoadingProvider(provider);
+    try {
+      const result = await signIn(provider, { callbackUrl: '/dashboard', redirect: true });
+      if (result?.error) {
+        showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
+        setOauthLoadingProvider(null);
+      }
+    } catch (err) {
+      console.error('OAuth sign-in error:', err);
+      showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
+      setOauthLoadingProvider(null);
     }
   };
 
@@ -330,7 +369,7 @@ export default function LoginPage() {
               </button>
             </div>
           )}
-          <button type="submit" className="btn btn-accent" disabled={loading}>
+          <button type="submit" className="btn btn-accent" disabled={loading || !!oauthLoadingProvider}>
             {loading
               ? isRegister
                 ? 'Registering...'
@@ -341,8 +380,62 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {!isRegister && hasOauthEnabled && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--gap)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                marginTop: 'var(--gap-small)',
+                marginBottom: 'var(--gap-small)',
+                color: '#9AA3B2',
+                fontSize: 12,
+              }}
+            >
+              <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+              <span>or</span>
+              <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+            </div>
+            {isGoogleEnabled && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={loading || !!oauthLoadingProvider}
+                onClick={() => handleOauthSignIn('google')}
+                style={{ width: '100%' }}
+              >
+                {oauthLoadingProvider === 'google' ? 'Redirecting to Google...' : 'Continue with Google'}
+              </button>
+            )}
+            {isAppleEnabled && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={loading || !!oauthLoadingProvider}
+                onClick={() => handleOauthSignIn('apple')}
+                style={{ width: '100%' }}
+              >
+                {oauthLoadingProvider === 'apple' ? 'Redirecting to Apple...' : 'Continue with Apple'}
+              </button>
+            )}
+          </div>
+        )}
+
         {!isRegister && (
-          <div style={{ textAlign: 'center', marginTop: '12px', marginBottom: '12px' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              marginTop: 'var(--gap-small)',
+              marginBottom: 'var(--gap-small)',
+            }}
+          >
             <Link href="/forgot-password" style={{ color: '#9AA3B2', fontSize: '14px', textDecoration: 'none' }}>
               Forgot Password?
             </Link>

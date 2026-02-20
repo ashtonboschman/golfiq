@@ -21,7 +21,7 @@ model User {
   subscriptionStartsAt    DateTime?                @map("subscription_starts_at") @db.Timestamptz(6)
   subscriptionStatus      SubscriptionStatus       @default(active) @map("subscription_status")
   subscriptionCancelAtPeriodEnd Boolean            @default(false) @map("subscription_cancel_at_period_end")
-  subscriptionTier        SubscriptionTier         @default(premium) @map("subscription_tier")
+  subscriptionTier        SubscriptionTier         @default(free) @map("subscription_tier")
   dataExports             DataExport[]
   friendRequestsReceived  FriendRequest[]          @relation("RecipientRelation")
   friendRequestsSent      FriendRequest[]          @relation("RequesterRelation")
@@ -38,10 +38,27 @@ model User {
   userAchievements        UserAchievement[]
   leaderboardStats        UserLeaderboardStats?
   profile                 UserProfile?
+  oauthAccounts          OAuthAccount[]
 
   @@index([subscriptionTier, subscriptionStatus], map: "idx_users_subscription")
   @@index([stripeCustomerId], map: "idx_users_stripe_customer")
   @@map("users")
+}
+
+model OAuthAccount {
+  id                BigInt   @id @default(autoincrement())
+  userId             BigInt   @map("user_id")
+  provider           String   @db.VarChar(32)
+  providerAccountId  String   @map("provider_account_id") @db.VarChar(255)
+  email              String?  @db.VarChar(255)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId], map: "oauth_accounts_provider_provider_account_key")
+  @@index([userId], map: "idx_oauth_accounts_user_id")
+  @@index([email], map: "idx_oauth_accounts_email")
+  @@map("oauth_accounts")
 }
 
 model UserProfile {
