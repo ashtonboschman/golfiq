@@ -6,6 +6,8 @@ import { prisma } from '@/lib/db';
 import { errorResponse, successResponse } from '@/lib/api-auth';
 import { sendEmail, generateEmailVerificationEmail, EMAIL_FROM } from '@/lib/email';
 import { z } from 'zod';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 const registerSchema = z.object({
   email: z.string().trim().email('Please enter a valid email address').toLowerCase(),
@@ -24,6 +26,9 @@ const registerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    let waitlistRequired = false;
+    let waitlistApproved = false;
+
     // Parse request body safely
     let body: unknown;
     try {
@@ -83,12 +88,14 @@ export async function POST(request: NextRequest) {
         console.log('[REGISTER] Registration open:', registrationOpen);
 
         if (!registrationOpen) {
+          waitlistRequired = true;
           console.log('[REGISTER] Checking allowlist for:', email.toLowerCase());
           // Check if email is in allowlist
           const allowedEmail = await (prisma as any).allowedEmail.findUnique({
             where: { email: email.toLowerCase() },
           });
           console.log('[REGISTER] Allowed email found:', !!allowedEmail);
+          waitlistApproved = Boolean(allowedEmail);
 
           if (!allowedEmail) {
             console.log('[REGISTER] Email not in allowlist, blocking registration');
@@ -180,6 +187,24 @@ export async function POST(request: NextRequest) {
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: '7d' }
     );
+
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.signupCompleted,
+      distinctId: user.id.toString(),
+      properties: {
+        signup_method: 'password',
+        waitlist_required: waitlistRequired,
+        waitlist_approved: waitlistApproved,
+        email_verification_sent: emailSent,
+      },
+      context: {
+        request,
+        sourcePage: '/login',
+        planTier: 'free',
+        authProvider: 'password',
+        isLoggedIn: true,
+      },
+    });
 
     return successResponse({
       user: {

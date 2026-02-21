@@ -2,16 +2,17 @@
 
 import { SessionProvider } from 'next-auth/react';
 import { createContext, useState, useContext, useCallback, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { FriendsProvider } from '@/context/FriendsContext';
 import { AvatarProvider } from '@/context/AvatarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import AuthCacheReset from '@/components/AuthCacheReset';
-import { usePathname, useSearchParams } from "next/navigation"
-import { useEffect } from "react"
-import { usePostHog } from 'posthog-js/react'
+import { useEffect } from 'react';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
-import posthog from 'posthog-js'
-import { PostHogProvider as PHProvider } from 'posthog-js/react'
+import posthog from 'posthog-js';
+import { PostHogProvider as PHProvider } from 'posthog-js/react';
 
 // Message Context (replacing MessageContext.jsx from old app)
 interface ConfirmOptions {
@@ -35,6 +36,7 @@ interface MessageContextType {
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
 
 export function MessageProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [message, setMessage] = useState('');
   const [type, setType] = useState<'success' | 'error'>('success');
   const [confirmDialog, setConfirmDialog] = useState<ConfirmOptions | null>(null);
@@ -42,7 +44,17 @@ export function MessageProvider({ children }: { children: ReactNode }) {
   const showMessage = useCallback((msg: string, msgType: 'success' | 'error' = 'success') => {
     setMessage(msg);
     setType(msgType);
-  }, []);
+    if (msgType === 'error') {
+      captureClientEvent(
+        ANALYTICS_EVENTS.appErrorShown,
+        {
+          feature_area: 'ui',
+          message_length: msg.length,
+        },
+        { pathname },
+      );
+    }
+  }, [pathname]);
 
   const clearMessage = useCallback(() => setMessage(''), []);
 
@@ -88,13 +100,13 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY as string, {
       api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
       person_profiles: 'identified_only', // or 'always' to create profiles for anonymous users as well
-      defaults: '2025-11-30'
-    })
-  }, [])
+      defaults: '2025-11-30',
+    });
+  }, []);
 
   return (
     <PHProvider client={posthog}>
       {children}
     </PHProvider>
-  )
+  );
 }

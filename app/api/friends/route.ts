@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { z } from 'zod';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 // GET friends list
 export async function GET(request: NextRequest) {
@@ -105,12 +107,36 @@ export async function POST(request: NextRequest) {
 
     const result = sendRequestSchema.safeParse(body);
     if (!result.success) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: requesterId.toString(),
+        properties: {
+          endpoint: '/api/friends',
+          method: 'POST',
+          status_code: 400,
+          failure_stage: 'validation',
+          error_code: 'invalid_recipient',
+        },
+        context: { request, sourcePage: '/api/friends' },
+      });
       return errorResponse('Invalid recipient', 400);
     }
 
     const recipientId = BigInt(result.data.recipientId);
 
     if (requesterId === recipientId) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: requesterId.toString(),
+        properties: {
+          endpoint: '/api/friends',
+          method: 'POST',
+          status_code: 400,
+          failure_stage: 'validation',
+          error_code: 'self_request',
+        },
+        context: { request, sourcePage: '/api/friends' },
+      });
       return errorResponse('Invalid recipient', 400);
     }
 
@@ -125,6 +151,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingFriendship) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: requesterId.toString(),
+        properties: {
+          endpoint: '/api/friends',
+          method: 'POST',
+          status_code: 409,
+          failure_stage: 'business_rule',
+          error_code: 'already_friends',
+        },
+        context: { request, sourcePage: '/api/friends' },
+      });
       return errorResponse('Already friends', 409);
     }
 
@@ -137,6 +175,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingRequest) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: requesterId.toString(),
+        properties: {
+          endpoint: '/api/friends',
+          method: 'POST',
+          status_code: 409,
+          failure_stage: 'business_rule',
+          error_code: 'request_exists',
+        },
+        context: { request, sourcePage: '/api/friends' },
+      });
       return errorResponse('Friend request already exists', 409);
     }
 
@@ -164,6 +214,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.friendRequestSent,
+      distinctId: requesterId.toString(),
+      properties: {
+        recipient_id: recipientId.toString(),
+        request_id: friendRequest.id.toString(),
+      },
+      context: {
+        request,
+        sourcePage: '/api/friends',
+        isLoggedIn: true,
+      },
+    });
+
     return successResponse({
       message: 'Friend request sent',
       request: {
@@ -182,6 +246,18 @@ export async function POST(request: NextRequest) {
     }
 
     console.error('POST /api/friends error:', error);
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.apiRequestFailed,
+      distinctId: 'anonymous',
+      properties: {
+        endpoint: '/api/friends',
+        method: 'POST',
+        status_code: 500,
+        failure_stage: 'exception',
+        error_code: 'server_exception',
+      },
+      context: { request, sourcePage: '/api/friends', isLoggedIn: false },
+    });
     return errorResponse('Database error', 500);
   }
 }

@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import LeaderboardCard from '@/components/LeaderboardCard';
 import LeaderboardHeader from '@/components/LeaderboardHeader';
 import PullToRefresh from '@/components/PullToRefresh';
 import { Crown } from 'lucide-react';
 import { LeaderboardRowsSkeleton, LeaderboardSkeleton } from '@/components/skeleton/PageSkeletons';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 interface LeaderboardUser {
   user_id: number;
@@ -43,6 +45,7 @@ function fetchLeaderboardWithDedupe(url: string, userId: string): Promise<{ stat
 
 export default function LeaderboardPage() {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   const userId = session?.user?.id ? String(session.user.id) : null;
   const router = useRouter();
 
@@ -59,6 +62,7 @@ export default function LeaderboardPage() {
 
   const observer = useRef<IntersectionObserver | null>(null);
   const prevUserIdRef = useRef<string | null>(null);
+  const viewedKeyRef = useRef<string | null>(null);
 
   // redirect unauthenticated users
   useEffect(() => {
@@ -76,6 +80,31 @@ export default function LeaderboardPage() {
       prevUserIdRef.current = userId;
     }
   }, [userId]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !userId) return;
+    const key = `${scope}:${sortBy}:${sortOrder}`;
+    if (viewedKeyRef.current === key) return;
+    viewedKeyRef.current = key;
+
+    captureClientEvent(
+      ANALYTICS_EVENTS.leaderboardViewed,
+      {
+        scope,
+        sort_key: sortBy,
+        sort_order: sortOrder,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: true,
+      },
+    );
+  }, [pathname, scope, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, sortBy, sortOrder, status, userId]);
 
   // fetch leaderboard whenever scope or sort changes
   useEffect(() => {
@@ -232,7 +261,30 @@ export default function LeaderboardPage() {
               </p>
             </div>
           </div>
-          <button className="btn btn-upgrade" onClick={() => router.push('/pricing')}>See Full Leaderboard</button>
+          <button
+            className="btn btn-upgrade"
+            onClick={() => {
+              captureClientEvent(
+                ANALYTICS_EVENTS.upgradeCtaClicked,
+                {
+                  cta_location: 'leaderboard_limited_banner',
+                  source_page: pathname,
+                },
+                {
+                  pathname,
+                  user: {
+                    id: session?.user?.id,
+                    subscription_tier: session?.user?.subscription_tier,
+                    auth_provider: session?.user?.auth_provider,
+                  },
+                  isLoggedIn: status === 'authenticated',
+                },
+              );
+              router.push('/pricing');
+            }}
+          >
+            See Full Leaderboard
+          </button>
         </div>
       )}
 

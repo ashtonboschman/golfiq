@@ -2,15 +2,20 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Select from 'react-select';
-import { Sparkles, Lock, RefreshCw, BarChart3, CircleCheck, CircleAlert, Dumbbell, Map, TrendingUp } from 'lucide-react';
+import { Sparkles, Lock, RefreshCw, BarChart3, CircleCheck, CircleAlert, Dumbbell, Map as MapIcon, TrendingUp } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 import { useSubscription } from '@/hooks/useSubscription';
 import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
 import { formatHandicap, formatNumber } from '@/lib/formatters';
 import { SkeletonText } from '@/components/skeleton/Skeleton';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
+
+const insightsViewedKeys = new Set<string>();
+const insightsPaywallViewedKeys = new Set<string>();
 
 type StatsMode = 'combined' | '9' | '18';
 
@@ -387,7 +392,7 @@ function getOverallCardMeta(index: number): { icon: ReactNode } {
   if (index === 1) return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
   if (index === 2) return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
   if (index === 3) return { icon: <Dumbbell size={18} className="insight-message-icon insight-level-info" /> };
-  if (index === 4) return { icon: <Map size={18} className="insight-message-icon insight-level-info" /> };
+  if (index === 4) return { icon: <MapIcon size={18} className="insight-message-icon insight-level-info" /> };
   return { icon: <TrendingUp size={18} className="insight-message-icon insight-level-great" /> };
 }
 
@@ -522,8 +527,9 @@ function LockedSection({
 }
 
 export default function InsightsPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const { isPremium } = useSubscription();
 
   const [statsMode, setStatsMode] = useState<StatsMode>('combined');
@@ -538,6 +544,25 @@ export default function InsightsPage() {
   const [textColor, setTextColor] = useState('#EDEFF2');
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
+
+  const trackUpgradeCtaClick = useCallback((ctaLocation: string) => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.upgradeCtaClicked,
+      {
+        cta_location: ctaLocation,
+        source_page: pathname,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   useEffect(() => {
     const updateThemeColors = () => {
@@ -576,18 +601,61 @@ export default function InsightsPage() {
 
   const fetchInsights = useCallback(async (mode: StatsMode) => {
     setLoading(true);
+    let capturedFailure = false;
     try {
       const res = await fetch(`/api/insights/overall?statsMode=${mode}`, { credentials: 'include' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Failed to load insights');
+      if (!res.ok) {
+        captureClientEvent(
+          ANALYTICS_EVENTS.apiRequestFailed,
+          {
+            endpoint: '/api/insights/overall',
+            method: 'GET',
+            status_code: res.status,
+            feature_area: 'insights',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: status === 'authenticated',
+          },
+        );
+        capturedFailure = true;
+        throw new Error(data?.message || 'Failed to load insights');
+      }
       setInsights(data.insights as OverallInsightsPayload);
       setError(null);
     } catch (e: any) {
+      if (!capturedFailure) {
+        captureClientEvent(
+          ANALYTICS_EVENTS.apiRequestFailed,
+          {
+            endpoint: '/api/insights/overall',
+            method: 'GET',
+            status_code: 0,
+            feature_area: 'insights',
+            error_code: 'network_exception',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: status === 'authenticated',
+          },
+        );
+      }
       setError(e?.message || 'Failed to load insights');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -597,16 +665,74 @@ export default function InsightsPage() {
 
   const handleRegenerate = async () => {
     setRegenerating(true);
+    let capturedFailure = false;
     try {
       const res = await fetch(`/api/insights/overall/regenerate?statsMode=${statsMode}`, {
         method: 'POST',
         credentials: 'include',
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Failed to regenerate');
+      if (!res.ok) {
+        captureClientEvent(
+          ANALYTICS_EVENTS.apiRequestFailed,
+          {
+            endpoint: '/api/insights/overall/regenerate',
+            method: 'POST',
+            status_code: res.status,
+            feature_area: 'insights',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: status === 'authenticated',
+          },
+        );
+        capturedFailure = true;
+        throw new Error(data?.message || 'Failed to regenerate');
+      }
       setInsights(data.insights as OverallInsightsPayload);
       setError(null);
+      captureClientEvent(
+        ANALYTICS_EVENTS.insightRegenerated,
+        {
+          insight_mode: statsMode,
+        },
+        {
+          pathname,
+          user: {
+            id: session?.user?.id,
+            subscription_tier: session?.user?.subscription_tier,
+            auth_provider: session?.user?.auth_provider,
+          },
+          isLoggedIn: status === 'authenticated',
+        },
+      );
     } catch (e: any) {
+      if (!capturedFailure) {
+        captureClientEvent(
+          ANALYTICS_EVENTS.apiRequestFailed,
+          {
+            endpoint: '/api/insights/overall/regenerate',
+            method: 'POST',
+            status_code: 0,
+            feature_area: 'insights',
+            error_code: 'network_exception',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: status === 'authenticated',
+          },
+        );
+      }
       setError(e?.message || 'Failed to regenerate insights');
     } finally {
       setRegenerating(false);
@@ -890,6 +1016,59 @@ export default function InsightsPage() {
     };
   }, [insights, modePayload, accentColor]);
 
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    if (loading || !insights) return;
+
+    const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:insights_viewed`;
+    if (insightsViewedKeys.has(dedupeKey)) return;
+    insightsViewedKeys.add(dedupeKey);
+
+    captureClientEvent(
+      ANALYTICS_EVENTS.insightsViewed,
+      {
+        insight_mode: statsMode,
+        rounds_lifetime: modePayload?.kpis?.roundsRecent ?? null,
+        is_premium_view: isPremiumContext,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: true,
+      },
+    );
+  }, [insights, isPremiumContext, loading, modePayload?.kpis?.roundsRecent, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    if (loading || !insights || isPremiumContext) return;
+
+    const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:overall_insights_paywall`;
+    if (insightsPaywallViewedKeys.has(dedupeKey)) return;
+    insightsPaywallViewedKeys.add(dedupeKey);
+
+    captureClientEvent(
+      ANALYTICS_EVENTS.paywallViewed,
+      {
+        paywall_context: 'overall_insights',
+        locked_feature: 'overall_insights_cards',
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: true,
+      },
+    );
+  }, [insights, isPremiumContext, loading, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
+
   if (status === 'unauthenticated') return null;
   const showSkeletonContent = status === 'loading' || loading;
   const overallInsightsTooltip = isPremiumContext
@@ -957,7 +1136,10 @@ export default function InsightsPage() {
                 subtitle="See what's costing you strokes, your SG breakdown, and projected ranges."
                 showCta
                 ctaLabel="Unlock Full Insights"
-                onCtaClick={() => router.push('/pricing')}
+                onCtaClick={() => {
+                  trackUpgradeCtaClick('insights_overall_cards_lock');
+                  router.push('/pricing');
+                }}
               >
                 <div className="insights-locked-preview-stack">
                   {(aiPreviewCards.length
@@ -980,7 +1162,29 @@ export default function InsightsPage() {
           instanceId="insights-stats-mode"
           inputId="insights-stats-mode-input"
           value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
-          onChange={(option) => option && setStatsMode(option.value as StatsMode)}
+          onChange={(option) => {
+            if (!option) return;
+            const nextMode = option.value as StatsMode;
+            if (nextMode !== statsMode) {
+              captureClientEvent(
+                ANALYTICS_EVENTS.insightModeChanged,
+                {
+                  from_mode: statsMode,
+                  to_mode: nextMode,
+                },
+                {
+                  pathname,
+                  user: {
+                    id: session?.user?.id,
+                    subscription_tier: session?.user?.subscription_tier,
+                    auth_provider: session?.user?.auth_provider,
+                  },
+                  isLoggedIn: status === 'authenticated',
+                },
+              );
+            }
+            setStatsMode(nextMode);
+          }}
           options={[
             { value: 'combined', label: 'Combined' },
             { value: '9', label: '9 Holes' },

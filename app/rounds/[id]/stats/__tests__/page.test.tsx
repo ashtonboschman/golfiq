@@ -22,6 +22,7 @@ jest.mock('next/navigation', () => ({
     replace: mockReplace,
     push: mockPush,
   }),
+  usePathname: () => '/rounds/123/stats',
   useParams: () => ({
     id: '123',
   }),

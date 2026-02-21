@@ -8,6 +8,8 @@ import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { generateAndStoreOverallInsights } from '@/app/api/insights/overall/route';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { z } from 'zod';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 // Helper to format round data
 type RoundWithRelations = {
@@ -201,6 +203,18 @@ export async function PUT(
     // Validate body
     const result = updateRoundSchema.safeParse(body);
     if (!result.success) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/rounds/[id]',
+          method: 'PUT',
+          status_code: 400,
+          failure_stage: 'validation',
+          error_code: 'validation_failed',
+        },
+        context: { request, sourcePage: '/api/rounds/[id]' },
+      });
       return errorResponse(result.error.issues[0]?.message || 'Validation failed', 400);
     }
     const data = result.data;
@@ -209,6 +223,18 @@ export async function PUT(
 
     // After Round mode requires score
     if (!data.hole_by_hole && (data.score === null || data.score === undefined)) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/rounds/[id]',
+          method: 'PUT',
+          status_code: 400,
+          failure_stage: 'validation',
+          error_code: 'missing_score_after_round',
+        },
+        context: { request, sourcePage: '/api/rounds/[id]' },
+      });
       return errorResponse('Score is required in After Round mode', 400);
     }
 
@@ -221,7 +247,19 @@ export async function PUT(
     // Fetch existing round to preserve time.
     const existingRound = await prisma.round.findFirst({
       where: { id: roundId, userId },
-      select: { date: true },
+      select: {
+        date: true,
+        courseId: true,
+        teeId: true,
+        teeSegment: true,
+        holeByHole: true,
+        score: true,
+        firHit: true,
+        girHit: true,
+        putts: true,
+        penalties: true,
+        notes: true,
+      },
     });
     if (!existingRound) return errorResponse('Round not found or not authorized', 404);
 
@@ -242,7 +280,21 @@ export async function PUT(
       where: { id: teeId },
       include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } },
     });
-    if (!teeForCtx) return errorResponse('Tee not found', 404);
+    if (!teeForCtx) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/rounds/[id]',
+          method: 'PUT',
+          status_code: 404,
+          failure_stage: 'lookup',
+          error_code: 'tee_not_found',
+        },
+        context: { request, sourcePage: '/api/rounds/[id]' },
+      });
+      return errorResponse('Tee not found', 404);
+    }
 
     const teeSegment = data.tee_segment as TeeSegment;
     const ctx = resolveTeeContext(teeForCtx, teeSegment);
@@ -348,12 +400,53 @@ export async function PUT(
     await triggerInsightsGeneration(roundId, userId, true);
     await triggerOverallInsightsGeneration(userId);
 
+    const fieldsChangedCount = countChangedFields(existingRound, {
+      courseId,
+      teeId,
+      teeSegment,
+      holeByHole: data.hole_by_hole,
+      score: updateScore,
+      firHit: updateFir,
+      girHit: updateGir,
+      putts: updatePutts,
+      penalties: updatePenalties,
+      notes: data.notes ?? null,
+    });
+
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.roundEditCompleted,
+      distinctId: userId.toString(),
+      properties: {
+        round_id: roundId.toString(),
+        fields_changed_count: fieldsChangedCount,
+        mode: data.hole_by_hole ? 'live_round' : 'after_round',
+        holes: ctx.holes,
+      },
+      context: {
+        request,
+        sourcePage: '/api/rounds/[id]',
+        isLoggedIn: true,
+      },
+    });
+
     return successResponse({ message: 'Round updated' });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return errorResponse('Unauthorized', 401);
     }
     console.error('PUT /api/rounds/:id error:', error);
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.apiRequestFailed,
+      distinctId: 'anonymous',
+      properties: {
+        endpoint: '/api/rounds/[id]',
+        method: 'PUT',
+        status_code: 500,
+        failure_stage: 'exception',
+        error_code: 'server_exception',
+      },
+      context: { request, sourcePage: '/api/rounds/[id]', isLoggedIn: false },
+    });
     return errorResponse('Database error', 500);
   }
 }
@@ -368,6 +461,28 @@ export async function DELETE(
     const { id } = await params;
     const roundId = BigInt(id);
 
+    const existingRound = await prisma.round.findFirst({
+      where: { id: roundId, userId },
+      select: { id: true },
+    });
+    if (!existingRound) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/rounds/[id]',
+          method: 'DELETE',
+          status_code: 404,
+          failure_stage: 'lookup',
+          error_code: 'round_not_found',
+        },
+        context: { request, sourcePage: '/api/rounds/[id]' },
+      });
+      return errorResponse('Round not found or not authorized', 404);
+    }
+
+    const insightsCount = await prisma.roundInsight.count({ where: { roundId } });
+
     // Delete round holes first (cascade should handle this but being explicit)
     await prisma.roundHole.deleteMany({
       where: { roundId },
@@ -381,13 +496,25 @@ export async function DELETE(
       },
     });
 
-    if (result.count === 0) {
-      return errorResponse('Round not found or not authorized', 404);
-    }
+    if (result.count === 0) return errorResponse('Round not found or not authorized', 404);
 
     // Update leaderboard
     await recalcLeaderboard(userId);
     await triggerOverallInsightsGeneration(userId);
+
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.roundDeleteCompleted,
+      distinctId: userId.toString(),
+      properties: {
+        round_id: roundId.toString(),
+        had_insights: insightsCount > 0,
+      },
+      context: {
+        request,
+        sourcePage: '/api/rounds/[id]',
+        isLoggedIn: true,
+      },
+    });
 
     return successResponse({ message: 'Round deleted' });
   } catch (error) {
@@ -396,6 +523,18 @@ export async function DELETE(
     }
 
     console.error('DELETE /api/rounds/:id error:', error);
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.apiRequestFailed,
+      distinctId: 'anonymous',
+      properties: {
+        endpoint: '/api/rounds/[id]',
+        method: 'DELETE',
+        status_code: 500,
+        failure_stage: 'exception',
+        error_code: 'server_exception',
+      },
+      context: { request, sourcePage: '/api/rounds/[id]', isLoggedIn: false },
+    });
     return errorResponse('Database error', 500);
   }
 }
@@ -479,4 +618,44 @@ async function triggerOverallInsightsGeneration(userId: bigint): Promise<void> {
     // Silently fail - overall insights can be generated on next /insights fetch.
     console.error('Failed to generate overall insights:', error);
   }
+}
+
+function countChangedFields(
+  before: {
+    courseId: bigint;
+    teeId: bigint;
+    teeSegment: string;
+    holeByHole: boolean;
+    score: number;
+    firHit: number | null;
+    girHit: number | null;
+    putts: number | null;
+    penalties: number | null;
+    notes: string | null;
+  },
+  after: {
+    courseId: bigint;
+    teeId: bigint;
+    teeSegment: TeeSegment;
+    holeByHole: boolean;
+    score: number;
+    firHit: number | null;
+    girHit: number | null;
+    putts: number | null;
+    penalties: number | null;
+    notes: string | null;
+  },
+): number {
+  let changed = 0;
+  if (before.courseId !== after.courseId) changed += 1;
+  if (before.teeId !== after.teeId) changed += 1;
+  if (before.teeSegment !== after.teeSegment) changed += 1;
+  if (before.holeByHole !== after.holeByHole) changed += 1;
+  if (before.score !== after.score) changed += 1;
+  if (before.firHit !== after.firHit) changed += 1;
+  if (before.girHit !== after.girHit) changed += 1;
+  if (before.putts !== after.putts) changed += 1;
+  if (before.penalties !== after.penalties) changed += 1;
+  if ((before.notes ?? null) !== (after.notes ?? null)) changed += 1;
+  return changed;
 }

@@ -2,19 +2,38 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { CoursesSearchSkeleton } from '@/components/skeleton/PageSkeletons';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 export default function CourseSearchPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const { showMessage, clearMessage } = useMessage();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [importingCourseId, setImportingCourseId] = useState<number | null>(null);
+
+  const trackApiFailure = (properties: Record<string, unknown>) => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.apiRequestFailed,
+      properties,
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  };
 
   if (status === 'loading') return <CoursesSearchSkeleton />;
   if (status === 'unauthenticated') {
@@ -60,12 +79,20 @@ export default function CourseSearchPage() {
     setSearchLoading(true);
     setSearchResults([]);
     clearMessage();
+    let capturedFailure = false;
 
     try {
       const res = await fetch(`/api/golf-course-api/search?query=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
 
       if (!res.ok) {
+        trackApiFailure({
+          endpoint: '/api/golf-course-api/search',
+          method: 'GET',
+          status_code: res.status,
+          feature_area: 'courses_search',
+        });
+        capturedFailure = true;
         if (res.status === 429) {
           throw new Error(`API limit reached (${data.callsUsed}/${data.limit} calls used today). Please try again tomorrow.`);
         }
@@ -89,6 +116,15 @@ export default function CourseSearchPage() {
         showMessage('No courses found. Try a different search term.', 'error');
       }
     } catch (err: any) {
+      if (!capturedFailure) {
+        trackApiFailure({
+          endpoint: '/api/golf-course-api/search',
+          method: 'GET',
+          status_code: 0,
+          feature_area: 'courses_search',
+          error_code: 'network_exception',
+        });
+      }
       showMessage(err.message || 'Failed to search courses', 'error');
       setSearchResults([]);
     } finally {
@@ -99,6 +135,7 @@ export default function CourseSearchPage() {
   const handleAddCourse = async (course: any) => {
     setImportingCourseId(course.id);
     clearMessage();
+    let capturedFailure = false;
 
     try {
       const res = await fetch('/api/courses', {
@@ -112,6 +149,13 @@ export default function CourseSearchPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        trackApiFailure({
+          endpoint: '/api/courses',
+          method: 'POST',
+          status_code: res.status,
+          feature_area: 'courses_search',
+        });
+        capturedFailure = true;
         if (res.status === 409) {
           showMessage('This course already exists in the database!', 'error');
         } else {
@@ -123,6 +167,15 @@ export default function CourseSearchPage() {
         setSearchQuery('');
       }
     } catch (err: any) {
+      if (!capturedFailure) {
+        trackApiFailure({
+          endpoint: '/api/courses',
+          method: 'POST',
+          status_code: 0,
+          feature_area: 'courses_search',
+          error_code: 'network_exception',
+        });
+      }
       showMessage(err.message || 'Failed to add course', 'error');
     } finally {
       setImportingCourseId(null);

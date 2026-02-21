@@ -13,6 +13,8 @@ import Select from 'react-select';
 import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -80,6 +82,7 @@ function EditRoundContent() {
   const from = searchParams.get('from') || 'stats'; // Default to stats if not specified
   const { data: session, status } = useSession();
   const { showMessage, clearMessage, showConfirm } = useMessage();
+  const pathname = `/rounds/edit/${id}`;
 
   const [round, setRound] = useState<Round>({
     date: getLocalDateString(), // Use local timezone instead of UTC
@@ -638,7 +641,27 @@ function EditRoundContent() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error saving round');
+      if (!res.ok) {
+        captureClientEvent(
+          ANALYTICS_EVENTS.apiRequestFailed,
+          {
+            endpoint: `/api/rounds/${id}`,
+            method: 'PUT',
+            status_code: res.status,
+            feature_area: 'round_edit',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: status === 'authenticated',
+          },
+        );
+        throw new Error(data.message || 'Error saving round');
+      }
 
       markInsightsNudgePending();
       markRoundInsightsRefreshPending(String(id));
@@ -890,7 +913,7 @@ function EditRoundContent() {
             </div>
           )}
 
-          <label className="form-label">How are you logging this round?</label>
+          <label className="form-label">Logging Mode</label>
           <div className="stats-tabs">
             <button
               type="button"
@@ -910,11 +933,11 @@ function EditRoundContent() {
               }}
               disabled={disableFormControls}
             >
-              During Round
+              Live Round
             </button>
           </div>
           <p className="combined-note">
-            {isHBH ? 'Log each hole live during your round.' : 'Enter total score quickly after you finish.'}
+            {isHBH ? 'Track each hole as you play.' : 'Enter totals after your round.'}
           </p>
 
           {!isHBH && (

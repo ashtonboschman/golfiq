@@ -8,6 +8,8 @@ import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { generateAndStoreOverallInsights } from '@/app/api/insights/overall/route';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { z } from 'zod';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 // Helper to format round data
 type RoundWithRelations = {
@@ -188,6 +190,18 @@ export async function POST(request: NextRequest) {
     const result = createRoundSchema.safeParse(body);
     if (!result.success) {
       const firstError = result.error.issues[0];
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/rounds',
+          method: 'POST',
+          status_code: 400,
+          failure_stage: 'validation',
+          error_code: 'validation_failed',
+        },
+        context: { request, sourcePage: '/api/rounds' },
+      });
       return errorResponse(firstError?.message || 'Validation failed', 400);
     }
 
@@ -197,6 +211,18 @@ export async function POST(request: NextRequest) {
 
     // Validate score is provided for After Round mode
     if (!data.hole_by_hole && (data.score === null || data.score === undefined)) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/rounds',
+          method: 'POST',
+          status_code: 400,
+          failure_stage: 'validation',
+          error_code: 'missing_score_after_round',
+        },
+        context: { request, sourcePage: '/api/rounds' },
+      });
       return errorResponse('Score is required in After Round mode', 400);
     }
 
@@ -227,6 +253,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (!tee) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/rounds',
+          method: 'POST',
+          status_code: 404,
+          failure_stage: 'lookup',
+          error_code: 'tee_not_found',
+        },
+        context: { request, sourcePage: '/api/rounds' },
+      });
       return errorResponse('Tee not found', 404);
     }
 
@@ -320,6 +358,68 @@ export async function POST(request: NextRequest) {
       console.error('Failed to regenerate overall insights:', error);
     });
 
+    const storedRound = await prisma.round.findUnique({
+      where: { id: roundId },
+      select: {
+        holesPlayed: true,
+        holeByHole: true,
+        firHit: true,
+        girHit: true,
+        putts: true,
+        penalties: true,
+      },
+    });
+    const roundsLifetime = await prisma.round.count({ where: { userId } });
+
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.roundAddCompleted,
+      distinctId: userId.toString(),
+      properties: {
+        round_id: roundId.toString(),
+        holes: storedRound?.holesPlayed ?? ctx.holes,
+        mode: (storedRound?.holeByHole ?? data.hole_by_hole)
+          ? 'live_round'
+          : 'after_round',
+        stats_tracked_count: countTrackedStats({
+          firHit: storedRound?.firHit ?? null,
+          girHit: storedRound?.girHit ?? null,
+          putts: storedRound?.putts ?? null,
+          penalties: storedRound?.penalties ?? null,
+        }),
+        course_id_present: true,
+        rounds_lifetime: roundsLifetime,
+      },
+      context: {
+        request,
+        sourcePage: '/api/rounds',
+        isLoggedIn: true,
+      },
+    });
+
+    if (roundsLifetime === 1) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.firstRoundCompleted,
+        distinctId: userId.toString(),
+        properties: {
+          rounds_lifetime: roundsLifetime,
+          round_id: roundId.toString(),
+        },
+        context: { request, sourcePage: '/api/rounds', isLoggedIn: true },
+      });
+    }
+
+    if (roundsLifetime === 3) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.thirdRoundCompleted,
+        distinctId: userId.toString(),
+        properties: {
+          rounds_lifetime: roundsLifetime,
+          round_id: roundId.toString(),
+        },
+        context: { request, sourcePage: '/api/rounds', isLoggedIn: true },
+      });
+    }
+
     return successResponse({ message: 'Round created', roundId: roundId.toString() }, 201);
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
@@ -327,6 +427,18 @@ export async function POST(request: NextRequest) {
     }
 
     console.error('POST /api/rounds error:', error);
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.apiRequestFailed,
+      distinctId: 'anonymous',
+      properties: {
+        endpoint: '/api/rounds',
+        method: 'POST',
+        status_code: 500,
+        failure_stage: 'exception',
+        error_code: 'server_exception',
+      },
+      context: { request, sourcePage: '/api/rounds', isLoggedIn: false },
+    });
     return errorResponse('Database error', 500);
   }
 }
@@ -427,4 +539,18 @@ async function recalcRoundTotals(roundId: bigint): Promise<void> {
   totals.penalties = sumField('penalties');
 
   await prisma.round.update({ where: { id: roundId }, data: totals });
+}
+
+function countTrackedStats(input: {
+  firHit: number | null;
+  girHit: number | null;
+  putts: number | null;
+  penalties: number | null;
+}): number {
+  let tracked = 0;
+  if (input.firHit != null) tracked += 1;
+  if (input.girHit != null) tracked += 1;
+  if (input.putts != null) tracked += 1;
+  if (input.penalties != null) tracked += 1;
+  return tracked;
 }

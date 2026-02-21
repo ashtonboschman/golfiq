@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import RoundCard from '@/components/RoundCard';
@@ -14,6 +14,8 @@ import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
 import { formatDate, formatHandicap, formatNumber, formatPercent, formatToPar } from '@/lib/formatters';
 import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 
 interface DashboardStats {
@@ -97,6 +99,7 @@ function DashboardFallback() {
 
 function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, status } = useSession();
   const { showMessage, clearMessage } = useMessage();
   const searchParams = useSearchParams();
@@ -135,6 +138,25 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     avg_penalties: null,
     hbh_stats: null,
   });
+
+  const trackUpgradeClick = useCallback((ctaLocation: string) => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.upgradeCtaClicked,
+      {
+        cta_location: ctaLocation,
+        source_page: pathname,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   // Load theme colors from CSS variables
   useEffect(() => {
@@ -456,6 +478,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           }}
           onChange={(option) => {
             if (!subscriptionLoading && !isPremium) {
+              trackUpgradeClick('dashboard_date_filter_lock');
               router.push('/pricing'); // redirect free users
             } else if (option) {
               setDateFilter(option.value);
@@ -497,7 +520,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           </div>
           <button
               type="button"
-              onClick={() => router.push('/pricing')}
+              onClick={() => {
+                trackUpgradeClick('dashboard_limited_stats_banner');
+                router.push('/pricing');
+              }}
               className="btn btn-upgrade"
             >
               Unlock Full Stats
@@ -676,6 +702,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         onClose={handleCloseUpgradeModal}
         title="Unlock Premium Insights"
         message={getModalMessage()}
+        ctaLocation="dashboard_round_milestone_modal"
+        paywallContext="round_milestone_modal"
+        milestoneRound={totalRoundsForModal}
         features={[
           'All-time stat access beyond your last 20 rounds',
           'Estimated strokes gained & core performance KPIs',

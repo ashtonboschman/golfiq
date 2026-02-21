@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import BinaryNullToggle from './BinaryNullToggle';
 
@@ -45,6 +45,12 @@ const HoleCard = memo(({
     setLocalPutts(putts);
     setLocalPenalties(penalties);
   };
+
+  useEffect(() => {
+    if (isExpanded) {
+      syncLocalStateFromProps();
+    }
+  }, [isExpanded, score, fir_hit, gir_hit, putts, penalties, par]);
 
   // Commit all local changes to parent
   const handleCommit = () => {
@@ -141,7 +147,7 @@ const HoleCard = memo(({
         <div className="accordion-hole-header-right">
           {!isExpanded && isCompleted && score !== null && (
             <span className="accordion-hole-summary">
-              Score: {score}{putts !== null && ` - Putts: ${putts}`}
+              Score: {score}{putts !== null && ` • Putts: ${putts}`}
             </span>
           )}
           {onToggleExpand && (

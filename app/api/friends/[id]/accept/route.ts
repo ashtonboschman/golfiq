@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 export async function POST(
   request: NextRequest,
@@ -20,6 +22,18 @@ export async function POST(
     });
 
     if (!friendRequest) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: userId.toString(),
+        properties: {
+          endpoint: '/api/friends/[id]/accept',
+          method: 'POST',
+          status_code: 404,
+          failure_stage: 'lookup',
+          error_code: 'friend_request_not_found',
+        },
+        context: { request, sourcePage: '/api/friends/[id]/accept' },
+      });
       return errorResponse('Friend request not found', 404);
     }
 
@@ -65,6 +79,25 @@ export async function POST(
       },
     });
 
+    const now = Date.now();
+    const requestedAt = friendRequest.createdAt?.getTime?.() ?? now;
+    const requestAgeDays = Math.max(0, Math.floor((now - requestedAt) / (24 * 60 * 60 * 1000)));
+
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.friendRequestAccepted,
+      distinctId: userId.toString(),
+      properties: {
+        requester_id: requesterId.toString(),
+        request_id: requestId.toString(),
+        request_age_days: requestAgeDays,
+      },
+      context: {
+        request,
+        sourcePage: '/api/friends/[id]/accept',
+        isLoggedIn: true,
+      },
+    });
+
     return successResponse({
       message: 'Friend request accepted',
       friend: {
@@ -85,6 +118,18 @@ export async function POST(
     }
 
     console.error('POST /api/friends/:id/accept error:', error);
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.apiRequestFailed,
+      distinctId: 'anonymous',
+      properties: {
+        endpoint: '/api/friends/[id]/accept',
+        method: 'POST',
+        status_code: 500,
+        failure_stage: 'exception',
+        error_code: 'server_exception',
+      },
+      context: { request, sourcePage: '/api/friends/[id]/accept', isLoggedIn: false },
+    });
     return errorResponse('Database error', 500);
   }
 }

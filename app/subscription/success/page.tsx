@@ -161,7 +161,7 @@ function SubscriptionSuccessContent() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <button className="btn btn-primary" onClick={() => router.push('/dashboard')}>
+          <button className="btn btn-toggle" onClick={() => router.push('/dashboard')}>
             Go to Dashboard
           </button>
           <button className="btn btn-toggle" onClick={() => router.push('/settings')}>

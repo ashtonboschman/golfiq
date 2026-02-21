@@ -1,22 +1,48 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState, useEffect } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { PRICING } from '@/lib/subscription';
 import { Check, X } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
 
 function PricingContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<PlanTab>('monthly');
   const { isPremium, loading: subscriptionLoading } = useSubscription();
+  const viewedRef = useRef(false);
+  const checkoutExitTrackedRef = useRef(false);
+  const checkoutCancelTrackedRef = useRef(false);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || viewedRef.current) return;
+    viewedRef.current = true;
+    captureClientEvent(
+      ANALYTICS_EVENTS.pricingPageViewed,
+      {
+        source_page: pathname,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: true,
+      },
+    );
+  }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -34,35 +60,113 @@ function PricingContent() {
   useEffect(() => {
     if (searchParams.get('cancelled')) {
       setMessage({ text: 'Checkout cancelled. No charges were made.', type: 'error' });
+      if (!checkoutCancelTrackedRef.current) {
+        checkoutCancelTrackedRef.current = true;
+        captureClientEvent(
+          ANALYTICS_EVENTS.checkoutFailed,
+          {
+            failure_stage: 'user_cancelled',
+            source_page: pathname,
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: status === 'authenticated',
+          },
+        );
+      }
     }
-  }, [searchParams]);
+  }, [pathname, searchParams, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   // Clear loading state when page becomes visible (handles iOS popup X button)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && loading !== null) {
+        if (!checkoutExitTrackedRef.current) {
+          checkoutExitTrackedRef.current = true;
+          captureClientEvent(
+            ANALYTICS_EVENTS.checkoutFailed,
+            {
+              failure_stage: 'checkout_exited',
+              source_page: pathname,
+              checkout_intent: loading,
+            },
+            {
+              pathname,
+              user: {
+                id: session?.user?.id,
+                subscription_tier: session?.user?.subscription_tier,
+                auth_provider: session?.user?.auth_provider,
+              },
+              isLoggedIn: status === 'authenticated',
+            },
+          );
+        }
         setLoading(null);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loading]);
+  }, [loading, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   const handleSubscribe = async (priceId: string, interval: 'month' | 'year') => {
     setLoading(interval);
     setMessage(null);
+    checkoutExitTrackedRef.current = false;
+    checkoutCancelTrackedRef.current = false;
+    captureClientEvent(
+      ANALYTICS_EVENTS.upgradeCtaClicked,
+      {
+        cta_location: `pricing_${interval}_button`,
+        source_page: pathname,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
 
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-source-page': pathname,
+        },
         body: JSON.stringify({ priceId, interval }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        captureClientEvent(
+          ANALYTICS_EVENTS.apiRequestFailed,
+          {
+            endpoint: '/api/stripe/checkout',
+            method: 'POST',
+            status_code: res.status,
+            feature_area: 'pricing',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: status === 'authenticated',
+          },
+        );
         throw new Error(data.message || 'Failed to create checkout session');
       }
 

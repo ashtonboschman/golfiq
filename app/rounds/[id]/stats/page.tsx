@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter, useParams } from 'next/navigation';
+import { usePathname, useRouter, useParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import Link from 'next/link';
@@ -11,6 +11,11 @@ import { Confidence } from '@prisma/client';
 import RoundInsights from '@/components/RoundInsights';
 import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
 import InfoTooltip from '@/components/InfoTooltip';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
+
+const ROUND_STATS_VIEWED_DEDUPE_MS = 5000;
+const roundStatsViewedCache = new Map<string, number>();
 
 interface HoleDetail {
   hole_number: number;
@@ -75,6 +80,7 @@ interface RoundStats {
 export default function RoundStatsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const params = useParams();
   const { showMessage, clearMessage, showConfirm } = useMessage();
 
@@ -131,6 +137,33 @@ export default function RoundStatsPage() {
       fetchStats();
     }
   }, [status, roundId, fetchStats]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !stats) return;
+    const dedupeKey = `${session?.user?.id ?? 'anon'}:${roundId}`;
+    const now = Date.now();
+    const lastSeen = roundStatsViewedCache.get(dedupeKey);
+    if (lastSeen && now - lastSeen < ROUND_STATS_VIEWED_DEDUPE_MS) return;
+    roundStatsViewedCache.set(dedupeKey, now);
+
+    captureClientEvent(
+      ANALYTICS_EVENTS.roundStatsViewed,
+      {
+        round_id: roundId,
+        holes: stats.number_of_holes,
+        has_sg_data: stats.sg_total != null,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: true,
+      },
+    );
+  }, [pathname, roundId, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, stats, status]);
 
   // Refetch stats when page becomes visible (e.g., returning from edit page)
   useEffect(() => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from 'react';
 import { GroupBase } from 'react-select';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import { AsyncPaginate } from 'react-select-async-paginate';
@@ -13,6 +13,8 @@ import { Plus } from 'lucide-react';
 import Select from 'react-select';
 import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -74,6 +76,7 @@ interface TeeOption {
 
 function AddRoundContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const from = searchParams.get('from') || 'rounds'; // Default to rounds if not specified
   const { data: session, status } = useSession();
@@ -122,6 +125,27 @@ function AddRoundContent() {
   const [expandedHole, setExpandedHole] = useState<number>(1); // Track which hole is currently expanded
   const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set()); // Track holes where Next was clicked
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const hasSubmittedRef = useRef(false);
+  const hasInteractedRef = useRef(false);
+  const startTrackedRef = useRef(false);
+  const latestModeRef = useRef<'live_round' | 'after_round'>('after_round');
+  const latestStepRef = useRef<'initial' | 'course_selected' | 'tee_selected'>('initial');
+
+  const trackEvent = useCallback((event: (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS], properties: Record<string, unknown> = {}) => {
+    captureClientEvent(
+      event,
+      properties,
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   // Update segment options when a tee is selected
   const updateSegmentOptions = useCallback((teeObj: any) => {
@@ -144,6 +168,41 @@ function AddRoundContent() {
       router.replace('/login');
     }
   }, [status, router]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || startTrackedRef.current) return;
+    startTrackedRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.roundAddStarted, {
+      round_logging_mode_selected: isHBH ? 'live_round' : 'after_round',
+      holes_target: round.tee_segment === 'double9' || round.tee_segment === 'full' ? 18 : 9,
+    });
+  }, [isHBH, round.tee_segment, status, trackEvent]);
+
+  useEffect(() => {
+    latestModeRef.current = isHBH ? 'live_round' : 'after_round';
+  }, [isHBH]);
+
+  useEffect(() => {
+    latestStepRef.current = round.tee_id
+      ? 'tee_selected'
+      : round.course_id
+        ? 'course_selected'
+        : 'initial';
+  }, [round.course_id, round.tee_id]);
+
+  useEffect(() => {
+    return () => {
+      if (!startTrackedRef.current) return;
+      if (hasSubmittedRef.current) return;
+      if (!hasInteractedRef.current) return;
+
+      trackEvent(ANALYTICS_EVENTS.roundAddAbandoned, {
+        mode: latestModeRef.current,
+        step_reached: latestStepRef.current,
+        dirty_state: true,
+      });
+    };
+  }, [trackEvent]);
 
   // Warn user before navigating away with unsaved changes
   useEffect(() => {
@@ -579,6 +638,7 @@ function AddRoundContent() {
   }, [holeScores, selectedTee, round.tee_segment]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    hasInteractedRef.current = true;
     const { name, value } = e.target;
 
     if (['score', 'fir_hit', 'gir_hit', 'putts', 'penalties'].includes(name)) {
@@ -607,6 +667,7 @@ function AddRoundContent() {
   };
 
   const handleHoleScoreChange = (index: number, field: string, value: any) => {
+    hasInteractedRef.current = true;
     setHoleScores((prev) => {
       const updated = [...prev];
       const hole = updated[index];
@@ -637,13 +698,18 @@ function AddRoundContent() {
   };
 
   const toggleHoleByHole = async () => {
+    hasInteractedRef.current = true;
     const newHBH = round.hole_by_hole === 1 ? 0 : 1;
+    trackEvent(ANALYTICS_EVENTS.roundLoggingModeSelected, {
+      from_mode: round.hole_by_hole === 1 ? 'live_round' : 'after_round',
+      to_mode: newHBH === 1 ? 'live_round' : 'after_round',
+    });
 
     if (newHBH === 1) {
-      // Switching to During Round mode
+      // Switching to Live Round mode
       // Validate that a tee is selected
       if (!round.tee_id) {
-        showMessage('Please select a tee before enabling During Round mode.', 'error');
+        showMessage('Please select a tee before enabling Live Round mode.', 'error');
         return;
       }
 
@@ -716,7 +782,7 @@ function AddRoundContent() {
       // Keep the current score when switching to HBH mode instead of nulling it
       setRound((prev) => ({ ...prev, hole_by_hole: 1 }));
     } else {
-      // Switching from During Round mode
+      // Switching from Live Round mode
       setRound((prev) => ({
         ...prev,
         hole_by_hole: 0,
@@ -757,7 +823,17 @@ function AddRoundContent() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error saving round');
+      if (!res.ok) {
+        trackEvent(ANALYTICS_EVENTS.apiRequestFailed, {
+          endpoint: '/api/rounds',
+          method: 'POST',
+          status_code: res.status,
+          feature_area: 'round_add',
+        });
+        throw new Error(data.message || 'Error saving round');
+      }
+
+      hasSubmittedRef.current = true;
 
       markInsightsNudgePending();
       markRoundInsightsRefreshPending(String(data.roundId));
@@ -910,6 +986,7 @@ function AddRoundContent() {
                   value={selectedCourse}
                   loadOptions={loadCourseOptions}
                   onChange={async (option) => {
+                    hasInteractedRef.current = true;
                     setSelectedCourse(option);
                     setSelectedTee(null);
                     setRound((prev) => ({ ...prev, course_id: option?.value.toString() ?? '', tee_id: '' }));
@@ -951,6 +1028,7 @@ function AddRoundContent() {
                 loadTeeOptions(search, loadedOptions, additional as { page: number }, selectedCourse?.value)
               }
               onChange={async (option) => {
+                hasInteractedRef.current = true;
                 setSelectedTee(option);
                 const teeId = option?.value ?? '';
                 setRound((prev) => ({ ...prev, tee_id: teeId.toString() }));
@@ -977,6 +1055,7 @@ function AddRoundContent() {
                 value={segmentOptions.find(o => o.value === round.tee_segment) || segmentOptions[0]}
                 options={segmentOptions}
                 onChange={async (option: any) => {
+                  hasInteractedRef.current = true;
                   if (option) {
                     const newSegment = option.value as TeeSegment;
                     if (selectedTee?.teeObj) {
@@ -1004,7 +1083,7 @@ function AddRoundContent() {
 
           {initialized && (
             <>
-              <label className="form-label">How are you logging this round?</label>
+              <label className="form-label">Logging Mode</label>
               <div className="stats-tabs">
                 <button
                   type="button"
@@ -1022,11 +1101,11 @@ function AddRoundContent() {
                     if (!isHBH) toggleHoleByHole();
                   }}
                 >
-                  During Round
+                  Live Round
                 </button>
               </div>
               <p className="combined-note">
-                {isHBH ? 'Log each hole live during your round.' : 'Enter total score quickly after you finish.'}
+                {isHBH ? 'Track each hole as you play.' : 'Enter totals after your round.'}
               </p>
             </>
           )}

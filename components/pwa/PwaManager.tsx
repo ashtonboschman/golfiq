@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { usePostHog } from 'posthog-js/react';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -86,7 +87,6 @@ async function disableServiceWorkers() {
 }
 
 export default function PwaManager() {
-  const posthog = usePostHog();
   const pathname = usePathname();
 
   const [config, setConfig] = useState<PwaConfig | null>(null);
@@ -183,7 +183,11 @@ export default function PwaManager() {
           setUpdateReady(true);
           if (SHOW_UPDATE_PROMPT && !updateToastTrackedRef.current) {
             updateToastTrackedRef.current = true;
-            posthog.capture('pwa_update_toast_shown', { version: config.version, source: config.source });
+            captureClientEvent(
+              ANALYTICS_EVENTS.pwaUpdateToastShown,
+              { version: config.version, source: config.source },
+              { pathname, isLoggedIn: false },
+            );
           }
         }
 
@@ -196,7 +200,11 @@ export default function PwaManager() {
               setUpdateRegistration(registration);
               if (SHOW_UPDATE_PROMPT && !updateToastTrackedRef.current) {
                 updateToastTrackedRef.current = true;
-                posthog.capture('pwa_update_toast_shown', { version: config.version, source: config.source });
+                captureClientEvent(
+                  ANALYTICS_EVENTS.pwaUpdateToastShown,
+                  { version: config.version, source: config.source },
+                  { pathname, isLoggedIn: false },
+                );
               }
             }
           });
@@ -210,7 +218,7 @@ export default function PwaManager() {
     return () => {
       cancelled = true;
     };
-  }, [config, posthog, updatePending]);
+  }, [config, pathname, updatePending]);
 
   useEffect(() => {
     const init = async () => {
@@ -272,7 +280,11 @@ export default function PwaManager() {
       localStorage.setItem(INSTALLED_KEY, '1');
       setIsStandalone(true);
       setDeferredPrompt(null);
-      posthog.capture('pwa_install_accepted', { via: 'appinstalled_event' });
+      captureClientEvent(
+        ANALYTICS_EVENTS.pwaInstallAccepted,
+        { via: 'appinstalled_event' },
+        { pathname, isLoggedIn: false },
+      );
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -281,7 +293,7 @@ export default function PwaManager() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleInstalled);
     };
-  }, [posthog]);
+  }, [pathname]);
 
   useEffect(() => {
     const seen = parseSeenPages(localStorage.getItem(PAGES_KEY));
@@ -302,13 +314,17 @@ export default function PwaManager() {
     if (installPromptTrackedRef.current === marker) return;
 
     installPromptTrackedRef.current = marker;
-    posthog.capture('pwa_install_prompt_shown', {
-      path: pathname,
-      mode,
-      sessions: sessionCount,
-      pages_seen: pageVisitCount,
-    });
-  }, [installEligible, deferredPrompt, pathname, posthog, sessionCount, pageVisitCount]);
+    captureClientEvent(
+      ANALYTICS_EVENTS.pwaInstallPromptShown,
+      {
+        path: pathname,
+        mode,
+        sessions: sessionCount,
+        pages_seen: pageVisitCount,
+      },
+      { pathname, isLoggedIn: false },
+    );
+  }, [installEligible, deferredPrompt, pathname, sessionCount, pageVisitCount]);
 
   const dismissInstallPrompt = () => {
     const nextDismissedUntil = getNow() + DISMISS_MS;
@@ -329,7 +345,11 @@ export default function PwaManager() {
     if (choice.outcome === 'accepted') {
       localStorage.setItem(INSTALLED_KEY, '1');
       setIsStandalone(true);
-      posthog.capture('pwa_install_accepted', { via: 'beforeinstallprompt', platform: choice.platform });
+      captureClientEvent(
+        ANALYTICS_EVENTS.pwaInstallAccepted,
+        { via: 'beforeinstallprompt', platform: choice.platform },
+        { pathname, isLoggedIn: false },
+      );
       return;
     }
 
@@ -337,7 +357,11 @@ export default function PwaManager() {
   };
 
   const handleApplyUpdate = async () => {
-    posthog.capture('pwa_update_applied', { version: config?.version ?? DEFAULT_SW_VERSION });
+    captureClientEvent(
+      ANALYTICS_EVENTS.pwaUpdateApplied,
+      { version: config?.version ?? DEFAULT_SW_VERSION },
+      { pathname, isLoggedIn: false },
+    );
     setUpdateReady(false);
     sessionStorage.setItem(UPDATE_PENDING_KEY, '1');
     setUpdatePending(true);

@@ -129,4 +129,73 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.message_outcomes[2]).toBe('M3-C');
     expect(insights.messages[2].startsWith('Next round:')).toBe(true);
   });
+
+  it('uses logged order (createdAt) so backdated rounds do not re-enter onboarding', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-01-01T12:00:00.000Z'),
+      score: 74,
+      firHit: 7,
+      girHit: 9,
+      putts: 33,
+      penalties: 1,
+      teeSegment: 'full',
+      tee: makeTee(),
+    });
+
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+        return [
+          { id: BigInt(10), score: 78, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+          { id: BigInt(20), score: 77, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+          { id: BigInt(30), score: 76, createdAt: new Date('2026-01-30T12:00:00.000Z') },
+          { id: BigInt(40), score: 74, createdAt: new Date('2026-02-10T12:00:00.000Z') },
+        ];
+      }
+
+      if (args?.orderBy?.date === 'desc') {
+        return [
+          { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        ];
+      }
+
+      return [];
+    });
+
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'approach', label: 'Approach', value: -0.8 },
+        { name: 'putting', label: 'Putting', value: -1.2 },
+        { name: 'penalties', label: 'Penalties', value: -0.1 },
+      ],
+      best: { name: 'penalties', label: 'Penalties', value: -0.1 },
+      opportunity: { name: 'putting', label: 'Putting', value: -1.2 },
+      opportunityIsWeak: true,
+      componentCount: 4,
+      residualDominant: false,
+      weakSeparation: true,
+    });
+
+    await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      }),
+    );
+
+    const savedInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
+    expect(savedInsights.free_visible_count).toBe(1);
+    expect(savedInsights.message_outcomes[0]).not.toMatch(/^OB-/);
+  });
 });

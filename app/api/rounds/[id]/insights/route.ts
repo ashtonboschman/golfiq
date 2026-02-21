@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
+import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import {
   POST_ROUND_MESSAGE_MAX_CHARS,
@@ -160,10 +161,11 @@ async function getViewerEntitlements(userId: bigint): Promise<ViewerEntitlements
     where: { id: userId },
     select: {
       subscriptionTier: true,
+      subscriptionStatus: true,
     },
   });
 
-  const isPremium = user?.subscriptionTier === 'premium' || user?.subscriptionTier === 'lifetime';
+  const isPremium = user ? isPremiumUser(user) : false;
   const showStrokesGained = true;
   return { isPremium, showStrokesGained };
 }
@@ -187,7 +189,6 @@ function computePerformanceBand(totalSG: number | null, holesPlayed: number): Pe
 type RoundOrderingEntry = {
   id: bigint;
   score: number;
-  date: Date;
   createdAt: Date;
 };
 
@@ -208,6 +209,39 @@ function resolveRoundOrdinalContext(roundId: bigint, rounds: RoundOrderingEntry[
   };
 }
 
+async function getRoundsInLoggedOrder(userId: bigint): Promise<RoundOrderingEntry[]> {
+  const rounds = await prisma.round.findMany({
+    where: { userId },
+    select: { id: true, score: true, createdAt: true },
+    // Onboarding should follow logging sequence, not play-date sequence.
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  return rounds as RoundOrderingEntry[];
+}
+
+function isOnboardingInsight(insights: any): boolean {
+  return Boolean(insights?.raw_payload?.onboarding?.active);
+}
+
+async function shouldRegenerateForOnboardingMismatch(
+  roundId: bigint,
+  userId: bigint,
+  insights: any,
+): Promise<boolean> {
+  if (!isOnboardingInsight(insights)) {
+    return false;
+  }
+
+  try {
+    const roundsInOrder = await getRoundsInLoggedOrder(userId);
+    const { roundNumber } = resolveRoundOrdinalContext(roundId, roundsInOrder);
+    return roundNumber > 3;
+  } catch (error) {
+    console.warn('[round-insights] onboarding mismatch check failed:', error);
+    return false;
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -217,15 +251,7 @@ export async function GET(
     const { id } = await params;
     const roundId = BigInt(id);
 
-    const existingInsights = await prisma.roundInsight.findUnique({ where: { roundId } });
     const entitlements = await getViewerEntitlements(userId);
-    if (existingInsights) {
-      if (existingInsights.userId !== userId) {
-        throw new Error('Unauthorized');
-      }
-      return NextResponse.json({ insights: limitInsightsForViewer(existingInsights.insights, entitlements) });
-    }
-
     const insights = await generateInsights(roundId, userId, entitlements);
     return NextResponse.json({ insights });
   } catch (error: any) {
@@ -271,12 +297,15 @@ export async function generateInsights(
   const existing = await prisma.roundInsight.findUnique({ where: { roundId } });
   const existingInsights = existing?.insights as any;
   const previousVariantOffset = resolvePostRoundVariantOffset(existingInsights);
+  const needsOnboardingCorrection = existing
+    ? await shouldRegenerateForOnboardingMismatch(roundId, userId, existingInsights)
+    : false;
 
   if (existing) {
     if (existing.userId !== userId) {
       throw new Error('Unauthorized');
     }
-    if (!forceRegenerate) {
+    if (!forceRegenerate && !needsOnboardingCorrection) {
       return limitInsightsForViewer(existing.insights, effectiveEntitlements);
     }
   }
@@ -331,12 +360,8 @@ async function generateInsightsInternal(
   const currentContext = resolveTeeContext(round.tee, currentSegment);
   const currentHolesPlayed = currentContext.holes;
 
-  const roundsInOrder = await prisma.round.findMany({
-    where: { userId },
-    select: { id: true, score: true, date: true, createdAt: true },
-    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-  });
-  const { roundNumber, previousScore, totalRounds } = resolveRoundOrdinalContext(roundId, roundsInOrder as RoundOrderingEntry[]);
+  const roundsInOrder = await getRoundsInLoggedOrder(userId);
+  const { roundNumber, previousScore, totalRounds } = resolveRoundOrdinalContext(roundId, roundsInOrder);
   const isOnboardingRound = roundNumber <= 3;
   const shouldBumpVariant = generationOptions.forceRegenerate && generationOptions.bumpVariant && !isOnboardingRound;
   const variantOffset = shouldBumpVariant

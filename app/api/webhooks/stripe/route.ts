@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import { constructWebhookEvent, stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/db';
 import Stripe from 'stripe';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 /**
  * POST /api/webhooks/stripe
@@ -144,6 +146,23 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         subscriptionId,
         periodEnd: periodEnd?.toISOString() ?? null,
       },
+    },
+  });
+
+  await captureServerEvent({
+    event: ANALYTICS_EVENTS.checkoutCompleted,
+    distinctId: userId,
+    properties: {
+      plan_selected: session.metadata?.interval === 'year' ? 'annual' : 'monthly',
+      billing_period: session.metadata?.interval ?? null,
+      provider: 'stripe_webhook',
+      checkout_session_id: session.id,
+      subscription_id: subscriptionId,
+    },
+    context: {
+      sourcePage: '/api/webhooks/stripe',
+      isLoggedIn: true,
+      planTier: 'premium',
     },
   });
 
@@ -389,6 +408,24 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
         amountDue: invoice.amount_due,
         currency: invoice.currency,
       },
+    },
+  });
+
+  await captureServerEvent({
+    event: ANALYTICS_EVENTS.checkoutFailed,
+    distinctId: user.id.toString(),
+    properties: {
+      failure_stage: 'payment',
+      error_code: 'invoice_payment_failed',
+      invoice_id: invoice.id,
+      subscription_id: subscriptionId,
+      amount_due: invoice.amount_due,
+      currency: invoice.currency,
+    },
+    context: {
+      sourcePage: '/api/webhooks/stripe',
+      isLoggedIn: true,
+      planTier: user.subscriptionTier,
     },
   });
 

@@ -15,6 +15,7 @@ jest.mock('next-auth/react', () => ({
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
+  usePathname: () => '/insights',
 }));
 
 jest.mock('@/hooks/useSubscription', () => ({

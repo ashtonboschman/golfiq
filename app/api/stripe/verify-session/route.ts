@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
 import { stripe } from '@/lib/stripe';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 /**
  * POST /api/stripe/verify-session
@@ -14,12 +16,24 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.checkoutFailed,
+        distinctId: 'anonymous',
+        properties: { failure_stage: 'auth', error_code: 'unauthorized' },
+        context: { request: req, sourcePage: '/api/stripe/verify-session', isLoggedIn: false },
+      });
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const { sessionId } = await req.json();
 
     if (!sessionId) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.checkoutFailed,
+        distinctId: session.user.id ?? session.user.email,
+        properties: { failure_stage: 'validation', error_code: 'missing_session_id' },
+        context: { request: req, sourcePage: '/api/stripe/verify-session', isLoggedIn: true },
+      });
       return NextResponse.json(
         { message: 'Session ID required' },
         { status: 400 }
@@ -127,6 +141,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.checkoutCompleted,
+      distinctId: user.id.toString(),
+      properties: {
+        plan_selected: checkoutSession.metadata?.interval === 'year' ? 'annual' : 'monthly',
+        billing_period: checkoutSession.metadata?.interval ?? null,
+        provider: 'verify_session',
+        checkout_session_id: checkoutSession.id,
+        subscription_id: subscriptionId,
+      },
+      context: {
+        request: req,
+        sourcePage: '/api/stripe/verify-session',
+        isLoggedIn: true,
+        planTier: 'premium',
+      },
+    });
+
     console.log(`Subscription activated via verify-session for user ${user.id}`);
 
     return NextResponse.json({
@@ -136,6 +168,15 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Verify session error:', error);
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.checkoutFailed,
+      distinctId: 'anonymous',
+      properties: {
+        failure_stage: 'exception',
+        error_code: error?.message ?? 'verify_session_exception',
+      },
+      context: { request: req, sourcePage: '/api/stripe/verify-session', isLoggedIn: false },
+    });
     return NextResponse.json(
       { message: error.message || 'Error verifying session' },
       { status: 500 }

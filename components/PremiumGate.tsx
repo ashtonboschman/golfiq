@@ -1,9 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSubscription } from '@/hooks/useSubscription';
 import { ReactNode } from 'react';
 import { Lock } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 interface PremiumGateProps {
   children: ReactNode;
@@ -32,6 +35,28 @@ export default function PremiumGate({
 }: PremiumGateProps) {
   const { isPremium, loading } = useSubscription();
   const router = useRouter();
+  const pathname = usePathname();
+  const { data: session, status } = useSession();
+
+  const handleUpgradeClick = () => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.upgradeCtaClicked,
+      {
+        cta_location: 'premium_gate',
+        source_page: pathname,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+    router.push('/pricing');
+  };
 
   if (loading) {
     return (
@@ -60,7 +85,7 @@ export default function PremiumGate({
           <span>{featureName} is premium only.</span>
           <button
             className="text-blue-600 hover:text-blue-700 underline font-medium"
-            onClick={() => router.push('/pricing')}
+            onClick={handleUpgradeClick}
           >
             Upgrade to Premium
           </button>
@@ -77,7 +102,7 @@ export default function PremiumGate({
         </div>          
         <button
           className="btn btn-upgrade"
-          onClick={() => router.push('/pricing')}
+          onClick={handleUpgradeClick}
         >
           Upgrade to Premium
         </button>

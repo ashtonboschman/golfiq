@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import ManualCourseForm from '@/components/ManualCourseForm';
 import { AdminPanelSkeleton } from '@/components/skeleton/PageSkeletons';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 export default function ImportCoursePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const { showMessage, clearMessage } = useMessage();
 
   const [jsonInput, setJsonInput] = useState('');
@@ -21,6 +24,22 @@ export default function ImportCoursePage() {
   const [selectedTees, setSelectedTees] = useState<{[key: string]: boolean}>({});
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+
+  const trackApiFailure = (properties: Record<string, unknown>) => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.apiRequestFailed,
+      properties,
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  };
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -100,6 +119,7 @@ export default function ImportCoursePage() {
 
     setLoading(true);
     clearMessage();
+    let capturedFailure = false;
 
     try {
       const res = await fetch('/api/courses', {
@@ -113,6 +133,13 @@ export default function ImportCoursePage() {
       const data = await res.json();
 
       if (!res.ok) {
+        trackApiFailure({
+          endpoint: '/api/courses',
+          method: 'POST',
+          status_code: res.status,
+          feature_area: 'admin_import_course',
+        });
+        capturedFailure = true;
         throw new Error(data.message || 'Failed to import course');
       }
 
@@ -130,6 +157,15 @@ export default function ImportCoursePage() {
         router.push('/courses');
       }
     } catch (err: any) {
+      if (!capturedFailure) {
+        trackApiFailure({
+          endpoint: '/api/courses',
+          method: 'POST',
+          status_code: 0,
+          feature_area: 'admin_import_course',
+          error_code: 'network_exception',
+        });
+      }
       showMessage(err.message || 'Failed to import course', 'error');
     } finally {
       setLoading(false);
@@ -178,12 +214,20 @@ export default function ImportCoursePage() {
     setSearchLoading(true);
     setSearchResults([]);
     clearMessage();
+    let capturedFailure = false;
 
     try {
       const res = await fetch(`/api/golf-course-api/search?query=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
 
       if (!res.ok) {
+        trackApiFailure({
+          endpoint: '/api/golf-course-api/search',
+          method: 'GET',
+          status_code: res.status,
+          feature_area: 'admin_import_course',
+        });
+        capturedFailure = true;
         throw new Error(data.error || 'Failed to search courses');
       }
 
@@ -195,6 +239,15 @@ export default function ImportCoursePage() {
         showMessage('No courses found. Try a different search term.', 'error');
       }
     } catch (err: any) {
+      if (!capturedFailure) {
+        trackApiFailure({
+          endpoint: '/api/golf-course-api/search',
+          method: 'GET',
+          status_code: 0,
+          feature_area: 'admin_import_course',
+          error_code: 'network_exception',
+        });
+      }
       showMessage(err.message || 'Failed to search courses', 'error');
       setSearchResults([]);
     } finally {
