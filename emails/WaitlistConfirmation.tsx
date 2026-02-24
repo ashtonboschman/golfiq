@@ -18,14 +18,13 @@ interface WaitlistConfirmationEmailProps {
 }
 
 export default function WaitlistConfirmationEmail({
-  email,
   name,
   confirmationUrl,
 }: WaitlistConfirmationEmailProps) {
   return (
     <Html>
       <Head />
-      <Preview>Welcome to GolfIQ Beta - Confirm your email to get early access!</Preview>
+      <Preview>GolfIQ beta waitlist - confirm your email</Preview>
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>
@@ -33,17 +32,17 @@ export default function WaitlistConfirmationEmail({
             <span style={logoIQ}>IQ</span>
           </Heading>
 
-          <Heading style={h2}>Welcome to the future of golf analytics! 🏌️</Heading>
+          <Heading style={h2}>Welcome to GolfIQ beta</Heading>
 
           <Text style={text}>Hi {name},</Text>
 
           <Text style={text}>
-            Thanks for joining the GolfIQ beta waitlist! You're one step closer to mastering your
-            game with AI-powered insights, advanced analytics, and personalized coaching.
+            Thanks for joining the GolfIQ beta waitlist. Confirm your email to secure your spot and
+            get updates when beta access is available.
           </Text>
 
           <Text style={text}>
-            Please confirm your email address to secure your spot:
+            Please confirm your email address to continue:
           </Text>
 
           <Section style={buttonContainer}>
@@ -60,26 +59,26 @@ export default function WaitlistConfirmationEmail({
           <Hr style={hr} />
 
           <Text style={text}>
-            <strong>What's next?</strong>
+            <strong>What happens next?</strong>
           </Text>
           <Text style={text}>
-            • We'll notify you as soon as beta access opens
+            - We will notify you when beta access opens
             <br />
-            • Beta testers get full premium features for free
+            - Access is granted in stages as spots become available
             <br />
-            • Help shape the future of GolfIQ with your feedback
+            - Your feedback helps improve GolfIQ
           </Text>
 
           <Hr style={hr} />
 
           <Text style={footer}>
-            You're receiving this email because you signed up for the GolfIQ beta at golfiq.ca.
+            You are receiving this email because you signed up for the GolfIQ beta at golfiq.ca.
             <br />
-            If you didn't sign up, you can safely ignore this email.
+            If you did not sign up, you can safely ignore this email.
           </Text>
 
           <Text style={footer}>
-            Follow us: @GolfIQApp on Instagram, X, Facebook, TikTok & Threads
+            Follow us: @GolfIQApp on Instagram, X, Facebook, TikTok and Threads
           </Text>
         </Container>
       </Body>
@@ -90,7 +89,8 @@ export default function WaitlistConfirmationEmail({
 // Styles
 const main = {
   backgroundColor: '#0F131A',
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
+  fontFamily:
+    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
 };
 
 const container = {

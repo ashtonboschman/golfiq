@@ -353,4 +353,41 @@ describe('/insights page', () => {
     await screen.findByText('39.4');
     expect(screen.getByText('41.0')).toBeInTheDocument();
   });
+
+  it('keeps scoring, putting, and penalties delta aligned with displayed 1-decimal values', async () => {
+    const insights = makeInsights(true, {
+      combined: {
+        kpis: {
+          roundsRecent: 5,
+          avgScoreRecent: 1.74,
+          avgScoreBaseline: 1.64,
+          avgToParRecent: 3.2,
+          avgSgTotalRecent: 0.2,
+          bestScoreRecent: 1,
+          deltaVsBaseline: 0.09,
+        },
+        efficiency: {
+          fir: { recent: 0.5, baseline: 0.492, coverageRecent: '5/5' },
+          gir: { recent: 0.481, baseline: 0.468, coverageRecent: '5/5' },
+          puttsTotal: { recent: 1.74, baseline: 1.64, coverageRecent: '5/5' },
+          penaltiesPerRound: { recent: 1.74, baseline: 1.64, coverageRecent: '5/5' },
+        },
+      },
+    });
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    await screen.findAllByText('1.7');
+    expect(screen.getAllByText('1.7').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText('1.6').length).toBeGreaterThanOrEqual(3);
+
+    expect(screen.getByText('▲ +0.1 Strokes')).toBeInTheDocument();
+    expect(screen.getByText('▲ +0.1 Putts')).toBeInTheDocument();
+    expect(screen.getByText('▲ +0.1 Penalties')).toBeInTheDocument();
+  });
 });

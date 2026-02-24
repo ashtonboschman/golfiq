@@ -206,6 +206,15 @@ function formatCardValueOneDecimal(v: number | null): string {
   return (Math.round(v * 10) / 10).toFixed(1);
 }
 
+function roundToOneDecimal(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+function getRoundedOneDecimalDelta(recent: number, typical: number): number {
+  const delta = roundToOneDecimal(roundToOneDecimal(recent) - roundToOneDecimal(typical));
+  return delta === 0 || Object.is(delta, -0) ? 0 : delta;
+}
+
 function sgComponentLabel(component: SGComponentKey): string {
   if (component === 'offTee') return 'Off The Tee';
   if (component === 'approach') return 'Approach';
@@ -278,8 +287,9 @@ function getScoringDeltaSummary(recent: number | null, typical: number | null): 
     return { text: 'Not enough data', tone: 'none' };
   }
 
-  const delta = recent - typical;
-  if (Math.abs(delta) < 0.1) return { text: '\u2192 0.0 Strokes', tone: 'flat' };
+  // Keep delta consistent with card values (both shown to 1 decimal place).
+  const delta = getRoundedOneDecimalDelta(recent, typical);
+  if (delta === 0) return { text: '\u2192 0.0 Strokes', tone: 'flat' };
   if (delta < 0) return { text: `\u25BC ${delta.toFixed(1)} Strokes`, tone: 'up' };
   return { text: `\u25B2 +${delta.toFixed(1)} Strokes`, tone: 'down' };
 }
@@ -305,8 +315,9 @@ function getLowerBetterRateDeltaSummary(recent: number | null, typical: number |
     return { text: 'Not enough data', tone: 'none' };
   }
 
-  const delta = recent - typical;
-  if (Math.abs(delta) < 0.1) return { text: '\u2192 0.0 Putts', tone: 'flat' };
+  // Keep delta consistent with card values (both shown to 1 decimal place).
+  const delta = getRoundedOneDecimalDelta(recent, typical);
+  if (delta === 0) return { text: '\u2192 0.0 Putts', tone: 'flat' };
   if (delta < 0) return { text: `\u25BC ${delta.toFixed(1)} Putts`, tone: 'up' };
   return { text: `\u25B2 +${delta.toFixed(1)} Putts`, tone: 'down' };
 }
@@ -315,8 +326,9 @@ function getPenaltyRateDeltaSummary(recent: number | null, typical: number | nul
     return { text: 'Not enough data', tone: 'none' };
   }
 
-  const delta = recent - typical;
-  if (Math.abs(delta) < 0.1) return { text: '\u2192 0.0 Penalties', tone: 'flat' };
+  // Keep delta consistent with card values (both shown to 1 decimal place).
+  const delta = getRoundedOneDecimalDelta(recent, typical);
+  if (delta === 0) return { text: '\u2192 0.0 Penalties', tone: 'flat' };
   if (delta < 0) return { text: `\u25BC ${delta.toFixed(1)} Penalties`, tone: 'up' };
   return { text: `\u25B2 +${delta.toFixed(1)} Penalties`, tone: 'down' };
 }

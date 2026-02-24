@@ -1,7 +1,7 @@
 {
   "name": "GolfIQ",
   "short_name": "GolfIQ",
-  "description": "Track your golf game and improve with AI insights.",
+  "description": "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
   "id": "/",
   "start_url": "/dashboard",
   "scope": "/",

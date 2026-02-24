@@ -22,15 +22,14 @@ export default function ScreenshotCarousel() {
     { src: '/screenshots/landing/dashboard_1.PNG', alt: 'GolfIQ Dashboard - Overview' },
     { src: '/screenshots/landing/dashboard_2.PNG', alt: 'GolfIQ Dashboard - Analytics' },
     { src: '/screenshots/landing/dashboard_3.PNG', alt: 'GolfIQ Dashboard - Insights' },
-    { src: '/screenshots/landing/rounds.png', alt: 'GolfIQ Rounds' },
-    { src: '/screenshots/landing/add_round_quick.png', alt: 'GolfIQ Add Round - After Round' },
     { src: '/screenshots/landing/add_round_hole_by_hole.png', alt: 'GolfIQ Add Round - Live Round' },
     { src: '/screenshots/landing/round_stats.png', alt: 'GolfIQ Round Stats - Overview' },
+    { src: '/screenshots/landing/rounds.png', alt: 'GolfIQ Rounds' },
     { src: '/screenshots/landing/courses.png', alt: 'GolfIQ Courses' },
     { src: '/screenshots/landing/course_details.png', alt: 'GolfIQ Course Details' },
+    { src: '/screenshots/landing/insights_1.png', alt: 'GolfIQ Insights - Overview' },
     { src: '/screenshots/landing/friends.png', alt: 'GolfIQ Friends' },
     { src: '/screenshots/landing/leaderboard_global.png', alt: 'GolfIQ Leaderboard - Global' },
-    { src: '/screenshots/landing/leaderboard_friends.png', alt: 'GolfIQ Leaderboard - Friends' },
     { src: '/screenshots/landing/themes.png', alt: 'GolfIQ Themes' },
   ];
 

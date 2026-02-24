@@ -1511,16 +1511,22 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 
 .app-boot-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   z-index: 2500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   background: var(--color-primary-bg);
 }
 
 .app-boot-loader {
-  position: relative;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 72px;
   height: 72px;
   display: flex;

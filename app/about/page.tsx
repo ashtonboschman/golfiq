@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'About Us | GolfIQ',
-  description: 'Learn about GolfIQ and our mission to help golfers improve through intelligent analytics.',
+  description: 'Learn about GolfIQ and our mission to help golfers improve through deterministic performance analytics.',
 };
 
 export default function AboutPage() {
@@ -45,7 +45,7 @@ export default function AboutPage() {
             This is not a casual GPS scorecard. GolfIQ is built for players who want to improve through data, pattern recognition, and focused practice.
           </p>
 
-          <h2 className="legal-subtitle">Turning Data Into Intelligent Insights</h2>
+          <h2 className="legal-subtitle">Turning Data Into Actionable Insights</h2>
 
           <p>
             GolfIQ compares your performance against expectations for your handicap and identifies where you are gaining or losing strokes. That data is processed through deterministic scoring and strokes-gained models that translate your stats into clear, actionable recommendations.
@@ -53,10 +53,6 @@ export default function AboutPage() {
 
           <p>
             You are not just shown numbers. You are shown what they mean, why they matter, and where to focus next.
-          </p>
-
-          <p>
-            Future updates will introduce an interactive chat experience that allows golfers to ask questions about trends, projections, practice priorities, and long term improvement using their own data.
           </p>
 
           <h2 className="legal-subtitle">Why No GPS</h2>
@@ -72,7 +68,7 @@ export default function AboutPage() {
           <h2 className="legal-subtitle">Built in Public</h2>
 
           <p>
-            GolfIQ is currently in beta and actively evolving. New features are being added, refined, and tested with real user feedback. The official public launch is planned for spring.
+            GolfIQ is currently in beta and actively evolving. New features are being added, refined, and tested with real user feedback.
           </p>
 
           <p>

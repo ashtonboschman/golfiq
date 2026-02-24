@@ -11,9 +11,9 @@ import WaitlistForm from '@/components/landing/WaitlistForm';
 import LandingFooter from '@/components/landing/LandingFooter';
 
 export const metadata: Metadata = {
-  title: 'GolfIQ Golf App | Round Tracking, Strokes Gained, and Handicap Insights',
+  title: 'GolfIQ | Track Rounds. Unlock Insights. Score Lower.',
   description:
-    'GolfIQ is a golf app for round tracking, strokes gained analysis, and handicap trends. Get clear post-round and overall insights to lower your scores.',
+    'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
   keywords: [
     'golf app',
     'golf round tracker',
@@ -31,14 +31,14 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: 'GolfIQ Golf App | Round Tracking, Strokes Gained, and Handicap Insights',
+    title: 'GolfIQ | Track Rounds. Unlock Insights. Score Lower.',
     description:
-      'GolfIQ is a golf app for round tracking, strokes gained analysis, and handicap trends. Get clear post-round and overall insights to lower your scores.',
+      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
     url: 'https://www.golfiq.ca/',
     siteName: 'GolfIQ',
     images: [
       {
-        url: '/logos/share/golfiq-share.png',
+        url: '/twitter/golfiq-twitter-graphic.png',
         width: 1200,
         height: 630,
         alt: 'GolfIQ app preview',
@@ -48,10 +48,10 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'GolfIQ Golf App | Round Tracking, Strokes Gained, and Handicap Insights',
+    title: 'GolfIQ | Track Rounds. Unlock Insights. Score Lower.',
     description:
-      'GolfIQ is a golf app for round tracking, strokes gained analysis, and handicap trends. Get clear post-round and overall insights to lower your scores.',
-    images: ['/logos/share/golfiq-share.png'],
+      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
+    images: ['/twitter/golfiq-twitter-graphic.png'],
   },
 };
 
@@ -91,7 +91,7 @@ export default async function LandingPage() {
     operatingSystem: 'Web',
     url: 'https://www.golfiq.ca',
     description:
-      'GolfIQ helps golfers track rounds, analyze strokes gained, monitor handicap trends, and improve through deterministic insights.',
+      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
     offers: {
       '@type': 'Offer',
       price: '0',

@@ -17,7 +17,7 @@ export default function TermsPage() {
           </p>
 
           <p>
-            These Terms of Service ("Terms") govern your use of GolfIQ ("we," "our," or "us"), including our web and mobile applications, websites, and services. By accessing or using GolfIQ, you agree to these Terms.
+            These Terms of Service ("Terms") govern your use of GolfIQ ("we," "our," or "us"), including our web app, progressive web app (PWA), websites, and services. By accessing or using GolfIQ, you agree to these Terms.
           </p>
 
           <p>

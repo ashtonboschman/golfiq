@@ -17,7 +17,7 @@ export default function PrivacyPage() {
           </p>
 
           <p>
-            GolfIQ ("we," "our," or "us") respects your privacy and is committed to protecting the personal information you share with us. This Privacy Policy explains how we collect, use, and safeguard your information when you use GolfIQ, including our web app and mobile applications.
+            GolfIQ ("we," "our," or "us") respects your privacy and is committed to protecting the personal information you share with us. This Privacy Policy explains how we collect, use, and safeguard your information when you use GolfIQ, including our web app and progressive web app (PWA).
           </p>
 
           <h2 className="legal-subtitle">Information We Collect</h2>
@@ -57,7 +57,7 @@ export default function PrivacyPage() {
 
           <ul>
             <li>Provide, maintain, and improve GolfIQ features</li>
-            <li>Analyze rounds, generate Intelligent Insights, and deliver personalized recommendations</li>
+            <li>Analyze rounds, generate insights, and deliver data-driven recommendations</li>
             <li>Communicate with you regarding beta access, updates, promotions, or support</li>
             <li>Monitor app performance and usage trends</li>
             <li>Ensure security and prevent unauthorized activity</li>

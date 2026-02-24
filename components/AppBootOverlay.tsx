@@ -54,7 +54,7 @@ export default function AppBootOverlay() {
       <div className="app-boot-loader">
         <div className="app-boot-ring" aria-hidden="true" />
         <Image
-          src="/logos/favicon/golfiq-icon-48.png"
+          src="/logos/favicon/golfiq-icon-512-transparent.png"
           alt="GolfIQ"
           width={50}
           height={50}

@@ -9,12 +9,11 @@ interface SendEmailOptions {
   subject: string;
   html: string;
   text?: string;
-  from?: string; // Optional custom from address
+  from?: string;
 }
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Default from addresses for different email types
 export const EMAIL_FROM = {
   NOREPLY: 'GolfIQ <noreply@golfiq.ca>',
   ONBOARDING: 'GolfIQ <onboarding@golfiq.ca>',
@@ -56,7 +55,6 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailOpti
   }
 }
 
-/** BUTTON STYLES INLINE FOR NON-MSO EMAILS */
 const buttonInlineStyle = (bgColor: string) => `
   display:inline-block;
   background-color:${bgColor};
@@ -73,7 +71,7 @@ const buttonInlineStyle = (bgColor: string) => `
 
 /** GENERATE EMAIL VERIFICATION */
 export function generateEmailVerificationEmail(verifyUrl: string, firstName?: string) {
-  const subject = '✅ Verify your GolfIQ account';
+  const subject = 'Verify your GolfIQ account';
   const greeting = firstName ? `Hello ${firstName}` : 'Hello';
 
   const html = `
@@ -91,10 +89,10 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
       </head>
       <body>
         <div class="container">
-          <div class="header"><h1>Welcome to GolfIQ!</h1></div>
+          <div class="header"><h1>Welcome to GolfIQ</h1></div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Thanks for signing up! Please verify your email to start tracking your golf game:</p>
+            <p>Thanks for signing up. Please verify your email to start tracking your golf game:</p>
 
             <!--[if mso]>
             <table align="center" border="0" cellspacing="0" cellpadding="0">
@@ -118,7 +116,7 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color:#28a745;">${verifyUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
-            <p>If you didn't create a GolfIQ account, you can safely ignore this email.</p>
+            <p>If you did not create a GolfIQ account, you can safely ignore this email.</p>
           </div>
           <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
@@ -127,19 +125,19 @@ export function generateEmailVerificationEmail(verifyUrl: string, firstName?: st
   `;
 
   const text = `
-Welcome to GolfIQ!
+Welcome to GolfIQ
 
 ${greeting},
 
-Thanks for signing up! Please verify your email to start tracking your golf game:
+Thanks for signing up. Please verify your email to start tracking your golf game:
 
 ${verifyUrl}
 
 This link will expire in 24 hours.
 
-If you didn't create a GolfIQ account, you can safely ignore this email.
+If you did not create a GolfIQ account, you can safely ignore this email.
 
-© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+(c) ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();
 
   return { subject, html, text };
@@ -147,7 +145,7 @@ If you didn't create a GolfIQ account, you can safely ignore this email.
 
 /** GENERATE PASSWORD RESET EMAIL */
 export function generatePasswordResetEmail(resetUrl: string) {
-  const subject = '🔑 Reset your GolfIQ password';
+  const subject = 'Reset your GolfIQ password';
 
   const html = `
     <!DOCTYPE html>
@@ -191,7 +189,7 @@ export function generatePasswordResetEmail(resetUrl: string) {
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color:#007bff;">${resetUrl}</p>
             <p><strong>This link will expire in 1 hour.</strong></p>
-            <p>If you didn't request a password reset, you can safely ignore this email.</p>
+            <p>If you did not request a password reset, you can safely ignore this email.</p>
           </div>
           <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
@@ -210,9 +208,9 @@ ${resetUrl}
 
 This link will expire in 1 hour.
 
-If you didn't request a password reset, you can safely ignore this email.
+If you did not request a password reset, you can safely ignore this email.
 
-© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+(c) ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();
 
   return { subject, html, text };
@@ -220,7 +218,7 @@ If you didn't request a password reset, you can safely ignore this email.
 
 /** GENERATE WAITLIST CONFIRMATION EMAIL */
 export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { name: string; confirmationUrl: string }) {
-  const subject = '⛳ Confirm Your Email for GolfIQ Beta Waitlist';
+  const subject = 'Confirm your email for the GolfIQ beta waitlist';
   const greeting = name ? `Hello ${name}` : 'Hello';
 
   const html = `
@@ -238,10 +236,10 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
       </head>
       <body>
         <div class="container">
-          <div class="header"><h1>Confirm Your Email to Join the Beta</h1></div>
+          <div class="header"><h1>Confirm your email to join the beta</h1></div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Thanks for your interest in GolfIQ Beta. To be considered for access, please confirm your email:</p>
+            <p>Thanks for your interest in GolfIQ beta. To be considered for access, please confirm your email:</p>
 
             <!--[if mso]>
             <table align="center" border="0" cellspacing="0" cellpadding="0">
@@ -266,8 +264,8 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
             <p style="word-break: break-all; color:#007bff;">${confirmationUrl}</p>
             <p><strong>This link will expire in 24 hours.</strong></p>
             <p><strong>Next steps:</strong></p>
-            <p>Once you confirm your email, you’ll be eligible to be granted beta access. We review applications carefully and will notify you when a spot becomes available.</p>
-            <p>If you didn’t sign up for the waitlist, you can safely ignore this email.</p>
+            <p>Once you confirm your email, you will be eligible for beta access. We review applications and will notify you if a spot becomes available.</p>
+            <p>If you did not sign up for the waitlist, you can safely ignore this email.</p>
           </div>
           <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
@@ -276,22 +274,22 @@ export function generateWaitlistConfirmationEmail({ name, confirmationUrl }: { n
   `;
 
   const text = `
-Confirm Your Email to Join the Beta
+Confirm your email to join the beta
 
 ${greeting},
 
-Thanks for your interest in GolfIQ Beta. To be considered for access, please confirm your email:
+Thanks for your interest in GolfIQ beta. To be considered for access, please confirm your email:
 
 ${confirmationUrl}
 
 This link will expire in 24 hours.
 
 Next steps:
-Once you confirm your email, you’ll be eligible to be granted beta access. We review applications carefully and will notify you when a spot becomes available.
+Once you confirm your email, you will be eligible for beta access. We review applications and will notify you if a spot becomes available.
 
-If you didn’t sign up for the waitlist, you can safely ignore this email.
+If you did not sign up for the waitlist, you can safely ignore this email.
 
-© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+(c) ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();
 
   return { subject, html, text };
@@ -299,7 +297,7 @@ If you didn’t sign up for the waitlist, you can safely ignore this email.
 
 /** GENERATE BETA ACCESS EMAIL */
 export function generateBetaAccessEmail(name?: string) {
-  const subject = "🏌️‍♂️ You're In! Access GolfIQ Beta Now";
+  const subject = "You're in: access GolfIQ beta now";
   const greeting = name ? `Hello ${name}` : 'Hello';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://golfiq.ca';
 
@@ -318,11 +316,11 @@ export function generateBetaAccessEmail(name?: string) {
       </head>
       <body>
         <div class="container">
-          <div class="header"><h1>Welcome to GolfIQ Beta! 🎉</h1></div>
+          <div class="header"><h1>Welcome to GolfIQ beta</h1></div>
           <div class="content">
             <p>${greeting},</p>
-            <p>Congrats! You're now one of the first to try GolfIQ Beta!</p>
-            <p>You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.</p>
+            <p>Congrats, you now have access to GolfIQ beta.</p>
+            <p>You can now register an account and start tracking your golf game with performance analytics and data-driven insights.</p>
 
             <!--[if mso]>
             <table align="center" border="0" cellspacing="0" cellpadding="0">
@@ -346,17 +344,17 @@ export function generateBetaAccessEmail(name?: string) {
             <p>Or copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color:#28a745;">${appUrl}/login</p>
 
-            <p><strong>What's included in the beta:</strong></p>
+            <p><strong>What is included in the beta:</strong></p>
             <ul>
-              <li>Comprehensive round tracking (quick or hole-by-hole)</li>
-              <li>AI-powered insights and recommendations</li>
+              <li>Comprehensive round tracking (After Round or Live Round)</li>
+              <li>Post-round and overall insights based on your logged data</li>
               <li>Performance analytics and statistics</li>
               <li>Course database and tracking</li>
               <li>Friends and leaderboards</li>
-              <li>Multiple theme options</li>
+              <li>Theme options and settings</li>
             </ul>
-            <p>We'd love to hear your feedback as you use the app. Your input will help shape the future of GolfIQ.</p>
-            <p>Welcome aboard!</p>
+            <p>We would love to hear your feedback as you use the app.</p>
+            <p>Welcome aboard.</p>
           </div>
           <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
@@ -365,29 +363,29 @@ export function generateBetaAccessEmail(name?: string) {
   `;
 
   const text = `
-Welcome to GolfIQ Beta! 🎉
+Welcome to GolfIQ beta
 
 ${greeting},
 
-Congrats! You're now one of the first to try GolfIQ Beta!
+Congrats, you now have access to GolfIQ beta.
 
-You can now register an account and start tracking your golf game with advanced analytics and AI-powered insights.
+You can now register an account and start tracking your golf game with performance analytics and data-driven insights.
 
 Create your account here: ${appUrl}/login
 
-What's included in the beta:
-- Comprehensive round tracking (quick or hole-by-hole)
-- AI-powered insights and recommendations
+What is included in the beta:
+- Comprehensive round tracking (After Round or Live Round)
+- Post-round and overall insights based on your logged data
 - Performance analytics and statistics
 - Course database and tracking
 - Friends and leaderboards
-- Multiple theme options
+- Theme options and settings
 
-We'd love to hear your feedback as you use the app. Your input will help shape the future of GolfIQ.
+We would love to hear your feedback as you use the app.
 
-Welcome aboard!
+Welcome aboard.
 
-© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+(c) ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();
 
   return { subject, html, text };
@@ -398,10 +396,10 @@ export function generateWaitlistAdminNotificationEmail({
   confirmationDate,
   source,
 }: {
-  confirmationDate: string; // ISO string or formatted date
-  source?: string; // e.g., 'landing_page', 'referral', etc.
+  confirmationDate: string;
+  source?: string;
 }) {
-  const subject = `📝 Waitlist Confirmation: A user confirmed their email`;
+  const subject = 'Waitlist confirmation: a user confirmed their email';
   const greeting = 'Hello Admin,';
 
   const html = `
@@ -421,10 +419,10 @@ export function generateWaitlistAdminNotificationEmail({
       </head>
       <body>
         <div class="container">
-          <div class="header"><h1>Waitlist Email Confirmed ✅</h1></div>
+          <div class="header"><h1>Waitlist Email Confirmed</h1></div>
           <div class="content">
             <p>${greeting}</p>
-            <p>Someone has confirmed their email for the GolfIQ Beta Waitlist.</p>
+            <p>Someone has confirmed their email for the GolfIQ beta waitlist.</p>
 
             <div class="info">
               <p><strong>Confirmation Date:</strong> ${confirmationDate}</p>
@@ -433,7 +431,7 @@ export function generateWaitlistAdminNotificationEmail({
 
             <p>You can now consider granting beta access when appropriate.</p>
           </div>
-          <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved;</div>
+          <div class="footer">&copy; ${new Date().getFullYear()} GolfIQ. All rights reserved.</div>
         </div>
       </body>
     </html>
@@ -444,14 +442,14 @@ Waitlist Email Confirmed
 
 ${greeting}
 
-Someone has confirmed their email for the GolfIQ Beta Waitlist.
+Someone has confirmed their email for the GolfIQ beta waitlist.
 
 Confirmation Date: ${confirmationDate}
 ${source ? `Signup Source: ${source}` : ''}
 
 You can now consider granting beta access when appropriate.
 
-© ${new Date().getFullYear()} GolfIQ. All rights reserved.
+(c) ${new Date().getFullYear()} GolfIQ. All rights reserved.
   `.trim();
 
   return { subject, html, text };

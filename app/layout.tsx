@@ -9,9 +9,9 @@ import PwaManager from '@/components/pwa/PwaManager';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.golfiq.ca"),
-  title: "GolfIQ - Track Your Golf Game",
+  title: "GolfIQ | Track Rounds. Unlock Insights. Score Lower.",
   description:
-    "GolfIQ helps you track your golf rounds, analyze your performance, and improve your game with Intelligent Insights and personalized recommendations.",
+    "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
   },
@@ -44,14 +44,14 @@ export const metadata: Metadata = {
   },
 
   openGraph: {
-    title: "GolfIQ - Track Your Golf Game",
+    title: "GolfIQ | Track Rounds. Unlock Insights. Score Lower.",
     description:
-      "Smart insights for golfers. Track rounds, analyze performance, and improve your game.",
+      "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
     url: "https://www.golfiq.ca",
     siteName: "GolfIQ",
     images: [
       {
-        url: "/logos/share/golfiq-share.png",
+        url: "/twitter/golfiq-twitter-graphic.png",
         width: 1200,
         height: 630,
         alt: "GolfIQ app preview",
@@ -62,10 +62,10 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "GolfIQ",
+    title: "GolfIQ | Track Rounds. Unlock Insights. Score Lower.",
     description:
-      "Smart insights for golfers. Track rounds and improve your game.",
-    images: ["/logos/share/golfiq-share.png"],
+      "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
+    images: ["/twitter/golfiq-twitter-graphic.png"],
   },
 };
 
