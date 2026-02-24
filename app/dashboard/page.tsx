@@ -197,61 +197,93 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   useEffect(() => {
     if (status !== 'authenticated' || !requestedUserId) return;
 
+    const MAX_ATTEMPTS = 2;
+    const RETRY_DELAY_MS = 350;
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
     const fetchStats = async () => {
       setLoading(true);
       setError(null);
       clearMessage();
 
-      try {
-        const res = await fetch(
-          `/api/dashboard?statsMode=${statsMode}&user_id=${requestedUserId}&dateFilter=${dateFilter}`
-        );
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const res = await fetch(
+            `/api/dashboard?statsMode=${statsMode}&user_id=${requestedUserId}&dateFilter=${dateFilter}`,
+            {
+              cache: 'no-store',
+              credentials: 'include',
+              headers: { Accept: 'application/json' },
+            },
+          );
 
-        if (res.status === 403) {
-          setError('This dashboard is private or visible to friends only.');
-          setStats({
-            handicap: null,
-            total_rounds: 0,
-            best_score: null,
-            worst_score: null,
-            average_score: null,
-            best_to_par: null,
-            worst_to_par: null,
-            average_to_par: null,
-            all_rounds: [],
-            fir_avg: null,
-            gir_avg: null,
-            avg_putts: null,
-            avg_penalties: null,
-            hbh_stats: null,
-          });
-          return;
-        }
+          if (res.status === 403) {
+            setError('This dashboard is private or visible to friends only.');
+            setStats({
+              handicap: null,
+              total_rounds: 0,
+              best_score: null,
+              worst_score: null,
+              average_score: null,
+              best_to_par: null,
+              worst_to_par: null,
+              average_to_par: null,
+              all_rounds: [],
+              fir_avg: null,
+              gir_avg: null,
+              avg_putts: null,
+              avg_penalties: null,
+              hbh_stats: null,
+            });
+            return;
+          }
 
-        if (res.status === 401) {
-          router.replace('/login');
-          return;
-        }
+          if (res.status === 401) {
+            router.replace('/login');
+            return;
+          }
 
-        const data = await res.json();
+          const contentType = res.headers.get('content-type') || '';
+          let data: any = null;
 
-        if (data.type === 'error') {
-          console.error('Dashboard API error:', data.message);
-          showMessage(data.message || 'Error fetching dashboard stats', 'error');
-          setError(data.message || 'Error fetching dashboard stats');
-        } else {
+          if (contentType.includes('application/json')) {
+            data = await res.json();
+          } else if (!res.ok && attempt < MAX_ATTEMPTS && res.status >= 500) {
+            await delay(RETRY_DELAY_MS);
+            continue;
+          } else if (!contentType.includes('application/json')) {
+            throw new Error(`Unexpected dashboard response format (status ${res.status})`);
+          }
+
+          if (!res.ok || data?.type === 'error') {
+            const message = data?.message || `Error fetching dashboard stats (${res.status})`;
+            if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
+              await delay(RETRY_DELAY_MS);
+              continue;
+            }
+            console.error('Dashboard API error:', message);
+            showMessage(message, 'error');
+            setError(message);
+            return;
+          }
+
           setStats(data);
+          return;
+        } catch (err) {
+          if (attempt < MAX_ATTEMPTS) {
+            await delay(RETRY_DELAY_MS);
+            continue;
+          }
+          console.error('Dashboard fetch error:', err);
+          showMessage('Failed to load dashboard. Check console.', 'error');
+          setError('Failed to load dashboard.');
         }
-      } catch (err) {
-        console.error('Dashboard fetch error:', err);
-        showMessage('Failed to load dashboard. Check console.', 'error');
-        setError('Failed to load dashboard.');
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
-    fetchStats();
+    fetchStats().finally(() => setLoading(false));
   }, [status, statsMode, dateFilter, requestedUserId, router, showMessage, clearMessage]);
 
   const isOwnDashboard = parseInt(requestedUserId?.toString() || '0') === parseInt(session?.user?.id || '0');
