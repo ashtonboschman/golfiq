@@ -4,6 +4,7 @@ import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { normalizeRoundsByMode, calculateHandicap } from '@/lib/utils/handicap';
 import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
+import { buildDashboardOverallInsightsSummary } from '@/lib/insights/dashboardFocus';
 
 export async function GET(request: NextRequest) {
   try {
@@ -103,6 +104,18 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'asc' },
     });
 
+    const overallInsightModel = (prisma as any).overallInsight;
+    const storedOverallInsights = overallInsightModel
+      ? await overallInsightModel.findUnique({
+          where: { userId: requestedUserId },
+          select: { insights: true },
+        })
+      : null;
+    const overallInsightsSummary = buildDashboardOverallInsightsSummary(
+      storedOverallInsights?.insights ?? null,
+      statsMode,
+    );
+
     if (!rounds.length) {
       return successResponse({
         message: 'No rounds found',
@@ -120,6 +133,8 @@ export async function GET(request: NextRequest) {
         handicap: null,
         all_rounds: [],
         hbh_stats: null,
+        overallInsightsSummary,
+        latestRoundUpdatedAt: null,
       });
     }
 
@@ -171,6 +186,13 @@ export async function GET(request: NextRequest) {
     // Normalize rounds by mode
     const modeRoundsUncapped = normalizeRoundsByMode(allRoundsUncapped, statsMode);
     const totalRounds = modeRoundsUncapped.length;
+    const latestRoundUpdatedAt =
+      rounds.length > 0
+        ? rounds.reduce((latest: Date, round: any) => {
+            const updatedAt = round.updatedAt instanceof Date ? round.updatedAt : new Date(round.updatedAt);
+            return updatedAt > latest ? updatedAt : latest;
+          }, new Date(0)).toISOString()
+        : null;
 
      // Free users: limit to last 20 rounds (most recent)
     let roundsForStats = modeRoundsUncapped;
@@ -287,10 +309,13 @@ export async function GET(request: NextRequest) {
       hbh_rounds_count: hbhRoundCount,
     };
 
-    // Calculate aggregate stats
-    const bestScore = totalRounds ? Math.min(...roundsForStats.map((r: any) => r.score)) : null;
-    const worstScore = totalRounds ? Math.max(...roundsForStats.map((r: any) => r.score)) : null;
-    const averageScore = totalRounds ? roundsForStats.reduce((s: any, r: any) => s + r.score, 0) / totalRounds : null;
+    // Calculate aggregate stats based on the same capped set used for free-tier stats.
+    const statsRoundsCount = roundsForStats.length;
+    const bestScore = statsRoundsCount ? Math.min(...roundsForStats.map((r: any) => r.score)) : null;
+    const worstScore = statsRoundsCount ? Math.max(...roundsForStats.map((r: any) => r.score)) : null;
+    const averageScore = statsRoundsCount
+      ? roundsForStats.reduce((s: any, r: any) => s + r.score, 0) / statsRoundsCount
+      : null;
 
     // Calculate to_par stats (only for rounds with to_par values)
     const roundsWithToPar = (roundsForStats as any[]).filter((r: any) => r.to_par !== null && r.to_par !== undefined);
@@ -346,6 +371,8 @@ export async function GET(request: NextRequest) {
         first_name: profile.firstName,
         last_name: profile.lastName,
       },
+      overallInsightsSummary,
+      latestRoundUpdatedAt,
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

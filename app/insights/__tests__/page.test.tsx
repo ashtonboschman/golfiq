@@ -244,7 +244,7 @@ describe('/insights page', () => {
     expect(container.querySelectorAll('.overall-insight-fake')).toHaveLength(5);
   });
 
-  it('renders SG/projection sections as locked blur overlays for free with only one unlock button', async () => {
+  it('renders SG sections locked for free while keeping trajectory card unlocked with one unlock button', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ insights: makeInsights(false) }),
@@ -256,7 +256,11 @@ describe('/insights page', () => {
 
     expect(screen.getByText('Strokes Gained Trend (Premium)')).toBeInTheDocument();
     expect(screen.getByText('SG Component Breakdown (Premium)')).toBeInTheDocument();
-    expect(screen.getByText('Performance Trajectory (Premium)')).toBeInTheDocument();
+    expect(screen.getByText('Performance Trajectory')).toBeInTheDocument();
+    expect(
+      screen.getByText('Upgrade to unlock projected score and handicap ranges.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Performance Trajectory (Premium)')).not.toBeInTheDocument();
     expect(screen.getByText('SG Component Delta')).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -264,18 +268,13 @@ describe('/insights page', () => {
       ),
     ).toBeInTheDocument();
 
-    expect(container.querySelectorAll('.locked-section')).toHaveLength(4);
-    expect(container.querySelectorAll('.locked-blur-content')).toHaveLength(4);
+    expect(container.querySelectorAll('.locked-section')).toHaveLength(3);
+    expect(container.querySelectorAll('.locked-blur-content')).toHaveLength(3);
     expect(container.querySelectorAll('.locked-overlay.has-cta')).toHaveLength(1);
 
     const unlockButtons = screen.getAllByRole('button', { name: /unlock full insights/i });
     expect(unlockButtons).toHaveLength(1);
-
-    const trajectoryLockSection = screen
-      .getByText('Performance Trajectory (Premium)')
-      .closest('.locked-section');
-    expect(trajectoryLockSection).not.toBeNull();
-    expect(trajectoryLockSection?.querySelector('button.btn-upgrade')).toBeNull();
+    expect(container.querySelector('.trajectory-lock-section')).toBeNull();
   });
 
   it('renders premium with all insight cards and no unlock CTA', async () => {

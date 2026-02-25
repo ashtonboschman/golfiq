@@ -172,7 +172,7 @@ describe('deterministic overall cards', () => {
 
     expect(cards[0]).toBeTruthy();
     expect(cards[0]).toMatch(/9-hole/i);
-    expect(cards[0]).toMatch(/not enough|no .* rounds|empty|not available|unlock|needs round history|waiting/i);
+    expect(cards[0]).toMatch(/not enough|no .* rounds|empty|not available|unlock|locked until|needs round history|waiting|exists in this view/i);
   });
 
   it('uses not-available trajectory wording instead of stable when data is missing', () => {
@@ -232,7 +232,7 @@ describe('deterministic overall cards', () => {
     });
 
     expect(cards[1]).toContain('Strength:');
-    expect(cards[1]).toMatch(/least costly|least damage|steadiest|still below|still under|negative|least leaky|wrong side of neutral|holding up best|losing strokes|most resilient|maintaining the highest level|strongest relative performer|limiting losses|best relative control|strongest area available/i);
+    expect(cards[1]).toMatch(/least costly|least damage|steadiest|still below|still under|negative|least leaky|wrong side of neutral|holding up best|losing strokes|most resilient|maintaining the highest level|strongest relative performer|limiting losses|best relative control|strongest area available|most stable component/i);
     expect(cards[1]).not.toMatch(/clearest edge|front-runner|top lever|strongest results/i);
   });
 
@@ -262,7 +262,7 @@ describe('deterministic overall cards', () => {
     });
 
     expect(cards[1]).toContain('Strength:');
-    expect(cards[1]).toMatch(/limited recent coverage|small sample|early strength|leads so far|at this stage|coverage remains light|more data needed|first at this stage|thin dataset/i);
+    expect(cards[1]).toMatch(/limited recent coverage|limited coverage|small sample|early strength|leads so far|at this stage|coverage remains light|more data needed|first at this stage|thin dataset/i);
   });
 
   it('treats 9-hole delta of 0.5 strokes as near baseline for card 1', () => {
@@ -297,7 +297,7 @@ describe('deterministic overall cards', () => {
     });
 
     expect(cards[0]).toContain('Latest round');
-    expect(cards[0]).toMatch(/holding|stable|matching|close|aligned|steady|in sync|level/i);
+    expect(cards[0]).toMatch(/holding|stable|matching|close|aligned|steady|in sync|level|mirror/i);
   });
 
   it('allows strength/opportunity selection with at least 1 recent SG sample and marks low coverage', () => {
@@ -410,7 +410,7 @@ describe('deterministic overall cards', () => {
 
     expect(cards[3]).toContain('Priority first');
     expect(cards[3]).toContain('Use one simple pre-shot routine');
-    expect(cards[3]).toMatch(/log|track|record|add/);
+    expect(cards[3]).toMatch(/log|track|record|add/i);
     expect(cards[3]).not.toContain('Priority first: track');
     expect(cards[4]).toContain('On-course strategy:');
     expect(cards[4]).toMatch(/tee|green|pace|target|risk|line|penalt|putt|approach/i);

@@ -94,7 +94,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[0]).toBe('M1-C');
-    expect(out.messages[0]).toContain('Penalties stayed under control and saved 0.7 strokes');
+    expect(out.messages[0]).toContain('Penalties stayed under control, saving 0.7 strokes');
     expect(out.messages[0]).not.toContain('top measured contributor');
   });
 

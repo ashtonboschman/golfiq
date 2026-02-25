@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useMessage } from '../providers';
+import { useMessage } from '@/app/providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import RoundCard from '@/components/RoundCard';
 import UpgradeModal from '@/components/UpgradeModal';
@@ -12,11 +12,18 @@ import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
-import { formatDate, formatHandicap, formatNumber, formatPercent, formatToPar } from '@/lib/formatters';
+import { formatDate, formatHandicap, formatNumber, formatToPar } from '@/lib/formatters';
 import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import {
+  buildRoundFocusState,
+  focusComponentLabel,
+  type DashboardOverallInsightsSummary,
+} from '@/lib/insights/dashboardFocus';
 
+type StatsMode = 'combined' | '9' | '18';
+const dashboardFocusViewedKeys = new Set<string>();
 
 interface DashboardStats {
   handicap: number | null;
@@ -55,6 +62,20 @@ interface DashboardStats {
     first_name?: string | null;
     last_name?: string | null;
   };
+  overallInsightsSummary?: DashboardOverallInsightsSummary | null;
+  latestRoundUpdatedAt?: string | null;
+}
+
+function RoundFocusSkeletonBody() {
+  return (
+    <>
+      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-title" />
+      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
+      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
+      <div className="skeleton dashboard-focus-skeleton-button" />
+      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-caption" />
+    </>
+  );
 }
 
 function DashboardFallback() {
@@ -70,6 +91,14 @@ function DashboardFallback() {
       </div>
 
       <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
+
+      <div className="card dashboard-focus-card dashboard-focus-card-relative dashboard-focus-skeleton-card">
+        <InfoTooltip text="Built from your recent scoring trend in this mode (last 5 vs baseline) and your tracked stats when available." />
+        <div className="dashboard-focus-header">
+          <h3 className="dashboard-focus-title">Round Focus</h3>
+        </div>
+        <RoundFocusSkeletonBody />
+      </div>
 
       <div className="grid grid-2">
         {Array.from({ length: 8 }).map((_, idx) => (
@@ -110,7 +139,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statsMode, setStatsMode] = useState('combined');
+  const [statsMode, setStatsMode] = useState<StatsMode>('combined');
   const [dateFilter, setDateFilter] = useState('all');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showToPar, setShowToPar] = useState(false);
@@ -118,7 +147,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [accentColor, setAccentColor] = useState('#2D6CFF');
   const [accentHighlight, setAccentHighlight] = useState('#36ad64');
   const [textColor, setTextColor] = useState('#EDEFF2');
-  const [secondaryTextColor, setSecondaryTextColor] = useState('#9AA3B2');
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
   const [stats, setStats] = useState<DashboardStats>({
@@ -137,6 +165,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     avg_putts: null,
     avg_penalties: null,
     hbh_stats: null,
+    overallInsightsSummary: null,
+    latestRoundUpdatedAt: null,
   });
 
   const trackUpgradeClick = useCallback((ctaLocation: string) => {
@@ -158,6 +188,30 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     );
   }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
+  const trackFocusCtaClick = useCallback((component: string | null, focusType: string, confidence: string | null, deltaScore: number | null) => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.dashboardFocusCtaClicked,
+      {
+        cta: 'view_insights',
+        plan: isPremium ? 'premium' : 'free',
+        mode: statsMode,
+        focus_type: focusType,
+        component,
+        deltaScore,
+        confidence,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  }, [isPremium, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
+
   // Load theme colors from CSS variables
   useEffect(() => {
     const updateThemeColors = () => {
@@ -165,14 +219,12 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       const accent = rootStyles.getPropertyValue('--color-accent').trim() || '#2D6CFF';
       const highlight = rootStyles.getPropertyValue('--color-accent-highlight').trim() || '#36ad64';
       const text = rootStyles.getPropertyValue('--color-primary-text').trim() || '#EDEFF2';
-      const secondaryText = rootStyles.getPropertyValue('--color-secondary-text').trim() || '#9AA3B2';
       const grid = rootStyles.getPropertyValue('--color-border').trim() || '#2A313D';
       const surface = rootStyles.getPropertyValue('--color-primary-surface').trim() || '#171C26';
 
       setAccentColor(accent);
       setAccentHighlight(highlight);
       setTextColor(text);
-      setSecondaryTextColor(secondaryText);
       setGridColor(grid);
       setSurfaceColor(surface);
     };
@@ -234,6 +286,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               avg_putts: null,
               avg_penalties: null,
               hbh_stats: null,
+              overallInsightsSummary: null,
+              latestRoundUpdatedAt: null,
             });
             return;
           }
@@ -324,8 +378,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     // Mark that we've shown the modal for this round count in this session
     sessionStorage.setItem(`upgrade-modal-shown-${totalRoundsForModal}`, 'true');
   };
-
-  if (error && !loading) return <p className="error-text">{error}</p>;
 
   const displayRounds = (stats.all_rounds ?? []).map((r: any) => ({
     ...r,
@@ -425,18 +477,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       ],
     };
 
-  const scoreValues = trendData
-    .map(d => showToPar ? d.to_par : d.score)
-    .filter((v): v is number => v != null);
-
-  const yMin = scoreValues.length
-    ? Math.floor(Math.min(...scoreValues) / 5) * 5
-    : undefined;
-
-  const yMax = scoreValues.length
-    ? Math.ceil(Math.max(...scoreValues) / 5) * 5
-    : undefined;
-
   // Dynamic modal messaging based on round count (use unfiltered count)
   const getModalMessage = () => {
     const rounds = totalRoundsForModal;
@@ -459,6 +499,115 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     if (value == null || !Number.isFinite(value)) return '-';
     return `${Math.round(value)}%`;
   };
+
+  const focusSummary = stats.overallInsightsSummary ?? null;
+  const roundFocusState = buildRoundFocusState(
+    focusSummary,
+    Boolean(isPremium),
+    Boolean(stats.limitedToLast20),
+  );
+  const focusPayload = roundFocusState.kind === 'NEED_MORE_ROUNDS' ? null : roundFocusState.focus;
+  const focusComponent = focusComponentLabel(focusPayload?.component ?? null);
+  const focusTypeForEvent =
+    roundFocusState.kind === 'NEED_MORE_ROUNDS' ? 'onboarding' : focusPayload?.focusType ?? 'score';
+
+  const parseTimestamp = (value: string | null | undefined): number | null => {
+    if (!value) return null;
+    const ts = Date.parse(value);
+    return Number.isFinite(ts) ? ts : null;
+  };
+
+  const latestRoundUpdatedAtTs = parseTimestamp(stats.latestRoundUpdatedAt);
+  const focusLastUpdatedTs = parseTimestamp(focusSummary?.lastUpdatedAt ?? null);
+  const showFocusUpdatingNote =
+    latestRoundUpdatedAtTs != null &&
+    focusLastUpdatedTs != null &&
+    latestRoundUpdatedAtTs > focusLastUpdatedTs;
+
+  const trackDashboardFocusModeChanged = useCallback((fromMode: StatsMode, toMode: StatsMode) => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.dashboardFocusModeChanged,
+      {
+        fromMode,
+        toMode,
+        plan: isPremium ? 'premium' : 'free',
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  }, [isPremium, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
+
+  const runFocusAction = useCallback(() => {
+    if (!focusPayload) return;
+    trackFocusCtaClick(
+      focusComponent,
+      focusPayload.focusType,
+      focusSummary?.confidence ?? null,
+      focusSummary?.scoreTrendDelta ?? null,
+    );
+    router.push('/insights');
+  }, [focusComponent, focusPayload, focusSummary?.confidence, focusSummary?.scoreTrendDelta, router, trackFocusCtaClick]);
+
+  useEffect(() => {
+    if (loading || status !== 'authenticated') return;
+
+    const viewKey = [
+      session?.user?.id ?? 'unknown',
+      statsMode,
+      isPremium ? 'premium' : 'free',
+      focusTypeForEvent,
+      focusPayload?.component ?? 'none',
+      focusSummary?.scoreTrendDelta ?? 'na',
+      focusSummary?.confidence ?? 'na',
+    ].join('|');
+
+    if (dashboardFocusViewedKeys.has(viewKey)) return;
+    dashboardFocusViewedKeys.add(viewKey);
+
+    captureClientEvent(
+      ANALYTICS_EVENTS.dashboardFocusViewed,
+      {
+        plan: isPremium ? 'premium' : 'free',
+        mode: statsMode,
+        focus_type: focusTypeForEvent,
+        component: focusComponent,
+        deltaScore: focusSummary?.scoreTrendDelta ?? null,
+        confidence: focusSummary?.confidence ?? null,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  }, [
+    focusComponent,
+    focusSummary?.confidence,
+    focusSummary?.scoreTrendDelta,
+    focusPayload?.component,
+    focusTypeForEvent,
+    isPremium,
+    loading,
+    pathname,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    statsMode,
+    status,
+  ]);
+
+  if (error && !loading) return <p className="error-text">{error}</p>;
 
   return (
     <div className="page-stack">
@@ -483,7 +632,13 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           instanceId="dashboard-stats-mode"
           inputId="dashboard-stats-mode-input"
           value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
-          onChange={(option) => option && setStatsMode(option.value)}
+          onChange={(option) => {
+            if (!option) return;
+            const nextMode = option.value as StatsMode;
+            if (nextMode === statsMode) return;
+            trackDashboardFocusModeChanged(statsMode, nextMode);
+            setStatsMode(nextMode);
+          }}
           options={[
             { value: 'combined', label: 'Combined' },
             { value: '9', label: '9 Holes' },
@@ -536,6 +691,50 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       {statsMode === 'combined' && (
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
+
+      <div className="card dashboard-focus-card dashboard-focus-card-relative" data-testid="dashboard-focus-card">
+        <InfoTooltip text="Built from your recent scoring trend in this mode (last 5 vs baseline) and your tracked stats when available." />
+        <div className="dashboard-focus-header">
+          <h3 className="dashboard-focus-title">Round Focus</h3>
+        </div>
+        {loading ? (
+          <RoundFocusSkeletonBody />
+        ) : (
+          <>
+            {roundFocusState.kind === 'NEED_MORE_ROUNDS' ? (
+              <>
+                <p className="dashboard-focus-headline">Log 3 rounds to unlock trends.</p>
+                <p className="dashboard-focus-body">Trends unlock automatically after your third logged round.</p>
+              </>
+            ) : (
+              <>
+                <p className="dashboard-focus-headline">{focusPayload?.headline}</p>
+                <p className="dashboard-focus-body">{focusPayload?.body}</p>
+                {focusPayload?.supportingLine && (
+                  <p className="dashboard-focus-supporting">{focusPayload.supportingLine}</p>
+                )}
+                {focusPayload?.drillLine && (
+                  <p className="dashboard-focus-drill">{focusPayload.drillLine}</p>
+                )}
+              </>
+            )}
+            {showFocusUpdatingNote && (
+              <p className="dashboard-focus-updating">Updating focus...</p>
+            )}
+            {roundFocusState.kind !== 'NEED_MORE_ROUNDS' && (
+              <div className="dashboard-focus-actions">
+                <button
+                  type="button"
+                  className="btn btn-add"
+                  onClick={runFocusAction}
+                >
+                  View Insights
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Premium upgrade CTA for limited users */}
       {!loading && stats.limitedToLast20 && stats.totalRoundsInDb && stats.totalRoundsInDb > 20 && (

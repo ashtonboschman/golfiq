@@ -42,7 +42,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-B',
     messageIndex: 0,
     expectedOutcome: 'M1-B',
-    expectedMessageFragment: 'held up best relative to the other measured areas',
+    expectedMessageFragment: 'held up best at 0.5 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
@@ -56,7 +56,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-C',
     messageIndex: 0,
     expectedOutcome: 'M1-C',
-    expectedMessageFragment: 'picking up 0.5 strokes',
+    expectedMessageFragment: 'gaining 0.5 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.5 },
@@ -66,7 +66,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-D',
     messageIndex: 0,
     expectedOutcome: 'M1-D',
-    expectedMessageFragment: 'was close to even at 0.0 strokes',
+    expectedMessageFragment: 'finished near even at 0.0 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0 },
@@ -92,7 +92,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-C',
     messageIndex: 1,
     expectedOutcome: 'M2-C',
-    expectedMessageFragment: 'finished close to even at 0.0 strokes',
+    expectedMessageFragment: 'finished near even at 0.0 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0 },
@@ -106,7 +106,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-D',
     messageIndex: 1,
     expectedOutcome: 'M2-D',
-    expectedMessageFragment: 'where the most strokes were lost at 0.8 strokes',
+    expectedMessageFragment: 'cost the most at 0.8 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.8 },

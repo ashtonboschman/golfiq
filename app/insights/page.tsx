@@ -348,17 +348,23 @@ function formatTrajectoryLabel(
   return 'Not enough data';
 }
 
-function getTrajectoryDeltaSummary(delta: number | null | undefined): { text: string; tone: DeltaTone } {
-  if (delta == null || !Number.isFinite(delta)) {
-    return { text: 'Log 5 rounds to unlock trajectory.', tone: 'none' };
-  }
-  if (delta < -0.5) {
-    return { text: `\u25BC  ${delta.toFixed(1)} strokes compared to average`, tone: 'up' };
-  }
-  if (delta > 0.5) {
-    return { text: `\u25B2 ${delta.toFixed(1)} strokes compared to average`, tone: 'down' };
-  }
-  return { text: '\u2192 Playing at your normal scoring level', tone: 'flat' };
+function getScoreNearThresholdForMode(mode: StatsMode): number {
+  return mode === '9' ? 0.5 : 1.0;
+}
+
+function classifyTrajectoryFromScoringDelta(
+  mode: StatsMode,
+  roundsRecent: number | null | undefined,
+  scoreRecent: number | null | undefined,
+  scoreBaseline: number | null | undefined,
+): OverallInsightsPayload['projection']['trajectory'] {
+  if (roundsRecent == null || roundsRecent <= 0) return 'unknown';
+  if (scoreRecent == null || !Number.isFinite(scoreRecent)) return 'unknown';
+  if (scoreBaseline == null || !Number.isFinite(scoreBaseline)) return 'unknown';
+
+  const delta = scoreRecent - scoreBaseline;
+  if (Math.abs(delta) <= getScoreNearThresholdForMode(mode)) return 'flat';
+  return delta < 0 ? 'improving' : 'worsening';
 }
 
 type ComparisonBarCardProps = {
@@ -768,22 +774,21 @@ export default function InsightsPage() {
   const selectedModeProjection = insights?.projection_by_mode?.[statsMode] ?? null;
   const sgComponents = modePayload?.sgComponents ?? insights?.sg?.components;
   const sgHasComponentData = Boolean(sgComponents?.hasData);
-  const trajectoryLabel = formatTrajectoryLabel(selectedModeProjection?.trajectory ?? projection?.trajectory);
-  const trajectoryDelta = getTrajectoryDeltaSummary(modePayload?.kpis.deltaVsBaseline ?? null);
-  const trajectoryDeltaColor =
-    trajectoryDelta.tone === 'up'
-      ? INSIGHTS_POSITIVE_COLOR
-      : trajectoryDelta.tone === 'down'
-        ? INSIGHTS_NEGATIVE_COLOR
-        : 'var(--color-secondary-text)';
+  const selectedTrajectory = classifyTrajectoryFromScoringDelta(
+    statsMode,
+    modePayload?.kpis.roundsRecent,
+    modePayload?.kpis.avgScoreRecent,
+    modePayload?.kpis.avgScoreBaseline,
+  );
+  const trajectoryLabel = formatTrajectoryLabel(selectedTrajectory);
   const trajectoryChipTone =
-    selectedModeProjection?.trajectory === 'improving'
+    selectedTrajectory === 'improving'
       ? 'up'
-      : selectedModeProjection?.trajectory === 'worsening'
+      : selectedTrajectory === 'worsening'
         ? 'down'
-        : selectedModeProjection?.trajectory === 'volatile'
+        : selectedTrajectory === 'volatile'
           ? 'warn'
-          : selectedModeProjection?.trajectory === 'flat'
+          : selectedTrajectory === 'flat'
             ? 'flat'
             : 'none';
   const trajectoryChipColor =
@@ -1089,6 +1094,130 @@ export default function InsightsPage() {
 
   return (
     <div className="page-stack">
+      <div className="dashboard-filters">
+        <Select
+          instanceId="insights-stats-mode"
+          inputId="insights-stats-mode-input"
+          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
+          onChange={(option) => {
+            if (!option) return;
+            const nextMode = option.value as StatsMode;
+            if (nextMode !== statsMode) {
+              captureClientEvent(
+                ANALYTICS_EVENTS.insightModeChanged,
+                {
+                  from_mode: statsMode,
+                  to_mode: nextMode,
+                },
+                {
+                  pathname,
+                  user: {
+                    id: session?.user?.id,
+                    subscription_tier: session?.user?.subscription_tier,
+                    auth_provider: session?.user?.auth_provider,
+                  },
+                  isLoggedIn: status === 'authenticated',
+                },
+              );
+            }
+            setStatsMode(nextMode);
+          }}
+          options={[
+            { value: 'combined', label: 'Combined' },
+            { value: '9', label: '9 Holes' },
+            { value: '18', label: '18 Holes' },
+          ]}
+          isSearchable={false}
+          isDisabled={showSkeletonContent}
+          styles={selectStyles}
+          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+        />
+      </div>
+
+      {statsMode === 'combined' && (
+        <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
+      )}
+
+      {showSkeletonContent ? (
+        <div className="card dashboard-stat-card trajectory-card">
+          <div className="trajectory-header">
+            <h3>Performance Trajectory</h3>
+          </div>
+          <div className="trajectory-status-row">
+            <span className="skeleton" style={{ display: 'inline-block', width: 140, height: 32, borderRadius: 999 }} />
+          </div>
+          <div className="trajectory-pill-grid">
+            <div className="trajectory-pill">
+              <span className="trajectory-pill-label">Score Range</span>
+              <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+            </div>
+            <div className="trajectory-pill">
+              <span className="trajectory-pill-label">HCP Range</span>
+              <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+            </div>
+          </div>
+        </div>
+      ) : insights ? (
+        <div className="card dashboard-stat-card trajectory-card">
+          <div className="trajectory-header">
+            <h3>Performance Trajectory</h3>
+            <InfoTooltip text="Uses your recent scoring vs your average to estimate direction over your next 10 rounds if current form continues." />
+          </div>
+          <div className="trajectory-status-row">
+            <span
+              className={`trajectory-label trajectory-chip is-${trajectoryChipTone}`}
+              style={{ color: trajectoryChipColor, borderColor: trajectoryChipColor }}
+            >
+              {trajectoryLabel}
+            </span>
+          </div>
+
+          {isPremiumContext ? (
+            premiumScoreProjectionUnlocked ? (
+              <>
+                <div className="trajectory-pill-grid">
+                  <div className="trajectory-pill">
+                    <span className="trajectory-pill-label">{effectiveScoreRange ? 'Score Range' : 'Estimated Score'}</span>
+                    <span className="trajectory-pill-value">
+                      {effectiveScoreRange
+                        ? `${Math.round(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.round(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
+                        : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? null)}`}
+                    </span>
+                  </div>
+                  <div className="trajectory-pill">
+                    <span className="trajectory-pill-label">
+                      {premiumHandicapProjectionUnlocked
+                        ? (effectiveHandicapRange ? 'HCP Range' : 'Estimated Handicap')
+                        : 'HCP Range'}
+                    </span>
+                    <span className="trajectory-pill-value">
+                      {premiumHandicapProjectionUnlocked
+                        ? (effectiveHandicapRange
+                          ? `${formatHandicap(Math.min(effectiveHandicapRange.low, effectiveHandicapRange.high))}-${formatHandicap(Math.max(effectiveHandicapRange.low, effectiveHandicapRange.high))}`
+                          : `~${formatHandicap(projection?.projectedHandicapIn10 ?? null)}`)
+                        : '--'}
+                    </span>
+                  </div>
+                </div>
+                {!premiumHandicapProjectionUnlocked && (
+                  <span className="secondary-text insights-subtle-note insights-centered-title">
+                    Not enough handicap history yet for a reliable handicap projection.
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="secondary-text insights-subtle-note insights-centered-title">
+                Projections unlock after 10 rounds logged.
+              </span>
+            )
+          ) : (
+            <span className="secondary-text insights-subtle-note insights-centered-title">
+              Upgrade to unlock projected score and handicap ranges.
+            </span>
+          )}
+        </div>
+      ) : null}
+      
       <div className="card insights-card">
         <div className="insights-header">
           <div className="insights-title">
@@ -1168,50 +1297,6 @@ export default function InsightsPage() {
           )}
         </div>
       </div>
-
-      <div className="dashboard-filters">
-        <Select
-          instanceId="insights-stats-mode"
-          inputId="insights-stats-mode-input"
-          value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
-          onChange={(option) => {
-            if (!option) return;
-            const nextMode = option.value as StatsMode;
-            if (nextMode !== statsMode) {
-              captureClientEvent(
-                ANALYTICS_EVENTS.insightModeChanged,
-                {
-                  from_mode: statsMode,
-                  to_mode: nextMode,
-                },
-                {
-                  pathname,
-                  user: {
-                    id: session?.user?.id,
-                    subscription_tier: session?.user?.subscription_tier,
-                    auth_provider: session?.user?.auth_provider,
-                  },
-                  isLoggedIn: status === 'authenticated',
-                },
-              );
-            }
-            setStatsMode(nextMode);
-          }}
-          options={[
-            { value: 'combined', label: 'Combined' },
-            { value: '9', label: '9 Holes' },
-            { value: '18', label: '18 Holes' },
-          ]}
-          isSearchable={false}
-          isDisabled={showSkeletonContent}
-          styles={selectStyles}
-          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-        />
-      </div>
-
-      {statsMode === 'combined' && (
-        <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
-      )}
 
       {showSkeletonContent ? (
         <>
@@ -1337,25 +1422,6 @@ export default function InsightsPage() {
             ))}
           </div>
 
-          <div className="card dashboard-stat-card trajectory-card">
-            <div className="trajectory-header">
-              <h3>Performance Trajectory</h3>
-            </div>
-            <div className="trajectory-status-row">
-              <span className="skeleton" style={{ display: 'inline-block', width: 110, height: 28, borderRadius: 999 }} />
-              <span className="skeleton" style={{ display: 'inline-block', width: 200, height: 14 }} />
-            </div>
-            <div className="trajectory-pill-grid">
-              <div className="trajectory-pill">
-                <span className="trajectory-pill-label">Score Range</span>
-                <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
-              </div>
-              <div className="trajectory-pill">
-                <span className="trajectory-pill-label">HCP Range</span>
-                <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
-              </div>
-            </div>
-          </div>
         </>
       ) : (
         <>
@@ -1583,87 +1649,6 @@ export default function InsightsPage() {
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
           />
         </div>
-      )}
-
-      {insights && (
-        <LockedSection
-          locked={!isPremiumContext}
-          title="Performance Trajectory (Premium)"
-          subtitle="See whether your scoring trend is improving, flat, or worsening, with projected score and handicap ranges."
-          className="trajectory-lock-section"
-        >
-          <div className="card dashboard-stat-card trajectory-card">
-            <div className="trajectory-header">
-              <h3>Performance Trajectory</h3>
-              <InfoTooltip text="Uses your recent scoring vs your average to estimate direction. Based on your recent rounds continuing." />
-            </div>
-            <div className="trajectory-status-row">
-              <span
-                className={`trajectory-label trajectory-chip is-${trajectoryChipTone}`}
-                style={{ color: trajectoryChipColor, borderColor: trajectoryChipColor }}
-              >
-                {trajectoryLabel}
-              </span>
-              <span
-                className={`trajectory-delta ${getDeltaToneClass(trajectoryDelta.tone)}`}
-                style={{ color: trajectoryDeltaColor }}
-              >
-                {trajectoryDelta.text}
-              </span>
-            </div>
-
-            {isPremiumContext ? (
-              premiumScoreProjectionUnlocked ? (
-                <>
-                  <div className="trajectory-pill-grid">
-                    <div className="trajectory-pill">
-                      <span className="trajectory-pill-label">{effectiveScoreRange ? 'Score Range' : 'Estimated Score'}</span>
-                      <span className="trajectory-pill-value">
-                        {effectiveScoreRange
-                          ? `${Math.round(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.round(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
-                          : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? null)}`}
-                      </span>
-                    </div>
-                    <div className="trajectory-pill">
-                      <span className="trajectory-pill-label">
-                        {premiumHandicapProjectionUnlocked
-                          ? (effectiveHandicapRange ? 'HCP Range' : 'Estimated Handicap')
-                          : 'HCP Range'}
-                      </span>
-                      <span className="trajectory-pill-value">
-                        {premiumHandicapProjectionUnlocked
-                          ? (effectiveHandicapRange
-                            ? `${formatHandicap(Math.min(effectiveHandicapRange.low, effectiveHandicapRange.high))}-${formatHandicap(Math.max(effectiveHandicapRange.low, effectiveHandicapRange.high))}`
-                            : `~${formatHandicap(projection?.projectedHandicapIn10 ?? null)}`)
-                          : '--'}
-                      </span>
-                    </div>
-                  </div>
-                  {!premiumHandicapProjectionUnlocked && (
-                    <span className="secondary-text insights-subtle-note insights-centered-title">
-                      Not enough handicap history yet for a reliable handicap projection.
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="secondary-text insights-subtle-note insights-centered-title">
-                  Projections unlock after 10 rounds logged.
-                </span>
-              )
-            ) : (
-              <div className="trajectory-pill-grid">
-                <div className="trajectory-pill">
-                  <span className="trajectory-pill-label">Score Range</span>
-                  <span className="trajectory-pill-value">--</span>
-                </div>
-                <div className="trajectory-pill">
-                  <span className="trajectory-pill-label">HCP Range</span>
-                  <span className="trajectory-pill-value">--</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </LockedSection>
       )}
         </>
       )}
