@@ -69,11 +69,19 @@ interface DashboardStats {
 function RoundFocusSkeletonBody() {
   return (
     <>
-      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-title" />
-      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
-      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
-      <div className="skeleton dashboard-focus-skeleton-button" />
-      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-caption" />
+      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-pretitle" />
+      <div className="dashboard-focus-skeleton-flex-spacer" />
+      <div className="dashboard-focus-skeleton-group">
+        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
+        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-title" />
+      </div>
+      <div className="dashboard-focus-skeleton-group">
+        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
+        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-title" />
+      </div>
+      <div className="dashboard-focus-actions dashboard-focus-actions-skeleton">
+        <div className="skeleton dashboard-focus-skeleton-button" />
+      </div>
     </>
   );
 }
@@ -956,5 +964,3 @@ export default function DashboardPage({ userId }: { userId?: number }) {
     </Suspense>
   );
 }
-
-

@@ -257,6 +257,8 @@ describe('/insights page', () => {
     expect(screen.getByText('Strokes Gained Trend (Premium)')).toBeInTheDocument();
     expect(screen.getByText('SG Component Breakdown (Premium)')).toBeInTheDocument();
     expect(screen.getByText('Performance Trajectory')).toBeInTheDocument();
+    expect(screen.getByText('Score Range')).toBeInTheDocument();
+    expect(screen.getByText('Handicap Range')).toBeInTheDocument();
     expect(
       screen.getByText('Upgrade to unlock projected score and handicap ranges.'),
     ).toBeInTheDocument();

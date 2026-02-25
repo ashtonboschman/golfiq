@@ -788,7 +788,7 @@ export default function InsightsPage() {
         ? 'down'
         : selectedTrajectory === 'volatile'
           ? 'warn'
-          : selectedTrajectory === 'flat'
+          : selectedTrajectory === 'flat' || selectedTrajectory === 'unknown'
             ? 'flat'
             : 'none';
   const trajectoryChipColor =
@@ -798,7 +798,9 @@ export default function InsightsPage() {
         ? INSIGHTS_NEGATIVE_COLOR
         : trajectoryChipTone === 'warn'
           ? warningColor
-          : 'var(--color-secondary-text)';
+          : trajectoryChipTone === 'flat'
+            ? 'var(--color-primary-text)'
+            : 'var(--color-secondary-text)';
   const handicapProjectionPointCount = insights?.handicap_trend?.handicap
     ?.filter((v): v is number => v != null && Number.isFinite(v))
     .length ?? 0;
@@ -1152,7 +1154,7 @@ export default function InsightsPage() {
               <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
             </div>
             <div className="trajectory-pill">
-              <span className="trajectory-pill-label">HCP Range</span>
+              <span className="trajectory-pill-label">Handicap Range</span>
               <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
             </div>
           </div>
@@ -1187,8 +1189,8 @@ export default function InsightsPage() {
                   <div className="trajectory-pill">
                     <span className="trajectory-pill-label">
                       {premiumHandicapProjectionUnlocked
-                        ? (effectiveHandicapRange ? 'HCP Range' : 'Estimated Handicap')
-                        : 'HCP Range'}
+                        ? (effectiveHandicapRange ? 'Handicap Range' : 'Estimated Handicap')
+                        : 'Handicap Range'}
                     </span>
                     <span className="trajectory-pill-value">
                       {premiumHandicapProjectionUnlocked
@@ -1211,9 +1213,25 @@ export default function InsightsPage() {
               </span>
             )
           ) : (
-            <span className="secondary-text insights-subtle-note insights-centered-title">
-              Upgrade to unlock projected score and handicap ranges.
-            </span>
+            <>
+              <div className="trajectory-pill-grid">
+                <div className="trajectory-pill">
+                  <span className="trajectory-pill-label">Score Range</span>
+                  <span className="trajectory-pill-value">
+                    <Lock size={15} className="trajectory-pill-lock-icon" aria-hidden="true" />
+                  </span>
+                </div>
+                <div className="trajectory-pill">
+                  <span className="trajectory-pill-label">Handicap Range</span>
+                  <span className="trajectory-pill-value">
+                    <Lock size={15} className="trajectory-pill-lock-icon" aria-hidden="true" />
+                  </span>
+                </div>
+              </div>
+              <span className="secondary-text insights-subtle-note insights-centered-title trajectory-free-note">
+                Upgrade to unlock projected score and handicap ranges.
+              </span>
+            </>
           )}
         </div>
       ) : null}
