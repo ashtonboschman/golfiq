@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
-import { Suspense } from 'react';
 import { authOptions } from '@/lib/auth-config';
 import LandingHeader from '@/components/landing/LandingHeader';
 import Hero from '@/components/landing/Hero';
 import Features from '@/components/landing/Features';
 import InsightsCTA from '@/components/landing/InsightsCTA';
-import WaitlistForm from '@/components/landing/WaitlistForm';
 import LandingFooter from '@/components/landing/LandingFooter';
 
 export const metadata: Metadata = {
@@ -119,9 +117,6 @@ export default async function LandingPage() {
           <Hero />
           <Features />
           <InsightsCTA />
-          <Suspense fallback={null}>
-            <WaitlistForm />
-          </Suspense>
         </main>
         <LandingFooter />
       </div>

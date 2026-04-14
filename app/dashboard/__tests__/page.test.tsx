@@ -13,6 +13,7 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
+const mockUpgradeModal = jest.fn();
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
@@ -72,7 +73,10 @@ jest.mock('@/components/RoundCard', () => ({
 
 jest.mock('@/components/UpgradeModal', () => ({
   __esModule: true,
-  default: () => null,
+  default: (props: any) => {
+    mockUpgradeModal(props);
+    return null;
+  },
 }));
 
 jest.mock('@/components/InfoTooltip', () => ({
@@ -176,6 +180,8 @@ function makeDashboardPayload(overrides: Partial<any> = {}) {
 describe('/dashboard Today\'s Focus card', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    sessionStorage.clear();
+    localStorage.clear();
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: {
@@ -280,6 +286,9 @@ describe('/dashboard Today\'s Focus card', () => {
 
   it('shows updating note when focus summary is stale versus latest round update', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-02-24T10:00:30.000Z').getTime());
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
@@ -296,6 +305,34 @@ describe('/dashboard Today\'s Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Updating focus...');
+    nowSpy.mockRestore();
+  });
+
+  it('hides updating note when round update is stale', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-02-24T10:05:00.000Z').getTime());
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          latestRoundUpdatedAt: '2026-02-24T10:00:00.000Z',
+          overallInsightsSummary: {
+            ...makeDashboardPayload().overallInsightsSummary,
+            lastUpdatedAt: '2026-02-24T09:00:00.000Z',
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByTestId('dashboard-focus-card');
+    await waitFor(() => {
+      expect(screen.queryByText('Updating focus...')).not.toBeInTheDocument();
+    });
+    nowSpy.mockRestore();
   });
 
   it('renders focus card above limited-stats banner for free users', async () => {
@@ -350,6 +387,289 @@ describe('/dashboard Today\'s Focus card', () => {
         }),
         expect.any(Object),
       );
+    });
+  });
+
+  it('does not show error toast when API responds with legacy no-rounds error message', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        type: 'error',
+        message: 'No rounds found',
+      }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('No rounds logged.');
+    expect(mockShowMessage).not.toHaveBeenCalled();
+    expect(screen.queryByText('Failed to load dashboard.')).not.toBeInTheDocument();
+  });
+
+  it('shows zero-round welcome beta modal once before acknowledgment', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 0,
+          totalRoundsInDb: 0,
+          all_rounds: [],
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenWelcomeCall = mockUpgradeModal.mock.calls.some(
+        ([props]) =>
+          props.title === 'Welcome to GolfIQ' &&
+          props.titleBadge === 'Beta' &&
+          props.isOpen === true &&
+          props.analyticsMode === 'none' &&
+          props.primaryButtonLabel === 'Got It' &&
+          props.showCloseButton === false &&
+          props.ctaLocation === 'dashboard_zero_rounds_beta_modal' &&
+          props.milestoneRound === 0,
+      );
+      expect(hasOpenWelcomeCall).toBe(true);
+    });
+  });
+
+  it('does not re-show zero-round welcome modal after acknowledgment', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    localStorage.setItem('milestone-modal-ack:1:welcome:0', 'true');
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 0,
+          totalRoundsInDb: 0,
+          all_rounds: [],
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenWelcomeCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Welcome to GolfIQ' && props.isOpen === true,
+      );
+      expect(hasOpenWelcomeCall).toBe(false);
+    });
+  });
+
+  it('shows round-3 unlock modal with non-upgrade behavior', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 3,
+          totalRoundsInDb: 3,
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
+        ([props]) =>
+          props.title === 'Handicap & SG Unlocked' &&
+          props.isOpen === true &&
+          props.analyticsMode === 'none' &&
+          props.primaryButtonLabel === 'View Insights' &&
+          props.secondaryButtonLabel === 'Got It' &&
+          props.ctaLocation === 'dashboard_round_three_unlock_modal' &&
+          props.milestoneRound === 3,
+      );
+      expect(hasOpenUnlockCall).toBe(true);
+    });
+  });
+
+  it('shows premium upsell modal at round 5 for free users', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 5,
+          totalRoundsInDb: 5,
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenUpgradeCall = mockUpgradeModal.mock.calls.some(
+        ([props]) =>
+          props.title === 'Unlock Premium Insights' &&
+          props.isOpen === true &&
+          props.ctaLocation === 'dashboard_round_milestone_modal' &&
+          props.milestoneRound === 5 &&
+          String(props.message).includes('5 rounds logged'),
+      );
+      expect(hasOpenUpgradeCall).toBe(true);
+    });
+  });
+
+  it('does not show premium upsell modal at round 5 for premium users', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 5,
+          totalRoundsInDb: 5,
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const upgradeCall = mockUpgradeModal.mock.calls.find(
+        ([props]) => props.title === 'Unlock Premium Insights',
+      );
+      expect(upgradeCall).toBeTruthy();
+      expect(upgradeCall[0]).toEqual(expect.objectContaining({ isOpen: false }));
+    });
+  });
+
+  it('re-shows round-3 unlock after rounds drop below 3 and return to 3', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    localStorage.setItem('milestone-modal-ack:1:unlock:3', 'true');
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 3,
+          totalRoundsInDb: 3,
+        }),
+    });
+
+    const firstRender = render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+      );
+      expect(hasOpenUnlockCall).toBe(false);
+    });
+
+    firstRender.unmount();
+    mockUpgradeModal.mockClear();
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 2,
+          totalRoundsInDb: 2,
+        }),
+    });
+
+    const secondRender = render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(localStorage.getItem('milestone-modal-ack:1:unlock:3')).toBeNull();
+    });
+
+    secondRender.unmount();
+    mockUpgradeModal.mockClear();
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 3,
+          totalRoundsInDb: 3,
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+      );
+      expect(hasOpenUnlockCall).toBe(true);
+    });
+  });
+
+  it('re-shows round-5 upgrade modal after rounds drop below 5 and return to 5', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    localStorage.setItem('milestone-modal-ack:1:upgrade:5', 'true');
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 5,
+          totalRoundsInDb: 5,
+        }),
+    });
+
+    const firstRender = render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenUpgradeCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Unlock Premium Insights' && props.isOpen === true,
+      );
+      expect(hasOpenUpgradeCall).toBe(false);
+    });
+
+    firstRender.unmount();
+    mockUpgradeModal.mockClear();
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 4,
+          totalRoundsInDb: 4,
+        }),
+    });
+
+    const secondRender = render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(localStorage.getItem('milestone-modal-ack:1:upgrade:5')).toBeNull();
+    });
+
+    secondRender.unmount();
+    mockUpgradeModal.mockClear();
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 5,
+          totalRoundsInDb: 5,
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenUpgradeCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Unlock Premium Insights' && props.isOpen === true,
+      );
+      expect(hasOpenUpgradeCall).toBe(true);
     });
   });
 });

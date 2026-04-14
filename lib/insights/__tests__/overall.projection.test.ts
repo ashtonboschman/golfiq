@@ -244,5 +244,64 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection_ranges).toBeDefined();
     expect(payload.projection_ranges!.handicapLow!).toBeGreaterThanOrEqual(1.8);
   });
+
+  it('falls back to latest handicap snapshot when currentHandicapOverride is null', () => {
+    const rounds = buildRounds(
+      [74, 74, 73, 74, 75, 74, 73, 74, 75, 74],
+      [2.8, 2.9, 3.1, 3.3, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+      currentHandicapOverride: null,
+    });
+
+    expect(payload.projection.handicapCurrent).toBeCloseTo(2.8, 1);
+    expect(payload.projection.projectedHandicapIn10).not.toBeNull();
+    expect(payload.projection_ranges).toBeDefined();
+  });
+
+  it('keeps handicap projection direction aligned for improving trajectory even if handicap slope rises', () => {
+    const rounds = buildRounds(
+      [70, 71, 72, 73, 74, 75, 76, 77, 78, 79],
+      [5.5, 5.4, 5.3, 5.2, 5.1, 5.0, 4.9, 4.8, 4.7, 4.6],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    expect(payload.projection.trajectory).toBe('improving');
+    expect(payload.projection.handicapCurrent).toBeCloseTo(5.5, 1);
+    expect(payload.projection.projectedHandicapIn10).toBeLessThanOrEqual(
+      payload.projection.handicapCurrent!,
+    );
+  });
+
+  it('keeps projected handicap from moving opposite score direction when score projection improves', () => {
+    const rounds = buildRounds(
+      [70, 71, 72, 73, 74, 75, 76, 77, 78, 79],
+      [5.5, 5.4, 5.3, 5.2, 5.1, 5.0, 4.9, 4.8, 4.7, 4.6],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 6 }, () => ''),
+    });
+
+    expect(payload.projection.projectedScoreIn10).toBeLessThan(75);
+    expect(payload.projection.projectedHandicapIn10).toBeLessThanOrEqual(
+      payload.projection.handicapCurrent!,
+    );
+    expect(payload.projection_ranges).toBeDefined();
+  });
 });
 

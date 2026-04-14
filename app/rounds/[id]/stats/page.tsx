@@ -204,7 +204,7 @@ export default function RoundStatsPage() {
   };
 
   if (status === 'loading' || loading) {
-    return <RoundStatsPageSkeleton />;
+    return <RoundStatsPageSkeleton showStrokesGained={!subscriptionLoading && isPremium} />;
   }
 
   if (!stats) {

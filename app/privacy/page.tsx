@@ -13,7 +13,7 @@ export default function PrivacyPage() {
 
         <section className="legal-section">
           <p className="legal-last-updated">
-            Effective Date: January 2026
+            Effective Date: April 2026
           </p>
 
           <p>
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
 
           <ul>
             <li>Email address</li>
-            <li>Name (optional)</li>
+            <li>First and last name</li>
             <li>Handicap (optional)</li>
             <li>Account credentials</li>
             <li>Golf round data and performance statistics</li>
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
           <ul>
             <li>Provide, maintain, and improve GolfIQ features</li>
             <li>Analyze rounds, generate insights, and deliver data-driven recommendations</li>
-            <li>Communicate with you regarding beta access, updates, promotions, or support</li>
+            <li>Communicate with you regarding product updates, promotions, or support</li>
             <li>Monitor app performance and usage trends</li>
             <li>Ensure security and prevent unauthorized activity</li>
           </ul>

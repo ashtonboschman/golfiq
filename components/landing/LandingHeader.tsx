@@ -14,7 +14,7 @@ export default function LandingHeader() {
   return (
     <header className="landing-header">
       <div className="landing-header-inner">
-        <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{ cursor: 'pointer' }}>
+        <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <Image
             src="/logos/wordmark/golfiq-wordmark.png"
             alt="GolfIQ"
@@ -24,7 +24,7 @@ export default function LandingHeader() {
           />
         </div>
 
-        <nav className="landing-nav" style={{ whiteSpace: 'nowrap' }}>
+        <nav className="landing-nav">
           <a
             href="#features"
             onClick={(e) => {
@@ -47,20 +47,10 @@ export default function LandingHeader() {
           </a>
         </nav>
 
-        <div className="landing-header-actions" style={{ whiteSpace: 'nowrap' }}>
-          <Link href="/login" className="btn btn-secondary">
+        <div className="landing-header-actions">
+          <Link href="/login" className="btn btn-accent">
             Login
           </Link>
-          <a
-            href="#waitlist"
-            onClick={(e) => {
-              e.preventDefault();
-              scrollToSection('waitlist');
-            }}
-            className="btn btn-accent"
-          >
-            Join Beta
-          </a>
         </div>
       </div>
     </header>

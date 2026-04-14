@@ -82,24 +82,6 @@ async function buildUniqueUsername(tx: Prisma.TransactionClient, email: string):
   return `golfer${crypto.randomBytes(6).toString('hex')}`.slice(0, 100);
 }
 
-async function canCreateOAuthUser(email: string): Promise<boolean> {
-  try {
-    const flagData = await (prisma as any).featureFlag.findUnique({
-      where: { flagName: 'registration_open' },
-    });
-    if (flagData?.enabled) return true;
-
-    const allowedEmail = await (prisma as any).allowedEmail.findUnique({
-      where: { email },
-    });
-    return Boolean(allowedEmail);
-  } catch (error) {
-    // Match register fail-open behavior if waitlist models are unavailable.
-    console.error('[AUTH][OAuth] allowlist check failed, allowing sign-in:', error);
-    return true;
-  }
-}
-
 async function findUserByEmailInsensitive(email: string) {
   const direct = await prisma.user.findUnique({
     where: { email },
@@ -480,24 +462,6 @@ export const authOptions: NextAuthOptions = {
 
         let dbUser = await findUserByEmailInsensitive(normalizedEmail);
         if (!dbUser) {
-          const allowed = await canCreateOAuthUser(normalizedEmail);
-          if (!allowed) {
-            await captureServerEvent({
-              event: ANALYTICS_EVENTS.loginFailed,
-              distinctId: `oauth_${providerId}_${normalizedEmail}`,
-              properties: {
-                login_method: providerId,
-                error_code: 'waitlist_only',
-              },
-              context: {
-                sourcePage: '/login',
-                authProvider: providerId,
-                isLoggedIn: false,
-              },
-            });
-            return '/login?error=WaitlistOnly';
-          }
-
           dbUser = await prisma.$transaction(async (tx) => {
             const existingByEmail = await tx.user.findFirst({
               where: {

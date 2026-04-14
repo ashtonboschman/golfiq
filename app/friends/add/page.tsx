@@ -119,7 +119,7 @@ export default function AddFriendsPage() {
         max={250}
       />
 
-      {loading && <p className='loading-text'>Searching...</p>}
+      {loading && <p className='loading-text friend-search-status'>Searching...</p>}
 
       {results.map((user) => (
         <FriendCard
@@ -133,7 +133,7 @@ export default function AddFriendsPage() {
         />
       ))}
 
-      {!loading && search && results.length === 0 && <p className='loading-text'>No users found</p>}
+      {!loading && search && results.length === 0 && <p className='loading-text friend-search-status'>No users found</p>}
     </div>
   );
 }

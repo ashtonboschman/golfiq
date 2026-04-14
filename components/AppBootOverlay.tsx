@@ -15,7 +15,6 @@ const PUBLIC_ROUTES = new Set([
   '/privacy',
   '/terms',
   '/contact',
-  '/waitlist-confirm',
   '/verify-email',
 ]);
 

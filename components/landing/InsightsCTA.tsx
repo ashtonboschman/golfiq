@@ -1,16 +1,9 @@
 'use client';
 
-import Image from 'next/image';
+import Link from 'next/link';
 import { Sparkles, Target, LineChart } from 'lucide-react';
 
 export default function InsightsCTA() {
-  const scrollToWaitlist = () => {
-    const element = document.getElementById('waitlist');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   const insights = [
     {
       icon: <Sparkles size={24} />,
@@ -53,12 +46,9 @@ export default function InsightsCTA() {
             ))}
           </div>
 
-          <button onClick={scrollToWaitlist} className="btn btn-accent btn-large">
-            Get Premium Access in Beta
-          </button>
-          <p className="landing-insights-note">
-            All beta testers receive full access to premium features at no cost during the beta period.
-          </p>
+          <Link href="/login" className="btn btn-accent btn-large landing-insights-cta">
+            Create Free Account
+          </Link>
         </div>
       </div>
     </section>

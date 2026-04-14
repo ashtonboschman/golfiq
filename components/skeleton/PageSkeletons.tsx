@@ -508,7 +508,11 @@ export function RoundFormSkeleton() {
   );
 }
 
-export function RoundStatsPageSkeleton() {
+export function RoundStatsPageSkeleton({
+  showStrokesGained = true,
+}: {
+  showStrokesGained?: boolean;
+} = {}) {
   return (
     <div className="page-stack skeleton-stack" aria-busy="true">
       <SkeletonCard>
@@ -555,26 +559,28 @@ export function RoundStatsPageSkeleton() {
 
         <RoundInsightsSkeleton />
 
-        <div className="stats-score-summary">
-          <div className="stats-summary-header">
-            <h3 className="stats-summary-title">Strokes Gained</h3>
-            <span className="info-tooltip-container" aria-hidden="true">
-              <span className="info-tooltip-icon">
-                <Info />
+        {showStrokesGained && (
+          <div className="stats-score-summary">
+            <div className="stats-summary-header">
+              <h3 className="stats-summary-title">Strokes Gained</h3>
+              <span className="info-tooltip-container" aria-hidden="true">
+                <span className="info-tooltip-icon">
+                  <Info />
+                </span>
               </span>
-            </span>
-          </div>
-          <div className="stats-score-grid">
-            {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Residual'].map((label, index) => (
-              <div key={`round-sg-summary-${index}`}>
-                <SkeletonBlock width="44%" height={29} style={{ marginInline: 'auto' }} />
-                <div className="stats-score-label" style={{ marginTop: 6 }}>
-                  {label}
+            </div>
+            <div className="stats-score-grid">
+              {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Residual'].map((label, index) => (
+                <div key={`round-sg-summary-${index}`}>
+                  <SkeletonBlock width="44%" height={29} style={{ marginInline: 'auto' }} />
+                  <div className="stats-score-label" style={{ marginTop: 6 }}>
+                    {label}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="form">
           <button className="btn btn-add" disabled>

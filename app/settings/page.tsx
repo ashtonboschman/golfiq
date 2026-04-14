@@ -2,15 +2,30 @@
 
 import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 import { useSubscription } from '@/hooks/useSubscription';
-import { Download, PartyPopper, Upload } from 'lucide-react';
+import { Download, MessageSquare, PartyPopper, Upload } from 'lucide-react';
 import { useMessage } from '@/app/providers';
 import { useTheme } from '@/context/ThemeContext';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
+
+const FEEDBACK_MIN_LENGTH = 10;
+const FEEDBACK_MAX_LENGTH = 2000;
+
+type FeedbackType = 'bug' | 'idea' | 'other';
+type FeedbackOption = {
+  value: FeedbackType;
+  label: string;
+};
+
+const FEEDBACK_TYPE_OPTIONS: FeedbackOption[] = [
+  { value: 'other', label: 'General feedback' },
+  { value: 'bug', label: 'Bug report' },
+  { value: 'idea', label: 'Feature idea' },
+];
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -21,6 +36,9 @@ export default function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const { theme, setTheme, availableThemes } = useTheme();
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<FeedbackType>('other');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -125,6 +143,51 @@ export default function SettingsPage() {
         }
       },
     });
+  };
+
+  const handleSubmitFeedback = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmed = feedbackMessage.trim();
+    if (trimmed.length < FEEDBACK_MIN_LENGTH) {
+      showMessage(`Feedback must be at least ${FEEDBACK_MIN_LENGTH} characters.`, 'error');
+      return;
+    }
+
+    if (trimmed.length > FEEDBACK_MAX_LENGTH) {
+      showMessage(`Feedback must be ${FEEDBACK_MAX_LENGTH} characters or less.`, 'error');
+      return;
+    }
+
+    setSubmittingFeedback(true);
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: feedbackType,
+          message: trimmed,
+          page: '/settings',
+          appVersion: process.env.NEXT_PUBLIC_APP_VERSION || 'dev',
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || 'Failed to submit feedback.');
+      }
+
+      setFeedbackType('other');
+      setFeedbackMessage('');
+      showMessage(data?.message || 'Thanks for your feedback!', 'success');
+    } catch (error: any) {
+      console.error('Feedback submit error:', error);
+      showMessage(error?.message || 'Failed to submit feedback.', 'error');
+    } finally {
+      setSubmittingFeedback(false);
+    }
   };
 
   if (status === 'unauthenticated') {
@@ -249,6 +312,7 @@ export default function SettingsPage() {
                   <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
                 ) : (
                   <Select
+                    inputId="theme-select"
                     value={availableThemes.find(t => t.value === theme)}
                     onChange={(option) => {
                       if (!option) return;
@@ -308,22 +372,83 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          {/* Feedback Section */}
+          <section className="settings-section">
+            <div className="settings-card">
+              <form className="settings-feedback-container" onSubmit={handleSubmitFeedback}>
+                <div className="settings-feedback-title-row">
+                  <label className="form-label" htmlFor="feedback-type">
+                    Feedback
+                  </label>
+                  <MessageSquare size={16} className="settings-feedback-icon" />
+                </div>
+                <p className="settings-feedback-helper">
+                  Found a bug or have an idea? Submit it here and we will review it.
+                </p>
+                {showSessionSkeleton ? (
+                  <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+                ) : (
+                  <Select<FeedbackOption, false>
+                    inputId="feedback-type"
+                    className="settings-feedback-select"
+                    value={FEEDBACK_TYPE_OPTIONS.find((option) => option.value === feedbackType)}
+                    onChange={(option) => {
+                      if (!option) return;
+                      setFeedbackType(option.value);
+                    }}
+                    options={FEEDBACK_TYPE_OPTIONS}
+                    isSearchable={false}
+                    styles={selectStyles}
+                    isDisabled={submittingFeedback || showSessionSkeleton}
+                  />
+                )}
+                <textarea
+                  id="feedback-message"
+                  className="form-input settings-feedback-textarea"
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value)}
+                  placeholder="Share details here..."
+                  minLength={FEEDBACK_MIN_LENGTH}
+                  maxLength={FEEDBACK_MAX_LENGTH}
+                  disabled={submittingFeedback || showSessionSkeleton}
+                  aria-label="Feedback message"
+                />
+                <div className="settings-feedback-footer">
+                  <span className="settings-feedback-count">
+                    {feedbackMessage.trim().length}/{FEEDBACK_MAX_LENGTH}
+                  </span>
+                  <button
+                    type="submit"
+                    className="btn btn-secondary settings-feedback-submit"
+                    disabled={submittingFeedback || showSessionSkeleton}
+                  >
+                    {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+
           {/* Admin Section */}
           {session?.user?.id === '1' && (
           <section className="settings-section">
-            <div className="card settings-card">
-              <button
-                className="btn btn-secondary"
-                onClick={() => router.push('/admin/import-course')}
-              >
-                <Upload/> Import Course Data
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => router.push('/admin/waitlist')}
-              >
-                <Upload/> Manage Waitlist
-              </button>
+            <div className="settings-card settings-admin-card">
+              <label className="form-label">Admin Tools</label>
+              <p className="settings-admin-helper">Only visible to your admin account.</p>
+              <div className="settings-admin-actions">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => router.push('/admin/import-course')}
+                >
+                  <Upload/> Import Course Data
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => router.push('/admin/feedback')}
+                >
+                  <MessageSquare/> Manage Feedback
+                </button>
+              </div>
             </div>
           </section>
           )}

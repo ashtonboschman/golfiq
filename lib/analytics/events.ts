@@ -29,6 +29,8 @@ export const ANALYTICS_EVENTS = {
   friendRequestSent: 'friend_request_sent',
   friendRequestAccepted: 'friend_request_accepted',
   friendRemoved: 'friend_removed',
+  feedbackSubmitted: 'feedback_submitted',
+  feedbackSubmitFailed: 'feedback_submit_failed',
   leaderboardViewed: 'leaderboard_viewed',
   apiRequestFailed: 'api_request_failed',
   appErrorShown: 'app_error_shown',

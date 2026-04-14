@@ -144,9 +144,6 @@ export default function RoundsPage() {
       setHasMore(flattenedRounds.length === 20);
       setPage(pageToFetch);
 
-      if (!roundsData.length && resetRounds) {
-        showMessage('No rounds found. Add your first round!', 'success');
-      }
     } catch (err: any) {
       console.error('Fetch rounds error:', err);
       showMessage(err.message || 'Error fetching rounds', 'error');
@@ -264,7 +261,7 @@ export default function RoundsPage() {
       {showInitialListSkeleton ? (
         <RoundListSkeleton count={12} useGridList />
       ) : rounds.length === 0 && !loading ? (
-        <p className='secondary-text'>No rounds found.</p>
+        <p className='secondary-text text-center'>No rounds logged.</p>
       ) : (
         <div className="grid grid-1">
           {rounds.map((round, index) => {

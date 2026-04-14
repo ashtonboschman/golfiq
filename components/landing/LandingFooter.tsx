@@ -15,8 +15,8 @@ export default function LandingFooter() {
               <Link href="/#features" className="landing-footer-link">
                 Features
               </Link>
-              <Link href="/#waitlist" className="landing-footer-link">
-                Join Beta
+              <Link href="/login" className="landing-footer-link">
+                Get Started
               </Link>
             </div>
 

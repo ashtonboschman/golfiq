@@ -12,6 +12,7 @@ const mockPush = jest.fn();
 const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
 const mockShowConfirm = jest.fn();
+const mockRoundStatsPageSkeleton = jest.fn(() => <div data-testid="round-stats-skeleton" />);
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
@@ -55,7 +56,7 @@ jest.mock('@/components/RoundInsights', () => ({
 }));
 
 jest.mock('@/components/skeleton/PageSkeletons', () => ({
-  RoundStatsPageSkeleton: () => <div data-testid="round-stats-skeleton" />,
+  RoundStatsPageSkeleton: (props: any) => mockRoundStatsPageSkeleton(props),
 }));
 
 const mockedUseSession = useSession as unknown as jest.Mock;
@@ -151,5 +152,19 @@ describe('/rounds/[id]/stats page', () => {
 
     const allCalls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
     expect(allCalls.some((url) => url.includes('/api/users/profile'))).toBe(false);
+  });
+
+  it('hides strokes gained placeholder while subscription is still loading', () => {
+    mockedUseSubscription.mockReturnValue({
+      isPremium: false,
+      loading: true,
+    });
+
+    render(<RoundStatsPage />);
+
+    expect(mockRoundStatsPageSkeleton).toHaveBeenCalled();
+    expect(mockRoundStatsPageSkeleton.mock.calls[0]?.[0]).toMatchObject({
+      showStrokesGained: false,
+    });
   });
 });

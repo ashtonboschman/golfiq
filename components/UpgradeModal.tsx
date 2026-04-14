@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import type { ReactNode } from 'react';
 
 const MODAL_EVENT_DEDUPE_MS = 5000;
 const modalViewedCache = new Map<string, number>();
@@ -15,12 +16,18 @@ interface UpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  titleBadge?: string;
   message: string;
   features?: string[];
   showCloseButton?: boolean;
   ctaLocation?: string;
   paywallContext?: string;
   milestoneRound?: number | null;
+  analyticsMode?: 'upgrade' | 'none';
+  primaryButtonLabel?: string;
+  secondaryButtonLabel?: string;
+  onPrimaryAction?: () => void;
+  icon?: ReactNode;
 }
 
 /**
@@ -43,12 +50,18 @@ export default function UpgradeModal({
   isOpen,
   onClose,
   title,
+  titleBadge,
   message,
   features = [],
   showCloseButton = true,
   ctaLocation = 'upgrade_modal',
   paywallContext = 'upgrade_modal',
   milestoneRound = null,
+  analyticsMode = 'upgrade',
+  primaryButtonLabel = 'Upgrade to Premium',
+  secondaryButtonLabel = 'Maybe Later',
+  onPrimaryAction,
+  icon,
 }: UpgradeModalProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -65,7 +78,7 @@ export default function UpgradeModal({
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        if (!upgradeInitiatedRef.current) {
+        if (analyticsMode === 'upgrade' && !upgradeInitiatedRef.current) {
           const dedupeKey = getDedupeKey('dismiss_escape');
           const now = Date.now();
           const lastSeen = modalDismissedCache.get(dedupeKey);
@@ -108,6 +121,7 @@ export default function UpgradeModal({
       document.body.style.overflow = 'unset';
     };
   }, [
+    analyticsMode,
     ctaLocation,
     getDedupeKey,
     isOpen,
@@ -122,7 +136,7 @@ export default function UpgradeModal({
   ]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || analyticsMode !== 'upgrade') {
       upgradeInitiatedRef.current = false;
       return;
     }
@@ -153,6 +167,7 @@ export default function UpgradeModal({
       },
     );
   }, [
+    analyticsMode,
     ctaLocation,
     getDedupeKey,
     isOpen,
@@ -166,7 +181,7 @@ export default function UpgradeModal({
   ]);
 
   const handleDismiss = (source: 'button' | 'backdrop') => {
-    if (!upgradeInitiatedRef.current) {
+    if (analyticsMode === 'upgrade' && !upgradeInitiatedRef.current) {
       const dedupeKey = getDedupeKey(`dismiss_${source}`);
       const now = Date.now();
       const lastSeen = modalDismissedCache.get(dedupeKey);
@@ -200,27 +215,35 @@ export default function UpgradeModal({
 
   if (!isOpen) return null;
 
-  const handleUpgrade = () => {
+  const handlePrimary = () => {
     upgradeInitiatedRef.current = true;
-    captureClientEvent(
-      ANALYTICS_EVENTS.upgradeCtaClicked,
-      {
-        cta_location: ctaLocation,
-        ...(milestoneRound != null ? { milestone_round: milestoneRound, rounds_lifetime: milestoneRound } : {}),
-        source_page: pathname,
-      },
-      {
-        pathname,
-        user: {
-          id: session?.user?.id,
-          subscription_tier: session?.user?.subscription_tier,
-          auth_provider: session?.user?.auth_provider,
+    if (analyticsMode === 'upgrade') {
+      captureClientEvent(
+        ANALYTICS_EVENTS.upgradeCtaClicked,
+        {
+          cta_location: ctaLocation,
+          ...(milestoneRound != null ? { milestone_round: milestoneRound, rounds_lifetime: milestoneRound } : {}),
+          source_page: pathname,
         },
-        isLoggedIn: status === 'authenticated',
-      },
-    );
+        {
+          pathname,
+          user: {
+            id: session?.user?.id,
+            subscription_tier: session?.user?.subscription_tier,
+            auth_provider: session?.user?.auth_provider,
+          },
+          isLoggedIn: status === 'authenticated',
+        },
+      );
+    }
     onClose();
-    router.push('/pricing');
+    if (onPrimaryAction) {
+      onPrimaryAction();
+      return;
+    }
+    if (analyticsMode === 'upgrade') {
+      router.push('/pricing');
+    }
   };
 
   return (
@@ -235,10 +258,13 @@ export default function UpgradeModal({
       <div className="upgrade-modal">
         <div className="upgrade-modal-content">
           {/* Icon */}
-          <div className="upgrade-modal-icon"><Rocket color='var(--color-accent)' size={50}/></div>
+          <div className="upgrade-modal-icon">{icon ?? <Rocket color='var(--color-accent)' size={50}/>}</div>
 
           {/* Title */}
-          <h2 className="upgrade-modal-title">{title}</h2>
+          <div className="upgrade-modal-title-row">
+            <h2 className="upgrade-modal-title">{title}</h2>
+            {titleBadge ? <span className="upgrade-modal-title-badge">{titleBadge}</span> : null}
+          </div>
 
           {/* Message */}
           <p className="upgrade-modal-message">{message}</p>
@@ -259,16 +285,16 @@ export default function UpgradeModal({
           <div className="card">
             <button
               className="btn btn-upgrade"
-              onClick={handleUpgrade}
+              onClick={handlePrimary}
             >
-              Upgrade to Premium
+              {primaryButtonLabel}
             </button>
             {showCloseButton && (
               <button
                 className="btn btn-secondary"
                 onClick={() => handleDismiss('button')}
               >
-                Maybe Later
+                {secondaryButtonLabel}
               </button>
             )}
           </div>

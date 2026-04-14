@@ -24,6 +24,7 @@ import {
 
 type StatsMode = 'combined' | '9' | '18';
 const dashboardFocusViewedKeys = new Set<string>();
+const ROUND_FOCUS_UPDATING_WINDOW_MS = 90_000;
 
 interface DashboardStats {
   handicap: number | null;
@@ -149,7 +150,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [error, setError] = useState<string | null>(null);
   const [statsMode, setStatsMode] = useState<StatsMode>('combined');
   const [dateFilter, setDateFilter] = useState('all');
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [activeMilestoneModal, setActiveMilestoneModal] = useState<'welcome' | 'unlock' | 'upgrade' | null>(null);
   const [showToPar, setShowToPar] = useState(false);
   const { isPremium, loading: subscriptionLoading } = useSubscription();
   const [accentColor, setAccentColor] = useState('#2D6CFF');
@@ -319,6 +320,31 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
           if (!res.ok || data?.type === 'error') {
             const message = data?.message || `Error fetching dashboard stats (${res.status})`;
+            const isNoRoundsMessage =
+              typeof message === 'string' && /no rounds found/i.test(message);
+            if (isNoRoundsMessage) {
+              setStats({
+                handicap: null,
+                handicap_message: null,
+                total_rounds: 0,
+                best_score: null,
+                worst_score: null,
+                average_score: null,
+                best_to_par: null,
+                worst_to_par: null,
+                average_to_par: null,
+                all_rounds: [],
+                fir_avg: null,
+                gir_avg: null,
+                avg_putts: null,
+                avg_penalties: null,
+                hbh_stats: null,
+                overallInsightsSummary: null,
+                latestRoundUpdatedAt: null,
+              });
+              setError(null);
+              return;
+            }
             if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
               await delay(RETRY_DELAY_MS);
               continue;
@@ -350,41 +376,90 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
   const isOwnDashboard = parseInt(requestedUserId?.toString() || '0') === parseInt(session?.user?.id || '0');
 
-  // Show upgrade modal at strategic milestones for free users (only for own dashboard)
-  // First at 3 rounds, then at 10, then every 5 rounds (10, 15, 20, 25...)
-  // Use totalRoundsInDb (unfiltered count) to ensure modal shows regardless of stats mode filter
+  // Use totalRoundsInDb (unfiltered count) to ensure milestone modals
+  // are evaluated against lifetime rounds regardless of mode/date filters.
   const totalRoundsForModal = stats.totalRoundsInDb ?? stats.total_rounds;
+
+  const getMilestoneAckKey = useCallback((modalType: 'welcome' | 'unlock' | 'upgrade', rounds: number) => {
+    return `milestone-modal-ack:${session?.user?.id ?? 'anon'}:${modalType}:${rounds}`;
+  }, [session?.user?.id]);
+
   useEffect(() => {
-    // Wait for both dashboard data and subscription data to load before showing modal
-    // Also ensure user is still authenticated (prevents flash on logout)
-    if (!loading && !subscriptionLoading && status === 'authenticated' && isOwnDashboard && !isPremium && totalRoundsForModal >= 3) {
-      const hasShownAtCurrentRound = sessionStorage.getItem(`upgrade-modal-shown-${totalRoundsForModal}`) === 'true';
+    // If round count drops, clear acknowledged keys above current rounds so
+    // re-hitting that milestone (e.g. 3 -> 2 -> 3) shows the modal again.
+    if (loading || subscriptionLoading || status !== 'authenticated' || !isOwnDashboard) return;
 
-      // Show at round 3, 10, 15, 20, 25, etc.
-      // Calculate if we're at a milestone (3, 10, 15, 20, 25...)
-      const milestones = [3];
-      for (let i = 10; i <= totalRoundsForModal; i += 5) {
-        milestones.push(i);
+    const userPrefix = `milestone-modal-ack:${session?.user?.id ?? 'anon'}:`;
+    const currentRounds = totalRoundsForModal;
+
+    for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(userPrefix)) continue;
+
+      const roundToken = key.split(':').pop();
+      const roundValue = Number(roundToken);
+      if (Number.isFinite(roundValue) && roundValue > currentRounds) {
+        localStorage.removeItem(key);
       }
-
-      // Show if:
-      // 1. We're at a milestone AND
-      // 2. Haven't shown the modal during this session for this exact round count
-      const shouldShow = milestones.includes(totalRoundsForModal) && !hasShownAtCurrentRound;
-
-      if (shouldShow) {
-        setShowUpgradeModal(true);
-      }
-    } else if (status !== 'authenticated') {
-      // Immediately hide modal if user logs out
-      setShowUpgradeModal(false);
     }
-  }, [loading, subscriptionLoading, status, isOwnDashboard, isPremium, totalRoundsForModal]);
+  }, [
+    isOwnDashboard,
+    loading,
+    session?.user?.id,
+    status,
+    subscriptionLoading,
+    totalRoundsForModal,
+  ]);
 
-  const handleCloseUpgradeModal = () => {
-    setShowUpgradeModal(false);
-    // Mark that we've shown the modal for this round count in this session
-    sessionStorage.setItem(`upgrade-modal-shown-${totalRoundsForModal}`, 'true');
+  useEffect(() => {
+    // Wait for dashboard + subscription state, and only evaluate on own dashboard.
+    if (loading || subscriptionLoading || status !== 'authenticated' || !isOwnDashboard || totalRoundsForModal < 0) {
+      setActiveMilestoneModal(null);
+      return;
+    }
+
+    // Round 0 is a beta welcome message for new users.
+    if (totalRoundsForModal === 0) {
+      const welcomeAcknowledged = localStorage.getItem(getMilestoneAckKey('welcome', totalRoundsForModal)) === 'true';
+      setActiveMilestoneModal(welcomeAcknowledged ? null : 'welcome');
+      return;
+    }
+
+    if (totalRoundsForModal < 3) {
+      setActiveMilestoneModal(null);
+      return;
+    }
+
+    // Round 3 is a capability unlock milestone (not a premium upsell).
+    if (totalRoundsForModal === 3) {
+      const unlockAcknowledged = localStorage.getItem(getMilestoneAckKey('unlock', totalRoundsForModal)) === 'true';
+      setActiveMilestoneModal(unlockAcknowledged ? null : 'unlock');
+      return;
+    }
+
+    // Premium upsell milestones: 5, 10, 15, 20, ...
+    if (!isPremium && totalRoundsForModal >= 5 && totalRoundsForModal % 5 === 0) {
+      const upgradeAcknowledged = localStorage.getItem(getMilestoneAckKey('upgrade', totalRoundsForModal)) === 'true';
+      setActiveMilestoneModal(upgradeAcknowledged ? null : 'upgrade');
+      return;
+    }
+
+    setActiveMilestoneModal(null);
+  }, [
+    getMilestoneAckKey,
+    isOwnDashboard,
+    isPremium,
+    loading,
+    status,
+    subscriptionLoading,
+    totalRoundsForModal,
+  ]);
+
+  const handleCloseMilestoneModal = () => {
+    if (activeMilestoneModal) {
+      localStorage.setItem(getMilestoneAckKey(activeMilestoneModal, totalRoundsForModal), 'true');
+    }
+    setActiveMilestoneModal(null);
   };
 
   const displayRounds = (stats.all_rounds ?? []).map((r: any) => ({
@@ -485,11 +560,11 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       ],
     };
 
-  // Dynamic modal messaging based on round count (use unfiltered count)
-  const getModalMessage = () => {
+  // Dynamic premium upsell messaging based on round count (use unfiltered count)
+  const getUpgradeModalMessage = () => {
     const rounds = totalRoundsForModal;
-    if (rounds === 3) {
-      return "You've logged 3 rounds! Upgrade to Premium to unlock Intelligent Insights and advanced trends.";
+    if (rounds === 5) {
+      return "5 rounds logged! Upgrade to Premium for deeper trends and full-scope performance insights.";
     } else if (rounds === 10) {
       return "10 rounds played! Premium gives you detailed trends and analytics to improve faster.";
     } else if (rounds === 15) {
@@ -514,6 +589,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     Boolean(isPremium),
     Boolean(stats.limitedToLast20),
   );
+  const useCompactRoundFocusCard = !loading && roundFocusState.kind === 'NEED_MORE_ROUNDS';
   const focusPayload = roundFocusState.kind === 'NEED_MORE_ROUNDS' ? null : roundFocusState.focus;
   const focusComponent = focusComponentLabel(focusPayload?.component ?? null);
   const focusTypeForEvent =
@@ -527,10 +603,12 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
   const latestRoundUpdatedAtTs = parseTimestamp(stats.latestRoundUpdatedAt);
   const focusLastUpdatedTs = parseTimestamp(focusSummary?.lastUpdatedAt ?? null);
+  const nowTs = Date.now();
   const showFocusUpdatingNote =
     latestRoundUpdatedAtTs != null &&
     focusLastUpdatedTs != null &&
-    latestRoundUpdatedAtTs > focusLastUpdatedTs;
+    latestRoundUpdatedAtTs > focusLastUpdatedTs &&
+    nowTs - latestRoundUpdatedAtTs <= ROUND_FOCUS_UPDATING_WINDOW_MS;
 
   const trackDashboardFocusModeChanged = useCallback((fromMode: StatsMode, toMode: StatsMode) => {
     captureClientEvent(
@@ -700,7 +778,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
 
-      <div className="card dashboard-focus-card dashboard-focus-card-relative" data-testid="dashboard-focus-card">
+      <div
+        className={`card dashboard-focus-card dashboard-focus-card-relative${useCompactRoundFocusCard ? ' dashboard-focus-card-compact' : ''}`}
+        data-testid="dashboard-focus-card"
+      >
         <InfoTooltip text="Built from your recent scoring trend in this mode (last 5 vs baseline) and your tracked stats when available." />
         <div className="dashboard-focus-header">
           <h3 className="dashboard-focus-title">Round Focus</h3>
@@ -868,7 +949,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         {loading ? (
           <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
         ) : lastRounds.length === 0 ? (
-          <p className='secondary-text'>No rounds recorded.</p>
+          <p className='secondary-text text-center'>No rounds logged.</p>
         ) : (
           <div className="rounds-list">
             {lastRounds.map((round) => (
@@ -935,12 +1016,47 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         </div>
       )}
 
-      {/* Upgrade modal - shows at 3 rounds, then every 5 rounds */}
+      {/* Round 3 unlock modal */}
       <UpgradeModal
-        isOpen={!loading && showUpgradeModal && status === 'authenticated'}
-        onClose={handleCloseUpgradeModal}
+        isOpen={!loading && activeMilestoneModal === 'welcome' && status === 'authenticated'}
+        onClose={handleCloseMilestoneModal}
+        title="Welcome to GolfIQ"
+        titleBadge="Beta"
+        message="GolfIQ is currently in beta and focused on helping golfers understand where they are losing strokes."
+        ctaLocation="dashboard_zero_rounds_beta_modal"
+        milestoneRound={0}
+        analyticsMode="none"
+        primaryButtonLabel="Got It"
+        showCloseButton={false}
+        features={[
+          'Insights and features are actively being refined based on real rounds.',
+          'If anything feels off or confusing, submit feedback or report a bug from the Settings page.',
+        ]}
+      />
+
+      <UpgradeModal
+        isOpen={!loading && activeMilestoneModal === 'unlock' && status === 'authenticated'}
+        onClose={handleCloseMilestoneModal}
+        title="Handicap & SG Unlocked"
+        message="You have logged 3 rounds. Handicap and Strokes Gained are now available as you keep tracking."
+        ctaLocation="dashboard_round_three_unlock_modal"
+        milestoneRound={totalRoundsForModal}
+        analyticsMode="none"
+        primaryButtonLabel="View Insights"
+        secondaryButtonLabel="Got It"
+        onPrimaryAction={() => router.push('/insights')}
+        features={[
+          'Handicap now updates as new rounds are logged',
+          'Strokes Gained unlocks when round stats are tracked',
+        ]}
+      />
+
+      {/* Premium upsell milestone modal - 5 rounds, then every 5 after */}
+      <UpgradeModal
+        isOpen={!loading && activeMilestoneModal === 'upgrade' && status === 'authenticated'}
+        onClose={handleCloseMilestoneModal}
         title="Unlock Premium Insights"
-        message={getModalMessage()}
+        message={getUpgradeModalMessage()}
         ctaLocation="dashboard_round_milestone_modal"
         paywallContext="round_milestone_modal"
         milestoneRound={totalRoundsForModal}

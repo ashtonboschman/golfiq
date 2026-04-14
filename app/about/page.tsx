@@ -75,18 +75,18 @@ export default function AboutPage() {
             GolfIQ is a solo-founded project and a mix of personal passion and professional engineering. User feedback plays a major role in shaping what comes next.
           </p>
 
-          <h2 className="legal-subtitle">Join the Beta</h2>
+          <h2 className="legal-subtitle">Get Started</h2>
 
           <p>
             If you believe understanding your game is the fastest way to improve it, GolfIQ was built for you.
           </p>
 
           <p>
-            Join the beta to get full premium access, help shape the future of the platform, and be part of the next generation of golf analytics.
+            Create a free account to start tracking rounds, explore insights, and help shape the next generation of golf analytics.
           </p>
 
           <p>
-            Follow GolfIQ on social media or join the beta waitlist to stay up to date.
+            Follow GolfIQ on social media to stay up to date, and share feedback anytime from Settings to help improve the app.
           </p>
         </section>
       </div>

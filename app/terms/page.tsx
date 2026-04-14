@@ -13,7 +13,7 @@ export default function TermsPage() {
 
         <section className="legal-section">
           <p className="legal-last-updated">
-            Effective Date: January 2026
+            Effective Date: April 2026
           </p>
 
           <p>
@@ -35,8 +35,8 @@ export default function TermsPage() {
           <ul>
             <li>GolfIQ is currently in beta. Features may change, be modified, or discontinued without notice.</li>
             <li>Beta services are provided "as-is" and may contain errors or incomplete features.</li>
-            <li>You agree to provide feedback to help us improve the product.</li>
-            <li>Participation in the beta does not guarantee access to future versions of GolfIQ or its premium features.</li>
+            <li>Feedback is encouraged and helps us improve the product.</li>
+            <li>Participation in beta does not guarantee access to future versions, pricing, or feature availability.</li>
           </ul>
 
           <h2 className="legal-subtitle">Account Registration</h2>
@@ -78,7 +78,7 @@ export default function TermsPage() {
           <h2 className="legal-subtitle">Payment and Premium Features</h2>
 
           <ul>
-            <li>GolfIQ may offer paid premium features. Beta users may receive temporary access for free.</li>
+            <li>GolfIQ offers free and paid premium features depending on your plan.</li>
             <li>All fees are non-refundable unless explicitly stated.</li>
             <li>We reserve the right to modify pricing and subscription plans.</li>
           </ul>

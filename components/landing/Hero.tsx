@@ -1,15 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import ScreenshotCarousel from './ScreenshotCarousel';
 
 export default function Hero() {
-  const scrollToWaitlist = () => {
-    const element = document.getElementById('waitlist');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   const scrollToFeatures = () => {
     const element = document.getElementById('features');
     if (element) {
@@ -28,9 +22,9 @@ export default function Hero() {
           Track every round, uncover hidden weaknesses, and improve faster with Intelligent Insights built from your real performance data.
         </p>
         <div className="landing-hero-actions">
-          <button onClick={scrollToWaitlist} className="btn btn-accent btn-large">
-            Get Early Access
-          </button>
+          <Link href="/login" className="btn btn-accent btn-large">
+            Create Free Account
+          </Link>
           <button onClick={scrollToFeatures} className="btn btn-secondary btn-large">
             See How It Works
           </button>

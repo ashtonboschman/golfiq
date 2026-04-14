@@ -42,7 +42,6 @@ export default function Footer() {
     '/privacy',
     '/terms',
     '/contact',
-    '/waitlist-confirm',
     '/verify-email',
   ]);
   const isPublicRoute = publicRoutes.has(pathname);

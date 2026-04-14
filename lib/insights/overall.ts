@@ -245,6 +245,12 @@ const SG_TOUGH_ROUND_THRESHOLD = -5.0;
 const SG_ABOVE_EXPECTATIONS_THRESHOLD = 2.0;
 const SG_EXCEPTIONAL_THRESHOLD = 5.0;
 const HANDICAP_MIN_HISTORY_FOR_PROJECTION = 5;
+const HANDICAP_SCORE_LINK_MIN_POINTS = 8;
+const HANDICAP_SCORE_BLEND_WEIGHT = 0.85;
+const HANDICAP_SLOPE_BLEND_WEIGHT = 0.15;
+const HANDICAP_SCORE_SHIFT_MAX = 1.0;
+const HANDICAP_PROJECTED_SHIFT_MIN = -1.2;
+const HANDICAP_PROJECTED_SHIFT_MAX = 1.2;
 
 const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
   off_tee: [
@@ -747,6 +753,12 @@ function round1(v: number | null): number | null {
   return Math.round(v * 10) / 10;
 }
 
+function scoreToPer18(score: number | null, holes: number | null | undefined): number | null {
+  if (score == null || !Number.isFinite(score)) return null;
+  if (holes == null || !Number.isFinite(holes) || holes <= 0) return null;
+  return (score * 18) / holes;
+}
+
 function average(nums: Array<number | null>): number | null {
   const v = nums.filter((n): n is number => n != null && Number.isFinite(n));
   if (!v.length) return null;
@@ -1021,9 +1033,10 @@ function computeProjection(
   const newestHandicap = baselineCombined[0]?.handicapAtRound;
   const derivedHandicapCurrent =
     newestHandicap != null && Number.isFinite(newestHandicap) ? newestHandicap : null;
-  const hasHandicapOverride = currentHandicapOverride !== undefined;
+  const hasHandicapOverride =
+    currentHandicapOverride != null && Number.isFinite(currentHandicapOverride);
   const handicapCurrent = hasHandicapOverride
-    ? (currentHandicapOverride != null && Number.isFinite(currentHandicapOverride) ? currentHandicapOverride : null)
+    ? currentHandicapOverride
     : derivedHandicapCurrent;
   const handicapTrendWindow = baselineCombined
     .slice(0, 12)
@@ -1055,10 +1068,75 @@ function computeProjection(
         ? round1(recentAvgScore + scoreTrendShift)
       : null;
   const handicapTrendShift = handicapSlope != null ? clamp(handicapSlope * 8, -0.8, 1.2) : 0;
-  const projectedHandicapIn10 =
+  const handicapFromSlopeOnly =
     handicapCurrent != null && handicapTrendWindow.length >= HANDICAP_MIN_HISTORY_FOR_PROJECTION
-      ? round1(handicapCurrent + handicapTrendShift)
+      ? handicapCurrent + handicapTrendShift
       : null;
+
+  const scoreProjectionWindow = baselineCombined.slice(0, 20);
+  const scorePer18History = scoreProjectionWindow
+    .map((row) => scoreToPer18(row.score, row.holes))
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const handicapHistory = scoreProjectionWindow
+    .map((row) => row.handicapAtRound)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const recentAvgScorePer18 = average(
+    recentCombined.map((row) => scoreToPer18(row.score, row.holes)),
+  );
+  const recentAvgHoles = average(recentCombined.map((row) => row.holes));
+  const projectedScorePer18 =
+    projectedScoreIn10 != null && recentAvgHoles != null && recentAvgHoles > 0
+      ? (projectedScoreIn10 * 18) / recentAvgHoles
+      : null;
+
+  let handicapFromScoreOnly: number | null = null;
+  if (
+    handicapCurrent != null &&
+    projectedScorePer18 != null &&
+    recentAvgScorePer18 != null &&
+    scorePer18History.length >= HANDICAP_SCORE_LINK_MIN_POINTS &&
+    handicapHistory.length >= HANDICAP_SCORE_LINK_MIN_POINTS
+  ) {
+    const scoreStd = stdDev(scorePer18History);
+    const handicapStd = stdDev(handicapHistory);
+    const scoreToHandicapScale =
+      scoreStd != null && handicapStd != null && scoreStd >= 0.35
+        ? clamp(handicapStd / scoreStd, 0.15, 0.85)
+        : 0.4;
+    const projectedScoreShift = projectedScorePer18 - recentAvgScorePer18;
+    const handicapShiftFromScore = clamp(
+      projectedScoreShift * scoreToHandicapScale,
+      -HANDICAP_SCORE_SHIFT_MAX,
+      HANDICAP_SCORE_SHIFT_MAX,
+    );
+    handicapFromScoreOnly = handicapCurrent + handicapShiftFromScore;
+  }
+
+  let projectedHandicapRaw: number | null = null;
+  if (handicapFromScoreOnly != null && handicapFromSlopeOnly != null) {
+    projectedHandicapRaw =
+      (handicapFromScoreOnly * HANDICAP_SCORE_BLEND_WEIGHT) +
+      (handicapFromSlopeOnly * HANDICAP_SLOPE_BLEND_WEIGHT);
+  } else if (handicapFromScoreOnly != null) {
+    projectedHandicapRaw = handicapFromScoreOnly;
+  } else if (handicapFromSlopeOnly != null) {
+    projectedHandicapRaw = handicapFromSlopeOnly;
+  }
+
+  if (projectedHandicapRaw != null && handicapCurrent != null) {
+    if (trajectory === 'improving') {
+      projectedHandicapRaw = Math.min(projectedHandicapRaw, handicapCurrent);
+    } else if (trajectory === 'worsening') {
+      projectedHandicapRaw = Math.max(projectedHandicapRaw, handicapCurrent);
+    }
+    projectedHandicapRaw = clamp(
+      projectedHandicapRaw,
+      handicapCurrent + HANDICAP_PROJECTED_SHIFT_MIN,
+      handicapCurrent + HANDICAP_PROJECTED_SHIFT_MAX,
+    );
+  }
+
+  const projectedHandicapIn10 = round1(projectedHandicapRaw);
 
   return {
     trajectory,

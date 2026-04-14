@@ -139,15 +139,58 @@ describe('authOptions callbacks', () => {
     expect(oauthUser.theme).toBe('dark');
   });
 
-  it('blocks brand-new oauth signup when private beta is closed and email is not allowlisted', async () => {
+  it('allows brand-new oauth signup without legacy gating', async () => {
     const signIn = authOptions.callbacks?.signIn;
     expect(signIn).toBeDefined();
 
+    const createdUser = {
+      id: BigInt(99),
+      email: 'newgolfer@example.com',
+      username: 'newgolfer',
+      passwordHash: 'hash',
+      active: true,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      subscriptionEndsAt: null,
+      subscriptionStartsAt: null,
+      subscriptionStatus: 'active',
+      subscriptionCancelAtPeriodEnd: false,
+      subscriptionTier: 'free',
+      profile: {
+        id: BigInt(99),
+        userId: BigInt(99),
+        firstName: null,
+        lastName: null,
+        avatarUrl: '/avatars/default.png',
+        bio: null,
+        gender: 'unspecified',
+        defaultTee: 'white',
+        favoriteCourseId: null,
+        dashboardVisibility: 'friends',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        theme: 'dark',
+        timezone: null,
+        showStrokesGained: true,
+      },
+    };
+
     jest.spyOn(prisma.oAuthAccount, 'findUnique').mockResolvedValueOnce(null as any);
-    jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(null as any);
+    jest.spyOn(prisma.user, 'findUnique')
+      .mockResolvedValueOnce(null as any)
+      .mockResolvedValueOnce(createdUser as any);
     jest.spyOn(prisma.user, 'findFirst').mockResolvedValueOnce(null as any);
-    jest.spyOn((prisma as any).featureFlag, 'findUnique').mockResolvedValueOnce({ enabled: false });
-    jest.spyOn((prisma as any).allowedEmail, 'findUnique').mockResolvedValueOnce(null);
+    jest.spyOn(prisma, '$transaction').mockImplementationOnce(async (cb: any) => cb({
+      user: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdUser),
+      },
+    }));
+    jest.spyOn(prisma.oAuthAccount, 'create').mockResolvedValueOnce({} as any);
 
     const result = await signIn!(
       {
@@ -166,6 +209,6 @@ describe('authOptions callbacks', () => {
       } as any,
     );
 
-    expect(result).toBe('/login?error=WaitlistOnly');
+    expect(result).toBe(true);
   });
 });

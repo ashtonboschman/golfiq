@@ -26,9 +26,6 @@ const registerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    let waitlistRequired = false;
-    let waitlistApproved = false;
-
     // Parse request body safely
     let body: unknown;
     try {
@@ -63,54 +60,6 @@ export async function POST(request: NextRequest) {
     });
     if (existingUser) {
       return errorResponse('This email is already registered. Please use a different email or try logging in.', 400);
-    }
-
-    // Check if registration is open or email is in allowlist (beta access)
-    try {
-      console.log('[REGISTER] Checking waitlist models...');
-      console.log('[REGISTER] prisma object keys:', Object.keys(prisma).filter(k => !k.startsWith('_') && !k.startsWith('$')).slice(0, 5));
-
-      // Try to access the models - if they don't exist, this will throw
-      const hasWaitlistModels = 'featureFlag' in prisma && 'allowedEmail' in prisma;
-      console.log('[REGISTER] Has waitlist models:', hasWaitlistModels);
-
-      if (!hasWaitlistModels) {
-        console.warn('[REGISTER] Waitlist models not available yet, allowing registration');
-      } else {
-        console.log('[REGISTER] Checking feature flag...');
-        // Check feature flag for open registration
-        const flagData = await (prisma as any).featureFlag.findUnique({
-          where: { flagName: 'registration_open' },
-        });
-        console.log('[REGISTER] Feature flag data:', flagData);
-
-        const registrationOpen = flagData?.enabled || false;
-        console.log('[REGISTER] Registration open:', registrationOpen);
-
-        if (!registrationOpen) {
-          waitlistRequired = true;
-          console.log('[REGISTER] Checking allowlist for:', email.toLowerCase());
-          // Check if email is in allowlist
-          const allowedEmail = await (prisma as any).allowedEmail.findUnique({
-            where: { email: email.toLowerCase() },
-          });
-          console.log('[REGISTER] Allowed email found:', !!allowedEmail);
-          waitlistApproved = Boolean(allowedEmail);
-
-          if (!allowedEmail) {
-            console.log('[REGISTER] Email not in allowlist, blocking registration');
-            return errorResponse(
-              'GolfIQ is currently in private beta. Join our waitlist at golfiq.ca to be notified when we launch!',
-              403
-            );
-          }
-        }
-      }
-    } catch (error) {
-      console.error('[REGISTER] Error checking allowlist:', error);
-      console.error('[REGISTER] Error stack:', (error as Error).stack);
-      // If there's an error checking, allow registration (fail-open for now)
-      // You can change this to fail-closed in production
     }
 
     // Hash password
@@ -193,8 +142,7 @@ export async function POST(request: NextRequest) {
       distinctId: user.id.toString(),
       properties: {
         signup_method: 'password',
-        waitlist_required: waitlistRequired,
-        waitlist_approved: waitlistApproved,
+        registration_mode: 'public_beta',
         email_verification_sent: emailSent,
       },
       context: {

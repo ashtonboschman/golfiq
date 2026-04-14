@@ -37,7 +37,7 @@ function GoogleIcon() {
 export default function LoginPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { message, showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage } = useMessage();
 
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', password: '', confirmPassword: '' });
@@ -46,7 +46,6 @@ export default function LoginPage() {
   const [handledOAuthError, setHandledOAuthError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [shouldRedirectToLanding, setShouldRedirectToLanding] = useState(false);
   const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === '1';
   const isAppleEnabled = process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED === '1';
   const hasOauthEnabled = isGoogleEnabled || isAppleEnabled;
@@ -67,15 +66,6 @@ export default function LoginPage() {
     }
   }, [status, router]);
 
-  // Redirect to landing page when private beta error is dismissed
-  useEffect(() => {
-    if (shouldRedirectToLanding && !message) {
-      // Message was cleared (user clicked OK), now redirect
-      router.push('/');
-      setShouldRedirectToLanding(false);
-    }
-  }, [shouldRedirectToLanding, message, router]);
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -86,9 +76,7 @@ export default function LoginPage() {
     }
     if (error === handledOAuthError) return;
 
-    if (error === 'WaitlistOnly') {
-      showMessage('GolfIQ is currently in private beta. Join our waitlist at golfiq.ca to be notified when we launch!', 'error');
-    } else if (error === 'OAuthSignin' || error === 'OAuthCallback') {
+    if (error === 'OAuthSignin' || error === 'OAuthCallback') {
       showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
     }
     setHandledOAuthError(error);
@@ -205,13 +193,6 @@ export default function LoginPage() {
         const data = await res.json();
 
         if (!res.ok) {
-          // Check if it's the private beta error
-          if (res.status === 403 && data.message?.includes('private beta')) {
-            showMessage(data.message, 'error');
-            // Set flag to redirect when user dismisses the error modal
-            setShouldRedirectToLanding(true);
-            return;
-          }
           throw new HandledAuthError(data.message || 'Failed to create account. Please try again.');
         }
 

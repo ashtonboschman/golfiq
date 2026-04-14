@@ -23,6 +23,7 @@ model User {
   subscriptionCancelAtPeriodEnd Boolean            @default(false) @map("subscription_cancel_at_period_end")
   subscriptionTier        SubscriptionTier         @default(free) @map("subscription_tier")
   dataExports             DataExport[]
+  feedbackSubmissions     UserFeedback[]
   friendRequestsReceived  FriendRequest[]          @relation("RecipientRelation")
   friendRequestsSent      FriendRequest[]          @relation("RequesterRelation")
   friendsReceived         Friend[]                 @relation("FriendOfUser")
@@ -337,6 +338,26 @@ model DataExport {
   @@map("data_exports")
 }
 
+model UserFeedback {
+  id         BigInt         @id @default(autoincrement())
+  userId     BigInt         @map("user_id")
+  type       FeedbackType   @default(other)
+  message    String
+  page       String?        @db.VarChar(255)
+  appVersion String?        @map("app_version") @db.VarChar(64)
+  status     FeedbackStatus @default(open)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_user_feedback_user")
+  @@index([type], map: "idx_user_feedback_type")
+  @@index([status], map: "idx_user_feedback_status")
+  @@index([createdAt], map: "idx_user_feedback_created_at")
+  @@index([userId, createdAt], map: "idx_user_feedback_user_created_at")
+  @@map("user_feedback")
+}
+
 model ApiUsageLog {
   id        BigInt   @id @default(autoincrement())
   endpoint  String   @db.VarChar(100)
@@ -349,17 +370,6 @@ model ApiUsageLog {
   @@map("api_usage_logs")
 }
 
-model AllowedEmail {
-  id        BigInt   @id @default(autoincrement())
-  email     String   @unique @db.VarChar(255)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  addedBy   String?  @map("added_by") @db.VarChar(255)
-  notes     String?
-
-  @@index([email], map: "idx_allowed_emails_email")
-  @@map("allowed_emails")
-}
-
 model FeatureFlag {
   flagName    String   @id @map("flag_name") @db.VarChar(100)
   enabled     Boolean  @default(false)
@@ -367,22 +377,6 @@ model FeatureFlag {
   description String?
 
   @@map("feature_flags")
-}
-
-model Waitlist {
-  id                BigInt   @id @default(autoincrement())
-  email             String   @unique @db.VarChar(255)
-  name              String?  @db.VarChar(255)
-  handicap          String?  @db.VarChar(50)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  source            String   @default("landing_page") @db.VarChar(50)
-  confirmed         Boolean  @default(false)
-  confirmationToken String?  @unique @map("confirmation_token") @db.VarChar(255)
-  metadata          Json?
-
-  @@index([confirmed], map: "idx_waitlist_confirmed")
-  @@index([email], map: "idx_waitlist_email")
-  @@map("waitlist")
 }
 
 model RoundStrokesGained {
@@ -592,4 +586,17 @@ enum Tier {
   gold
   platinum
   diamond
+}
+
+enum FeedbackType {
+  bug
+  idea
+  other
+}
+
+enum FeedbackStatus {
+  open
+  in_review
+  resolved
+  closed
 }
