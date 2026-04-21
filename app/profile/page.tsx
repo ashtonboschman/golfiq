@@ -31,6 +31,20 @@ interface CourseOption {
   label: string;
 }
 
+function buildProfileUpdatePayload(profile: Profile) {
+  return {
+    first_name: profile.first_name,
+    last_name: profile.last_name,
+    avatar_url: profile.avatar_url,
+    bio: profile.bio,
+    gender: profile.gender,
+    default_tee: profile.default_tee,
+    favorite_course_id: profile.favorite_course_id,
+    dashboard_visibility: profile.dashboard_visibility,
+    theme: profile.theme,
+  };
+}
+
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -279,7 +293,7 @@ export default function ProfilePage() {
       const res = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
+        body: JSON.stringify(buildProfileUpdatePayload(profile)),
       });
 
       const data = await res.json();
@@ -404,7 +418,7 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...profile,
+          ...buildProfileUpdatePayload(profile),
           avatar_url: uploadedUrl,
         }),
       });
@@ -436,7 +450,7 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...profile,
+          ...buildProfileUpdatePayload(profile),
           avatar_url: defaultAvatarUrl,
         }),
       });

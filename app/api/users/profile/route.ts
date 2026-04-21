@@ -20,6 +20,23 @@ const profileUpdateSchema = z.object({
   show_strokes_gained: z.boolean().optional(),
 }).strict();
 
+function normalizeProfileUpdateInput(body: Record<string, unknown>) {
+  return {
+    first_name: body.first_name,
+    last_name: body.last_name,
+    avatar_url: body.avatar_url,
+    bio: body.bio,
+    gender: body.gender,
+    default_tee: body.default_tee,
+    favorite_course_id: body.favorite_course_id,
+    dashboard_visibility: body.dashboard_visibility,
+    theme: body.theme,
+    email: body.email,
+    username: body.username,
+    show_strokes_gained: body.show_strokes_gained,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
@@ -99,7 +116,8 @@ export async function PUT(request: NextRequest) {
       return errorResponse('Invalid request body', 400);
     }
 
-    const parsed = profileUpdateSchema.safeParse(body);
+    const normalizedInput = normalizeProfileUpdateInput(body as Record<string, unknown>);
+    const parsed = profileUpdateSchema.safeParse(normalizedInput);
     if (!parsed.success) {
       return errorResponse(parsed.error.issues[0]?.message || 'Invalid profile payload', 400);
     }
