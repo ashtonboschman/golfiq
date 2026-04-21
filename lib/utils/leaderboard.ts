@@ -6,7 +6,10 @@ import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext'
 export async function recalcLeaderboard(userId: bigint): Promise<void> {
   // Fetch all rounds for the user
   const rounds = await prisma.round.findMany({
-    where: { userId },
+    where: {
+      userId,
+      roundContext: 'real',
+    },
     select: {
       score: true,
       toPar: true,

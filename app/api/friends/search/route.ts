@@ -6,13 +6,11 @@ export async function GET(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q')?.trim();
+    const query = searchParams.get('q')?.trim().slice(0, 100);
 
     if (!query) {
       return errorResponse('Query required', 400);
     }
-
-    const searchTerm = `%${query}%`;
 
     // Search for users matching the query
     const users = await prisma.user.findMany({

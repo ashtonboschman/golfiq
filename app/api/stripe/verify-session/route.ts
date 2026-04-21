@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
       context: { request: req, sourcePage: '/api/stripe/verify-session', isLoggedIn: false },
     });
     return NextResponse.json(
-      { message: error.message || 'Error verifying session' },
+      { message: 'Unable to verify checkout session. Please try again.' },
       { status: 500 }
     );
   }

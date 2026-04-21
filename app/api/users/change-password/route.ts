@@ -12,7 +12,16 @@ const changePasswordSchema = z.object({
 export async function PUT(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid request body', 400);
+    }
+
+    if (!body || typeof body !== 'object') {
+      return errorResponse('Invalid request body', 400);
+    }
 
     const result = changePasswordSchema.safeParse(body);
     if (!result.success) {

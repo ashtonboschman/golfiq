@@ -11,6 +11,9 @@ import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 
+const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice'] as const;
+type RoundContext = (typeof ROUND_CONTEXT_VALUES)[number];
+
 // Helper to format round data
 type RoundWithRelations = {
   id: bigint;
@@ -18,6 +21,7 @@ type RoundWithRelations = {
   courseId: bigint;
   teeId: bigint;
   holeByHole: boolean;
+  roundContext?: RoundContext | null;
   holesPlayed: number;
   toPar: number | null;
   teeSegment: string;
@@ -55,6 +59,7 @@ function formatRoundRow(round: RoundWithRelations) {
     course_id: Number(round.courseId),
     tee_id: Number(round.teeId),
     hole_by_hole: round.holeByHole ? 1 : 0,
+    round_context: round.roundContext ?? 'real',
     date: round.date,
     score: round.score === null ? null : Number(round.score),
     fir_hit: round.firHit === null ? null : Number(round.firHit),
@@ -178,6 +183,7 @@ const updateRoundSchema = z.object({
   penalties: z.number().nullable().optional(),
   notes: z.string().optional().default(''),
   tee_segment: z.enum(['full', 'front9', 'back9', 'double9']).optional().default('full'),
+  round_context: z.enum(ROUND_CONTEXT_VALUES).optional(),
   hole_by_hole: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
   round_holes: z.array(z.object({
     hole_id: z.union([z.string(), z.number()]),
@@ -198,7 +204,16 @@ export async function PUT(
     const userId = await requireAuth(request);
     const { id } = await params;
     const roundId = BigInt(id);
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid request body', 400);
+    }
+
+    if (!body || typeof body !== 'object') {
+      return errorResponse('Invalid request body', 400);
+    }
 
     // Validate body
     const result = updateRoundSchema.safeParse(body);
@@ -253,6 +268,7 @@ export async function PUT(
         teeId: true,
         teeSegment: true,
         holeByHole: true,
+        roundContext: true,
         score: true,
         firHit: true,
         girHit: true,
@@ -297,6 +313,8 @@ export async function PUT(
     }
 
     const teeSegment = data.tee_segment as TeeSegment;
+    const roundContext: RoundContext =
+      data.round_context ?? (existingRound.roundContext as RoundContext) ?? 'real';
     const ctx = resolveTeeContext(teeForCtx, teeSegment);
 
     // Update round (initial update without netScore/netToPar)
@@ -306,6 +324,7 @@ export async function PUT(
         courseId,
         teeId,
         teeSegment,
+        roundContext,
         holesPlayed: ctx.holes,
         date: updatedAt,
         holeByHole: data.hole_by_hole,
@@ -404,6 +423,7 @@ export async function PUT(
       courseId,
       teeId,
       teeSegment,
+      roundContext,
       holeByHole: data.hole_by_hole,
       score: updateScore,
       firHit: updateFir,
@@ -421,6 +441,7 @@ export async function PUT(
         fields_changed_count: fieldsChangedCount,
         mode: data.hole_by_hole ? 'live_round' : 'after_round',
         holes: ctx.holes,
+        round_context: roundContext,
       },
       context: {
         request,
@@ -625,6 +646,7 @@ function countChangedFields(
     courseId: bigint;
     teeId: bigint;
     teeSegment: string;
+    roundContext: RoundContext;
     holeByHole: boolean;
     score: number;
     firHit: number | null;
@@ -637,6 +659,7 @@ function countChangedFields(
     courseId: bigint;
     teeId: bigint;
     teeSegment: TeeSegment;
+    roundContext: RoundContext;
     holeByHole: boolean;
     score: number;
     firHit: number | null;
@@ -650,6 +673,7 @@ function countChangedFields(
   if (before.courseId !== after.courseId) changed += 1;
   if (before.teeId !== after.teeId) changed += 1;
   if (before.teeSegment !== after.teeSegment) changed += 1;
+  if (before.roundContext !== after.roundContext) changed += 1;
   if (before.holeByHole !== after.holeByHole) changed += 1;
   if (before.score !== after.score) changed += 1;
   if (before.firHit !== after.firHit) changed += 1;

@@ -17,7 +17,7 @@ function isAdmin(userId: bigint): boolean {
 function buildWhere(searchParams: URLSearchParams): Prisma.UserFeedbackWhereInput {
   const status = searchParams.get('status')?.trim().toLowerCase();
   const type = searchParams.get('type')?.trim().toLowerCase();
-  const search = searchParams.get('search')?.trim();
+  const search = searchParams.get('search')?.trim().slice(0, 120);
 
   const where: Prisma.UserFeedbackWhereInput = {};
 
@@ -110,6 +110,10 @@ export async function PATCH(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
+      return errorResponse('Invalid request body', 400);
+    }
+
+    if (!body || typeof body !== 'object') {
       return errorResponse('Invalid request body', 400);
     }
 

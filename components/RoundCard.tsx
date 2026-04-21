@@ -11,6 +11,7 @@ interface RoundCardProps {
     tee_name?: string;
     number_of_holes?: number;
     net_score?: number | null;
+    round_context?: 'real' | 'simulator' | 'practice' | null;
     date: string;
     score: number | null;
     par?: number | null;
@@ -59,6 +60,13 @@ export default function RoundCard({
 
   const teeName = round.tee_name || 'default';
   const par = round.par ?? null;
+  const roundContext = round.round_context ?? 'real';
+  const roundContextLabel =
+    roundContext === 'simulator'
+      ? 'SIM'
+      : roundContext === 'practice'
+        ? 'PRACTICE'
+        : null;
 
   const cardContent = (
     <>
@@ -74,6 +82,9 @@ export default function RoundCard({
           </div>
 
           <div className="roundcard-header-right flex-row gap-small">
+            {roundContextLabel && (
+              <p className={`round-context-tag round-context-${roundContext}`}>{roundContextLabel}</p>
+            )}
             <p className={`tee-tag tee-${teeName.toLowerCase()}`}>{teeName}</p>
             {showHoles && (
               <p className="round-holes-tag">{round.number_of_holes} Holes</p>

@@ -43,6 +43,7 @@ interface ScoringByPar {
 interface RoundStats {
   round_id: string;
   course_name: string;
+  round_context?: 'real' | 'simulator' | 'practice' | null;
   tee_name: string;
   course_rating: number | null;
   slope_rating: number | null;
@@ -244,6 +245,14 @@ export default function RoundStatsPage() {
     return value > 0 ? `+${value}` : `${value}`;
   };
 
+  const roundContext = stats.round_context ?? 'real';
+  const roundContextLabel =
+    roundContext === 'simulator'
+      ? 'SIM'
+      : roundContext === 'practice'
+        ? 'PRACTICE'
+        : null;
+
   const sgTooltipText =
     'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Putting, and Penalties use the stats you logged. Residual is scoring not explained by tracked stats.';
 
@@ -290,6 +299,11 @@ export default function RoundStatsPage() {
                   {stats.course_rating && `${stats.course_rating}`}
                   {stats.course_rating && stats.slope_rating && ' / '}
                   {stats.slope_rating && `${stats.slope_rating}`}
+                </p>
+              )}
+              {roundContextLabel && (
+                <p className={`round-context-tag round-context-${roundContext}`}>
+                  {roundContextLabel}
                 </p>
               )}
             </div>

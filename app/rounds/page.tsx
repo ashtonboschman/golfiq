@@ -9,6 +9,7 @@ import { Plus } from 'lucide-react';
 import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
 
 interface Round {
+  round_context?: 'real' | 'simulator' | 'practice' | null;
   id: number;
   date: string;
   score: number | null;
@@ -113,6 +114,7 @@ export default function RoundsPage() {
 
       const flattenedRounds: Round[] = roundsData.map((r: any) => ({
         id: Number(r.id),
+        round_context: r.round_context ?? 'real',
         date: r.date,
         score: r.score != null ? Number(r.score) : null,
         fir_hit: r.fir_hit != null ? Number(r.fir_hit) : null,

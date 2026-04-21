@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
+import { z } from 'zod';
 
 type HoleData = {
   id: number;
@@ -57,6 +58,57 @@ type TeeFromDB = {
     handicap: number | null;
   }>;
 };
+
+const numberLikeSchema = z.union([
+  z.number(),
+  z.string().trim().regex(/^-?\d+(\.\d+)?$/, 'Must be a valid number'),
+]);
+
+const holeInputSchema = z.object({
+  par: numberLikeSchema.nullable().optional(),
+  yardage: numberLikeSchema.nullable().optional(),
+  handicap: numberLikeSchema.nullable().optional(),
+}).passthrough();
+
+const teeInputSchema = z.object({
+  id: numberLikeSchema.nullable().optional(),
+  tee_name: z.string().trim().min(1).max(100),
+  course_rating: numberLikeSchema.nullable().optional(),
+  slope_rating: numberLikeSchema.nullable().optional(),
+  bogey_rating: numberLikeSchema.nullable().optional(),
+  total_yards: numberLikeSchema.nullable().optional(),
+  total_meters: numberLikeSchema.nullable().optional(),
+  number_of_holes: numberLikeSchema.nullable().optional(),
+  par_total: numberLikeSchema.nullable().optional(),
+  front_course_rating: numberLikeSchema.nullable().optional(),
+  front_slope_rating: numberLikeSchema.nullable().optional(),
+  front_bogey_rating: numberLikeSchema.nullable().optional(),
+  back_course_rating: numberLikeSchema.nullable().optional(),
+  back_slope_rating: numberLikeSchema.nullable().optional(),
+  back_bogey_rating: numberLikeSchema.nullable().optional(),
+  holes: z.array(holeInputSchema).max(36).optional(),
+}).passthrough();
+
+const createCourseSchema = z.object({
+  id: z.union([
+    z.number().int().positive(),
+    z.string().trim().regex(/^\d+$/, 'id must be a positive integer'),
+  ]),
+  club_name: z.string().trim().min(1).max(255),
+  course_name: z.string().trim().min(1).max(255),
+  location: z.object({
+    address: z.string().trim().max(255).nullable().optional(),
+    city: z.string().trim().max(100).nullable().optional(),
+    state: z.string().trim().max(50).nullable().optional(),
+    country: z.string().trim().max(50).nullable().optional(),
+    latitude: numberLikeSchema.nullable().optional(),
+    longitude: numberLikeSchema.nullable().optional(),
+  }).passthrough().nullable().optional(),
+  tees: z.object({
+    male: z.array(teeInputSchema).max(20).optional(),
+    female: z.array(teeInputSchema).max(20).optional(),
+  }).passthrough().nullable().optional(),
+}).passthrough();
 
 // Helper to build full course response with tees and holes
 async function buildCourseResponse(courseId: bigint | string) {
@@ -139,9 +191,11 @@ export async function GET(request: NextRequest) {
     await requireAuth(request);
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const page = parseInt(searchParams.get('page') || '1');
-    const search = searchParams.get('search');
+    const rawLimit = parseInt(searchParams.get('limit') || '20', 10);
+    const rawPage = parseInt(searchParams.get('page') || '1', 10);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 20;
+    const page = Number.isFinite(rawPage) ? Math.max(rawPage, 1) : 1;
+    const search = searchParams.get('search')?.trim().slice(0, 120);
     const userLat = searchParams.get('lat');
     const userLng = searchParams.get('lng');
 
@@ -300,8 +354,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.error('GET /api/courses error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return errorResponse(`Failed to retrieve courses: ${errorMessage}`, 500);
+    return errorResponse('Failed to retrieve courses', 500);
   }
 }
 
@@ -337,12 +390,23 @@ export async function POST(request: NextRequest) {
   try {
     await requireAuth(request);
 
-    const body = await request.json();
-    const { id: courseIdFromApi, club_name, course_name, location, tees } = body;
-
-    if (!courseIdFromApi || !club_name || !course_name) {
-      return errorResponse('Course ID, club name, and course name are required', 400);
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid request body', 400);
     }
+
+    if (!body || typeof body !== 'object') {
+      return errorResponse('Invalid request body', 400);
+    }
+
+    const parsed = createCourseSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues[0]?.message || 'Invalid course payload', 400);
+    }
+
+    const { id: courseIdFromApi, club_name, course_name, location, tees } = parsed.data;
 
     // Check if course already exists
     const existing = await prisma.course.findUnique({
@@ -480,7 +544,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.error('POST /api/courses error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return errorResponse('Failed to create course: ' + errorMessage, 500);
+    return errorResponse('Failed to create course', 500);
   }
 }

@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { errorResponse, successResponse } from '@/lib/api-auth';
@@ -130,13 +129,6 @@ export async function POST(request: NextRequest) {
       console.error('Failed to send verification email to:', user.email);
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id.toString() },
-      process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: '7d' }
-    );
-
     await captureServerEvent({
       event: ANALYTICS_EVENTS.signupCompleted,
       distinctId: user.id.toString(),
@@ -161,7 +153,6 @@ export async function POST(request: NextRequest) {
         first_name: user.profile?.firstName || '',
         last_name: user.profile?.lastName || '',
       },
-      token,
     });
   } catch (error) {
     // Handle unique constraint violations (Prisma error)

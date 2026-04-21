@@ -50,6 +50,14 @@ describe("leaderboard utils", () => {
 
     await recalcLeaderboard(BigInt(1));
 
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: BigInt(1),
+          roundContext: 'real',
+        },
+      }),
+    );
     expect(mockedPrisma.userLeaderboardStats.upsert).toHaveBeenCalledWith({
       where: { userId: BigInt(1) },
       create: {

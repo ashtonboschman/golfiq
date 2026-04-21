@@ -124,7 +124,7 @@ export async function GET() {
   } catch (error: any) {
     console.error('Error fetching subscription:', error);
     return NextResponse.json(
-      { message: error.message || 'Error fetching subscription' },
+      { message: 'Unable to fetch subscription details' },
       { status: 500 }
     );
   }

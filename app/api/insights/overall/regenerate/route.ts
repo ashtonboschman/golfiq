@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
       return errorResponse('Database table "overall_insights" is missing. Apply the latest SQL migration.', 500);
     }
-    if (error.message === 'Unauthorized') return errorResponse('Unauthorized', 401);
-    return errorResponse(error.message || 'Failed to regenerate overall insights', 500);
+    if (error instanceof Error && error.message === 'Unauthorized') return errorResponse('Unauthorized', 401);
+    return errorResponse('Failed to regenerate overall insights', 500);
   }
 }

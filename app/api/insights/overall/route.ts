@@ -123,7 +123,10 @@ function applyTierSafety(payload: any, isPremium: boolean, roundsUsed: number): 
 
 async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]> {
   const rounds = await prisma.round.findMany({
-    where: { userId },
+    where: {
+      userId,
+      roundContext: 'real',
+    },
     include: {
       tee: { include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } },
       roundStrokesGained: true,
@@ -384,8 +387,8 @@ export async function GET(request: NextRequest) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
       return errorResponse('Database table "overall_insights" is missing. Apply the latest SQL migration.', 500);
     }
-    if (error.message === 'Unauthorized') return errorResponse('Unauthorized', 401);
-    return errorResponse(error.message || 'Failed to load overall insights', 500);
+    if (error instanceof Error && error.message === 'Unauthorized') return errorResponse('Unauthorized', 401);
+    return errorResponse('Failed to load overall insights', 500);
   }
 }
 

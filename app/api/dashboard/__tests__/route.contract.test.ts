@@ -123,6 +123,14 @@ describe('/api/dashboard route contract', () => {
     expect(body.all_rounds).toHaveLength(20);
     expect(body.limitedToLast20).toBe(true);
     expect(body.totalRoundsInDb).toBe(25);
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: BigInt(1),
+          roundContext: 'real',
+        }),
+      }),
+    );
 
     // Ensure handicap is also computed from the capped set.
     expect(mockedCalculateHandicap).toHaveBeenCalledWith(
@@ -135,4 +143,3 @@ describe('/api/dashboard route contract', () => {
     expect(handicapInput).toHaveLength(20);
   });
 });
-

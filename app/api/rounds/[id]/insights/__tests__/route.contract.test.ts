@@ -1,6 +1,7 @@
-import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
+import { GET, generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { prisma } from '@/lib/db';
 import { runMeasuredSgSelection } from '@/lib/insights/postRound/sgSelection';
+import { getServerSession } from 'next-auth';
 
 jest.mock('next-auth', () => ({
   getServerSession: jest.fn(),
@@ -36,6 +37,7 @@ type MockPrisma = {
 
 const mockedPrisma = prisma as unknown as MockPrisma;
 const mockedRunMeasuredSgSelection = runMeasuredSgSelection as jest.Mock;
+const mockedGetServerSession = getServerSession as jest.Mock;
 
 function makeTee() {
   return {
@@ -61,6 +63,7 @@ function makeTee() {
 describe('/api/rounds/[id]/insights route contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedGetServerSession.mockResolvedValue({ user: { id: '1' } });
 
     mockedPrisma.roundInsight.findUnique.mockResolvedValue(null);
     mockedPrisma.roundInsight.upsert.mockImplementation(async (args: any) => ({
@@ -197,5 +200,17 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const savedInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
     expect(savedInsights.free_visible_count).toBe(1);
     expect(savedInsights.message_outcomes[0]).not.toMatch(/^OB-/);
+  });
+
+  it('returns generic errors for unexpected GET failures', async () => {
+    mockedPrisma.user.findUnique.mockRejectedValueOnce(new Error('sensitive backend failure'));
+
+    const request = new Request('http://localhost/api/rounds/40/insights');
+    const response = await GET(request as any, { params: Promise.resolve({ id: '40' }) });
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.message).toBe('Error fetching insights');
+    expect(body.message).not.toContain('sensitive');
   });
 });

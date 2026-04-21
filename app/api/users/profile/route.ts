@@ -1,6 +1,24 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
+import { z } from 'zod';
+
+const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+
+const profileUpdateSchema = z.object({
+  first_name: z.union([z.string().trim().max(100), z.null()]).optional(),
+  last_name: z.union([z.string().trim().max(100), z.null()]).optional(),
+  avatar_url: z.string().trim().max(255).optional(),
+  bio: z.union([z.string().trim().max(500), z.null()]).optional(),
+  gender: z.enum(['male', 'female', 'unspecified']).optional(),
+  default_tee: z.enum(['blue', 'white', 'red', 'gold', 'black']).optional(),
+  favorite_course_id: z.union([z.string().trim(), z.number(), z.null()]).optional(),
+  dashboard_visibility: z.enum(['private', 'friends', 'public']).optional(),
+  theme: z.string().trim().min(1).max(50).optional(),
+  email: z.string().trim().email().toLowerCase().optional(),
+  username: z.string().trim().min(1).max(100).regex(USERNAME_REGEX, 'Username can only include letters, numbers, and underscores').optional(),
+  show_strokes_gained: z.boolean().optional(),
+}).strict();
 
 export async function GET(request: NextRequest) {
   try {
@@ -70,7 +88,21 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid request body', 400);
+    }
+
+    if (!body || typeof body !== 'object') {
+      return errorResponse('Invalid request body', 400);
+    }
+
+    const parsed = profileUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues[0]?.message || 'Invalid profile payload', 400);
+    }
 
     // Destructure fields from body
     const {
@@ -86,7 +118,20 @@ export async function PUT(request: NextRequest) {
       email,
       username,
       show_strokes_gained,
-    } = body;
+    } = parsed.data;
+
+    let favoriteCourseId: bigint | null | undefined = undefined;
+    if (favorite_course_id === null) {
+      favoriteCourseId = null;
+    } else if (favorite_course_id !== undefined) {
+      const parsedFavoriteId = typeof favorite_course_id === 'number'
+        ? favorite_course_id
+        : Number(favorite_course_id);
+      if (!Number.isFinite(parsedFavoriteId) || parsedFavoriteId <= 0) {
+        return errorResponse('favorite_course_id must be a valid positive number', 400);
+      }
+      favoriteCourseId = BigInt(parsedFavoriteId);
+    }
 
     // Update profile fields
     const updatedProfile = await prisma.userProfile.update({
@@ -98,7 +143,7 @@ export async function PUT(request: NextRequest) {
         bio,
         gender,
         defaultTee: default_tee,
-        favoriteCourseId: favorite_course_id ? BigInt(favorite_course_id) : null,
+        favoriteCourseId,
         dashboardVisibility: dashboard_visibility,
         theme,
         showStrokesGained: show_strokes_gained,

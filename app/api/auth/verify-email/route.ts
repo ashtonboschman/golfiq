@@ -3,7 +3,23 @@ import { prisma } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: { token?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { type: 'error', message: 'Invalid request body.' },
+        { status: 400 }
+      );
+    }
+
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { type: 'error', message: 'Invalid request body.' },
+        { status: 400 }
+      );
+    }
+
     const { token } = body;
 
     // Validate token

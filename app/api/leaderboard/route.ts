@@ -11,12 +11,21 @@ export async function GET(request: NextRequest) {
     const userId = await requireAuth(request);
     const { searchParams } = new URL(request.url);
 
-    const scope = searchParams.get('scope') ?? 'global';
-    const limit = Number(searchParams.get('limit') ?? 25);
-    const page = Number(searchParams.get('page') ?? 1);
+    const rawScope = searchParams.get('scope') ?? 'global';
+    const scope = rawScope === 'friends' ? 'friends' : 'global';
+
+    const rawLimit = Number(searchParams.get('limit') ?? 25);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.floor(rawLimit), 1), 100) : 25;
+
+    const rawPage = Number(searchParams.get('page') ?? 1);
+    const page = Number.isFinite(rawPage) ? Math.max(Math.floor(rawPage), 1) : 1;
     const skip = (page - 1) * limit;
 
-    const sortBy = (searchParams.get('sortBy') ?? 'handicap') as SortKey;
+    const sortByParam = searchParams.get('sortBy') ?? 'handicap';
+    const sortBy: SortKey =
+      sortByParam === 'average_score' || sortByParam === 'best_score' || sortByParam === 'handicap'
+        ? sortByParam
+        : 'handicap';
     const sortOrder: SortOrder =
       searchParams.get('sortOrder') === 'desc' ? 'desc' : 'asc';
 

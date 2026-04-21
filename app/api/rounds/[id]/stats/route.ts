@@ -164,6 +164,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       round_id: round.id.toString(),
       course_name: courseName,
       number_of_holes: ctx.holes,
+      round_context: round.roundContext ?? 'real',
       tee_name: round.tee.teeName,
       course_rating: ctx.courseRating,
       slope_rating: ctx.slopeRating,

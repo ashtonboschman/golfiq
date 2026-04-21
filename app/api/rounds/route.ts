@@ -11,6 +11,9 @@ import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 
+const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice'] as const;
+type RoundContext = (typeof ROUND_CONTEXT_VALUES)[number];
+
 // Helper to format round data
 type RoundWithRelations = {
   id: bigint;
@@ -19,6 +22,7 @@ type RoundWithRelations = {
   teeId: bigint;
   holeByHole: boolean;
   holesPlayed: number;
+  roundContext?: RoundContext | null;
   toPar: number | null;
   teeSegment: string;
   date: Date;
@@ -55,6 +59,7 @@ function formatRoundRow(round: RoundWithRelations) {
     course_id: Number(round.courseId),
     tee_id: Number(round.teeId),
     hole_by_hole: round.holeByHole ? 1 : 0,
+    round_context: round.roundContext ?? 'real',
     date: round.date,
     score: round.score === null ? null : Number(round.score),
     net_score: round.netScore === null ? null : Number(round.netScore),
@@ -93,9 +98,11 @@ export async function GET(request: NextRequest) {
     const userId = await requireAuth(request);
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const page = parseInt(searchParams.get('page') || '1');
-    const search = searchParams.get('search');
+    const rawLimit = parseInt(searchParams.get('limit') || '20', 10);
+    const rawPage = parseInt(searchParams.get('page') || '1', 10);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 20;
+    const page = Number.isFinite(rawPage) ? Math.max(rawPage, 1) : 1;
+    const search = searchParams.get('search')?.trim().slice(0, 100);
 
     const skip = (page - 1) * limit;
 
@@ -170,6 +177,7 @@ const createRoundSchema = z.object({
   penalties: z.number().nullable().optional(),
   notes: z.string().optional().default(''),
   tee_segment: z.enum(['full', 'front9', 'back9', 'double9']).optional().default('full'),
+  round_context: z.enum(ROUND_CONTEXT_VALUES).optional().default('real'),
   hole_by_hole: z.union([z.boolean(), z.number()]).transform((val: any) => typeof val === 'number' ? val === 1 : val).optional().default(false),
   round_holes: z.array(z.object({
     hole_id: z.union([z.string(), z.number()]),
@@ -185,7 +193,16 @@ const createRoundSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('Invalid request body', 400);
+    }
+
+    if (!body || typeof body !== 'object') {
+      return errorResponse('Invalid request body', 400);
+    }
 
     const result = createRoundSchema.safeParse(body);
     if (!result.success) {
@@ -293,6 +310,7 @@ export async function POST(request: NextRequest) {
         teeId,
         teeSegment,
         holesPlayed: ctx.holes,
+        roundContext: data.round_context,
         holeByHole: data.hole_by_hole,
         date: roundDate,
         score: insertScore,
@@ -369,7 +387,9 @@ export async function POST(request: NextRequest) {
         penalties: true,
       },
     });
-    const roundsLifetime = await prisma.round.count({ where: { userId } });
+    const officialRoundsLifetime = await prisma.round.count({
+      where: { userId, roundContext: 'real' },
+    });
 
     await captureServerEvent({
       event: ANALYTICS_EVENTS.roundAddCompleted,
@@ -387,7 +407,8 @@ export async function POST(request: NextRequest) {
           penalties: storedRound?.penalties ?? null,
         }),
         course_id_present: true,
-        rounds_lifetime: roundsLifetime,
+        rounds_lifetime: officialRoundsLifetime,
+        round_context: data.round_context,
       },
       context: {
         request,
@@ -396,24 +417,24 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (roundsLifetime === 1) {
+    if (officialRoundsLifetime === 1) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.firstRoundCompleted,
         distinctId: userId.toString(),
         properties: {
-          rounds_lifetime: roundsLifetime,
+          rounds_lifetime: officialRoundsLifetime,
           round_id: roundId.toString(),
         },
         context: { request, sourcePage: '/api/rounds', isLoggedIn: true },
       });
     }
 
-    if (roundsLifetime === 3) {
+    if (officialRoundsLifetime === 3) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.thirdRoundCompleted,
         distinctId: userId.toString(),
         properties: {
-          rounds_lifetime: roundsLifetime,
+          rounds_lifetime: officialRoundsLifetime,
           round_id: roundId.toString(),
         },
         context: { request, sourcePage: '/api/rounds', isLoggedIn: true },

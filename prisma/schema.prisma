@@ -231,6 +231,7 @@ model Round {
   handicapAtRound       Decimal?               @map("handicap_at_round") @db.Decimal(4, 1)
   teeSegment            String                 @default("full") @map("tee_segment")
   holesPlayed           Int                    @default(18) @map("holes_played")
+  roundContext          RoundContext           @default(real) @map("round_context")
   roundHoles            RoundHole[]
   RoundInsight          RoundInsight?
   roundStrokesGained    RoundStrokesGained?
@@ -240,6 +241,7 @@ model Round {
   userAchievementEvents UserAchievementEvent[]
 
   @@index([userId], map: "idx_user_id")
+  @@index([userId, roundContext], map: "idx_round_user_context")
   @@index([courseId], map: "idx_round_course_id")
   @@index([teeId], map: "idx_round_tee_id")
   @@map("rounds")
@@ -599,4 +601,10 @@ enum FeedbackStatus {
   in_review
   resolved
   closed
+}
+
+enum RoundContext {
+  real
+  simulator
+  practice
 }

@@ -254,9 +254,6 @@ const providers: NextAuthOptions['providers'] = [
       password: { label: 'Password', type: 'password' },
     },
     async authorize(credentials) {
-      console.log('[AUTH] Starting authorization...');
-      console.log('[AUTH] Credentials:', { email: credentials?.email, hasPassword: !!credentials?.password });
-
       if (!credentials?.email || !credentials?.password) {
         trackPasswordLoginFailed({
           email: credentials?.email ?? null,

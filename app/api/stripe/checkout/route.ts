@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
       context: { request: req, sourcePage: '/api/stripe/checkout', isLoggedIn: false },
     });
     return NextResponse.json(
-      { message: error.message || 'Error creating checkout session' },
+      { message: 'Unable to start checkout. Please try again.' },
       { status: 500 }
     );
   }

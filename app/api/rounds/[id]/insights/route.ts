@@ -156,6 +156,12 @@ async function getUserSession() {
   return BigInt(session.user.id);
 }
 
+function isUnauthorizedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return message === 'unauthorized' || message.includes('unauthorized access');
+}
+
 async function getViewerEntitlements(userId: bigint): Promise<ViewerEntitlements> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -256,9 +262,10 @@ export async function GET(
     return NextResponse.json({ insights });
   } catch (error: any) {
     console.error('Error fetching insights:', error);
+    const isUnauthorized = isUnauthorizedError(error);
     return NextResponse.json(
-      { message: error.message || 'Error fetching insights' },
-      { status: error.message === 'Unauthorized' ? 401 : 500 },
+      { message: isUnauthorized ? 'Unauthorized' : 'Error fetching insights' },
+      { status: isUnauthorized ? 401 : 500 },
     );
   }
 }
@@ -277,9 +284,10 @@ export async function POST(
     return NextResponse.json({ insights });
   } catch (error: any) {
     console.error('Error generating insights:', error);
+    const isUnauthorized = isUnauthorizedError(error);
     return NextResponse.json(
-      { message: error.message || 'Error generating insights' },
-      { status: error.message === 'Unauthorized' ? 401 : 500 },
+      { message: isUnauthorized ? 'Unauthorized' : 'Error generating insights' },
+      { status: isUnauthorized ? 401 : 500 },
     );
   }
 }

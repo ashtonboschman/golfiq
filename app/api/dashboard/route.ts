@@ -12,10 +12,32 @@ export async function GET(request: NextRequest) {
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
-    const statsMode = (searchParams.get('statsMode') || 'combined') as 'combined' | '9' | '18';
+    const statsModeParam = searchParams.get('statsMode') || 'combined';
+    const statsMode: 'combined' | '9' | '18' =
+      statsModeParam === '9' || statsModeParam === '18' || statsModeParam === 'combined'
+        ? statsModeParam
+        : 'combined';
+
     const requestedUserIdParam = searchParams.get('user_id');
-    const requestedUserId = requestedUserIdParam ? BigInt(requestedUserIdParam) : currentUserId;
-    const dateFilter = searchParams.get('dateFilter') || 'all';
+    let requestedUserId = currentUserId;
+    if (requestedUserIdParam) {
+      if (!/^\d+$/.test(requestedUserIdParam.trim())) {
+        return errorResponse('Invalid user_id', 400);
+      }
+      requestedUserId = BigInt(requestedUserIdParam.trim());
+    }
+
+    const dateFilterParam = searchParams.get('dateFilter') || 'all';
+    const dateFilter =
+      dateFilterParam === 'all' ||
+      dateFilterParam === '30days' ||
+      dateFilterParam === '30' ||
+      dateFilterParam === '6months' ||
+      dateFilterParam === '90' ||
+      dateFilterParam === 'year' ||
+      dateFilterParam === '365'
+        ? dateFilterParam
+        : 'all';
 
     // Check dashboard visibility and get user info
     const profile = await prisma.userProfile.findUnique({
@@ -86,6 +108,7 @@ export async function GET(request: NextRequest) {
     const rounds = await prisma.round.findMany({
       where: {
         userId: requestedUserId,
+        roundContext: 'real',
         ...(dateFrom && dateTo && { date: { gte: dateFrom, lte: dateTo } }),
         ...(dateFrom && !dateTo && { date: { gte: dateFrom } }),
       },

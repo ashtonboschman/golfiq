@@ -4,7 +4,23 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: { token?: unknown; password?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { type: 'error', message: 'Invalid request body.' },
+        { status: 400 }
+      );
+    }
+
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { type: 'error', message: 'Invalid request body.' },
+        { status: 400 }
+      );
+    }
+
     const { token, password } = body;
 
     // Validate inputs

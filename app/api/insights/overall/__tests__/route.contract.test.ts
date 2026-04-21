@@ -117,6 +117,14 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.projection.projectedHandicapIn10).toBeNull();
     expect(body.insights.projection_by_mode.combined.projectedScoreIn10).toBeNull();
     expect(body.insights.projection_ranges).toBeUndefined();
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: BigInt(1),
+          roundContext: 'real',
+        },
+      }),
+    );
   });
 
   it('returns premium unlocked insights shape with mode payload/projections', async () => {
@@ -187,6 +195,19 @@ describe('/api/insights/overall contract', () => {
     expect(mockedPrisma.overallInsight.upsert).toHaveBeenCalledTimes(1);
     const upsertArgs = mockedPrisma.overallInsight.upsert.mock.calls[0][0];
     expect(upsertArgs.update.variantOffset).toBe(5);
+  });
+
+  it('returns a generic error message for unexpected failures', async () => {
+    mockedRequireAuth.mockRejectedValueOnce(new Error('sensitive backend failure'));
+
+    const request = new Request('http://localhost/api/insights/overall');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.type).toBe('error');
+    expect(body.message).toBe('Failed to load overall insights');
+    expect(body.message).not.toContain('sensitive');
   });
 });
 

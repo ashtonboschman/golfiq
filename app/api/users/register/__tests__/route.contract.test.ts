@@ -1,6 +1,5 @@
 import { POST } from '@/app/api/users/register/route';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { prisma } from '@/lib/db';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
@@ -8,10 +7,6 @@ import { EMAIL_FROM, generateEmailVerificationEmail, sendEmail } from '@/lib/ema
 
 jest.mock('bcryptjs', () => ({
   hash: jest.fn(),
-}));
-
-jest.mock('jsonwebtoken', () => ({
-  sign: jest.fn(),
 }));
 
 jest.mock('@/lib/db', () => ({
@@ -51,7 +46,6 @@ type MockPrisma = {
 };
 
 const mockedBcrypt = bcrypt as unknown as { hash: jest.Mock };
-const mockedJwt = jwt as unknown as { sign: jest.Mock };
 const mockedPrisma = prisma as unknown as MockPrisma;
 const mockedSendEmail = sendEmail as jest.Mock;
 const mockedGenerateVerificationEmail = generateEmailVerificationEmail as jest.Mock;
@@ -65,7 +59,6 @@ describe('/api/users/register route contract', () => {
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     process.env.NEXT_PUBLIC_APP_URL = 'https://www.golfiq.ca';
-    process.env.JWT_SECRET = 'test-jwt-secret';
 
     mockedPrisma.user.findFirst.mockResolvedValue(null);
     mockedPrisma.user.create.mockResolvedValue({
@@ -79,7 +72,6 @@ describe('/api/users/register route contract', () => {
     mockedPrisma.emailVerificationToken.deleteMany.mockResolvedValue({ count: 0 });
     mockedPrisma.emailVerificationToken.create.mockResolvedValue({ id: BigInt(1) });
     mockedBcrypt.hash.mockResolvedValue('hashed-password');
-    mockedJwt.sign.mockReturnValue('jwt-token');
     mockedGenerateVerificationEmail.mockReturnValue({
       subject: 'Verify your email',
       html: '<p>verify</p>',
@@ -116,7 +108,6 @@ describe('/api/users/register route contract', () => {
         last_name: 'User',
       }),
     );
-    expect(body.token).toBe('jwt-token');
 
     expect(mockedPrisma.user.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({

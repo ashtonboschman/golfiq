@@ -39,6 +39,7 @@ interface Round {
   date: string;
   course_id: string;
   tee_id: string;
+  round_context: RoundContext;
   tee_segment: TeeSegment;
   hole_by_hole: number;
   score: number | null;
@@ -74,6 +75,15 @@ interface TeeOption {
   teeObj?: any;
 }
 
+type RoundContext = 'real' | 'simulator' | 'practice';
+
+type TaggedRoundContext = Exclude<RoundContext, 'real'>;
+
+const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
+  { value: 'simulator', label: 'Simulator Round' },
+  { value: 'practice', label: 'Practice Round' },
+];
+
 function EditRoundContent() {
   const params = useParams();
   const id = params?.id as string;
@@ -88,6 +98,7 @@ function EditRoundContent() {
     date: getLocalDateString(), // Use local timezone instead of UTC
     course_id: '',
     tee_id: '',
+    round_context: 'real',
     tee_segment: 'full',
     hole_by_hole: 0,
     score: null,
@@ -108,6 +119,7 @@ function EditRoundContent() {
   const [initialized, setInitialized] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseOption | null>(null);
   const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
+  const [showRoundTagPicker, setShowRoundTagPicker] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [expandedHole, setExpandedHole] = useState<number>(1);
   const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set());
@@ -172,6 +184,13 @@ function EditRoundContent() {
     return String(val).replace(/\D/g, '');
   };
 
+  const setRoundTag = (next: RoundContext) => {
+    setRound((prev) => ({ ...prev, round_context: next }));
+    setShowRoundTagPicker(false);
+  };
+
+  const roundTagLabel = round.round_context === 'simulator' ? 'Simulator' : 'Practice';
+
   const getTotalScore = (holes: HoleScore[]) =>
     holes.reduce((sum, h) => sum + (h.score ?? 0), 0);
 
@@ -180,6 +199,7 @@ function EditRoundContent() {
       ...round,
       course_id: Number(round.course_id),
       tee_id: Number(round.tee_id),
+      round_context: round.round_context,
       tee_segment: round.tee_segment,
     };
     if (isHBH) {
@@ -390,6 +410,7 @@ function EditRoundContent() {
           date: data.date?.split('T')[0] ?? getLocalDateString(),
           course_id: data.course_id?.toString() ?? '',
           tee_id: data.tee_id?.toString() ?? '',
+          round_context: data.round_context ?? 'real',
           tee_segment: data.tee_segment ?? 'full',
           hole_by_hole: data.hole_by_hole === 1 ? 1 : 0,
           score: data.score ?? null,
@@ -1025,6 +1046,64 @@ function EditRoundContent() {
             })}
 
           {renderHoleCards()}
+
+          <div className="form-row">
+            {showDataSkeleton ? (
+              <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+            ) : (
+              <div className="round-tag-control">
+                <div className="round-tag-inline">
+                  {round.round_context === 'real' ? (
+                    <button
+                      type="button"
+                      className="round-tag-trigger"
+                      onClick={() => setShowRoundTagPicker((prev) => !prev)}
+                      disabled={disableFormControls}
+                    >
+                      Tag +
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="round-tag-pill is-selected"
+                      onClick={() => setShowRoundTagPicker((prev) => !prev)}
+                      disabled={disableFormControls}
+                    >
+                      {roundTagLabel}
+                    </button>
+                  )}
+                  {round.round_context !== 'real' && (
+                    <button
+                      type="button"
+                      className="round-tag-clear"
+                      onClick={() => setRoundTag('real')}
+                      disabled={disableFormControls}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {showRoundTagPicker && !disableFormControls && (
+                  <div className="round-tag-picker" role="group" aria-label="Round tag options">
+                    {roundTagOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`round-tag-pill ${round.round_context === option.value ? 'is-selected' : ''}`}
+                        onClick={() => setRoundTag(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {round.round_context !== 'real' && (
+              <p className="combined-note">Tagged rounds are excluded from handicap, leaderboard, and overall insights.</p>
+            )}
+          </div>
 
           <div className="form-row">
             <label className="form-label">Notes</label>
