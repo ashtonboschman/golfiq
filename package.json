@@ -13,6 +13,7 @@
     "lifetime:list": "tsx scripts/list-lifetime.ts",
     "courses:verify-existing": "tsx scripts/verify-existing-courses.ts",
     "leaderboard:backfill": "tsx scripts/backfill-leaderboard-stats.ts",
+    "seed:test-rounds": "tsx scripts/seed-test-rounds.ts",
     "test": "jest --watchAll"
   },
   "dependencies": {

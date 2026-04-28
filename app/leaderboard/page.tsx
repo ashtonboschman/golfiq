@@ -299,7 +299,7 @@ export default function LeaderboardPage() {
               rank={user.rank}
               rankDisplay={
                 user.user_id === Number(session?.user?.id)
-                  ? getCurrentUserRankDisplay(user.rank, 2, showingLimited)
+                  ? getCurrentUserRankDisplay(user.rankDisplay, user.rank, 2, showingLimited)
                   : user.rankDisplay
               }
               isCurrentUser={user.user_id === Number(session?.user?.id)}
@@ -314,7 +314,12 @@ export default function LeaderboardPage() {
   );
 }
 
-function getCurrentUserRankDisplay(rank: number, topN: number, showingLimited: boolean) {
-  if (!showingLimited) return `${rank}`; // premium or full leaderboard
-  return rank > topN ? `${rank}+` : `${rank}`;
+export function getCurrentUserRankDisplay(
+  rankDisplay: string,
+  rank: number,
+  topN: number,
+  showingLimited: boolean
+) {
+  if (!showingLimited) return rankDisplay; // premium or full leaderboard
+  return rank > topN ? `${rankDisplay}+` : rankDisplay;
 }

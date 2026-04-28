@@ -70,15 +70,12 @@ interface DashboardStats {
 function RoundFocusSkeletonBody() {
   return (
     <>
-      <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-pretitle" />
-      <div className="dashboard-focus-skeleton-flex-spacer" />
       <div className="dashboard-focus-skeleton-group">
-        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
         <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-title" />
+        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
       </div>
       <div className="dashboard-focus-skeleton-group">
-        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-body" />
-        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-title" />
+        <div className="skeleton dashboard-focus-skeleton-line dashboard-focus-skeleton-line-next-round" />
       </div>
       <div className="dashboard-focus-actions dashboard-focus-actions-skeleton">
         <div className="skeleton dashboard-focus-skeleton-button" />
@@ -102,7 +99,7 @@ function DashboardFallback() {
       <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
 
       <div className="card dashboard-focus-card dashboard-focus-card-relative dashboard-focus-skeleton-card">
-        <InfoTooltip text="Built from your recent scoring trend in this mode (last 5 vs baseline) and your tracked stats when available." />
+        <InfoTooltip text="Highlights the area impacting your score the most based on recent rounds." />
         <div className="dashboard-focus-header">
           <h3 className="dashboard-focus-title">Round Focus</h3>
         </div>
@@ -594,6 +591,16 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const focusComponent = focusComponentLabel(focusPayload?.component ?? null);
   const focusTypeForEvent =
     roundFocusState.kind === 'NEED_MORE_ROUNDS' ? 'onboarding' : focusPayload?.focusType ?? 'score';
+  const lockedFocusHeadline =
+    roundFocusState.kind === 'NEED_MORE_ROUNDS' &&
+    roundFocusState.lockedReason === 'not_enough_rounds'
+      ? `Log ${roundFocusState.minRounds} rounds to unlock your Round Focus.`
+      : 'Round Focus is still calibrating.';
+  const lockedFocusBody =
+    roundFocusState.kind === 'NEED_MORE_ROUNDS' &&
+    roundFocusState.lockedReason === 'not_enough_rounds'
+      ? 'Track a few more rounds to identify your scoring opportunities.'
+      : 'Keep tracking rounds to build a reliable trend.';
 
   const parseTimestamp = (value: string | null | undefined): number | null => {
     if (!value) return null;
@@ -782,7 +789,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         className={`card dashboard-focus-card dashboard-focus-card-relative${useCompactRoundFocusCard ? ' dashboard-focus-card-compact' : ''}`}
         data-testid="dashboard-focus-card"
       >
-        <InfoTooltip text="Built from your recent scoring trend in this mode (last 5 vs baseline) and your tracked stats when available." />
+        <InfoTooltip text="Highlights the area impacting your score the most based on recent rounds." />
         <div className="dashboard-focus-header">
           <h3 className="dashboard-focus-title">Round Focus</h3>
         </div>
@@ -792,18 +799,19 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           <>
             {roundFocusState.kind === 'NEED_MORE_ROUNDS' ? (
               <>
-                <p className="dashboard-focus-headline">Log 3 rounds to unlock trends.</p>
-                <p className="dashboard-focus-body">Trends unlock automatically after your third logged round.</p>
+                <p className="dashboard-focus-headline">{lockedFocusHeadline}</p>
+                <p className="dashboard-focus-body">{lockedFocusBody}</p>
               </>
             ) : (
               <>
                 <p className="dashboard-focus-headline">{focusPayload?.headline}</p>
-                <p className="dashboard-focus-body">{focusPayload?.body}</p>
-                {focusPayload?.supportingLine && (
-                  <p className="dashboard-focus-supporting">{focusPayload.supportingLine}</p>
+                {focusPayload?.body && (
+                  <p className="dashboard-focus-body">{focusPayload.body}</p>
                 )}
-                {focusPayload?.drillLine && (
-                  <p className="dashboard-focus-drill">{focusPayload.drillLine}</p>
+                {focusPayload?.nextRound && (
+                  <p className="dashboard-focus-body dashboard-focus-next-round">
+                    Next Round: {focusPayload.nextRound}
+                  </p>
                 )}
               </>
             )}
@@ -817,7 +825,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                   className="btn btn-add"
                   onClick={runFocusAction}
                 >
-                  View Insights
+                  Get Full Breakdown
                 </button>
               </div>
             )}
@@ -855,18 +863,18 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         <>
           <div className="grid grid-2">
             <div className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card" style={{ position: 'relative' }}>
-              <InfoTooltip text="GolfIQ Handicap Index (WHS-based)" />
+              <InfoTooltip text="Your estimated playing ability based on recent rounds. Lower is better." />
               <h3>Handicap</h3>
               <div className="skeleton skeleton-dashboard-stat-value dashboard-live-label-skeleton-value" />
             </div>
             {[
-              ['Average', showToPar ? 'Average score relative to par' : 'Average score', true],
-              ['Best', showToPar ? 'Best score relative to par' : 'Best score', true],
-              ['Worst', showToPar ? 'Worst score relative to par' : 'Worst score', true],
-              ['Total', 'Total amount of rounds played', false],
-              ['Par 3', 'Average score on par 3 holes', false],
-              ['Par 4', 'Average score on par 4 holes', false],
-              ['Par 5', 'Average score on par 5 holes', false],
+              ['Average', 'Your typical score per round. Lower is better.', true],
+              ['Best', 'Your lowest recorded round.', true],
+              ['Worst', 'Your highest recorded round.', true],
+              ['Total', 'Total number of rounds tracked.', false],
+              ['Par 3', 'Your average score on par 3 holes. Lower is better.', false],
+              ['Par 4', 'Your average score on par 4 holes. Lower is better.', false],
+              ['Par 5', 'Your average score on par 5 holes. Lower is better.', false],
             ].map(([label, tooltip, isToggleable]) => (
               <div
                 className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card"
@@ -897,18 +905,18 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         <>
           <div className="grid grid-2">
             <div className="card dashboard-stat-card" style={{ position: 'relative' }}>
-              <InfoTooltip text="GolfIQ Handicap Index (WHS-based)" />
+              <InfoTooltip text="Your estimated playing ability based on recent rounds. Lower is better." />
               <h3>Handicap</h3>
               <p>{formatHandicap(stats.handicap)}</p>
             </div>
             {[
-              ['Average', showToPar ? stats.average_to_par : stats.average_score, showToPar ? 'Average score relative to par' : 'Average score', true],
-              ['Best', showToPar ? stats.best_to_par : stats.best_score, showToPar ? 'Best score relative to par' : 'Best score', true],
-              ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, showToPar ? 'Worst score relative to par' : 'Worst score', true],
-              ['Total', totalRounds, 'Total amount of rounds played', false],
-              ['Par 3', par3_avg, 'Average score on par 3 holes', false],
-              ['Par 4', par4_avg, 'Average score on par 4 holes', false],
-              ['Par 5', par5_avg, 'Average score on par 5 holes', false],
+              ['Average', showToPar ? stats.average_to_par : stats.average_score, 'Your typical score per round. Lower is better.', true],
+              ['Best', showToPar ? stats.best_to_par : stats.best_score, 'Your lowest recorded round.', true],
+              ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, 'Your highest recorded round.', true],
+              ['Total', totalRounds, 'Total number of rounds tracked.', false],
+              ['Par 3', par3_avg, 'Your average score on par 3 holes. Lower is better.', false],
+              ['Par 4', par4_avg, 'Your average score on par 4 holes. Lower is better.', false],
+              ['Par 5', par5_avg, 'Your average score on par 5 holes. Lower is better.', false],
             ].map(([label, val, tooltip, isToggleable]) => (
               <div
                 className="card dashboard-stat-card"
@@ -970,10 +978,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           </div>
           <div className="grid grid-2">
             {[
-              ['FIR', stats.fir_avg, '%', 'Average fairways in regulation % per round'],
-              ['GIR', stats.gir_avg, '%', 'Average greens in regulation % per round'],
-              ['Putts', stats.avg_putts, null, 'Average putts per round'],
-              ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round'],
+              ['FIR', stats.fir_avg, '%', 'How often you hit the fairway off the tee. Higher is better.'],
+              ['GIR', stats.gir_avg, '%', 'How often you reach the green in regulation. Higher is better.'],
+              ['Putts', stats.avg_putts, null, 'Average number of putts per round. Lower is better.'],
+              ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round. Lower is better.'],
             ].map(([label, val, isPercent, tooltip]) => (
               <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
                 {tooltip && <InfoTooltip text={tooltip as string} />}
@@ -1001,10 +1009,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           </div>
           <div className="grid grid-2">
             {[
-              ['Scoring', scoringPerRound, null, 'Average birdies or better per round'],
-              ['Par', parPerRound, null, 'Average pars per round'],
-              ['Bogey', bogeyPerRound, null, 'Average bogeys per round'],
-              ['Blow Up', blowUpPerRound, null, 'Average double bogeys or worse per round'],
+              ['Scoring', scoringPerRound, null, 'How often you score birdie or better. Higher is better.'],
+              ['Par', parPerRound, null, 'How often you make par.'],
+              ['Bogey', bogeyPerRound, null, 'How often you make bogey. Lower is better.'],
+              ['Blow Up', blowUpPerRound, null, 'How often you make double bogey or worse. Lower is better.'],
             ].map(([label, val, isPercent, tooltip]) => (
               <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
                 {tooltip && <InfoTooltip text={tooltip as string} />}

@@ -1,6 +1,4 @@
 import {
-  pickDeterministicDrillSeeded,
-  type SGComponentName,
   type StatsMode,
 } from '@/lib/insights/overall';
 
@@ -11,10 +9,24 @@ export type DashboardFocusComponent =
   | 'penalties'
   | 'residual';
 export type DashboardFocusConfidence = 'high' | 'medium' | 'low' | null;
+export type RoundFocusOutcome =
+  | 'locked'
+  | 'score_only_stable'
+  | 'score_only_improving'
+  | 'score_only_worsening'
+  | 'component_opportunity'
+  | 'component_strength'
+  | 'component_balanced';
+export type RoundFocusLockedReason =
+  | 'not_enough_rounds'
+  | 'missing_summary'
+  | 'missing_score_trend'
+  | 'insufficient_combined_signal';
 
 export type DashboardOverallInsightsSummary = {
   lastUpdatedAt: string | null;
   drillSeed: string | null;
+  recommendationText: string | null;
   mode: StatsMode;
   roundsRecent: number;
   recentWindow: number;
@@ -35,6 +47,18 @@ export type DashboardOverallInsightsSummary = {
     penalties: number | null;
     residual: number | null;
   } | null;
+  efficiencyDelta: {
+    firPctPoints: number | null;
+    girPctPoints: number | null;
+    putts: number | null;
+    penalties: number | null;
+  } | null;
+  statCoverage: {
+    fir: { tracked: number; total: number };
+    gir: { tracked: number; total: number };
+    putts: { tracked: number; total: number };
+    penalties: { tracked: number; total: number };
+  } | null;
   biggestLeakComponent: DashboardFocusComponent | null;
   confidence: DashboardFocusConfidence;
   dataQualityFlags: {
@@ -42,24 +66,30 @@ export type DashboardOverallInsightsSummary = {
     missingScoreTrend: boolean;
     combinedNeedsMoreNineHoleRounds: boolean;
     missingComponentData: boolean;
+    partialRecentStats: boolean;
     residualDominant: boolean;
     volatileScoring: boolean;
   };
 };
 
 export type RoundFocusPayload = {
+  outcome: Exclude<RoundFocusOutcome, 'locked'>;
   focusType: 'score' | 'component';
   headline: string;
   body: string;
-  supportingLine?: string;
-  drillLine?: string;
+  nextRound: string;
   component: DashboardFocusComponent | null;
   confidence: DashboardFocusConfidence;
-  basedOnCaption?: string;
 };
 
 export type RoundFocusState =
-  | { kind: 'NEED_MORE_ROUNDS'; roundsLogged: number; minRounds: number }
+  | {
+      kind: 'NEED_MORE_ROUNDS';
+      outcome: 'locked';
+      lockedReason: RoundFocusLockedReason;
+      roundsLogged: number;
+      minRounds: number;
+    }
   | { kind: 'READY_PREMIUM'; focus: RoundFocusPayload }
   | { kind: 'READY_FREE'; focus: RoundFocusPayload; isLimited: boolean };
 
@@ -68,7 +98,7 @@ const LEAK_TIE_THRESHOLD = 0.1;
 const ROUNDING_FACTOR = 10;
 const RESIDUAL_DOMINANT_THRESHOLD = 0.3;
 const RESIDUAL_OTHER_COMPONENT_MAX = 0.15;
-const MIN_ROUNDS_FOR_TRENDS = 3;
+const MIN_ROUNDS_FOR_TRENDS = 5;
 
 const SG_TIE_BREAK_ORDER: DashboardFocusComponent[] = [
   'penalties',
@@ -76,6 +106,21 @@ const SG_TIE_BREAK_ORDER: DashboardFocusComponent[] = [
   'approach',
   'offTee',
 ];
+
+type SgFocusMode = 'opportunity' | 'strength' | 'balanced';
+type SelectedSgFocus = {
+  mode: SgFocusMode;
+  component: Exclude<DashboardFocusComponent, 'residual'> | null;
+  sgDelta: number | null;
+};
+
+const SG_OPPORTUNITY_THRESHOLD = -0.15;
+const SG_STRENGTH_THRESHOLD = 0.15;
+const SG_OPPORTUNITY_SEPARATION_THRESHOLD = 0.03;
+const SG_THRESHOLD_EPSILON = 0.000001;
+const MAX_NEXT_ROUND_RECOMMENDATION_LENGTH = 64;
+const MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS = 3;
+const MIN_MEASURED_COMPONENTS_FOR_COMPONENT_FOCUS = 3;
 
 function toNumberOrNull(value: unknown): number | null {
   if (value == null) return null;
@@ -94,15 +139,15 @@ function deltaOrNull(recentRaw: unknown, baselineRaw: unknown): number | null {
   const recent = toNumberOrNull(recentRaw);
   const baseline = toNumberOrNull(baselineRaw);
   if (recent == null || baseline == null) return null;
-  return roundOne(recent - baseline);
+  return recent - baseline;
 }
 
 function formatOneDecimal(value: number): string {
   return (Math.round(value * ROUNDING_FACTOR) / ROUNDING_FACTOR).toFixed(1);
 }
 
-function absOneDecimal(value: number): string {
-  return formatOneDecimal(Math.abs(value));
+function formatApproxSg(value: number): string {
+  return `~${formatOneDecimal(Math.abs(value))}`;
 }
 
 function scoreNearThreshold(mode: StatsMode): number {
@@ -141,6 +186,66 @@ function normalizeConsistencyLabel(raw: unknown): DashboardOverallInsightsSummar
 
 function normalizeConfidence(raw: unknown): DashboardFocusConfidence {
   if (raw === 'high' || raw === 'medium' || raw === 'low') return raw;
+  return null;
+}
+
+function parseCoverage(
+  raw: unknown,
+  fallbackTracked: number,
+  fallbackTotal: number,
+): { tracked: number; total: number } {
+  if (typeof raw === 'string') {
+    const match = raw.trim().match(/^(\d+)\/(\d+)$/);
+    if (match) {
+      return {
+        tracked: Number(match[1]),
+        total: Number(match[2]),
+      };
+    }
+  }
+
+  return {
+    tracked: Math.max(0, Math.floor(fallbackTracked)),
+    total: Math.max(0, Math.floor(fallbackTotal)),
+  };
+}
+
+function statList(labels: string[]): string {
+  if (labels.length === 0) return '';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
+}
+
+function sanitizeRecommendationText(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const withoutPrefix = trimmed
+    .replace(/^Priority first:\s*/i, '')
+    .replace(/^On-course strategy:\s*/i, '')
+    .replace(/^Next round focus:\s*/i, '')
+    .trim();
+
+  return withoutPrefix || null;
+}
+
+function pickRecommendationText(payload: Record<string, any>, mode: StatsMode): string | null {
+  const modeCards = payload.cards_by_mode?.[mode];
+  const sharedCards = payload.cards;
+  const candidates = [
+    Array.isArray(modeCards) ? modeCards[3] : null,
+    Array.isArray(modeCards) ? modeCards[4] : null,
+    Array.isArray(sharedCards) ? sharedCards[3] : null,
+    Array.isArray(sharedCards) ? sharedCards[4] : null,
+  ];
+
+  for (const candidate of candidates) {
+    const cleaned = sanitizeRecommendationText(candidate);
+    if (cleaned) return cleaned;
+  }
+
   return null;
 }
 
@@ -190,9 +295,11 @@ function isResidualDominant(
   return Math.max(...others) <= RESIDUAL_OTHER_COMPONENT_MAX;
 }
 
-function hasAnyComponentData(deltas: DashboardOverallInsightsSummary['sgComponentDelta']): boolean {
+function hasAnyMeasuredComponentData(deltas: DashboardOverallInsightsSummary['sgComponentDelta']): boolean {
   if (!deltas) return false;
-  return Object.values(deltas).some((value) => value != null && Number.isFinite(value));
+  return [deltas.offTee, deltas.approach, deltas.putting, deltas.penalties].some(
+    (value) => value != null && Number.isFinite(value),
+  );
 }
 
 function componentDisplayName(component: DashboardFocusComponent): string {
@@ -203,84 +310,271 @@ function componentDisplayName(component: DashboardFocusComponent): string {
   return 'Residual';
 }
 
-function mapFocusComponentToArea(component: DashboardFocusComponent): SGComponentName | null {
-  if (component === 'offTee') return 'off_tee';
-  if (component === 'approach') return 'approach';
-  if (component === 'putting') return 'putting';
-  if (component === 'penalties') return 'penalties';
+function componentHeadlineName(component: Exclude<DashboardFocusComponent, 'residual'>): string {
+  if (component === 'penalties') return 'Penalty avoidance';
+  return componentDisplayName(component);
+}
+
+function getLockedReason(summary: DashboardOverallInsightsSummary | null): RoundFocusLockedReason | null {
+  if (!summary) return 'missing_summary';
+  if (summary.dataQualityFlags.insufficientRounds) return 'not_enough_rounds';
+  if (summary.dataQualityFlags.missingScoreTrend) return 'missing_score_trend';
+  if (summary.dataQualityFlags.combinedNeedsMoreNineHoleRounds) {
+    return 'insufficient_combined_signal';
+  }
   return null;
 }
 
-function compactDrillForCard(raw: string): string {
-  const withoutGoal = raw.split(' Goal:')[0].trim();
-  const sentence = withoutGoal.endsWith('.') ? withoutGoal : `${withoutGoal}.`;
-  return sentence;
+function fallbackNextRoundNudge(
+  component: Exclude<DashboardFocusComponent, 'residual'> | null,
+  mode: SgFocusMode | 'no_data',
+): string {
+  if (mode === 'no_data') return 'Keep tracking rounds to improve accuracy.';
+  if (mode === 'balanced') return 'Maintain consistent decisions.';
+
+  if (mode === 'opportunity') {
+    if (component === 'putting') return 'Focus on lag putting pace.';
+    if (component === 'approach') return 'Focus on tightening approach dispersion.';
+    if (component === 'offTee') return 'Focus on safer targets off the tee.';
+    if (component === 'penalties') return 'Keep penalties out of play.';
+    return 'Maintain consistent decisions.';
+  }
+
+  if (component === 'putting') return 'Keep building confidence on the greens.';
+  if (component === 'approach') return 'Keep trusting your approach play.';
+  if (component === 'offTee') return 'Keep driving the ball with confidence.';
+  if (component === 'penalties') return 'Keep avoiding costly mistakes.';
+  return 'Maintain consistent decisions.';
 }
 
-function premiumDrill(summary: DashboardOverallInsightsSummary, component: DashboardFocusComponent): string {
-  const area = mapFocusComponentToArea(component);
-  const seedBase =
-    summary.drillSeed ??
-    [
-      summary.mode,
-      summary.lastUpdatedAt ?? 'na',
-      summary.roundsRecent,
-      summary.scoreTrendDelta ?? 'na',
-    ].join('|');
-  const seed = `${seedBase}|dashboard_focus|${component}`;
-  const selected = pickDeterministicDrillSeeded(area, seed, 0);
-  return `Do this next: ${compactDrillForCard(selected)}`;
+function missingRecentStatLabels(summary: DashboardOverallInsightsSummary): string[] {
+  const coverage = summary.statCoverage;
+  if (!coverage) {
+    return summary.dataQualityFlags.missingComponentData
+      ? ['penalties', 'GIR']
+      : [];
+  }
+
+  const missingByPriority = [
+    coverage.penalties.tracked < MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS ? 'penalties' : null,
+    coverage.gir.tracked < MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS ? 'GIR' : null,
+    coverage.fir.tracked < MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS ? 'FIR' : null,
+    coverage.putts.tracked < MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS ? 'putts' : null,
+  ].filter((label): label is string => label != null);
+
+  return missingByPriority.slice(0, 2);
 }
 
-function componentBody(component: DashboardFocusComponent, delta: number | null): string {
-  const deltaText = delta == null ? '-' : absOneDecimal(delta);
-  if (component === 'offTee') {
-    return `Off the Tee is costing ${deltaText} strokes vs baseline. Pick one fairway-first club on tight holes and commit to it.`;
-  }
-  if (component === 'approach') {
-    return `Approach is down ${deltaText} strokes vs baseline. Aim center-green when uncertain and avoid short-siding.`;
-  }
-  if (component === 'putting') {
-    return `Putting is down ${deltaText} strokes vs baseline. Prioritize pace that leaves a tap-in, especially downhill.`;
-  }
-  if (component === 'penalties') {
-    return `Penalties are costing ${deltaText} strokes vs baseline. Choose the conservative line any time trouble is in play.`;
-  }
-  return 'Most of your performance signal is untracked. Add putts and penalties this round to unlock a clearer focus.';
+function componentCoverageKey(
+  component: Exclude<DashboardFocusComponent, 'residual'>,
+): keyof NonNullable<DashboardOverallInsightsSummary['statCoverage']> {
+  if (component === 'offTee') return 'fir';
+  if (component === 'approach') return 'gir';
+  if (component === 'putting') return 'putts';
+  return 'penalties';
 }
 
-function buildScoreFocus(summary: DashboardOverallInsightsSummary): RoundFocusPayload {
-  const delta = summary.scoreTrendDelta ?? 0;
-  const scoreNear = scoreNearThreshold(summary.mode);
-  const consistencyLine = summary.dataQualityFlags.volatileScoring
-    ? 'Your scoring is volatile. This round, the win is avoiding doubles.'
-    : 'Stay disciplined with the same swing and smarter targets.';
+function hasEnoughCoverageForComponent(
+  summary: DashboardOverallInsightsSummary,
+  component: Exclude<DashboardFocusComponent, 'residual'>,
+): boolean {
+  if (!summary.statCoverage) return true;
+  const key = componentCoverageKey(component);
+  return summary.statCoverage[key].tracked >= MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS;
+}
 
-  let headline = 'Turn stability into progress.';
-  let body =
-    'Scores are holding steady. Pick one simple goal: fewer doubles or fewer three-putts.';
+function measuredComponentCount(summary: DashboardOverallInsightsSummary): number {
+  const sg = summary.sgComponentDelta;
+  if (!sg) return 0;
+  return [sg.offTee, sg.approach, sg.putting, sg.penalties].filter(
+    (value) => value != null && Number.isFinite(value),
+  ).length;
+}
 
-  if (delta < -scoreNear) {
-    headline = 'Build on momentum.';
-    body = `Recent scoring is ${absOneDecimal(delta)} strokes better than baseline. Keep your current game plan and protect against big numbers.`;
-  } else if (Math.abs(delta) <= scoreNear) {
-    headline = 'Turn stability into progress.';
-    body =
-      'Scores are holding steady. Pick one simple goal: fewer doubles or fewer three-putts.';
-  } else if (delta > scoreNear) {
-    headline = 'Stop the leak.';
-    body =
-      'Recent scores are above baseline. Focus on conservative decisions and eliminating penalty strokes.';
+function hasCredibleComponentSignal(summary: DashboardOverallInsightsSummary): boolean {
+  if (summary.dataQualityFlags.residualDominant) return false;
+  if (summary.confidence === 'low') return false;
+  return measuredComponentCount(summary) >= MIN_MEASURED_COMPONENTS_FOR_COMPONENT_FOCUS;
+}
+
+function compactNextRoundNudge(
+  recommendationText: string | null,
+  component: Exclude<DashboardFocusComponent, 'residual'> | null,
+  mode: SgFocusMode,
+): string {
+  const fallback = fallbackNextRoundNudge(component, mode);
+  if (!recommendationText) return fallback;
+
+  const normalized = recommendationText.replace(/\s+/g, ' ').trim();
+  if (!normalized) return fallback;
+  if (normalized.length > MAX_NEXT_ROUND_RECOMMENDATION_LENGTH) return fallback;
+  if (normalized.includes(':')) return fallback;
+  if (/\d/.test(normalized)) return fallback;
+  if ((normalized.match(/[.!?]/g) ?? []).length > 1) return fallback;
+  if (/\b(goal|drill|balls?|yards?|feet|fringe|range|score)\b/i.test(normalized)) return fallback;
+  if (!/^(focus on|keep)\b/i.test(normalized)) return fallback;
+
+  const withoutTrailingPunctuation = normalized.replace(/[.!?]+$/g, '').trim();
+  if (!withoutTrailingPunctuation) return fallback;
+
+  const capitalized = withoutTrailingPunctuation.charAt(0).toUpperCase() + withoutTrailingPunctuation.slice(1);
+  return `${capitalized}.`;
+}
+
+function selectSgFocus(summary: DashboardOverallInsightsSummary): SelectedSgFocus | null {
+  const sg = summary.sgComponentDelta;
+  if (!sg) return null;
+  if (!hasCredibleComponentSignal(summary)) return null;
+
+  const components: Array<{
+    component: Exclude<DashboardFocusComponent, 'residual'>;
+    delta: number;
+  }> = [];
+
+  if (sg.offTee != null && Number.isFinite(sg.offTee)) {
+    components.push({ component: 'offTee', delta: sg.offTee });
+  }
+  if (sg.approach != null && Number.isFinite(sg.approach)) {
+    components.push({ component: 'approach', delta: sg.approach });
+  }
+  if (sg.putting != null && Number.isFinite(sg.putting)) {
+    components.push({ component: 'putting', delta: sg.putting });
+  }
+  if (sg.penalties != null && Number.isFinite(sg.penalties)) {
+    components.push({ component: 'penalties', delta: sg.penalties });
+  }
+
+  if (components.length === 0) return null;
+
+  const coveredComponents = components.filter((entry) =>
+    hasEnoughCoverageForComponent(summary, entry.component),
+  );
+  if (coveredComponents.length < MIN_MEASURED_COMPONENTS_FOR_COMPONENT_FOCUS) return null;
+
+  const orderedByOpportunity = [...coveredComponents].sort((a, b) => a.delta - b.delta);
+  const opportunity = orderedByOpportunity[0];
+  if (opportunity?.delta <= SG_OPPORTUNITY_THRESHOLD + SG_THRESHOLD_EPSILON) {
+    const secondLowest = orderedByOpportunity[1] ?? null;
+    const separation = secondLowest ? secondLowest.delta - opportunity.delta : Number.POSITIVE_INFINITY;
+    if (separation <= SG_OPPORTUNITY_SEPARATION_THRESHOLD) {
+      return {
+        mode: 'balanced',
+        component: null,
+        sgDelta: null,
+      };
+    }
+
+    return {
+      mode: 'opportunity',
+      component: opportunity.component,
+      sgDelta: roundOne(opportunity.delta),
+    };
+  }
+
+  const strength = coveredComponents
+    .filter((entry) => entry.delta >= SG_STRENGTH_THRESHOLD - SG_THRESHOLD_EPSILON)
+    .sort((a, b) => b.delta - a.delta)[0];
+  if (strength) {
+    return {
+      mode: 'strength',
+      component: strength.component,
+      sgDelta: roundOne(strength.delta),
+    };
   }
 
   return {
+    mode: 'balanced',
+    component: null,
+    sgDelta: null,
+  };
+}
+
+function scoreFocusOutcome(
+  summary: DashboardOverallInsightsSummary,
+): Extract<
+  RoundFocusOutcome,
+  'score_only_stable' | 'score_only_improving' | 'score_only_worsening'
+> {
+  const delta = summary.scoreTrendDelta ?? 0;
+  const threshold = scoreNearThreshold(summary.mode);
+  if (delta < -threshold) return 'score_only_improving';
+  if (delta > threshold) return 'score_only_worsening';
+  return 'score_only_stable';
+}
+
+function buildScoreOnlyFocus(summary: DashboardOverallInsightsSummary): RoundFocusPayload {
+  const delta = summary.scoreTrendDelta ?? 0;
+  const outcome = scoreFocusOutcome(summary);
+  const missingLabels = missingRecentStatLabels(summary);
+  const missingList = statList(missingLabels);
+
+  let body = 'Recent scoring is in line with your baseline.';
+  let nextRound = missingLabels.length
+    ? `Track ${missingList} to refine your insight.`
+    : 'Keep tracking scores and target one scoring improvement.';
+
+  if (outcome === 'score_only_improving') {
+    body = `Recent scoring is ${formatOneDecimal(Math.abs(delta))} strokes better than baseline.`;
+    nextRound = missingLabels.length
+      ? `Track ${missingList} to refine your insight.`
+      : "Keep doing what's working and protect against big numbers.";
+  } else if (outcome === 'score_only_worsening') {
+    body = `Recent scoring is ${formatOneDecimal(Math.abs(delta))} strokes worse than baseline.`;
+    nextRound = missingLabels.length
+      ? `Track ${missingList} to refine your insight.`
+      : 'Prioritize conservative targets and avoid penalties.';
+  }
+
+  return {
+    outcome,
     focusType: 'score',
-    headline,
+    headline: 'Your scoring trend is the priority right now.',
     body,
-    supportingLine: consistencyLine,
+    nextRound,
     component: null,
     confidence: summary.confidence,
-    basedOnCaption: summary.recentWindow === 5 ? 'Based on last 5 vs baseline' : undefined,
+  };
+}
+
+function buildSgDrivenFocus(
+  summary: DashboardOverallInsightsSummary,
+  selected: SelectedSgFocus,
+): RoundFocusPayload {
+  if (selected.mode === 'balanced' || !selected.component || selected.sgDelta == null) {
+    return {
+      outcome: 'component_balanced',
+      focusType: 'component',
+      headline: 'Your game is well balanced right now.',
+      body: 'No single area is significantly impacting your score.',
+      nextRound: fallbackNextRoundNudge(null, 'balanced'),
+      component: null,
+      confidence: summary.confidence,
+    };
+  }
+
+  const componentLabel = componentHeadlineName(selected.component);
+  const scoreOutcome = scoreFocusOutcome(summary);
+
+  const headline =
+    selected.mode === 'opportunity'
+      ? `${componentLabel} is your biggest scoring opportunity.`
+      : scoreOutcome === 'score_only_worsening'
+      ? `${componentLabel} is your strongest area right now.`
+      : `${componentLabel} is driving your improvement.`;
+
+  const body =
+    selected.mode === 'opportunity'
+      ? `You're losing ${formatApproxSg(selected.sgDelta)} strokes per round compared to baseline.`
+      : `This area is gaining ${formatApproxSg(selected.sgDelta)} strokes per round compared to baseline.`;
+
+  return {
+    outcome: selected.mode === 'opportunity' ? 'component_opportunity' : 'component_strength',
+    focusType: 'component',
+    headline,
+    body,
+    nextRound: compactNextRoundNudge(summary.recommendationText, selected.component, selected.mode),
+    component: selected.component,
+    confidence: summary.confidence,
   };
 }
 
@@ -308,6 +602,51 @@ export function buildDashboardOverallInsightsSummary(
   const projectionHigh = roundOne(toNumberOrNull(projectionByMode?.scoreHigh));
   const projectionHandicap = roundOne(toNumberOrNull(payload.projection?.projectedHandicapIn10));
   const sgComponents = modePayload.sgComponents;
+  const efficiency = modePayload.efficiency;
+  const firRecent = toNumberOrNull(efficiency?.fir?.recent);
+  const firBaseline = toNumberOrNull(efficiency?.fir?.baseline);
+  const girRecent = toNumberOrNull(efficiency?.gir?.recent);
+  const girBaseline = toNumberOrNull(efficiency?.gir?.baseline);
+  const puttsRecent = toNumberOrNull(efficiency?.puttsTotal?.recent);
+  const puttsBaseline = toNumberOrNull(efficiency?.puttsTotal?.baseline);
+  const penaltiesRecent = toNumberOrNull(efficiency?.penaltiesPerRound?.recent);
+  const penaltiesBaseline = toNumberOrNull(efficiency?.penaltiesPerRound?.baseline);
+  const efficiencyDelta = {
+    firPctPoints:
+      firRecent != null && firBaseline != null ? roundOne((firRecent - firBaseline) * 100) : null,
+    girPctPoints:
+      girRecent != null && girBaseline != null ? roundOne((girRecent - girBaseline) * 100) : null,
+    putts:
+      puttsRecent != null && puttsBaseline != null ? roundOne(puttsRecent - puttsBaseline) : null,
+    penalties:
+      penaltiesRecent != null && penaltiesBaseline != null
+        ? roundOne(penaltiesRecent - penaltiesBaseline)
+        : null,
+  };
+  const statCoverage = efficiency && typeof efficiency === 'object'
+    ? {
+        fir: parseCoverage(
+          efficiency.fir?.coverageRecent,
+          firRecent == null ? 0 : roundsRecent,
+          roundsRecent,
+        ),
+        gir: parseCoverage(
+          efficiency.gir?.coverageRecent,
+          girRecent == null ? 0 : roundsRecent,
+          roundsRecent,
+        ),
+        putts: parseCoverage(
+          efficiency.puttsTotal?.coverageRecent,
+          puttsRecent == null ? 0 : roundsRecent,
+          roundsRecent,
+        ),
+        penalties: parseCoverage(
+          efficiency.penaltiesPerRound?.coverageRecent,
+          penaltiesRecent == null ? 0 : roundsRecent,
+          roundsRecent,
+        ),
+      }
+    : null;
   const sgDeltas = sgComponents?.hasData
     ? {
         offTee: deltaOrNull(
@@ -335,6 +674,14 @@ export function buildDashboardOverallInsightsSummary(
 
   const residualDominant = isResidualDominant(sgDeltas);
   const biggestLeakComponent = pickBiggestLeakComponent(sgDeltas);
+  const missingRecentStatCount = statCoverage
+    ? [
+        statCoverage.fir,
+        statCoverage.gir,
+        statCoverage.putts,
+        statCoverage.penalties,
+      ].filter((coverage) => coverage.tracked < MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS).length
+    : 0;
   const roundsRecentNine = toNumberOrNull(modePayloadNine?.kpis?.roundsRecent) ?? 0;
   const roundsRecentEighteen = toNumberOrNull(modePayloadEighteen?.kpis?.roundsRecent) ?? 0;
   const combinedNeedsMoreNineHoleRounds =
@@ -354,6 +701,7 @@ export function buildDashboardOverallInsightsSummary(
       typeof payload.data_hash === 'string' && payload.data_hash.length > 0
         ? payload.data_hash
         : null,
+    recommendationText: pickRecommendationText(payload, mode),
     mode,
     roundsRecent,
     recentWindow,
@@ -377,13 +725,16 @@ export function buildDashboardOverallInsightsSummary(
           },
     projectionHandicap,
     sgComponentDelta: sgDeltas,
+    efficiencyDelta,
+    statCoverage,
     biggestLeakComponent,
     confidence: normalizeConfidence(payload.sg?.components?.latest?.confidence),
     dataQualityFlags: {
       insufficientRounds: roundsRecent < MIN_ROUNDS_FOR_TRENDS,
       missingScoreTrend: scoreTrendDelta == null,
       combinedNeedsMoreNineHoleRounds,
-      missingComponentData: !hasAnyComponentData(sgDeltas),
+      missingComponentData: !hasAnyMeasuredComponentData(sgDeltas),
+      partialRecentStats: missingRecentStatCount > 0,
       residualDominant,
       volatileScoring:
         consistencyLabel === 'Volatile' ||
@@ -397,85 +748,56 @@ export function buildRoundFocusState(
   isPremium: boolean,
   isLimited: boolean,
 ): RoundFocusState {
-  if (
-    !summary ||
-    summary.dataQualityFlags.insufficientRounds ||
-    summary.dataQualityFlags.missingScoreTrend ||
-    summary.dataQualityFlags.combinedNeedsMoreNineHoleRounds
-  ) {
+  const lockedReason = getLockedReason(summary);
+  if (lockedReason) {
     return {
       kind: 'NEED_MORE_ROUNDS',
+      outcome: 'locked',
+      lockedReason,
       roundsLogged: summary?.roundsRecent ?? 0,
       minRounds: MIN_ROUNDS_FOR_TRENDS,
     };
   }
+  if (!summary) {
+    return {
+      kind: 'NEED_MORE_ROUNDS',
+      outcome: 'locked',
+      lockedReason: 'missing_summary',
+      roundsLogged: 0,
+      minRounds: MIN_ROUNDS_FOR_TRENDS,
+    };
+  }
+
+  const sgFocus = selectSgFocus(summary);
+
+  if (!sgFocus) {
+    const fallbackFocus = buildScoreOnlyFocus(summary);
+    if (!isPremium) {
+      return {
+        kind: 'READY_FREE',
+        focus: fallbackFocus,
+        isLimited,
+      };
+    }
+    return {
+      kind: 'READY_PREMIUM',
+      focus: fallbackFocus,
+    };
+  }
+
+  const focus = buildSgDrivenFocus(summary, sgFocus);
 
   if (!isPremium) {
     return {
       kind: 'READY_FREE',
-      focus: buildScoreFocus(summary),
+      focus,
       isLimited,
     };
   }
 
-  const missingComponentData =
-    summary.dataQualityFlags.missingComponentData || !summary.sgComponentDelta;
-  const component = summary.biggestLeakComponent;
-
-  if (summary.dataQualityFlags.residualDominant || missingComponentData) {
-    return {
-      kind: 'READY_PREMIUM',
-      focus: {
-        focusType: 'component',
-        headline: 'Track 1 extra stat this round.',
-        body: 'Most of your performance signal is untracked. Add putts and penalties for a clearer focus.',
-        drillLine: premiumDrill(summary, 'residual'),
-        component: 'residual',
-        confidence: summary.confidence,
-        basedOnCaption: summary.recentWindow === 5 ? 'Based on last 5 vs baseline' : undefined,
-      },
-    };
-  }
-
-  if (
-    !component ||
-    component === 'residual' ||
-    !summary.sgComponentDelta ||
-    summary.sgComponentDelta[component] == null
-  ) {
-    return {
-      kind: 'READY_PREMIUM',
-      focus: buildScoreFocus(summary),
-    };
-  }
-
-  const componentDelta = summary.sgComponentDelta[component];
-  const headline =
-    component === 'offTee'
-      ? 'Priority: Fairway-first tee shots.'
-      : component === 'approach'
-      ? 'Priority: Start-line control on approaches.'
-      : component === 'putting'
-      ? 'Priority: Speed control.'
-      : 'Priority: Zero penalty strokes.';
-
-  const lowConfidenceLine =
-    summary.confidence === 'low'
-      ? 'Low confidence due to limited tracked stats. Log FIR, GIR, putts, and penalties to sharpen this focus.'
-      : undefined;
-
   return {
     kind: 'READY_PREMIUM',
-    focus: {
-      focusType: 'component',
-      headline,
-      body: componentBody(component, componentDelta),
-      supportingLine: lowConfidenceLine,
-      drillLine: premiumDrill(summary, component),
-      component,
-      confidence: summary.confidence,
-      basedOnCaption: summary.recentWindow === 5 ? 'Based on last 5 vs baseline' : undefined,
-    },
+    focus,
   };
 }
 

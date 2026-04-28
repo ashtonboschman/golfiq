@@ -1,14 +1,3 @@
-jest.mock('@/lib/insights/overall', () => {
-  const actual = jest.requireActual('@/lib/insights/overall');
-  return {
-    ...actual,
-    pickDeterministicDrillSeeded: jest.fn(
-      () => 'Mock drill line for card. Goal: hit 10 clean reps.',
-    ),
-  };
-});
-
-import { pickDeterministicDrillSeeded } from '@/lib/insights/overall';
 import {
   buildDashboardOverallInsightsSummary,
   buildRoundFocusState,
@@ -16,17 +5,13 @@ import {
   type DashboardOverallInsightsSummary,
 } from '@/lib/insights/dashboardFocus';
 
-const mockedPickDeterministicDrillSeeded =
-  pickDeterministicDrillSeeded as jest.MockedFunction<
-    typeof pickDeterministicDrillSeeded
-  >;
-
 function makeSummary(
   overrides: Partial<DashboardOverallInsightsSummary> = {},
 ): DashboardOverallInsightsSummary {
   return {
     lastUpdatedAt: '2026-02-24T10:00:00.000Z',
     drillSeed: 'seed-hash-123',
+    recommendationText: null,
     mode: 'combined',
     roundsRecent: 5,
     recentWindow: 5,
@@ -44,6 +29,18 @@ function makeSummary(
       penalties: -0.3,
       residual: 0.1,
     },
+    efficiencyDelta: {
+      firPctPoints: 2,
+      girPctPoints: -1,
+      putts: -0.2,
+      penalties: 0.3,
+    },
+    statCoverage: {
+      fir: { tracked: 5, total: 5 },
+      gir: { tracked: 5, total: 5 },
+      putts: { tracked: 5, total: 5 },
+      penalties: { tracked: 5, total: 5 },
+    },
     biggestLeakComponent: 'putting',
     confidence: 'medium',
     dataQualityFlags: {
@@ -51,6 +48,7 @@ function makeSummary(
       missingScoreTrend: false,
       combinedNeedsMoreNineHoleRounds: false,
       missingComponentData: false,
+      partialRecentStats: false,
       residualDominant: false,
       volatileScoring: false,
     },
@@ -87,6 +85,36 @@ function makeInsightsPayload(mutator?: (payload: any) => void): any {
         scoreHigh: 80.4,
       },
     },
+    cards_by_mode: {
+      combined: [
+        'Scoring trend: Stable.',
+        'Strength: Approach.',
+        'Opportunity: Putting.',
+        'Priority first: Focus on pace control from 25-40 feet.',
+        'On-course strategy: Leave uphill looks when possible.',
+      ],
+      '9': [
+        'Scoring trend: Stable.',
+        'Strength: GIR.',
+        'Opportunity: Penalties.',
+        'Priority first: Play to wider targets on trouble holes.',
+        'On-course strategy: Choose the safer side of fairways.',
+      ],
+      '18': [
+        'Scoring trend: Stable.',
+        'Strength: GIR.',
+        'Opportunity: Putting.',
+        'Priority first: Control speed to tap-in range.',
+        'On-course strategy: Favor center-green targets.',
+      ],
+    },
+    cards: [
+      'Scoring trend: Stable.',
+      'Strength: Approach.',
+      'Opportunity: Putting.',
+      'Priority first: Focus on pace control from 25-40 feet.',
+      'On-course strategy: Leave uphill looks when possible.',
+    ],
     mode_payload: {
       combined: {
         kpis: {
@@ -115,6 +143,12 @@ function makeInsightsPayload(mutator?: (payload: any) => void): any {
             penalties: 0,
             residual: 0,
           },
+        },
+        efficiency: {
+          fir: { recent: 0.52, baseline: 0.5, coverageRecent: '5/5' },
+          gir: { recent: 0.44, baseline: 0.45, coverageRecent: '5/5' },
+          puttsTotal: { recent: 31.8, baseline: 32.0, coverageRecent: '5/5' },
+          penaltiesPerRound: { recent: 1.3, baseline: 1.0, coverageRecent: '5/5' },
         },
       },
       '9': {
@@ -178,6 +212,7 @@ describe('dashboardFocus summary mapping', () => {
     expect(summary?.projectionHandicap).toBe(5.2);
     expect(summary?.drillSeed).toBe('payload-hash-456');
     expect(summary?.recentWindow).toBe(5);
+    expect(summary?.recommendationText).toBe('Focus on pace control from 25-40 feet.');
   });
 
   it('defaults recentWindow to 5 and drillSeed to null when missing', () => {
@@ -188,6 +223,15 @@ describe('dashboardFocus summary mapping', () => {
     const summary = buildDashboardOverallInsightsSummary(payload, 'combined');
     expect(summary?.recentWindow).toBe(5);
     expect(summary?.drillSeed).toBeNull();
+  });
+
+  it('falls back to shared cards for recommendation text when cards_by_mode is missing', () => {
+    const payload = makeInsightsPayload((draft) => {
+      delete draft.cards_by_mode;
+      draft.cards[3] = 'Priority first: Build speed control first.';
+    });
+    const summary = buildDashboardOverallInsightsSummary(payload, 'combined');
+    expect(summary?.recommendationText).toBe('Build speed control first.');
   });
 
   it('derives trajectory label from score averages and normalizes consistency label', () => {
@@ -235,7 +279,7 @@ describe('dashboardFocus summary mapping', () => {
     ).toBe('Worsening');
   });
 
-  it('flags insufficient rounds when roundsRecent < 3', () => {
+  it('flags insufficient rounds when roundsRecent < 5', () => {
     const payload = makeInsightsPayload((draft) => {
       draft.mode_payload.combined.kpis.roundsRecent = 2;
     });
@@ -267,7 +311,7 @@ describe('dashboardFocus summary mapping', () => {
 
   it('does not flag combinedNeedsMoreNineHoleRounds when combined mode already has enough rounds', () => {
     const payload = makeInsightsPayload((draft) => {
-      draft.mode_payload.combined.kpis.roundsRecent = 3;
+      draft.mode_payload.combined.kpis.roundsRecent = 5;
       draft.mode_payload['9'].kpis.roundsRecent = 0;
       draft.mode_payload['18'].kpis.roundsRecent = 6;
     });
@@ -332,8 +376,50 @@ describe('dashboardFocus summary mapping', () => {
       draft.mode_payload.combined.sgComponents.baselineAvg.offTee = -0.2;
     });
     const summary = buildDashboardOverallInsightsSummary(payload, 'combined');
-    expect(summary?.sgComponentDelta?.offTee).toBe(-0.1);
+    expect(summary?.sgComponentDelta?.offTee).toBeCloseTo(-0.06);
     expect(summary?.confidence).toBe('high');
+  });
+
+  it('maps recent stat coverage and flags partial recent stats', () => {
+    const payload = makeInsightsPayload((draft) => {
+      draft.mode_payload.combined.efficiency.fir.coverageRecent = '2/5';
+      draft.mode_payload.combined.efficiency.gir.coverageRecent = '5/5';
+      draft.mode_payload.combined.efficiency.puttsTotal.coverageRecent = '4/5';
+      draft.mode_payload.combined.efficiency.penaltiesPerRound.coverageRecent = '1/5';
+    });
+    const summary = buildDashboardOverallInsightsSummary(payload, 'combined');
+    expect(summary?.statCoverage).toEqual({
+      fir: { tracked: 2, total: 5 },
+      gir: { tracked: 5, total: 5 },
+      putts: { tracked: 4, total: 5 },
+      penalties: { tracked: 1, total: 5 },
+    });
+    expect(summary?.dataQualityFlags.partialRecentStats).toBe(true);
+  });
+
+  it('treats residual-only SG as missing component data', () => {
+    const payload = makeInsightsPayload((draft) => {
+      draft.mode_payload.combined.sgComponents = {
+        hasData: true,
+        recentAvg: {
+          offTee: null,
+          approach: null,
+          putting: null,
+          penalties: null,
+          residual: -0.5,
+        },
+        baselineAvg: {
+          offTee: null,
+          approach: null,
+          putting: null,
+          penalties: null,
+          residual: 0,
+        },
+      };
+    });
+    const summary = buildDashboardOverallInsightsSummary(payload, 'combined');
+    expect(summary?.dataQualityFlags.missingComponentData).toBe(true);
+    expect(summary?.dataQualityFlags.residualDominant).toBe(true);
   });
 
   it('parses numeric strings across score/projection fields', () => {
@@ -518,29 +604,37 @@ describe('dashboardFocus summary mapping', () => {
 describe('dashboardFocus state output', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedPickDeterministicDrillSeeded.mockReturnValue(
-      'Mock drill line for card. Goal: hit 10 clean reps.',
-    );
   });
 
   it('returns NEED_MORE_ROUNDS for null summary', () => {
     const state = buildRoundFocusState(null, false, false);
     expect(state).toEqual({
       kind: 'NEED_MORE_ROUNDS',
+      outcome: 'locked',
+      lockedReason: 'missing_summary',
       roundsLogged: 0,
-      minRounds: 3,
+      minRounds: 5,
     });
   });
 
-  it('returns NEED_MORE_ROUNDS for all explicit gating flags', () => {
+  it('returns NEED_MORE_ROUNDS for explicit data gating flags', () => {
     const base = makeSummary();
     const variants = [
-      { insufficientRounds: true, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: false },
-      { insufficientRounds: false, missingScoreTrend: true, combinedNeedsMoreNineHoleRounds: false },
-      { insufficientRounds: false, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: true },
+      {
+        flags: { insufficientRounds: true, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: false },
+        lockedReason: 'not_enough_rounds',
+      },
+      {
+        flags: { insufficientRounds: false, missingScoreTrend: true, combinedNeedsMoreNineHoleRounds: false },
+        lockedReason: 'missing_score_trend',
+      },
+      {
+        flags: { insufficientRounds: false, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: true },
+        lockedReason: 'insufficient_combined_signal',
+      },
     ];
 
-    variants.forEach((flags) => {
+    variants.forEach(({ flags, lockedReason }) => {
       const state = buildRoundFocusState(
         makeSummary({
           roundsRecent: 2,
@@ -551,300 +645,76 @@ describe('dashboardFocus state output', () => {
       );
       expect(state.kind).toBe('NEED_MORE_ROUNDS');
       if (state.kind !== 'NEED_MORE_ROUNDS') return;
-      expect(state.roundsLogged).toBe(2);
-      expect(state.minRounds).toBe(3);
+      expect(state.outcome).toBe('locked');
+      expect(state.lockedReason).toBe(lockedReason);
     });
   });
 
-  it('returns READY_FREE and passes through isLimited', () => {
+  it('passes through isLimited for READY_FREE states', () => {
     const limited = buildRoundFocusState(makeSummary(), false, true);
     expect(limited.kind).toBe('READY_FREE');
     if (limited.kind !== 'READY_FREE') return;
     expect(limited.isLimited).toBe(true);
-
-    const unlimited = buildRoundFocusState(makeSummary(), false, false);
-    expect(unlimited.kind).toBe('READY_FREE');
-    if (unlimited.kind !== 'READY_FREE') return;
-    expect(unlimited.isLimited).toBe(false);
   });
 
-  it('uses all score bucket copy variants for free state', () => {
-    const build = (delta: number) =>
-      buildRoundFocusState(
-        makeSummary({
-          scoreTrendDelta: delta,
-          dataQualityFlags: { ...makeSummary().dataQualityFlags, volatileScoring: false },
-        }),
-        false,
-        false,
-      );
-
-    const improving = build(-1.3);
-    expect(improving.kind).toBe('READY_FREE');
-    if (improving.kind !== 'READY_FREE') return;
-    expect(improving.focus.headline).toBe('Build on momentum.');
-    expect(improving.focus.body).toContain('1.3');
-
-    const flat = build(-0.4);
-    expect(flat.kind).toBe('READY_FREE');
-    if (flat.kind !== 'READY_FREE') return;
-    expect(flat.focus.headline).toBe('Turn stability into progress.');
-
-    const worsening = build(1.1);
-    expect(worsening.kind).toBe('READY_FREE');
-    if (worsening.kind !== 'READY_FREE') return;
-    expect(worsening.focus.headline).toBe('Stop the leak.');
-  });
-
-  it('uses score-bucket boundary values deterministically for combined mode', () => {
-    const improvingBoundary = buildRoundFocusState(
-      makeSummary({ scoreTrendDelta: -1 }),
-      false,
-      false,
-    );
-    expect(improvingBoundary.kind).toBe('READY_FREE');
-    if (improvingBoundary.kind !== 'READY_FREE') return;
-    expect(improvingBoundary.focus.headline).toBe('Turn stability into progress.');
-
-    const worseningBoundary = buildRoundFocusState(
-      makeSummary({ scoreTrendDelta: 1 }),
-      false,
-      false,
-    );
-    expect(worseningBoundary.kind).toBe('READY_FREE');
-    if (worseningBoundary.kind !== 'READY_FREE') return;
-    expect(worseningBoundary.focus.headline).toBe('Turn stability into progress.');
-  });
-
-  it('uses score-bucket boundary values deterministically for 9-hole mode', () => {
-    const nineImproveBoundary = buildRoundFocusState(
-      makeSummary({ mode: '9', scoreTrendDelta: -0.5 }),
-      false,
-      false,
-    );
-    expect(nineImproveBoundary.kind).toBe('READY_FREE');
-    if (nineImproveBoundary.kind !== 'READY_FREE') return;
-    expect(nineImproveBoundary.focus.headline).toBe('Turn stability into progress.');
-
-    const nineWorsenBoundary = buildRoundFocusState(
-      makeSummary({ mode: '9', scoreTrendDelta: 0.5 }),
-      false,
-      false,
-    );
-    expect(nineWorsenBoundary.kind).toBe('READY_FREE');
-    if (nineWorsenBoundary.kind !== 'READY_FREE') return;
-    expect(nineWorsenBoundary.focus.headline).toBe('Turn stability into progress.');
-  });
-
-  it('uses score-bucket out-of-band values for 9-hole mode', () => {
-    const nineImproving = buildRoundFocusState(
-      makeSummary({ mode: '9', scoreTrendDelta: -0.6 }),
-      false,
-      false,
-    );
-    expect(nineImproving.kind).toBe('READY_FREE');
-    if (nineImproving.kind !== 'READY_FREE') return;
-    expect(nineImproving.focus.headline).toBe('Build on momentum.');
-
-    const nineWorsening = buildRoundFocusState(
-      makeSummary({ mode: '9', scoreTrendDelta: 0.6 }),
-      false,
-      false,
-    );
-    expect(nineWorsening.kind).toBe('READY_FREE');
-    if (nineWorsening.kind !== 'READY_FREE') return;
-    expect(nineWorsening.focus.headline).toBe('Stop the leak.');
-  });
-
-  it('uses volatile vs stable supporting copy for score focus', () => {
-    const volatileState = buildRoundFocusState(
-      makeSummary({
-        dataQualityFlags: { ...makeSummary().dataQualityFlags, volatileScoring: true },
-      }),
-      false,
-      false,
-    );
-    expect(volatileState.kind).toBe('READY_FREE');
-    if (volatileState.kind !== 'READY_FREE') return;
-    expect(volatileState.focus.supportingLine).toContain('volatile');
-
-    const stableState = buildRoundFocusState(
-      makeSummary({
-        dataQualityFlags: { ...makeSummary().dataQualityFlags, volatileScoring: false },
-      }),
-      false,
-      false,
-    );
-    expect(stableState.kind).toBe('READY_FREE');
-    if (stableState.kind !== 'READY_FREE') return;
-    expect(stableState.focus.supportingLine).toContain('Stay disciplined');
-  });
-
-  it('shows basedOnCaption only when recentWindow is 5', () => {
-    const withCaption = buildRoundFocusState(
-      makeSummary({ recentWindow: 5 }),
-      false,
-      false,
-    );
-    expect(withCaption.kind).toBe('READY_FREE');
-    if (withCaption.kind !== 'READY_FREE') return;
-    expect(withCaption.focus.basedOnCaption).toBe('Based on last 5 vs baseline');
-
-    const withoutCaption = buildRoundFocusState(
-      makeSummary({ recentWindow: 10 }),
-      false,
-      false,
-    );
-    expect(withoutCaption.kind).toBe('READY_FREE');
-    if (withoutCaption.kind !== 'READY_FREE') return;
-    expect(withoutCaption.focus.basedOnCaption).toBeUndefined();
-  });
-
-  it('returns premium residual-focused message when residual is dominant', () => {
+  it('uses SG opportunity mode from the lowest SG component (threshold <= -0.15)', () => {
     const state = buildRoundFocusState(
       makeSummary({
-        dataQualityFlags: { ...makeSummary().dataQualityFlags, residualDominant: true },
-      }),
-      true,
-      false,
-    );
-    expect(state.kind).toBe('READY_PREMIUM');
-    if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.headline).toBe('Track 1 extra stat this round.');
-    expect(state.focus.component).toBe('residual');
-  });
-
-  it('hides basedOnCaption in premium residual state when recentWindow is not 5', () => {
-    const state = buildRoundFocusState(
-      makeSummary({
-        recentWindow: 10,
-        dataQualityFlags: { ...makeSummary().dataQualityFlags, residualDominant: true },
-      }),
-      true,
-      false,
-    );
-    expect(state.kind).toBe('READY_PREMIUM');
-    if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.basedOnCaption).toBeUndefined();
-  });
-
-  it('returns premium residual-focused message when component data is missing', () => {
-    const state = buildRoundFocusState(
-      makeSummary({
-        sgComponentDelta: null,
-        dataQualityFlags: { ...makeSummary().dataQualityFlags, missingComponentData: true },
-      }),
-      true,
-      false,
-    );
-    expect(state.kind).toBe('READY_PREMIUM');
-    if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.component).toBe('residual');
-    expect(state.focus.headline).toBe('Track 1 extra stat this round.');
-  });
-
-  it('falls back to score focus for premium when component is null/residual/missing-delta', () => {
-    const noComponent = buildRoundFocusState(
-      makeSummary({ biggestLeakComponent: null }),
-      true,
-      false,
-    );
-    expect(noComponent.kind).toBe('READY_PREMIUM');
-    if (noComponent.kind !== 'READY_PREMIUM') return;
-    expect(noComponent.focus.focusType).toBe('score');
-    expect(noComponent.focus.drillLine).toBeUndefined();
-
-    const residualComponent = buildRoundFocusState(
-      makeSummary({ biggestLeakComponent: 'residual' }),
-      true,
-      false,
-    );
-    expect(residualComponent.kind).toBe('READY_PREMIUM');
-    if (residualComponent.kind !== 'READY_PREMIUM') return;
-    expect(residualComponent.focus.focusType).toBe('score');
-
-    const missingComponentDelta = buildRoundFocusState(
-      makeSummary({
-        biggestLeakComponent: 'putting',
         sgComponentDelta: {
-          offTee: -0.2,
-          approach: -0.3,
-          putting: null,
-          penalties: -0.1,
-          residual: 0.2,
+          offTee: -0.1,
+          approach: -0.22,
+          putting: -0.17,
+          penalties: -0.05,
+          residual: -0.6,
+        },
+      }),
+      false,
+      false,
+    );
+
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('component_opportunity');
+    expect(state.focus.headline).toBe('Approach is your biggest scoring opportunity.');
+    expect(state.focus.body).toBe('You\'re losing ~0.2 strokes per round compared to baseline.');
+    expect(state.focus.nextRound).toBe('Focus on tightening approach dispersion.');
+    expect(state.focus.component).toBe('approach');
+  });
+
+  it('uses SG strength mode when no opportunity exists and SG >= +0.15', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        sgComponentDelta: {
+          offTee: 0.12,
+          approach: 0.18,
+          putting: 0.16,
+          penalties: 0.03,
+          residual: -0.4,
         },
       }),
       true,
       false,
     );
-    expect(missingComponentDelta.kind).toBe('READY_PREMIUM');
-    if (missingComponentDelta.kind !== 'READY_PREMIUM') return;
-    expect(missingComponentDelta.focus.focusType).toBe('score');
+
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('component_strength');
+    expect(state.focus.headline).toBe('Approach is driving your improvement.');
+    expect(state.focus.body).toBe('This area is gaining ~0.2 strokes per round compared to baseline.');
+    expect(state.focus.nextRound).toBe('Keep trusting your approach play.');
+    expect(state.focus.component).toBe('approach');
   });
 
-  it('renders component-specific premium headlines and bodies', () => {
-    const cases: Array<{
-      component: 'offTee' | 'approach' | 'putting' | 'penalties';
-      expectedHeadline: string;
-      bodyFragment: string;
-    }> = [
-      {
-        component: 'offTee',
-        expectedHeadline: 'Priority: Fairway-first tee shots.',
-        bodyFragment: 'Off the Tee is costing',
-      },
-      {
-        component: 'approach',
-        expectedHeadline: 'Priority: Start-line control on approaches.',
-        bodyFragment: 'Approach is down',
-      },
-      {
-        component: 'putting',
-        expectedHeadline: 'Priority: Speed control.',
-        bodyFragment: 'Putting is down',
-      },
-      {
-        component: 'penalties',
-        expectedHeadline: 'Priority: Zero penalty strokes.',
-        bodyFragment: 'Penalties are costing',
-      },
-    ];
-
-    cases.forEach(({ component, expectedHeadline, bodyFragment }) => {
-      const state = buildRoundFocusState(
-        makeSummary({
-          biggestLeakComponent: component,
-          sgComponentDelta: {
-            offTee: -0.3,
-            approach: -0.3,
-            putting: -0.3,
-            penalties: -0.3,
-            residual: 0.1,
-          },
-        }),
-        true,
-        false,
-      );
-      expect(state.kind).toBe('READY_PREMIUM');
-      if (state.kind !== 'READY_PREMIUM') return;
-      expect(state.focus.headline).toBe(expectedHeadline);
-      expect(state.focus.body).toContain(bodyFragment);
-      expect(state.focus.drillLine).toContain('Do this next:');
-    });
-  });
-
-  it('handles unexpected component ids by falling back to generic component body', () => {
+  it('uses balanced mode instead of naming an opportunity when component deltas are too close', () => {
     const state = buildRoundFocusState(
       makeSummary({
-        biggestLeakComponent: 'unknown_component' as any,
         sgComponentDelta: {
-          offTee: -0.3,
-          approach: -0.2,
-          putting: -0.1,
-          penalties: -0.4,
-          residual: -0.1,
-          unknown_component: -0.9,
-        } as any,
+          offTee: -0.04,
+          approach: -0.16,
+          putting: -0.15,
+          penalties: 0.02,
+          residual: 0,
+        },
       }),
       true,
       false,
@@ -852,43 +722,184 @@ describe('dashboardFocus state output', () => {
 
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.focusType).toBe('component');
-    expect(state.focus.body).toContain('Most of your performance signal is untracked.');
+    expect(state.focus.outcome).toBe('component_balanced');
+    expect(state.focus.headline).toBe('Your game is well balanced right now.');
   });
 
-  it('adds low-confidence supporting line only for low-confidence component focus', () => {
-    const lowConfidence = buildRoundFocusState(
+  it('uses balanced mode when all SG components are between -0.15 and +0.15', () => {
+    const state = buildRoundFocusState(
       makeSummary({
-        confidence: 'low',
-        biggestLeakComponent: 'approach',
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: 0.02,
+          putting: 0.14,
+          penalties: -0.14,
+          residual: 0.8,
+        },
       }),
       true,
       false,
     );
-    expect(lowConfidence.kind).toBe('READY_PREMIUM');
-    if (lowConfidence.kind !== 'READY_PREMIUM') return;
-    expect(lowConfidence.focus.supportingLine).toContain('Low confidence');
 
-    const mediumConfidence = buildRoundFocusState(
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('component_balanced');
+    expect(state.focus.headline).toBe('Your game is well balanced right now.');
+    expect(state.focus.body).toBe('No single area is significantly impacting your score.');
+    expect(state.focus.nextRound).toBe('Maintain consistent decisions.');
+    expect(state.focus.component).toBeNull();
+  });
+
+  it('uses SG-only logic and does not let raw putts delta override putting SG opportunity', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        sgComponentDelta: {
+          offTee: 0.1,
+          approach: 0.08,
+          putting: -0.2,
+          penalties: 0.05,
+          residual: 0.3,
+        },
+        efficiencyDelta: {
+          firPctPoints: 4,
+          girPctPoints: 3,
+          putts: -0.4, // raw stats look good, but SG says opportunity
+          penalties: -0.3,
+        },
+      }),
+      false,
+      false,
+    );
+
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('component_opportunity');
+    expect(state.focus.headline).toBe('Putting is your biggest scoring opportunity.');
+    expect(state.focus.body).toBe('You\'re losing ~0.2 strokes per round compared to baseline.');
+    expect(state.focus.nextRound).toBe('Focus on lag putting pace.');
+    expect(state.focus.component).toBe('putting');
+  });
+
+  it('uses SG thresholds inclusively at -0.15 and +0.15', () => {
+    const opportunityBoundary = buildRoundFocusState(
+      makeSummary({
+        sgComponentDelta: {
+          offTee: -0.15,
+          approach: 0.01,
+          putting: 0.02,
+          penalties: 0.03,
+          residual: 0.0,
+        },
+      }),
+      false,
+      false,
+    );
+    expect(opportunityBoundary.kind).toBe('READY_FREE');
+    if (opportunityBoundary.kind !== 'READY_FREE') return;
+    expect(opportunityBoundary.focus.headline).toBe('Off the Tee is your biggest scoring opportunity.');
+
+    const strengthBoundary = buildRoundFocusState(
+      makeSummary({
+        sgComponentDelta: {
+          offTee: 0.15,
+          approach: 0.02,
+          putting: 0.03,
+          penalties: 0.01,
+          residual: 0.0,
+        },
+      }),
+      true,
+      false,
+    );
+    expect(strengthBoundary.kind).toBe('READY_PREMIUM');
+    if (strengthBoundary.kind !== 'READY_PREMIUM') return;
+    expect(strengthBoundary.focus.outcome).toBe('component_strength');
+    expect(strengthBoundary.focus.headline).toBe('Off the Tee is driving your improvement.');
+  });
+
+  it('uses strongest-area strength copy when scoring trend is worsening', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        scoreTrendDelta: 1.4,
+        sgComponentDelta: {
+          offTee: 0.12,
+          approach: 0.18,
+          putting: 0.16,
+          penalties: 0.03,
+          residual: -0.4,
+        },
+      }),
+      true,
+      false,
+    );
+
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('component_strength');
+    expect(state.focus.headline).toBe('Approach is your strongest area right now.');
+    expect(state.focus.body).toBe('This area is gaining ~0.2 strokes per round compared to baseline.');
+  });
+
+  it('uses penalty avoidance grammar for penalties component headlines', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: -0.06,
+          putting: -0.04,
+          penalties: -0.4,
+          residual: 0.0,
+        },
+      }),
+      false,
+      false,
+    );
+
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('component_opportunity');
+    expect(state.focus.headline).toBe('Penalty avoidance is your biggest scoring opportunity.');
+  });
+
+  it('uses score-only focus when SG data is missing but score trend is available', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        sgComponentDelta: null,
+      }),
+      false,
+      false,
+    );
+
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('score_only_stable');
+    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
+    expect(state.focus.body).toBe('Recent scoring is in line with your baseline.');
+    expect(state.focus.nextRound).toBe('Keep tracking scores and target one scoring improvement.');
+    expect(state.focus.component).toBeNull();
+  });
+
+  it('does not name a component when recent tracking only covers two stat areas', () => {
+    const state = buildRoundFocusState(
       makeSummary({
         confidence: 'medium',
-        biggestLeakComponent: 'approach',
-      }),
-      true,
-      false,
-    );
-    expect(mediumConfidence.kind).toBe('READY_PREMIUM');
-    if (mediumConfidence.kind !== 'READY_PREMIUM') return;
-    expect(mediumConfidence.focus.supportingLine).toBeUndefined();
-  });
-
-  it('builds drill line from deterministic picker and strips Goal tail', () => {
-    mockedPickDeterministicDrillSeeded.mockReturnValue(
-      'Compact this drill line. Goal: hidden details should not appear.',
-    );
-    const state = buildRoundFocusState(
-      makeSummary({
-        biggestLeakComponent: 'approach',
+        sgComponentDelta: {
+          offTee: null,
+          approach: null,
+          putting: -0.4,
+          penalties: -0.2,
+          residual: -0.6,
+        },
+        statCoverage: {
+          fir: { tracked: 0, total: 5 },
+          gir: { tracked: 0, total: 5 },
+          putts: { tracked: 5, total: 5 },
+          penalties: { tracked: 5, total: 5 },
+        },
+        dataQualityFlags: {
+          ...makeSummary().dataQualityFlags,
+          partialRecentStats: true,
+        },
       }),
       true,
       false,
@@ -896,37 +907,115 @@ describe('dashboardFocus state output', () => {
 
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.drillLine).toBe('Do this next: Compact this drill line.');
+    expect(state.focus.outcome).toBe('score_only_stable');
+    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
+    expect(state.focus.nextRound).toBe('Track GIR and FIR to refine your insight.');
+    expect(state.focus.component).toBeNull();
   });
 
-  it('uses drillSeed when present and fallback seed when missing', () => {
-    buildRoundFocusState(
-      makeSummary({ drillSeed: 'fixed-seed', biggestLeakComponent: 'putting' }),
-      true,
+  it('does not name a component when SG confidence is low', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        confidence: 'low',
+        sgComponentDelta: {
+          offTee: -0.5,
+          approach: -0.4,
+          putting: -0.6,
+          penalties: -0.2,
+          residual: -1.2,
+        },
+        statCoverage: {
+          fir: { tracked: 5, total: 5 },
+          gir: { tracked: 5, total: 5 },
+          putts: { tracked: 5, total: 5 },
+          penalties: { tracked: 5, total: 5 },
+        },
+      }),
+      false,
       false,
     );
-    expect(mockedPickDeterministicDrillSeeded).toHaveBeenCalledWith(
-      'putting',
-      'fixed-seed|dashboard_focus|putting',
-      0,
-    );
 
-    buildRoundFocusState(
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('score_only_stable');
+    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
+    expect(state.focus.component).toBeNull();
+  });
+
+  it('does not name a component when residual is dominant', () => {
+    const state = buildRoundFocusState(
       makeSummary({
-        drillSeed: null,
-        mode: '9',
-        lastUpdatedAt: '2026-02-24T12:00:00.000Z',
-        roundsRecent: 4,
-        scoreTrendDelta: -0.6,
-        biggestLeakComponent: 'approach',
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: -0.04,
+          putting: -0.02,
+          penalties: -0.03,
+          residual: -0.8,
+        },
+        dataQualityFlags: {
+          ...makeSummary().dataQualityFlags,
+          residualDominant: true,
+        },
       }),
       true,
       false,
     );
-    const lastCall = mockedPickDeterministicDrillSeeded.mock.calls.at(-1);
-    expect(lastCall?.[0]).toBe('approach');
-    expect(lastCall?.[1]).toContain('9|2026-02-24T12:00:00.000Z|4|-0.6|dashboard_focus|approach');
-    expect(lastCall?.[2]).toBe(0);
+
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('score_only_stable');
+    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
+    expect(state.focus.component).toBeNull();
+  });
+
+  it('uses a concise recommendation as next-round nudge when safe to render', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        recommendationText: 'Focus on center-green targets',
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: -0.2,
+          putting: 0.02,
+          penalties: -0.01,
+          residual: 0,
+        },
+      }),
+      true,
+      false,
+    );
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.nextRound).toBe('Focus on center-green targets.');
+  });
+
+  it('falls back to component nudge when recommendation is too long', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        recommendationText:
+          'Roll 10 balls to a fringe line and stop short, then score your distance control over each set.',
+        sgComponentDelta: {
+          offTee: -0.08,
+          approach: -0.19,
+          putting: -0.05,
+          penalties: 0,
+          residual: 0.03,
+        },
+      }),
+      true,
+      false,
+    );
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.nextRound).toBe('Focus on tightening approach dispersion.');
+  });
+
+  it('never uses generic momentum headline copy', () => {
+    const state = buildRoundFocusState(makeSummary(), false, false);
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.headline).not.toBe('Build on momentum.');
+    expect(state.focus.headline).not.toBe('Keep improving.');
+    expect(state.focus.headline).not.toBe('Stay consistent.');
   });
 });
 
