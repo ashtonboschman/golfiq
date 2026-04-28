@@ -27,16 +27,16 @@ export type BuildNextRoundFocusOutput = {
 };
 
 const TRACKING_CLAUSE_VARIANTS = [
-  "Track {missingList} so we can separate what helped from what cost strokes.",
-  "To get clearer feedback, track {missingList}.",
+  "Track {missingList} so we can give you more specific next-round guidance.",
+  "Add {missingList} so your next-round guidance is tied to what happened on the course.",
+  "Log {missingList} so we can separate what helped from what cost strokes.",
+  "Track {missingList} so future guidance points to the right part of your game.",
   "Add {missingList} so we can see where strokes were gained or lost.",
-  "Log {missingList} so strengths and weaknesses are reflected in the breakdown.",
-  "For a clearer breakdown, track {missingList}.",
-  "Add {missingList} so driving, approach, putting, and penalties separate cleanly.",
-  "Track {missingList} to reduce noise and sharpen the takeaways.",
-  "Log {missingList} so the next focus is grounded in round detail.",
-  "To isolate where strokes came from, track {missingList}.",
-  "Keep tracking consistent and add {missingList}.",
+  "Track {missingList} so the next recommendation reflects the full round.",
+  "Log {missingList} so the advice is based on more than the final score.",
+  "Add {missingList} so we can better connect the score to your game.",
+  "Track {missingList} so we can make the next round plan more specific.",
+  "Keep tracking consistent and add {missingList} for clearer next-round guidance.",
 ] as const;
 
 const GENERIC_ACTION_VARIANTS = [

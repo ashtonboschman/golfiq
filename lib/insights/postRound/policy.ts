@@ -114,10 +114,10 @@ const M1_D_VARIANTS = [
 ] as const;
 
 const M1_SINGLE_B_VARIANTS = [
-  "{scoreSentence} Only {BestLabel} was tracked, and it cost {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} With only {BestLabel} logged, it finished at {bestAbs1} strokes lost{evidence}.",
-  "{scoreSentence} One area was tracked: {BestLabel}, costing {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} Only {BestLabel} was measured, and it gave up {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Only {BestLabel} was tracked, so the takeaway is limited: it cost {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} With only {BestLabel} logged, the takeaway is limited: it finished at {bestAbs1} strokes lost{evidence}.",
+  "{scoreSentence} One area was tracked: {BestLabel}, which cost {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} Only {BestLabel} was measured, so the picture is limited: it gave up {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M1_SINGLE_C_VARIANTS = [
@@ -142,11 +142,11 @@ const M1_C_PENALTIES_VARIANTS = [
 ] as const;
 
 const M2_A_VARIANTS = [
-  "Not enough of the round was tracked to name a clear focus.",
-  "There is not enough tracked detail to confidently identify the main focus area.",
+  "Not enough of the round was tracked to identify a clear area to improve.",
+  "There is not enough tracked detail to identify the main area to improve.",
   "Too few areas were tracked to rank what mattered most.",
-  "With limited tracking, the next focus cannot be narrowed to one area yet.",
-  "There is not enough round detail to point to a clear starting place.",
+  "With limited tracking, one area cannot be singled out yet.",
+  "More round detail is needed before naming a clear area to improve.",
   "With limited tracking, it is hard to isolate where the most strokes were lost.",
 ] as const;
 
@@ -178,11 +178,11 @@ const M2_A_NONE_WORSE_VARIANTS = [
 ] as const;
 
 const M2_A_SINGLE_VARIANTS = [
-  "Only one area was tracked, so there is not enough context to compare and name a clear focus.",
-  "With just one tracked stat, there is not enough context to call out the main issue.",
-  "One area was logged, but picking a focus needs at least two areas to compare.",
-  "Tracking one thing is a good start, but it does not support a clear next focus yet.",
-  "With only one tracked area, there is not enough information to rank what cost the most.",
+  "Only one area was tracked, so there is not enough context to identify what mattered most.",
+  "With just one tracked stat, there is not enough context to identify the main area to improve.",
+  "One area was logged, but it takes at least two areas to compare what mattered most.",
+  "Tracking one thing is a good start, but it does not show enough to identify the main issue yet.",
+  "With only one tracked area, there is not enough information to rank what mattered most.",
   "This round has one tracked piece, which is not enough to separate what mattered most.",
 ] as const;
 
