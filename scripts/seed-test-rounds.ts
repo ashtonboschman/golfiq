@@ -302,7 +302,7 @@ function buildLiveRoundHoles(round: RoundSeed, tee: NonNullable<TeeWithHoles>) {
   }
 
   const scoreTotal = scores.reduce((sum, n) => sum + n, 0);
-  const firTotal = fir.reduce((sum, n) => sum + (n ?? 0), 0);
+  const firTotal = fir.reduce<number>((sum, n) => sum + (n ?? 0), 0);
   const girTotal = gir.reduce((sum, n) => sum + n, 0);
   const puttTotal = putts.reduce((sum, n) => sum + n, 0);
   const penaltyTotal = penalties.reduce((sum, n) => sum + n, 0);
