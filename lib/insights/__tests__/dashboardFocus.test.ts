@@ -606,35 +606,26 @@ describe('dashboardFocus state output', () => {
     jest.clearAllMocks();
   });
 
-  it('returns NEED_MORE_ROUNDS for null summary', () => {
+  it('returns LOW-confidence early guidance for null summary', () => {
     const state = buildRoundFocusState(null, false, false);
-    expect(state).toEqual({
-      kind: 'NEED_MORE_ROUNDS',
-      outcome: 'locked',
-      lockedReason: 'missing_summary',
-      roundsLogged: 0,
-      minRounds: 5,
-    });
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('early_guidance');
+    expect(state.focus.confidence).toBe('low');
+    expect(state.focus.headline).toBe('Start with solid decisions.');
+    expect(state.focus.body).toBe('Early rounds usually come down to missed greens and a few costly holes.');
+    expect(state.focus.nextRound).toBe('Play to the widest target and keep the ball in play.');
   });
 
-  it('returns NEED_MORE_ROUNDS for explicit data gating flags', () => {
+  it('no longer returns locked state for historical data gating flags', () => {
     const base = makeSummary();
     const variants = [
-      {
-        flags: { insufficientRounds: true, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: false },
-        lockedReason: 'not_enough_rounds',
-      },
-      {
-        flags: { insufficientRounds: false, missingScoreTrend: true, combinedNeedsMoreNineHoleRounds: false },
-        lockedReason: 'missing_score_trend',
-      },
-      {
-        flags: { insufficientRounds: false, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: true },
-        lockedReason: 'insufficient_combined_signal',
-      },
+      { insufficientRounds: true, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: false },
+      { insufficientRounds: false, missingScoreTrend: true, combinedNeedsMoreNineHoleRounds: false },
+      { insufficientRounds: false, missingScoreTrend: false, combinedNeedsMoreNineHoleRounds: true },
     ];
 
-    variants.forEach(({ flags, lockedReason }) => {
+    variants.forEach((flags) => {
       const state = buildRoundFocusState(
         makeSummary({
           roundsRecent: 2,
@@ -643,10 +634,7 @@ describe('dashboardFocus state output', () => {
         false,
         false,
       );
-      expect(state.kind).toBe('NEED_MORE_ROUNDS');
-      if (state.kind !== 'NEED_MORE_ROUNDS') return;
-      expect(state.outcome).toBe('locked');
-      expect(state.lockedReason).toBe(lockedReason);
+      expect(['READY_FREE', 'READY_PREMIUM']).toContain(state.kind);
     });
   });
 
@@ -657,7 +645,7 @@ describe('dashboardFocus state output', () => {
     expect(limited.isLimited).toBe(true);
   });
 
-  it('uses SG opportunity mode from the lowest SG component (threshold <= -0.15)', () => {
+  it('uses SG opportunity mode from the lowest SG component for free without SG numeric precision', () => {
     const state = buildRoundFocusState(
       makeSummary({
         sgComponentDelta: {
@@ -676,8 +664,8 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('component_opportunity');
     expect(state.focus.headline).toBe('Approach is your biggest scoring opportunity.');
-    expect(state.focus.body).toBe('You\'re losing ~0.2 strokes per round compared to baseline.');
-    expect(state.focus.nextRound).toBe('Focus on tightening approach dispersion.');
+    expect(state.focus.body).toBe('This area is costing you the most strokes.');
+    expect(state.focus.nextRound).toBe('Default to center-green targets and avoid short-siding.');
     expect(state.focus.component).toBe('approach');
   });
 
@@ -700,8 +688,8 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_strength');
     expect(state.focus.headline).toBe('Approach is driving your improvement.');
-    expect(state.focus.body).toBe('This area is gaining ~0.2 strokes per round compared to baseline.');
-    expect(state.focus.nextRound).toBe('Keep trusting your approach play.');
+    expect(state.focus.body).toBe('This area is gaining about 0.2 strokes per round.');
+    expect(state.focus.nextRound).toBe('Keep trusting your approach targets and stock swing.');
     expect(state.focus.component).toBe('approach');
   });
 
@@ -723,7 +711,8 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_balanced');
-    expect(state.focus.headline).toBe('Your game is well balanced right now.');
+    expect(state.focus.headline).toBe('Your game is well balanced.');
+    expect(state.focus.body).toBe('No area clearly stands out as a weakness.');
   });
 
   it('uses balanced mode when all SG components are between -0.15 and +0.15', () => {
@@ -744,9 +733,9 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_balanced');
-    expect(state.focus.headline).toBe('Your game is well balanced right now.');
-    expect(state.focus.body).toBe('No single area is significantly impacting your score.');
-    expect(state.focus.nextRound).toBe('Maintain consistent decisions.');
+    expect(state.focus.headline).toBe('Your game is well balanced.');
+    expect(state.focus.body).toBe('No area clearly stands out as a weakness.');
+    expect(state.focus.nextRound).toBe('Keep making simple decisions and avoid low-percentage shots.');
     expect(state.focus.component).toBeNull();
   });
 
@@ -775,8 +764,8 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('component_opportunity');
     expect(state.focus.headline).toBe('Putting is your biggest scoring opportunity.');
-    expect(state.focus.body).toBe('You\'re losing ~0.2 strokes per round compared to baseline.');
-    expect(state.focus.nextRound).toBe('Focus on lag putting pace.');
+    expect(state.focus.body).toBe('This area is costing you the most strokes.');
+    expect(state.focus.nextRound).toBe('Prioritize lag speed and leave shorter second putts.');
     expect(state.focus.component).toBe('putting');
   });
 
@@ -836,8 +825,8 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_strength');
-    expect(state.focus.headline).toBe('Approach is your strongest area right now.');
-    expect(state.focus.body).toBe('This area is gaining ~0.2 strokes per round compared to baseline.');
+    expect(state.focus.headline).toBe('Approach is your strongest area.');
+    expect(state.focus.body).toBe('This area is gaining about 0.2 strokes per round.');
   });
 
   it('uses penalty avoidance grammar for penalties component headlines', () => {
@@ -873,9 +862,9 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('score_only_stable');
-    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
-    expect(state.focus.body).toBe('Recent scoring is in line with your baseline.');
-    expect(state.focus.nextRound).toBe('Keep tracking scores and target one scoring improvement.');
+    expect(state.focus.headline).toBe('Your scoring is stable.');
+    expect(state.focus.body).toBe('Choose one area to improve and commit to it next round.');
+    expect(state.focus.nextRound).toBe('Choose one focus for the next round and commit to it.');
     expect(state.focus.component).toBeNull();
   });
 
@@ -908,12 +897,12 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('score_only_stable');
-    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
-    expect(state.focus.nextRound).toBe('Track GIR and FIR to refine your insight.');
+    expect(state.focus.headline).toBe('Your scoring is stable.');
+    expect(state.focus.nextRound).toBe('Choose one focus for the next round and commit to it.');
     expect(state.focus.component).toBeNull();
   });
 
-  it('does not name a component when SG confidence is low', () => {
+  it('uses early guidance when SG confidence is low', () => {
     const state = buildRoundFocusState(
       makeSummary({
         confidence: 'low',
@@ -937,9 +926,34 @@ describe('dashboardFocus state output', () => {
 
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
-    expect(state.focus.outcome).toBe('score_only_stable');
-    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
+    expect(state.focus.outcome).toBe('early_guidance');
+    expect(state.focus.headline).toBe('Start with solid decisions.');
+    expect(state.focus.body).toBe('Early rounds usually come down to missed greens and a few costly holes.');
+    expect(state.focus.nextRound).toBe('Play to the widest target and keep the ball in play.');
     expect(state.focus.component).toBeNull();
+  });
+
+  it('uses early guidance for low-confidence combined mixed-signal states', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        confidence: 'low',
+        roundsRecent: 3,
+        scoreTrendDelta: 0.2,
+        dataQualityFlags: {
+          ...makeSummary().dataQualityFlags,
+          combinedNeedsMoreNineHoleRounds: true,
+        },
+      }),
+      false,
+      false,
+    );
+
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('early_guidance');
+    expect(state.focus.headline).toBe('Start with solid decisions.');
+    expect(state.focus.body).toBe('Early rounds usually come down to missed greens and a few costly holes.');
+    expect(state.focus.nextRound).toBe('Play to the widest target and keep the ball in play.');
   });
 
   it('does not name a component when residual is dominant', () => {
@@ -964,8 +978,25 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('score_only_stable');
-    expect(state.focus.headline).toBe('Your scoring trend is the priority right now.');
+    expect(state.focus.headline).toBe('Your scoring is stable.');
     expect(state.focus.component).toBeNull();
+  });
+
+  it('uses low-confidence early guidance when rounds are minimal', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        roundsRecent: 1,
+        scoreTrendDelta: null,
+        confidence: null,
+      }),
+      false,
+      false,
+    );
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.outcome).toBe('early_guidance');
+    expect(state.focus.confidence).toBe('low');
+    expect(state.focus.headline).toBe('Start with solid decisions.');
   });
 
   it('uses a concise recommendation as next-round nudge when safe to render', () => {
@@ -1006,7 +1037,7 @@ describe('dashboardFocus state output', () => {
     );
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.nextRound).toBe('Focus on tightening approach dispersion.');
+    expect(state.focus.nextRound).toBe('Default to center-green targets and avoid short-siding.');
   });
 
   it('never uses generic momentum headline copy', () => {
@@ -1029,3 +1060,5 @@ describe('focusComponentLabel', () => {
     expect(focusComponentLabel(null)).toBeNull();
   });
 });
+
+

@@ -2,7 +2,7 @@ import { formatMissingStatsList, getMissingCount } from '@/lib/insights/postRoun
 import { assertNoBannedCopy } from '@/lib/insights/postRound/copyGuard';
 import { POST_ROUND_RESIDUAL } from '@/lib/insights/config/postRound';
 import { pickOutcomeVariantMeta } from '@/lib/insights/postRound/variants';
-import type { MissingStats, SgMeasuredComponentName } from '@/lib/insights/types';
+import type { AdvancedStatKey, MissingStats, SgMeasuredComponentName } from '@/lib/insights/types';
 
 type VariantOptions = {
   seed?: string;
@@ -11,6 +11,7 @@ type VariantOptions = {
 };
 
 export type BuildNextRoundFocusInput = {
+  confidence?: 'LOW' | 'MED' | 'HIGH';
   missing: MissingStats;
   worstMeasured: SgMeasuredComponentName | null;
   worstMeasuredValue?: number | null;
@@ -25,19 +26,6 @@ export type BuildNextRoundFocusOutput = {
   outcome: 'M3-A' | 'M3-B' | 'M3-C' | 'M3-E';
   text: string;
 };
-
-const TRACKING_CLAUSE_VARIANTS = [
-  "Track {missingList} so we can give you more specific next-round guidance.",
-  "Add {missingList} so your next-round guidance is tied to what happened on the course.",
-  "Log {missingList} so we can separate what helped from what cost strokes.",
-  "Track {missingList} so future guidance points to the right part of your game.",
-  "Add {missingList} so we can see where strokes were gained or lost.",
-  "Track {missingList} so the next recommendation reflects the full round.",
-  "Log {missingList} so the advice is based on more than the final score.",
-  "Add {missingList} so we can better connect the score to your game.",
-  "Track {missingList} so we can make the next round plan more specific.",
-  "Keep tracking consistent and add {missingList} for clearer next-round guidance.",
-] as const;
 
 const GENERIC_ACTION_VARIANTS = [
   "Play to the widest target available and commit to that start line.",
@@ -112,17 +100,26 @@ function getAreaActionVariants(area: SgMeasuredComponentName | null): readonly s
   return GENERIC_ACTION_VARIANTS;
 }
 
-function pickTrackingClause(missing: MissingStats, options: VariantOptions): string {
+function mapStatToArea(stat: AdvancedStatKey | null): SgMeasuredComponentName | null {
+  if (stat === 'fir') return 'off_tee';
+  if (stat === 'gir') return 'approach';
+  if (stat === 'putts') return 'putting';
+  if (stat === 'penalties') return 'penalties';
+  return null;
+}
+
+function resolveWeakestStat(missing: MissingStats): AdvancedStatKey | null {
+  if (missing.gir) return 'gir';
+  if (missing.fir) return 'fir';
+  if (missing.putts) return 'putts';
+  if (missing.penalties) return 'penalties';
+  return null;
+}
+
+function pickTrackingClause(missing: MissingStats): string {
   const missingList = formatMissingStatsList(missing);
-  const picked = pickOutcomeVariantMeta({
-    outcome: 'M3-TRACK',
-    variants: TRACKING_CLAUSE_VARIANTS,
-    seed: options.seed ? `${options.seed}|m3track` : undefined,
-    offset: options.offset,
-    fixedIndex: options.fixedIndex,
-  });
-  const text = picked.text.replace('{missingList}', missingList);
-  assertNoBannedCopy(text, { messageKey: 'message3-tracking', outcome: 'M3-TRACK', variantIndex: picked.index });
+  const text = `Tracking ${missingList} will help refine this further.`;
+  assertNoBannedCopy(text, { messageKey: 'message3-tracking', outcome: 'M3-TRACK', variantIndex: 0 });
   return text;
 }
 
@@ -169,34 +166,33 @@ export function buildNextRoundFocusText(input: BuildNextRoundFocusInput): BuildN
 
   let outcome: BuildNextRoundFocusOutput['outcome'];
   let trackingClause = '';
-  let actionSentence = '';
 
   if (missingCount >= 2) {
     outcome = 'M3-A';
-    trackingClause = normalizeFocusSentence(pickTrackingClause(input.missing, options));
-    actionSentence = normalizeFocusSentence(pickActionSentence(null, options, outcome));
+    trackingClause = normalizeFocusSentence(pickTrackingClause(input.missing));
   } else if (missingCount === 1) {
     outcome = 'M3-B';
-    trackingClause = normalizeFocusSentence(pickTrackingClause(input.missing, options));
-    const useAreaAction = Boolean(
-      input.worstMeasured && (opportunityBelowWeaknessThreshold || hasStrongMeasuredWeakness),
-    );
-    actionSentence = normalizeFocusSentence(
-      pickActionSentence(useAreaAction ? input.worstMeasured : null, options, outcome),
-    );
+    trackingClause = normalizeFocusSentence(pickTrackingClause(input.missing));
   } else if (
     !input.worstMeasured ||
     !opportunityBelowWeaknessThreshold ||
     (input.weakSeparation && !hasStrongMeasuredWeakness)
   ) {
     outcome = 'M3-E';
-    actionSentence = normalizeFocusSentence(pickActionSentence(null, options, outcome));
   } else {
     outcome = 'M3-C';
-    actionSentence = normalizeFocusSentence(pickActionSentence(input.worstMeasured, options, outcome));
   }
 
-  const body = trackingClause ? `${trackingClause} ${actionSentence}` : actionSentence;
+  const confidence = input.confidence ?? 'MED';
+  const weakestStatArea = mapStatToArea(resolveWeakestStat(input.missing));
+  const actionArea =
+    confidence === 'HIGH'
+      ? (input.worstMeasured ?? weakestStatArea ?? 'approach')
+      : confidence === 'LOW'
+        ? (input.worstMeasured === 'approach' ? 'approach' : null)
+        : (input.worstMeasured ?? weakestStatArea ?? 'approach');
+  const actionSentence = normalizeFocusSentence(pickActionSentence(actionArea, options, outcome));
+  const body = trackingClause ? `${actionSentence} ${trackingClause}` : actionSentence;
   return {
     outcome,
     text: `Next round: ${body}`.trim(),

@@ -203,7 +203,7 @@ describe('/dashboard Round Focus card', () => {
     });
   });
 
-  it('uses updated dashboard tooltip copy', async () => {
+  it('uses updated dashboard tooltip copy and omits Round Focus info icon tooltip', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
 
     render(<DashboardPage />);
@@ -214,7 +214,6 @@ describe('/dashboard Round Focus card', () => {
       const tooltipTexts = mockInfoTooltip.mock.calls.map(([props]) => props?.text);
       expect(tooltipTexts).toEqual(
         expect.arrayContaining([
-          'Highlights the area impacting your score the most based on recent rounds.',
           'Your estimated playing ability based on recent rounds. Lower is better.',
           'Your typical score per round. Lower is better.',
           'Your lowest recorded round.',
@@ -233,26 +232,80 @@ describe('/dashboard Round Focus card', () => {
           'How often you make double bogey or worse. Lower is better.',
         ]),
       );
+      expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
     });
   });
 
-  it('shows free focus card with a primary takeaway and no SG language', async () => {
+  it.each([
+    ['low', 'Low', 'is-low'],
+    ['medium', 'Medium', 'is-medium'],
+    ['high', 'High', 'is-high'],
+  ] as const)('renders Round Focus confidence pill for %s confidence', async (confidence, label, toneClass) => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          overallInsightsSummary: {
+            ...makeDashboardPayload().overallInsightsSummary,
+            confidence,
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    const pill = await screen.findByRole('button', { name: new RegExp(`Focus confidence: ${label}`, 'i') });
+    expect(pill).toHaveClass('dashboard-focus-confidence-pill');
+    expect(pill).toHaveClass(toneClass);
+  });
+
+  it('shows Focus Confidence tooltip copy when confidence pill is clicked', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<DashboardPage />);
+
+    const pill = await screen.findByRole('button', { name: /Focus confidence: Medium/i });
+    fireEvent.click(pill);
+    expect(await screen.findByText('Focus Confidence')).toBeInTheDocument();
+    expect(screen.getByText(/Shows how reliable your Round Focus is\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Low means general guidance\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Medium means some trends are available\./i)).toBeInTheDocument();
+    expect(screen.getByText(/High means stronger data and clearer patterns\./i)).toBeInTheDocument();
+  });
+
+  it('renders Round Focus header with title and confidence pill only (no old info icon tooltip)', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<DashboardPage />);
+
+    await screen.findByTestId('dashboard-focus-card');
+    expect(screen.getByText('Round Focus')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Focus confidence: Medium/i })).toBeInTheDocument();
+    const tooltipTexts = mockInfoTooltip.mock.calls.map(([props]) => props?.text);
+    expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
+  });
+
+  it('shows free focus card with directional copy and no SG numeric precision', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
 
     render(<DashboardPage />);
 
     const focusCard = await screen.findByTestId('dashboard-focus-card');
     await screen.findByText('Round Focus');
-    expect(screen.getByText("You're losing ~0.5 strokes per round compared to baseline.")).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Focus on lag putting pace.')).toBeInTheDocument();
+    expect(screen.getByText('This area is costing you the most strokes.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Prioritize lag speed and leave shorter second putts.')).toBeInTheDocument();
+    expect(screen.queryByText(/strokes per round/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/compared to baseline/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Build on momentum.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Off the Tee is costing/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/strokes gained/i)).not.toBeInTheDocument();
     expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Get Full Breakdown' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Get Full Breakdown' }));
+    fireEvent.click(screen.getByRole('button', { name: 'See Full Breakdown' }));
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/insights');
     });
@@ -288,17 +341,17 @@ describe('/dashboard Round Focus card', () => {
 
     const focusCard = await screen.findByTestId('dashboard-focus-card');
     await screen.findByText('Approach is your biggest scoring opportunity.');
-    expect(screen.getByText("You're losing ~0.7 strokes per round compared to baseline.")).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Focus on tightening approach dispersion.')).toBeInTheDocument();
+    expect(screen.getByText("You're losing about 0.7 strokes per round.")).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Default to center-green targets and avoid short-siding.')).toBeInTheDocument();
     expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Get Full Breakdown' }));
+    fireEvent.click(screen.getByRole('button', { name: 'See Full Breakdown' }));
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/insights');
     });
   });
 
-  it('shows no button in NEED_MORE_ROUNDS state', async () => {
+  it('shows fallback focus instead of locked text when historical gating flags are present', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -320,17 +373,19 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Log 5 rounds to unlock your Round Focus.');
-    expect(
-      screen.getByText('Track a few more rounds to identify your scoring opportunities.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Next Round:/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('Trends unlock automatically after your third round.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Get Full Breakdown' })).not.toBeInTheDocument();
+    await screen.findByText('Start with solid decisions.');
+    expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the widest target and keep the ball in play.')).toBeInTheDocument();
+    expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
     expect(screen.queryByText(/Based on last 5/i)).not.toBeInTheDocument();
   });
 
-  it('uses calibrating copy when locked for a missing score trend after enough rounds', async () => {
+  it('uses always-ready fallback copy for missing score trend after enough rounds', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -352,12 +407,12 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Round Focus is still calibrating.');
-    expect(
-      screen.getByText('Keep tracking rounds to build a reliable trend.'),
-    ).toBeInTheDocument();
+    await screen.findByText('Start with solid decisions.');
+    expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the widest target and keep the ball in play.')).toBeInTheDocument();
     expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Get Full Breakdown' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
   });
 
   it('shows score-only focus when SG component focus is unavailable after unlock', async () => {
@@ -384,12 +439,45 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Your scoring trend is the priority right now.');
-    expect(screen.getByText('Recent scoring is 1.2 strokes worse than baseline.')).toBeInTheDocument();
+    await screen.findByText('Your scores are slipping.');
+    expect(screen.getByText('Play to safer targets and avoid turning one mistake into a big number.')).toBeInTheDocument();
     expect(
-      screen.getByText('Next Round: Track penalties and GIR to refine your insight.'),
+      screen.getByText('Next Round: Prioritize conservative targets and keep penalties off the card.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Get Full Breakdown' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
+  });
+
+  it('uses early guidance for low-confidence mixed-signal combined states', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          overallInsightsSummary: {
+            ...makeDashboardPayload().overallInsightsSummary,
+            confidence: 'low',
+            roundsRecent: 3,
+            scoreTrendDelta: 0.3,
+            dataQualityFlags: {
+              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
+              combinedNeedsMoreNineHoleRounds: true,
+            },
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Start with solid decisions.');
+    expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the widest target and keep the ball in play.')).toBeInTheDocument();
+    expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/unlock your Round Focus/i)).not.toBeInTheDocument();
   });
 
   it('shows updating note when focus summary is stale versus latest round update', async () => {
@@ -781,3 +869,4 @@ describe('/dashboard Round Focus card', () => {
     });
   });
 });
+

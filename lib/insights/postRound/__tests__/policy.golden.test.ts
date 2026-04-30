@@ -81,8 +81,8 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedOutcomes: ['M1-B', 'M2-A', 'M3-A'],
     expectedLevels: ['success', 'warning', 'info'],
     m1Includes: ['You shot 82 (+10)', 'Only Putting was tracked', '1.4 strokes'],
-    m2Includes: ['Only one area was tracked'],
-    m3Includes: ['Next round:', 'Track FIR, GIR, and penalties', 'widest target available'],
+    m2Includes: ['With one tracked area'],
+    m3Includes: ['Next round:', 'Tracking FIR, GIR, and penalties', 'lag putts'],
   },
   {
     name: 'residual_dominant_ambiguous',
@@ -107,7 +107,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedLevels: ['success', 'warning', 'info'],
     m1Includes: ['You shot 74 (+2)', 'Off The Tee', '+0.1 strokes'],
     m2Includes: ['Approach', '0.4 strokes'],
-    m3Includes: ['Next round:', 'widest target available'],
+    m3Includes: ['Next round:', 'center-green target'],
   },
   {
     name: 'score_only_no_advanced_stats',
@@ -127,8 +127,8 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedOutcomes: ['M1-A', 'M2-A', 'M3-A'],
     expectedLevels: ['success', 'success', 'info'],
     m1Includes: ['You shot 90 (+18).'],
-    m2Includes: ['score only'],
-    m3Includes: ['Next round:', 'Track FIR, GIR, putts, and penalties'],
+    m2Includes: ['Rounds like this usually come from missed greens and a few costly holes.'],
+    m3Includes: ['Next round:', 'Tracking FIR, GIR, putts, and penalties'],
   },
 ];
 

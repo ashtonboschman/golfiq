@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
@@ -99,9 +99,9 @@ function DashboardFallback() {
       <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
 
       <div className="card dashboard-focus-card dashboard-focus-card-relative dashboard-focus-skeleton-card">
-        <InfoTooltip text="Highlights the area impacting your score the most based on recent rounds." />
         <div className="dashboard-focus-header">
           <h3 className="dashboard-focus-title">Round Focus</h3>
+          <span className="skeleton dashboard-focus-confidence-pill-skeleton" />
         </div>
         <RoundFocusSkeletonBody />
       </div>
@@ -155,6 +155,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [textColor, setTextColor] = useState('#EDEFF2');
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
+  const [showFocusConfidenceInfo, setShowFocusConfidenceInfo] = useState(false);
+  const focusConfidenceTooltipRef = useRef<HTMLDivElement | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     handicap: null,
     handicap_message: null,
@@ -580,27 +582,29 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     return `${Math.round(value)}%`;
   };
 
+  const formatFocusConfidenceLabel = (value: 'high' | 'medium' | 'low' | null | undefined): string => {
+    if (value === 'high') return 'High';
+    if (value === 'medium') return 'Medium';
+    return 'Low';
+  };
+
+  const getFocusConfidenceTone = (value: 'high' | 'medium' | 'low' | null | undefined): 'high' | 'medium' | 'low' => {
+    if (value === 'high') return 'high';
+    if (value === 'medium') return 'medium';
+    return 'low';
+  };
+
   const focusSummary = stats.overallInsightsSummary ?? null;
   const roundFocusState = buildRoundFocusState(
     focusSummary,
     Boolean(isPremium),
     Boolean(stats.limitedToLast20),
   );
-  const useCompactRoundFocusCard = !loading && roundFocusState.kind === 'NEED_MORE_ROUNDS';
-  const focusPayload = roundFocusState.kind === 'NEED_MORE_ROUNDS' ? null : roundFocusState.focus;
+  const focusPayload = roundFocusState.focus;
   const focusComponent = focusComponentLabel(focusPayload?.component ?? null);
-  const focusTypeForEvent =
-    roundFocusState.kind === 'NEED_MORE_ROUNDS' ? 'onboarding' : focusPayload?.focusType ?? 'score';
-  const lockedFocusHeadline =
-    roundFocusState.kind === 'NEED_MORE_ROUNDS' &&
-    roundFocusState.lockedReason === 'not_enough_rounds'
-      ? `Log ${roundFocusState.minRounds} rounds to unlock your Round Focus.`
-      : 'Round Focus is still calibrating.';
-  const lockedFocusBody =
-    roundFocusState.kind === 'NEED_MORE_ROUNDS' &&
-    roundFocusState.lockedReason === 'not_enough_rounds'
-      ? 'Track a few more rounds to identify your scoring opportunities.'
-      : 'Keep tracking rounds to build a reliable trend.';
+  const focusTypeForEvent = focusPayload?.focusType ?? 'score';
+  const focusConfidenceLabel = formatFocusConfidenceLabel(focusPayload?.confidence);
+  const focusConfidenceTone = getFocusConfidenceTone(focusPayload?.confidence);
 
   const parseTimestamp = (value: string | null | undefined): number | null => {
     if (!value) return null;
@@ -638,7 +642,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   }, [isPremium, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   const runFocusAction = useCallback(() => {
-    if (!focusPayload) return;
     trackFocusCtaClick(
       focusComponent,
       focusPayload.focusType,
@@ -647,6 +650,20 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     );
     router.push('/insights');
   }, [focusComponent, focusPayload, focusSummary?.confidence, focusSummary?.scoreTrendDelta, router, trackFocusCtaClick]);
+
+  useEffect(() => {
+    if (!showFocusConfidenceInfo) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!focusConfidenceTooltipRef.current) return;
+      if (!focusConfidenceTooltipRef.current.contains(event.target as Node)) {
+        setShowFocusConfidenceInfo(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [showFocusConfidenceInfo]);
 
   useEffect(() => {
     if (loading || status !== 'authenticated') return;
@@ -785,50 +802,58 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
 
-      <div
-        className={`card dashboard-focus-card dashboard-focus-card-relative${useCompactRoundFocusCard ? ' dashboard-focus-card-compact' : ''}`}
-        data-testid="dashboard-focus-card"
-      >
-        <InfoTooltip text="Highlights the area impacting your score the most based on recent rounds." />
+      <div className="card dashboard-focus-card dashboard-focus-card-relative" data-testid="dashboard-focus-card">
         <div className="dashboard-focus-header">
           <h3 className="dashboard-focus-title">Round Focus</h3>
+          {loading ? (
+            <span className="skeleton dashboard-focus-confidence-pill-skeleton" />
+          ) : (
+            <div ref={focusConfidenceTooltipRef} className="info-tooltip-container dashboard-focus-confidence-tooltip">
+              <button
+                type="button"
+                className={`dashboard-focus-confidence-pill is-${focusConfidenceTone}`}
+                aria-label={`Focus confidence: ${focusConfidenceLabel}`}
+                onClick={() => setShowFocusConfidenceInfo((prev) => !prev)}
+              >
+                {focusConfidenceLabel}
+              </button>
+              {showFocusConfidenceInfo && (
+                <div className="info-tooltip-content center below ready dashboard-focus-confidence-popover">
+                  <h4>Focus Confidence</h4>
+                  <p>
+                    Shows how reliable your Round Focus is. Low means general guidance. Medium means some trends are available. High means stronger data and clearer patterns.
+                  </p>
+                  <div className="info-tooltip-arrow center below" />
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {loading ? (
           <RoundFocusSkeletonBody />
         ) : (
           <>
-            {roundFocusState.kind === 'NEED_MORE_ROUNDS' ? (
-              <>
-                <p className="dashboard-focus-headline">{lockedFocusHeadline}</p>
-                <p className="dashboard-focus-body">{lockedFocusBody}</p>
-              </>
-            ) : (
-              <>
-                <p className="dashboard-focus-headline">{focusPayload?.headline}</p>
-                {focusPayload?.body && (
-                  <p className="dashboard-focus-body">{focusPayload.body}</p>
-                )}
-                {focusPayload?.nextRound && (
-                  <p className="dashboard-focus-body dashboard-focus-next-round">
-                    Next Round: {focusPayload.nextRound}
-                  </p>
-                )}
-              </>
+            <p className="dashboard-focus-headline">{focusPayload.headline}</p>
+            {focusPayload.body && (
+              <p className="dashboard-focus-body">{focusPayload.body}</p>
+            )}
+            {focusPayload.nextRound && (
+              <p className="dashboard-focus-body dashboard-focus-next-round">
+                Next Round: {focusPayload.nextRound}
+              </p>
             )}
             {showFocusUpdatingNote && (
               <p className="dashboard-focus-updating">Updating focus...</p>
             )}
-            {roundFocusState.kind !== 'NEED_MORE_ROUNDS' && (
-              <div className="dashboard-focus-actions">
-                <button
-                  type="button"
-                  className="btn btn-add"
-                  onClick={runFocusAction}
-                >
-                  Get Full Breakdown
-                </button>
-              </div>
-            )}
+            <div className="dashboard-focus-actions">
+              <button
+                type="button"
+                className="btn btn-add"
+                onClick={runFocusAction}
+              >
+                See Full Breakdown
+              </button>
+            </div>
           </>
         )}
       </div>

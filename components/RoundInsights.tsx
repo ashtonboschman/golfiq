@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles, Lock, RefreshCw, Flame, CircleCheck, CircleAlert, Info } from 'lucide-react';
+import { Sparkles, RefreshCw, Flame, CircleCheck, CircleAlert, Info, Lock } from 'lucide-react';
 import { RoundInsightsSkeleton } from '@/components/skeleton/PageSkeletons';
 import { consumeRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
@@ -19,15 +19,15 @@ interface RoundInsightsProps {
 type RoundInsightsResponse = {
   messages: string[];
   message_levels?: InsightLevel[];
-  visible_count?: number;
+  confidence?: InsightConfidence;
 };
 
 type InsightLevel = 'great' | 'success' | 'warning' | 'info';
+type InsightConfidence = 'LOW' | 'MED' | 'HIGH';
 
 const DEFAULT_LEVEL: InsightLevel = 'info';
 const SHOW_POST_ROUND_REGENERATE = false;
 const ROUND_INSIGHTS_CACHE_TTL_MS = 30_000;
-const ROUND_INSIGHTS_PAYWALL_DEDUPE_MS = 5000;
 
 type RoundInsightsCacheEntry = {
   data: RoundInsightsResponse;
@@ -36,7 +36,6 @@ type RoundInsightsCacheEntry = {
 
 const roundInsightsCache = new Map<string, RoundInsightsCacheEntry>();
 const roundInsightsInFlight = new Map<string, Promise<RoundInsightsResponse>>();
-const roundInsightsPaywallViewedCache = new Map<string, number>();
 
 function getRoundInsightsCacheKey(roundId: string, isPremium: boolean, userId: string): string {
   return `${userId}:${roundId}:${isPremium ? 'premium' : 'free'}`;
@@ -68,7 +67,7 @@ async function fetchRoundInsights(roundId: string, isPremium: boolean): Promise<
   });
 
   if (res.status === 401 || res.status === 403) {
-    return { messages: [], visible_count: 0 };
+    return { messages: [] };
   }
 
   const data = await res.json();
@@ -76,7 +75,7 @@ async function fetchRoundInsights(roundId: string, isPremium: boolean): Promise<
     throw new Error(data.message || 'Failed to fetch insights');
   }
 
-  return normalizeInsightsPayload(data.insights, isPremium);
+  return normalizeInsightsPayload(data.insights);
 }
 
 function getOrCreateRoundInsightsRequest(
@@ -96,15 +95,7 @@ function getOrCreateRoundInsightsRequest(
 }
 
 function stripMessagePrefix(message: string): string {
-  return message.replace(/^(?:🔥|✅|⚠️|ℹ️)\s*/u, '').trim();
-}
-
-function inferLevelFromMessage(message: string): InsightLevel {
-  if (message.startsWith('🔥')) return 'great';
-  if (message.startsWith('✅')) return 'success';
-  if (message.startsWith('⚠️')) return 'warning';
-  if (message.startsWith('ℹ️')) return 'info';
-  return DEFAULT_LEVEL;
+  return message.trim();
 }
 
 function normalizeMessageLevels(messages: string[], levels: unknown): InsightLevel[] {
@@ -114,25 +105,36 @@ function normalizeMessageLevels(messages: string[], levels: unknown): InsightLev
       )
     : [];
 
-  return messages.map((message, index) => validLevels[index] ?? inferLevelFromMessage(message));
+  return messages.map((_, index) => validLevels[index] ?? DEFAULT_LEVEL);
 }
 
-function normalizeInsightsPayload(rawInsights: any, isPremium: boolean): RoundInsightsResponse {
+function normalizeInsightsPayload(rawInsights: any): RoundInsightsResponse {
   const rawMessages = Array.isArray(rawInsights?.messages) ? rawInsights.messages : [];
   const messages = rawMessages.map((message: unknown) => stripMessagePrefix(String(message ?? '')));
   const messageLevels = normalizeMessageLevels(rawMessages, rawInsights?.message_levels);
-  const visibleCountRaw = Number(rawInsights?.visible_count);
-  const visibleCount = Number.isFinite(visibleCountRaw)
-    ? Math.max(0, Math.min(messages.length, Math.floor(visibleCountRaw)))
-    : isPremium
-      ? messages.length
-      : Math.min(1, messages.length);
+  const confidence: InsightConfidence | undefined =
+    rawInsights?.confidence === 'LOW' || rawInsights?.confidence === 'MED' || rawInsights?.confidence === 'HIGH'
+      ? rawInsights.confidence
+      : undefined;
 
   return {
     messages,
     message_levels: messageLevels,
-    visible_count: visibleCount,
+    confidence,
   };
+}
+
+function formatConfidenceLabel(value: InsightConfidence | undefined): string | null {
+  if (!value) return null;
+  if (value === 'LOW') return 'Low';
+  if (value === 'MED') return 'Medium';
+  return 'High';
+}
+
+function getConfidenceTone(value: InsightConfidence | undefined): 'low' | 'medium' | 'high' {
+  if (value === 'LOW') return 'low';
+  if (value === 'HIGH') return 'high';
+  return 'medium';
 }
 
 function LevelIcon({ level }: { level: InsightLevel }) {
@@ -158,8 +160,8 @@ export default function RoundInsights({
     [roundId],
   );
   const normalizedInitialInsights = useMemo(
-    () => (initialInsightsPayload ? normalizeInsightsPayload(initialInsightsPayload, isPremium) : null),
-    [initialInsightsPayload, isPremium],
+    () => (initialInsightsPayload ? normalizeInsightsPayload(initialInsightsPayload) : null),
+    [initialInsightsPayload],
   );
   const initialCachedInsights = shouldBypassCache ? null : readRoundInsightsCache(cacheKey);
   const initialInsights = initialCachedInsights ?? normalizedInitialInsights;
@@ -167,7 +169,9 @@ export default function RoundInsights({
   const [loading, setLoading] = useState(!initialInsights);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
   const fetchedCacheKeyRef = useRef<string | null>(null);
+  const confidenceTooltipRef = useRef<HTMLDivElement | null>(null);
 
   const trackUpgradeClick = useCallback((ctaLocation: string) => {
     captureClientEvent(
@@ -235,6 +239,22 @@ export default function RoundInsights({
     fetchInsights({ showLoading: !hasCached, forceRefresh: true });
   }, [cacheKey, fetchInsights, isPremiumLoading, normalizedInitialInsights, shouldBypassCache]);
 
+  useEffect(() => {
+    if (!showConfidenceInfo) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!confidenceTooltipRef.current) return;
+      if (!confidenceTooltipRef.current.contains(event.target as Node)) {
+        setShowConfidenceInfo(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [showConfidenceInfo]);
+
   const handleRegenerate = async () => {
     setRegenerating(true);
     try {
@@ -244,14 +264,14 @@ export default function RoundInsights({
       });
 
       if (res.status === 401 || res.status === 403) {
-        setInsights({ messages: [], visible_count: 0 });
+        setInsights({ messages: [] });
         setError(null);
         return;
       }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to regenerate insights');
-      const nextInsights = normalizeInsightsPayload(data.insights, isPremium);
+      const nextInsights = normalizeInsightsPayload(data.insights);
       writeRoundInsightsCache(cacheKey, nextInsights);
       setInsights(nextInsights);
       setError(null);
@@ -262,6 +282,9 @@ export default function RoundInsights({
       setRegenerating(false);
     }
   };
+
+  const confidenceLabel = formatConfidenceLabel(insights?.confidence);
+  const confidenceTone = getConfidenceTone(insights?.confidence);
 
   const Header = () => (
     <div className="insights-header">
@@ -283,49 +306,31 @@ export default function RoundInsights({
         {isPremiumLoading ? (
           <span className="skeleton" style={{ display: 'inline-block', width: 78, height: 24, borderRadius: 999 }} />
         ) : (
-          <span className={`insights-badge ${isPremium ? 'is-premium' : 'is-free'}`}>
-            {isPremium ? 'Premium' : 'Free'}
-          </span>
+          <div ref={confidenceTooltipRef} className="info-tooltip-container insights-confidence-tooltip">
+            <button
+              type="button"
+              className={`insights-confidence-pill is-${confidenceTone}`}
+              aria-label={`Insight confidence: ${confidenceLabel ?? 'Medium'}`}
+              onClick={() => setShowConfidenceInfo((prev) => !prev)}
+            >
+              {confidenceLabel ?? 'Medium'}
+            </button>
+            {showConfidenceInfo && (
+              <div className="info-tooltip-content center below ready insights-confidence-popover">
+                <h4>Insight Confidence</h4>
+                <p>
+                  This shows how much data GolfIQ has behind this round&apos;s insights. Low means the guidance is based on limited round detail. Medium means some tracked stats or trends are available. High means the insight is backed by stronger tracked data and clearer patterns.
+                </p>
+                <div className="info-tooltip-arrow center below" />
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 
   const showSkeletonContent = isPremiumLoading || loading;
-  const freeMessages = insights?.messages ?? [];
-  const freeMessageLevels = insights?.message_levels ?? [];
-  const freeVisibleCount = Number.isFinite(Number(insights?.visible_count))
-    ? Math.max(0, Math.min(freeMessages.length, Math.floor(Number(insights?.visible_count))))
-    : Math.min(1, freeMessages.length);
-  const freeVisibleMessages = freeMessages.slice(0, freeVisibleCount || 1);
-  const freeVisibleLevels = freeMessageLevels.slice(0, freeVisibleMessages.length);
-  const hasLockedInsights = freeMessages.length > freeVisibleMessages.length;
-
-  useEffect(() => {
-    if (showSkeletonContent || isPremium || !hasLockedInsights) return;
-    const dedupeKey = `${session?.user?.id ?? 'anon'}:${roundId}:round_insights_paywall`;
-    const now = Date.now();
-    const lastSeen = roundInsightsPaywallViewedCache.get(dedupeKey);
-    if (lastSeen && now - lastSeen < ROUND_INSIGHTS_PAYWALL_DEDUPE_MS) return;
-    roundInsightsPaywallViewedCache.set(dedupeKey, now);
-
-    captureClientEvent(
-      ANALYTICS_EVENTS.paywallViewed,
-      {
-        paywall_context: 'round_insights',
-        locked_feature: 'premium_round_insights',
-      },
-      {
-        pathname,
-        user: {
-          id: session?.user?.id,
-          subscription_tier: session?.user?.subscription_tier,
-          auth_provider: session?.user?.auth_provider,
-        },
-        isLoggedIn: Boolean(session?.user?.id),
-      },
-    );
-  }, [hasLockedInsights, isPremium, pathname, roundId, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, showSkeletonContent]);
 
   if (showSkeletonContent) return <RoundInsightsSkeleton />;
 
@@ -338,70 +343,6 @@ export default function RoundInsights({
     </div>
   );
 
-  // -------------------------
-  // FREE USER VIEW
-  // -------------------------
-  if (!isPremium) {
-    const blurredPreviewMessages = [
-      ...freeMessages.slice(freeVisibleMessages.length, freeVisibleMessages.length + 2),
-      'Premium insight preview',
-      'Premium insight preview',
-    ].slice(0, 2);
-    const blurredPreviewLevels = [
-      ...freeMessageLevels.slice(freeVisibleMessages.length, freeVisibleMessages.length + 2),
-      'info',
-      'info',
-    ].slice(0, 2) as InsightLevel[];
-
-    return (
-      <div className="card insights-card">
-        <Header />
-        {freeVisibleMessages.length > 0 && (
-          <div className="insights-content">
-            {freeVisibleMessages.map((message, idx) => (
-              <div key={`visible-${idx}`} className="insight-message">
-                <div className="insight-message-content">
-                  <LevelIcon level={freeVisibleLevels[idx] ?? DEFAULT_LEVEL} />
-                  <span className="insight-message-text">{message}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {hasLockedInsights && (
-          <div className="locked-section round-insights-lock-section">
-            <div className="locked-blur-content">
-              <div className="insights-content">
-                {blurredPreviewMessages.map((message, idx) => (
-                  <div key={`blur-preview-${idx}`} className="insight-message overall-insight-fake">
-                    <div className="insight-message-content">
-                      <LevelIcon level={blurredPreviewLevels[idx] ?? DEFAULT_LEVEL} />
-                      <span className="insight-message-text">{message}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="locked-overlay has-cta">
-              <div className="locked-overlay-card">
-                <Lock size={50} className="locked-overlay-icon" />
-                <h4>Want to find out exactly what&apos;s costing you strokes?</h4>
-                <p>Unlock Intelligent Insights to see your strengths, mistakes, and personalized recommendations to lower your score.</p>
-                <button className="btn btn-upgrade" onClick={() => { trackUpgradeClick('round_insights_lock'); router.push('/pricing'); }}>
-                  Unlock My Insights
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // -------------------------
-  // PREMIUM VIEW
-  // -------------------------
   if (!insights || insights.messages.length === 0) return null;
 
   return (
@@ -417,6 +358,30 @@ export default function RoundInsights({
           </div>
         ))}
       </div>
+      {!isPremium && (
+        <div className="locked-section round-insights-lock-section">
+          <div className="locked-blur-content">
+            <div className="insights-locked-preview-stack">
+              <div className="insight-message overall-insight-fake">Premium insight preview</div>
+              <div className="insight-message overall-insight-fake">Premium insight preview</div>
+              <div className="insight-message overall-insight-fake">Premium insight preview</div>
+            </div>
+          </div>
+          <div className="locked-overlay has-cta">
+            <div className="locked-overlay-card">
+              <Lock size={50} className="locked-overlay-icon" />
+              <h4>Unlock exactly what&apos;s costing you strokes</h4>
+              <p>See your biggest weakness and how many strokes it&apos;s costing per round.</p>
+              <p className="round-insights-lock-bridge">Your full breakdown is ready.</p>
+              <button className="btn btn-upgrade" onClick={() => { trackUpgradeClick('round_insights_cta'); router.push('/pricing'); }}>
+                Unlock Full Breakdown
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+

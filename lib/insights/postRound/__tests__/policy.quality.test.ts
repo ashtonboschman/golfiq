@@ -131,4 +131,21 @@ describe('post-round policy message quality guardrails', () => {
       expect(withPenalties.messages[2]).not.toMatch(/\bdamage\b/i);
     }
   });
+
+  it('avoids using the word "residual" in user-facing post-round copy', () => {
+    const residualDominant: PostRoundPolicyInput = {
+      ...BASE,
+      residualDominant: true,
+      residualValue: 2.1,
+      worstMeasured: { name: 'approach', label: 'Approach', value: -1.4 },
+      opportunityIsWeak: true,
+      weakSeparation: false,
+    };
+
+    for (let variantIndex = 0; variantIndex < 10; variantIndex += 1) {
+      const out = buildDeterministicPostRoundInsights(residualDominant, { fixedVariantIndex: variantIndex });
+      const textToCheck = `${out.messages[0]} ${out.messages[1]} ${out.messages[2]}`.toLowerCase();
+      expect(textToCheck).not.toContain('residual');
+    }
+  });
 });

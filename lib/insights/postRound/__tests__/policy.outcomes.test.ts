@@ -42,7 +42,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-B',
     messageIndex: 0,
     expectedOutcome: 'M1-B',
-    expectedMessageFragment: 'held up best at 0.5 strokes',
+    expectedMessageFragment: 'held up best at about 0.5 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
@@ -56,7 +56,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-C',
     messageIndex: 0,
     expectedOutcome: 'M1-C',
-    expectedMessageFragment: 'gaining 0.5 strokes',
+    expectedMessageFragment: 'gaining about 0.5 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.5 },
@@ -80,7 +80,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-A',
     messageIndex: 1,
     expectedOutcome: 'M2-A',
-    expectedMessageFragment: 'score only',
+    expectedMessageFragment: 'Rounds like this usually come from missed greens and a few costly holes.',
     input: {
       ...baseInput,
       measuredComponents: [],
@@ -92,7 +92,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-C',
     messageIndex: 1,
     expectedOutcome: 'M2-C',
-    expectedMessageFragment: 'finished near even at 0.0 strokes',
+    expectedMessageFragment: 'did not meaningfully impact the score at 0.0 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0 },
@@ -106,7 +106,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-D',
     messageIndex: 1,
     expectedOutcome: 'M2-D',
-    expectedMessageFragment: 'cost the most at 0.8 strokes',
+    expectedMessageFragment: 'cost about 0.8 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.8 },
@@ -116,7 +116,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-E',
     messageIndex: 1,
     expectedOutcome: 'M2-E',
-    expectedMessageFragment: 'net positive at 0.4 strokes',
+    expectedMessageFragment: 'still helped the score by about 0.4 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0.4 },
@@ -130,7 +130,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-A',
     messageIndex: 2,
     expectedOutcome: 'M3-A',
-    expectedMessageFragment: 'Track FIR, GIR, and putts',
+    expectedMessageFragment: 'Tracking FIR, GIR, and putts',
     input: {
       ...baseInput,
       missing: { fir: true, gir: true, putts: true, penalties: false },
@@ -140,7 +140,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-B',
     messageIndex: 2,
     expectedOutcome: 'M3-B',
-    expectedMessageFragment: 'Track penalties',
+    expectedMessageFragment: 'Tracking penalties',
     input: {
       ...baseInput,
       missing: { fir: false, gir: false, putts: false, penalties: true },

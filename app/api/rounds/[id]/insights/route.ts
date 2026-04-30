@@ -11,7 +11,6 @@ import {
   resolvePostRoundStrokeScale,
 } from '@/lib/insights/config/postRound';
 import { getMissingStats } from '@/lib/insights/postRound/missingStats';
-import { buildOnboardingPostRoundInsights } from '@/lib/insights/postRound/onboardingPolicy';
 import { runMeasuredSgSelection } from '@/lib/insights/postRound/sgSelection';
 import { resolvePostRoundVariantOffset } from '@/lib/insights/postRound/variantOffset';
 import {
@@ -21,6 +20,7 @@ import {
 } from '@/lib/insights/postRound/policy';
 
 const MAX_INSIGHTS = 3;
+type PostRoundConfidence = 'LOW' | 'MED' | 'HIGH';
 
 // In-flight generation lock to prevent duplicate generation from concurrent requests.
 const inFlightGenerations = new Map<string, Promise<any>>();
@@ -29,6 +29,7 @@ type ViewerEntitlements = {
   isPremium: boolean;
   showStrokesGained: boolean;
 };
+type ScoreDeltaBucket = 'better' | 'near' | 'worse';
 
 function sanitizeWhitespace(text: string): string {
   return String(text ?? '').replace(/\s+/g, ' ').trim();
@@ -100,12 +101,202 @@ function recoverMessagesFromBlob(blob: string): string[] | null {
   return null;
 }
 
-function getFreeVisibleCount(insights: any): number {
-  const configured = Number(insights?.free_visible_count);
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(1, Math.min(MAX_INSIGHTS, configured));
+function stripSgPrecisionPhrases(text: string): string {
+  let out = sanitizeWhitespace(text);
+  out = out.replace(/\b(?:at|of|about)\s*[+-]?\d+(?:\.\d)?\s+strokes?\b/gi, '');
+  out = out.replace(/\b[+-]?\d+(?:\.\d)?\s+strokes?\s+gained\b/gi, '');
+  out = out.replace(/\bstrokes?\s+gained\b/gi, 'strokes');
+  out = out.replace(/\s+([.,!?;:])/g, '$1').trim();
+  return out;
+}
+
+function sentenceOne(text: string): string {
+  const sentences = splitSentencesSimple(text);
+  return sanitizeWhitespace(sentences[0] ?? text);
+}
+
+function firstNSentences(text: string, count: number): string {
+  const sentences = splitSentencesSimple(text);
+  if (!sentences.length) return sanitizeWhitespace(text);
+  return sanitizeWhitespace(sentences.slice(0, Math.max(1, count)).join(' '));
+}
+
+function hasNoBaselineHistory(insights: any): boolean {
+  const avg = insights?.raw_payload?.historical?.avg_score;
+  return avg == null || !Number.isFinite(Number(avg));
+}
+
+function toTitleCaseLabel(value: string | null | undefined): string | null {
+  if (!value || typeof value !== 'string') return null;
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function resolveWorstLabel(insights: any): string {
+  const fromSelection = insights?.raw_payload?.measured_selection?.opportunity?.label;
+  if (typeof fromSelection === 'string' && fromSelection.trim().length > 0) return fromSelection.trim();
+  const fromName = insights?.raw_payload?.measured_selection?.opportunity?.name;
+  return toTitleCaseLabel(fromName) ?? 'One area';
+}
+
+function buildFreeMessage2(
+  currentMessage: string,
+  outcome: string | null,
+  confidence: PostRoundConfidence | null,
+  worstLabel: string,
+): string {
+  if (confidence === 'LOW') return sanitizeWhitespace(currentMessage);
+
+  if (outcome === 'M2-D') {
+    return `${worstLabel} was the biggest source of lost strokes.`;
   }
-  return 1;
+  if (outcome === 'M2-E') {
+    return `${worstLabel} was the strongest part of the round.`;
+  }
+  if (outcome === 'M2-C') {
+    return `${worstLabel} held steady and didn't meaningfully swing the score.`;
+  }
+  return sanitizeWhitespace(currentMessage);
+}
+
+function buildViewerMessages(
+  insights: any,
+  normalizedMessages: string[],
+  entitlements: ViewerEntitlements,
+): string[] {
+  if (entitlements.isPremium) return normalizedMessages;
+
+  const outcomes: string[] = Array.isArray(insights?.message_outcomes) ? insights.message_outcomes : [];
+  const details = insights?.message_details as { m2BaseText?: string; m2ResidualIncluded?: boolean } | undefined;
+  const confidence = insights?.confidence === 'LOW' || insights?.confidence === 'MED' || insights?.confidence === 'HIGH'
+    ? insights.confidence as PostRoundConfidence
+    : null;
+  const worstLabel = resolveWorstLabel(insights);
+  const noBaselineHistory = hasNoBaselineHistory(insights);
+
+  return normalizedMessages.map((message, index) => {
+    if (index === 0) {
+      // Free always gets a score-focused headline, not SG component precision.
+      if (noBaselineHistory) {
+        // Keep the baseline-building phrase for first/no-baseline rounds.
+        return firstNSentences(message, 2);
+      }
+      return sentenceOne(message);
+    }
+
+    if (index === 1) {
+      const baseMessage = details?.m2BaseText ? sanitizeWhitespace(details.m2BaseText) : sanitizeWhitespace(message);
+      const freeM2 = buildFreeMessage2(baseMessage, outcomes[1] ?? null, confidence, worstLabel);
+      return stripSgPrecisionPhrases(freeM2);
+    }
+
+    return stripSgPrecisionPhrases(message);
+  });
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function resolveHolesPlayedForLeveling(insights: any): number {
+  const raw = toFiniteNumber(insights?.raw_payload?.round?.holes_played);
+  if (raw != null && raw > 0) return Math.round(raw);
+  return 18;
+}
+
+function resolveScoreDeltaBucket(insights: any): ScoreDeltaBucket | null {
+  const score = toFiniteNumber(insights?.raw_payload?.round?.score);
+  const avgScore = toFiniteNumber(insights?.raw_payload?.historical?.avg_score);
+  if (score == null || avgScore == null) return null;
+
+  const holesPlayed = resolveHolesPlayedForLeveling(insights);
+  const nearDelta = 1.5 * resolvePostRoundStrokeScale(holesPlayed);
+  const delta = score - avgScore;
+  if (Math.abs(delta) <= nearDelta) return 'near';
+  return delta > 0 ? 'worse' : 'better';
+}
+
+function resolveMessage1Level(insights: any): InsightLevel {
+  const bucket = resolveScoreDeltaBucket(insights);
+  if (bucket === 'better') return 'great';
+  if (bucket === 'worse') return 'warning';
+  return 'success';
+}
+
+function resolveMeasuredComponentCount(insights: any): number {
+  const fromCount = toFiniteNumber(insights?.raw_payload?.measured_selection?.componentCount);
+  if (fromCount != null) return Math.max(0, Math.round(fromCount));
+
+  if (Array.isArray(insights?.raw_payload?.measured_selection?.components)) {
+    return insights.raw_payload.measured_selection.components.length;
+  }
+  return 0;
+}
+
+function resolveMessage2Level(input: {
+  insights: any;
+  outcome: string | null;
+  confidence: PostRoundConfidence | null;
+  message: string;
+}): InsightLevel {
+  const { insights, outcome, confidence, message } = input;
+
+  if (outcome === 'M2-D') return 'warning';
+  if (outcome === 'M2-E') return 'success';
+  if (outcome === 'M2-C') return 'info';
+
+  // M2-A and unknown variants.
+  if (confidence === 'LOW') return 'info';
+
+  const measuredCount = resolveMeasuredComponentCount(insights);
+  if (measuredCount === 0) {
+    const bucket = resolveScoreDeltaBucket(insights);
+    return bucket === 'worse' ? 'warning' : 'success';
+  }
+
+  // Grounded/broad explanatory M2 for measured stats should stay informational by default.
+  // Allow warning only for clearly penalty-risk oriented wording.
+  if (
+    /\bpenalt(?:y|ies)\b/i.test(message) &&
+    /(pressure|trouble|risk|protect)/i.test(message)
+  ) {
+    return 'warning';
+  }
+  return 'info';
+}
+
+function buildViewerMessageLevels(
+  insights: any,
+  viewerMessages: string[],
+): InsightLevel[] {
+  const outcomes: string[] = Array.isArray(insights?.message_outcomes) ? insights.message_outcomes : [];
+  const confidence = insights?.confidence === 'LOW' || insights?.confidence === 'MED' || insights?.confidence === 'HIGH'
+    ? insights.confidence as PostRoundConfidence
+    : null;
+
+  return viewerMessages.map((message, index) => {
+    if (index === 0) return resolveMessage1Level(insights);
+    if (index === 1) {
+      return resolveMessage2Level({
+        insights,
+        outcome: outcomes[1] ?? null,
+        confidence,
+        message,
+      });
+    }
+    if (index === 2) return 'info';
+
+    const rawLevel = Array.isArray(insights?.message_levels) ? insights.message_levels[index] : null;
+    if (rawLevel === 'great' || rawLevel === 'success' || rawLevel === 'warning' || rawLevel === 'info') {
+      return rawLevel;
+    }
+    return 'info';
+  });
 }
 
 function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements): any {
@@ -114,15 +305,12 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
   const messages = rawMessages.length === 1 ? (recoverMessagesFromBlob(rawMessages[0]) ?? rawMessages) : rawMessages;
   const normalizedMessages = normalizeInsightMessages(messages).slice(0, MAX_INSIGHTS);
 
-  const rawLevels: InsightLevel[] = Array.isArray(insights?.message_levels)
-    ? insights.message_levels.filter((level: unknown): level is InsightLevel =>
-        level === 'great' || level === 'success' || level === 'warning' || level === 'info',
-      )
-    : [];
-
   const visibleCount = effectiveEntitlements.isPremium
     ? Math.min(MAX_INSIGHTS, normalizedMessages.length)
-    : Math.min(getFreeVisibleCount(insights), normalizedMessages.length);
+    : Math.min(MAX_INSIGHTS, normalizedMessages.length);
+
+  const viewerMessages = buildViewerMessages(insights, normalizedMessages, effectiveEntitlements);
+  const viewerLevels = buildViewerMessageLevels(insights, viewerMessages);
 
   const {
     raw_payload,
@@ -142,8 +330,8 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
 
   return {
     ...rest,
-    messages: normalizedMessages,
-    message_levels: rawLevels.slice(0, normalizedMessages.length),
+    messages: viewerMessages,
+    message_levels: viewerLevels.slice(0, viewerMessages.length),
     visible_count: visibleCount,
   };
 }
@@ -230,22 +418,16 @@ function isOnboardingInsight(insights: any): boolean {
 }
 
 async function shouldRegenerateForOnboardingMismatch(
-  roundId: bigint,
-  userId: bigint,
+  _roundId: bigint,
+  _userId: bigint,
   insights: any,
 ): Promise<boolean> {
   if (!isOnboardingInsight(insights)) {
     return false;
   }
 
-  try {
-    const roundsInOrder = await getRoundsInLoggedOrder(userId);
-    const { roundNumber } = resolveRoundOrdinalContext(roundId, roundsInOrder);
-    return roundNumber > 3;
-  } catch (error) {
-    console.warn('[round-insights] onboarding mismatch check failed:', error);
-    return false;
-  }
+  // Onboarding has been retired. Regenerate any legacy onboarding payload.
+  return true;
 }
 
 export async function GET(
@@ -370,90 +552,13 @@ async function generateInsightsInternal(
 
   const roundsInOrder = await getRoundsInLoggedOrder(userId);
   const { roundNumber, previousScore, totalRounds } = resolveRoundOrdinalContext(roundId, roundsInOrder);
-  const isOnboardingRound = roundNumber <= 3;
+  const isOnboardingRound = false;
   const shouldBumpVariant = generationOptions.forceRegenerate && generationOptions.bumpVariant && !isOnboardingRound;
   const variantOffset = shouldBumpVariant
     ? generationOptions.previousVariantOffset + 1
     : generationOptions.previousVariantOffset;
 
   const toPar = Number(round.score) - currentContext.parTotal;
-
-  if (isOnboardingRound) {
-    const onboardingInsights = buildOnboardingPostRoundInsights({
-      roundNumber,
-      score: Number(round.score),
-      toPar,
-      previousScore,
-    });
-
-    const finalMessages: [string, string, string] = [
-      enforceMaxMessageChars(onboardingInsights.messages[0], POST_ROUND_MESSAGE_MAX_CHARS),
-      enforceMaxMessageChars(onboardingInsights.messages[1], POST_ROUND_MESSAGE_MAX_CHARS),
-      enforceMaxMessageChars(onboardingInsights.messages[2], POST_ROUND_MESSAGE_MAX_CHARS),
-    ];
-
-    const onboardingMissingStats = getMissingStats({
-      firHit: round.firHit,
-      girHit: round.girHit,
-      putts: round.putts,
-      penalties: round.penalties,
-    });
-
-    const insightsData = {
-      messages: finalMessages,
-      message_levels: onboardingInsights.messageLevels,
-      message_outcomes: onboardingInsights.outcomes,
-      generated_at: new Date().toISOString(),
-      model: 'post-round-deterministic-v1',
-      variant_offset: generationOptions.previousVariantOffset,
-      free_visible_count: 3,
-      generation_count: MAX_INSIGHTS,
-      raw_payload: {
-        round: {
-          score: Number(round.score),
-          to_par: toPar,
-          holes_played: currentHolesPlayed,
-          round_number: roundNumber,
-        },
-        historical: {
-          avg_score: null,
-          total_rounds: totalRounds,
-          previous_score: previousScore,
-        },
-        sg: {
-          total: null,
-          off_tee: null,
-          approach: null,
-          putting: null,
-          penalties: null,
-          residual: null,
-        },
-        measured_selection: null,
-        missing_stats: onboardingMissingStats,
-        onboarding: {
-          active: true,
-          round_number: roundNumber,
-        },
-      },
-    };
-
-    const savedInsights = await prisma.roundInsight.upsert({
-      where: { roundId },
-      create: {
-        roundId,
-        userId,
-        modelUsed: 'post-round-deterministic-v1',
-        insights: insightsData,
-      },
-      update: {
-        modelUsed: 'post-round-deterministic-v1',
-        insights: insightsData,
-        updatedAt: new Date(),
-      },
-    });
-
-    return savedInsights.insights;
-  }
 
   const sgComponents = await prisma.roundStrokesGained.findUnique({
     where: { roundId },
@@ -525,6 +630,14 @@ async function generateInsightsInternal(
     missing: missingStats,
     residualValue: sgComponents?.sgResidual != null ? Number(sgComponents.sgResidual) : null,
     holesPlayed: currentHolesPlayed,
+    confidence: resolvePostRoundConfidence({
+      roundNumber,
+      measuredComponentCount: measuredSelection.componentCount,
+      opportunityIsWeak: measuredSelection.opportunityIsWeak,
+      weakSeparation: measuredSelection.weakSeparation,
+      sgConfidence: sgComponents?.confidence ? String(sgComponents.confidence).toLowerCase() : null,
+      missingStats,
+    }),
     roundEvidence: {
       fairwaysHit: round.firHit != null ? Number(round.firHit) : null,
       fairwaysPossible: currentContext.nonPar3Holes,
@@ -544,16 +657,24 @@ async function generateInsightsInternal(
     enforceMaxMessageChars(deterministicInsights.messages[2], POST_ROUND_MESSAGE_MAX_CHARS),
   ];
 
-  const freeVisibleCount = 1;
+  const confidence = resolvePostRoundConfidence({
+    roundNumber,
+    measuredComponentCount: measuredSelection.componentCount,
+    opportunityIsWeak: measuredSelection.opportunityIsWeak,
+    weakSeparation: measuredSelection.weakSeparation,
+    sgConfidence: sgComponents?.confidence ? String(sgComponents.confidence).toLowerCase() : null,
+    missingStats,
+  });
 
   const insightsData = {
     messages: finalMessages,
     message_levels: deterministicInsights.messageLevels,
     message_outcomes: deterministicInsights.outcomes,
+    message_details: deterministicInsights.messageDetails ?? undefined,
+    confidence,
     generated_at: new Date().toISOString(),
     model: 'post-round-deterministic-v1',
     variant_offset: variantOffset,
-    free_visible_count: freeVisibleCount,
     generation_count: MAX_INSIGHTS,
     raw_payload: {
       round: {
@@ -564,6 +685,7 @@ async function generateInsightsInternal(
       historical: {
         avg_score: avgScore != null ? Math.round(avgScore * 10) / 10 : null,
         total_rounds: totalRounds,
+        previous_score: previousScore,
       },
       sg: {
         total: totalSg,
@@ -575,6 +697,10 @@ async function generateInsightsInternal(
       },
       measured_selection: measuredSelection,
       missing_stats: missingStats,
+      onboarding: {
+        active: false,
+        round_number: roundNumber,
+      },
     },
   };
 
@@ -594,5 +720,36 @@ async function generateInsightsInternal(
   });
 
   return savedInsights.insights;
+}
+
+function resolvePostRoundConfidence(input: {
+  roundNumber: number;
+  measuredComponentCount: number;
+  opportunityIsWeak: boolean;
+  weakSeparation: boolean;
+  sgConfidence: string | null;
+  missingStats: ReturnType<typeof getMissingStats>;
+}): PostRoundConfidence {
+  const scoreOnly = input.measuredComponentCount === 0;
+  if (
+    input.roundNumber <= 2 ||
+    input.measuredComponentCount < 2 ||
+    scoreOnly ||
+    input.sgConfidence === 'low'
+  ) {
+    return 'LOW';
+  }
+
+  const hasPartialStats =
+    input.missingStats.fir ||
+    input.missingStats.gir ||
+    input.missingStats.putts ||
+    input.missingStats.penalties;
+  const noStrongOpportunity = !input.opportunityIsWeak;
+  if (hasPartialStats || input.weakSeparation || noStrongOpportunity) {
+    return 'MED';
+  }
+
+  return 'HIGH';
 }
 

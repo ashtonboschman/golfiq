@@ -100,7 +100,7 @@ describe('post-round message 3 rules', () => {
     expect(meaningful.outcomes[2]).toBe('M3-C');
   });
 
-  test('residual sentence triggers for abs>=1.5 and residualDominant=true', () => {
+  test('residual sentence triggers only when residualDominant=true and above magnitude threshold', () => {
     const absTrigger = buildDeterministicPostRoundInsights(
       {
         ...BASE,
@@ -109,9 +109,9 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(absTrigger.messages[1]).toContain('+1.6 strokes');
+    expect(absTrigger.messages[1]).not.toContain('+1.6 strokes');
 
-    const dominantTrigger = buildDeterministicPostRoundInsights(
+    const belowMagnitude = buildDeterministicPostRoundInsights(
       {
         ...BASE,
         residualValue: 1.2,
@@ -119,7 +119,17 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(dominantTrigger.messages[1]).toContain('+1.2 strokes');
+    expect(belowMagnitude.messages[1].toLowerCase()).not.toContain('short game');
+
+    const dominantTrigger = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        residualValue: 2.0,
+        residualDominant: true,
+      },
+      { fixedVariantIndex: 0 },
+    );
+    expect(dominantTrigger.messages[1].toLowerCase()).toContain('short game');
 
     const noTrigger = buildDeterministicPostRoundInsights(
       {
@@ -129,7 +139,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(noTrigger.messages[1]).not.toContain('+1.2 strokes');
+    expect(noTrigger.messages[1].toLowerCase()).not.toContain('short game');
 
     const nullResidual = buildDeterministicPostRoundInsights(
       {
@@ -143,7 +153,7 @@ describe('post-round message 3 rules', () => {
     expect(nullResidual.messages[1].toLowerCase()).not.toContain('short game');
   });
 
-  test('9-hole normalization lowers residual sentence threshold in message 2', () => {
+  test('9-hole normalization does not force residual sentence when residual is not dominant', () => {
     const fullRound = buildDeterministicPostRoundInsights(
       {
         ...BASE,
@@ -164,7 +174,21 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(nineHole.messages[1]).toContain('+0.8 strokes');
+    expect(nineHole.messages[1].toLowerCase()).not.toContain('short game');
+  });
+
+  test('9-hole residual suffix appears at 1.0+ when dominant', () => {
+    const nineHoleDominant = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        holesPlayed: 9,
+        residualValue: 1.0,
+        residualDominant: true,
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(nineHoleDominant.messages[1].toLowerCase()).toContain('short game');
   });
 
   test('M3-B uses broad action when one stat is missing but leak is not meaningful', () => {
@@ -179,8 +203,8 @@ describe('post-round message 3 rules', () => {
     );
 
     expect(m3bBroad.outcomes[2]).toBe('M3-B');
-    expect(m3bBroad.messages[2]).toContain('Track penalties');
-    expect(m3bBroad.messages[2]).toContain('Play to the widest target');
+    expect(m3bBroad.messages[2]).toContain('Tracking penalties');
+    expect(m3bBroad.messages[2]).toContain('Default to a center-green target');
   });
 
   test('tracking-first gate stays M3-A even when measured weakness is extreme', () => {
@@ -195,9 +219,8 @@ describe('post-round message 3 rules', () => {
     );
 
     expect(trackingFirst.outcomes[2]).toBe('M3-A');
-    expect(trackingFirst.messages[2]).toContain('Track FIR and GIR');
-    expect(trackingFirst.messages[2]).toContain('Play to the widest target');
-    expect(trackingFirst.messages[2]).not.toContain('Default to a center-green target');
+    expect(trackingFirst.messages[2]).toContain('Tracking FIR and GIR');
+    expect(trackingFirst.messages[2]).toContain('Default to a center-green target');
   });
 
   test('M3-B area-specific action follows worstMeasured area only', () => {
@@ -212,7 +235,7 @@ describe('post-round message 3 rules', () => {
     );
 
     expect(m3bApproach.outcomes[2]).toBe('M3-B');
-    expect(m3bApproach.messages[2]).toContain('Track penalties');
+    expect(m3bApproach.messages[2]).toContain('Tracking penalties');
     expect(m3bApproach.messages[2]).toContain('Default to a center-green target');
     expect(m3bApproach.messages[2]).not.toContain('When penalty is in play');
   });
