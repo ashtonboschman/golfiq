@@ -23,7 +23,7 @@ const BASE: PostRoundPolicyInput = {
 };
 
 describe('post-round message 3 rules', () => {
-  test('message 3 has one action sentence and optional tracking sentence only', () => {
+  test('message 3 has one action sentence only', () => {
     const missing0 = buildDeterministicPostRoundInsights(BASE, { fixedVariantIndex: 0 });
     expect(missing0.messages[2].startsWith('Next round:')).toBe(true);
     expect(countPeriods(missing0.messages[2])).toBe(1);
@@ -37,8 +37,8 @@ describe('post-round message 3 rules', () => {
       { fixedVariantIndex: 0 },
     );
     expect(missing1.messages[2].startsWith('Next round:')).toBe(true);
-    expect(countPeriods(missing1.messages[2])).toBe(2);
-    expect(missing1.messages[2]).toMatch(/^Next round: .*[.!?] [A-Z].*[.!?]$/);
+    expect(countPeriods(missing1.messages[2])).toBe(1);
+    expect(missing1.messages[2]).toMatch(/^Next round: .*[.!?]$/);
 
     const missing2 = buildDeterministicPostRoundInsights(
       {
@@ -48,8 +48,8 @@ describe('post-round message 3 rules', () => {
       { fixedVariantIndex: 0 },
     );
     expect(missing2.messages[2].startsWith('Next round:')).toBe(true);
-    expect(countPeriods(missing2.messages[2])).toBe(2);
-    expect(missing2.messages[2]).toMatch(/^Next round: .*[.!?] [A-Z].*[.!?]$/);
+    expect(countPeriods(missing2.messages[2])).toBe(1);
+    expect(missing2.messages[2]).toMatch(/^Next round: .*[.!?]$/);
   });
 
   test('broad focus branch triggers when no meaningful leak is available', () => {
@@ -203,12 +203,12 @@ describe('post-round message 3 rules', () => {
     );
 
     expect(m3bBroad.outcomes[2]).toBe('M3-B');
-    expect(m3bBroad.messages[2]).toContain('Tracking penalties');
-    expect(m3bBroad.messages[2]).toContain('Default to a center-green target');
+    expect(m3bBroad.messages[2].toLowerCase()).not.toContain('track ');
+    expect(m3bBroad.messages[2]).toContain('Play to the center of the green');
   });
 
-  test('tracking-first gate stays M3-A even when measured weakness is extreme', () => {
-    const trackingFirst = buildDeterministicPostRoundInsights(
+  test('missing-stats gate stays M3-A even when measured weakness is extreme', () => {
+    const missingGateFirst = buildDeterministicPostRoundInsights(
       {
         ...BASE,
         missing: { fir: true, gir: true, putts: false, penalties: false },
@@ -218,9 +218,9 @@ describe('post-round message 3 rules', () => {
       { fixedVariantIndex: 0 },
     );
 
-    expect(trackingFirst.outcomes[2]).toBe('M3-A');
-    expect(trackingFirst.messages[2]).toContain('Tracking FIR and GIR');
-    expect(trackingFirst.messages[2]).toContain('Default to a center-green target');
+    expect(missingGateFirst.outcomes[2]).toBe('M3-A');
+    expect(missingGateFirst.messages[2]).toContain('Play to the center of the green');
+    expect(missingGateFirst.messages[2].toLowerCase()).not.toContain('track ');
   });
 
   test('M3-B area-specific action follows worstMeasured area only', () => {
@@ -235,8 +235,8 @@ describe('post-round message 3 rules', () => {
     );
 
     expect(m3bApproach.outcomes[2]).toBe('M3-B');
-    expect(m3bApproach.messages[2]).toContain('Tracking penalties');
-    expect(m3bApproach.messages[2]).toContain('Default to a center-green target');
+    expect(m3bApproach.messages[2].toLowerCase()).not.toContain('track ');
+    expect(m3bApproach.messages[2]).toContain('Play to the center of the green');
     expect(m3bApproach.messages[2]).not.toContain('When penalty is in play');
   });
 });

@@ -178,7 +178,6 @@ async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]
 
 export async function generateAndStoreOverallInsights(
   userId: bigint,
-  forceManualTimestamp = false,
   selectedMode: StatsMode = 'combined',
 ) {
   const overallInsightModel = (prisma as any).overallInsight;
@@ -213,18 +212,8 @@ export async function generateAndStoreOverallInsights(
     where: { userId },
   });
 
-  const previousVariantOffset = Number.isFinite(Number(existing?.variantOffset))
-    ? Math.max(0, Math.floor(Number(existing?.variantOffset)))
-    : 0;
-  const dataHashChanged = !existing || existing.dataHash !== dataHash;
-  const variantOffset = forceManualTimestamp
-    ? previousVariantOffset + 1
-    : dataHashChanged
-      ? 0
-      : previousVariantOffset;
-
   const shouldAuto = shouldAutoRefreshOverall(existing?.generatedAt ?? null, existing?.dataHash ?? null, dataHash);
-  if (!forceManualTimestamp && existing && !shouldAuto) {
+  if (existing && !shouldAuto) {
     const persistedTier = Boolean((existing?.insights as any)?.tier_context?.isPremium);
     const persistedModelUsed = existing?.modelUsed != null ? String(existing.modelUsed) : null;
     const persistedCards = Array.isArray((existing?.insights as any)?.cards) ? (existing?.insights as any)?.cards : [];
@@ -253,15 +242,15 @@ export async function generateAndStoreOverallInsights(
       Array.isArray(persistedCardsByMode.combined) &&
       Array.isArray(persistedCardsByMode['9']) &&
       Array.isArray(persistedCardsByMode['18']) &&
-      persistedCardsByMode.combined.length === 6 &&
-      persistedCardsByMode['9'].length === 6 &&
-      persistedCardsByMode['18'].length === 6,
+      persistedCardsByMode.combined.length === 3 &&
+      persistedCardsByMode['9'].length === 3 &&
+      persistedCardsByMode['18'].length === 3,
     );
 
     const canReusePersisted =
       persistedModelUsed === model &&
       persistedTier === isPremium &&
-      persistedCards.length === 6 &&
+      persistedCards.length === 3 &&
       persistedHasCardsByMode &&
       persistedHasNewEfficiencyShape &&
       persistedHasProjectionByMode;
@@ -276,11 +265,10 @@ export async function generateAndStoreOverallInsights(
     rounds,
     isPremium,
     model,
-    cards: Array.from({ length: 6 }, () => ''),
+    cards: Array.from({ length: 3 }, () => ''),
     currentHandicapOverride,
   });
 
-  const variantSeedBase = `${userId.toString()}|${dataHash}|${rounds.length}`;
   const modes: StatsMode[] = ['combined', '9', '18'];
   const cardsByMode = {} as Record<StatsMode, string[]>;
   const recommendedDrillByMode = {} as Record<StatsMode, string>;
@@ -309,15 +297,13 @@ export async function generateAndStoreOverallInsights(
       modePayload?.narrative?.strength?.name ??
       null;
     const drillSeed = `${userId.toString()}|${dataHash}|${rounds.length}|drill|${mode}`;
-    const recommendedDrill = pickDeterministicDrillSeeded(drillArea, drillSeed, variantOffset);
+    const recommendedDrill = pickDeterministicDrillSeeded(drillArea, drillSeed);
     recommendedDrillByMode[mode] = recommendedDrill;
     cardsByMode[mode] = buildDeterministicOverallCards({
       payload: basePayload,
       recommendedDrill,
       missingStats,
       isPremium,
-      variantSeedBase: `${variantSeedBase}|${mode}`,
-      variantOffset,
       mode,
     });
   }
@@ -350,18 +336,14 @@ export async function generateAndStoreOverallInsights(
       modelUsed: model,
       insights: safePayload as any,
       dataHash,
-      variantOffset,
       generatedAt: new Date(safePayload.generated_at),
-      lastManualRefreshAt: forceManualTimestamp ? new Date() : null,
       updatedAt: new Date(),
     },
     update: {
       modelUsed: model,
       insights: safePayload as any,
       dataHash,
-      variantOffset,
       generatedAt: new Date(safePayload.generated_at),
-      lastManualRefreshAt: forceManualTimestamp ? new Date() : undefined,
       updatedAt: new Date(),
     },
   });
@@ -378,7 +360,7 @@ export async function GET(request: NextRequest) {
 
     const userId = await requireAuth(request);
     const mode = parseMode(new URL(request.url).searchParams);
-    const payload = await generateAndStoreOverallInsights(userId, false, mode);
+    const payload = await generateAndStoreOverallInsights(userId, mode);
     return successResponse({
       insights: payload,
       selectedMode: mode,

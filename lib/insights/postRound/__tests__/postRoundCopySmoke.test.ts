@@ -53,6 +53,22 @@ const CASES: PostRoundPolicyInput[] = [
   },
 ];
 
+const EXTRA_BANNED_TERMS = [
+  'shot window',
+  'dispersion',
+  'corridor',
+  'baseline',
+  'variance',
+  'execution',
+  'insufficient data',
+  'recovery shots',
+  'captured',
+  'stock swing',
+  'stock flight',
+  'track ',
+  'tracking',
+] as const;
+
 describe('post-round copy smoke checks', () => {
   test.each(CASES)('copy stays clean and guarded', (input) => {
     const out = buildDeterministicPostRoundInsights(input, { fixedVariantIndex: 0 });
@@ -62,6 +78,9 @@ describe('post-round copy smoke checks', () => {
     for (const token of BANNED_TOKENS) {
       expect(lower.includes(token.toLowerCase())).toBe(false);
     }
+    for (const token of EXTRA_BANNED_TERMS) {
+      expect(lower.includes(token)).toBe(false);
+    }
 
     expect(full.includes('  ')).toBe(false);
     expect(full.includes(' .')).toBe(false);
@@ -70,5 +89,13 @@ describe('post-round copy smoke checks', () => {
     expect(out.messages[2].startsWith('Next round:')).toBe(true);
     const prefixMatches = out.messages[2].match(/Next round:/g) ?? [];
     expect(prefixMatches.length).toBe(1);
+    expect(out.messages[2].toLowerCase()).not.toContain('track ');
+    expect(out.messages[2].toLowerCase()).not.toContain('tracking');
+    const normalized = out.messages[2].replace(/^Next round:\s*/i, '').replace(/[.!?]+$/g, '').trim();
+    expect(normalized).not.toContain(',');
+    expect(normalized.toLowerCase()).not.toMatch(/\band\b/);
+    expect(normalized.toLowerCase()).not.toMatch(/\bthen\b/);
+    expect(normalized.toLowerCase()).not.toMatch(/\bfor\b/);
+    expect(normalized.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(12);
   });
 });

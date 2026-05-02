@@ -305,22 +305,22 @@ function fallbackNextRoundNudge(
   component: Exclude<DashboardFocusComponent, 'residual'> | null,
   mode: SgFocusMode | 'no_data',
 ): string {
-  if (mode === 'no_data') return 'Play to the widest target and keep the ball in play.';
-  if (mode === 'balanced') return 'Keep making simple decisions and avoid low-percentage shots.';
+  if (mode === 'no_data') return 'Play to the widest target.';
+  if (mode === 'balanced') return 'Make simple decisions.';
 
   if (mode === 'opportunity') {
-    if (component === 'putting') return 'Prioritize lag speed and leave shorter second putts.';
-    if (component === 'approach') return 'Default to center-green targets and avoid short-siding.';
+    if (component === 'putting') return 'Focus on lag speed.';
+    if (component === 'approach') return 'Play to the center of the green.';
     if (component === 'offTee') return 'Choose a target that keeps your common miss in play.';
-    if (component === 'penalties') return 'Choose the safe line when trouble can turn one swing into two strokes.';
-    return 'Keep making simple decisions and avoid low-percentage shots.';
+    if (component === 'penalties') return 'Choose the safe line.';
+    return 'Make simple decisions.';
   }
 
-  if (component === 'putting') return 'Keep building on your pace control and start line.';
-  if (component === 'approach') return 'Keep trusting your approach targets and stock swing.';
-  if (component === 'offTee') return 'Keep using tee-shot targets that put you in position.';
-  if (component === 'penalties') return 'Keep choosing lines that avoid costly trouble.';
-  return 'Keep making simple decisions and avoid low-percentage shots.';
+  if (component === 'putting') return 'Keep trusting your speed.';
+  if (component === 'approach') return 'Keep trusting your approach shots.';
+  if (component === 'offTee') return 'Keep trusting your tee shots.';
+  if (component === 'penalties') return 'Keep choosing safe lines.';
+  return 'Make simple decisions.';
 }
 
 function componentCoverageKey(
@@ -368,12 +368,18 @@ function compactNextRoundNudge(
   if (normalized.length > MAX_NEXT_ROUND_RECOMMENDATION_LENGTH) return fallback;
   if (normalized.includes(':')) return fallback;
   if (/\d/.test(normalized)) return fallback;
+  if (/,/.test(normalized)) return fallback;
+  if (/\band\b/i.test(normalized)) return fallback;
+  if (/\bthen\b/i.test(normalized)) return fallback;
+  if (/\btrack(?:ing)?\b/i.test(normalized)) return fallback;
+  if (/\bfor\b/i.test(normalized)) return fallback;
   if ((normalized.match(/[.!?]/g) ?? []).length > 1) return fallback;
   if (/\b(goal|drill|balls?|yards?|feet|fringe|range|score)\b/i.test(normalized)) return fallback;
-  if (!/^(focus on|keep|default to|choose|prioritize|take)\b/i.test(normalized)) return fallback;
+  if (!/^(focus on|keep|play to|choose|prioritize|take|pick|aim)\b/i.test(normalized)) return fallback;
 
   const withoutTrailingPunctuation = normalized.replace(/[.!?]+$/g, '').trim();
   if (!withoutTrailingPunctuation) return fallback;
+  if (withoutTrailingPunctuation.split(/\s+/).length > 12) return fallback;
 
   const capitalized = withoutTrailingPunctuation.charAt(0).toUpperCase() + withoutTrailingPunctuation.slice(1);
   return `${capitalized}.`;
@@ -466,7 +472,7 @@ function buildEarlyGuidanceFocus(confidence: DashboardFocusConfidence): RoundFoc
     focusType: 'score',
     headline: 'Start with solid decisions.',
     body: 'Early rounds usually come down to missed greens and a few costly holes.',
-    nextRound: 'Play to the widest target and keep the ball in play.',
+    nextRound: 'Play to the widest target.',
     component: null,
     confidence,
   };
@@ -486,21 +492,21 @@ function buildScoreOnlyFocus(
   let headline = 'Your scoring is stable.';
   let body = isPremium
     ? 'Your scoring is in line with your usual level.'
-    : 'Choose one area to improve and commit to it next round.';
-  let nextRound = 'Choose one focus for the next round and commit to it.';
+    : 'Pick one area next round.';
+  let nextRound = 'Commit to one focus.';
 
   if (outcome === 'score_only_improving') {
     headline = 'Your scores are improving.';
     body = isPremium
       ? `Your scoring is about ${formatOneDecimal(Math.abs(delta))} strokes better than usual.`
-      : "Keep avoiding big numbers and stick with what's working.";
-    nextRound = "Keep doing what's working and avoid unnecessary risk.";
+      : 'Keep avoiding big numbers.';
+    nextRound = "Keep doing what's working.";
   } else if (outcome === 'score_only_worsening') {
     headline = 'Your scores are slipping.';
     body = isPremium
       ? `Your scoring is about ${formatOneDecimal(Math.abs(delta))} strokes worse than usual.`
-      : 'Play to safer targets and avoid turning one mistake into a big number.';
-    nextRound = 'Prioritize conservative targets and keep penalties off the card.';
+      : 'Play to safer targets.';
+    nextRound = 'Prioritize conservative targets.';
   }
 
   return {

@@ -1960,7 +1960,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   font-weight: 700;
   cursor: pointer;
   line-height: 1.2;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
 .dashboard-focus-confidence-pill-skeleton {
@@ -1971,10 +1971,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   position: absolute;
   right: 0;
   top: 0;
-}
-
-.dashboard-focus-confidence-pill:hover {
-  transform: translateY(-1px);
 }
 
 .dashboard-focus-confidence-pill:focus-visible {
@@ -5881,11 +5877,7 @@ input[type='date'].form-input {
   font-weight: 700;
   cursor: pointer;
   line-height: 1.2;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-}
-
-.insights-confidence-pill:hover {
-  transform: translateY(-1px);
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
 .insights-confidence-pill:focus-visible {
@@ -6198,6 +6190,21 @@ input[type='date'].form-input {
 @media (max-width: 640px) {
   .round-insights-lock-section {
     min-height: 280px;
+  }
+
+  .dashboard-focus-confidence-tooltip .info-tooltip-content,
+  .insights-confidence-tooltip .info-tooltip-content {
+    left: auto !important;
+    right: 0 !important;
+    transform: none !important;
+    max-width: min(280px, calc(100vw - 16px));
+  }
+
+  .dashboard-focus-confidence-tooltip .info-tooltip-arrow,
+  .insights-confidence-tooltip .info-tooltip-arrow {
+    left: auto !important;
+    right: 12px !important;
+    transform: none !important;
   }
 }
 

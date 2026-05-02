@@ -64,7 +64,7 @@ describe('post-round style guardrails', () => {
     }
   });
 
-  it('keeps M3 tracking openers varied instead of dominated by one verb', () => {
+  it('keeps M3 action openers varied instead of dominated by one verb', () => {
     const openerCounts = new Map<string, number>();
     for (let variantIndex = 0; variantIndex < 10; variantIndex += 1) {
       const out = buildDeterministicPostRoundInsights(
@@ -93,6 +93,26 @@ describe('post-round style guardrails', () => {
         for (const discouraged of STYLE_DISCOURAGED) {
           expect(textToCheck).not.toMatch(discouraged);
         }
+      }
+    }
+  });
+
+  it('keeps M3 as a single instruction without tracking language', () => {
+    for (const input of STYLE_CASES) {
+      for (let variantIndex = 0; variantIndex < 10; variantIndex += 1) {
+        const out = buildDeterministicPostRoundInsights(input, { fixedVariantIndex: variantIndex });
+        const msg = out.messages[2];
+        const withoutPrefix = msg.replace(/^Next round:\s*/i, '').trim();
+        const normalized = withoutPrefix.replace(/[.!?]+$/g, '').trim();
+        const words = normalized.length ? normalized.split(/\s+/) : [];
+        expect(msg.toLowerCase()).not.toContain('track ');
+        expect(msg.toLowerCase()).not.toContain('tracking');
+        expect(normalized).not.toContain(',');
+        expect(normalized.toLowerCase()).not.toMatch(/\band\b/);
+        expect(normalized.toLowerCase()).not.toMatch(/\bthen\b/);
+        expect(normalized.toLowerCase()).not.toMatch(/\bfor\b/);
+        expect(words.length).toBeLessThanOrEqual(12);
+        expect((msg.match(/\./g) ?? []).length).toBe(1);
       }
     }
   });

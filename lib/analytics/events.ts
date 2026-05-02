@@ -16,7 +16,6 @@ export const ANALYTICS_EVENTS = {
   thirdRoundCompleted: 'third_round_completed',
   insightsViewed: 'insights_viewed',
   insightModeChanged: 'insight_mode_changed',
-  insightRegenerated: 'insight_regenerated',
   dashboardFocusViewed: 'dashboard_focus_viewed',
   dashboardFocusCtaClicked: 'dashboard_focus_cta_clicked',
   dashboardFocusModeChanged: 'dashboard_focus_mode_changed',

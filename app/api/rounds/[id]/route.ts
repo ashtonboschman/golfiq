@@ -634,7 +634,7 @@ async function triggerInsightsGeneration(roundId: bigint, userId: bigint, forceR
 
 async function triggerOverallInsightsGeneration(userId: bigint): Promise<void> {
   try {
-    await generateAndStoreOverallInsights(userId, false);
+    await generateAndStoreOverallInsights(userId);
   } catch (error) {
     // Silently fail - overall insights can be generated on next /insights fetch.
     console.error('Failed to generate overall insights:', error);

@@ -517,7 +517,7 @@ async function seedRoundsForUser(userId: bigint, dryRun: boolean, withInsights: 
       if (user.subscriptionTier === 'premium' || user.subscriptionTier === 'lifetime') {
         await generateInsights(createdRound.id, userId);
       }
-      await generateAndStoreOverallInsights(userId, false);
+      await generateAndStoreOverallInsights(userId);
     }
 
     createdRoundIds.push(createdRound.id);

@@ -295,7 +295,7 @@ describe('/dashboard Round Focus card', () => {
     const focusCard = await screen.findByTestId('dashboard-focus-card');
     await screen.findByText('Round Focus');
     expect(screen.getByText('This area is costing you the most strokes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Prioritize lag speed and leave shorter second putts.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Focus on lag speed.')).toBeInTheDocument();
     expect(screen.queryByText(/strokes per round/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/compared to baseline/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Build on momentum.')).not.toBeInTheDocument();
@@ -342,7 +342,7 @@ describe('/dashboard Round Focus card', () => {
     const focusCard = await screen.findByTestId('dashboard-focus-card');
     await screen.findByText('Approach is your biggest scoring opportunity.');
     expect(screen.getByText("You're losing about 0.7 strokes per round.")).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Default to center-green targets and avoid short-siding.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the center of the green.')).toBeInTheDocument();
     expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'See Full Breakdown' }));
@@ -375,7 +375,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('Start with solid decisions.');
     expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the widest target and keep the ball in play.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();
@@ -409,7 +409,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('Start with solid decisions.');
     expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the widest target and keep the ball in play.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
     expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
     expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
@@ -440,9 +440,9 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Your scores are slipping.');
-    expect(screen.getByText('Play to safer targets and avoid turning one mistake into a big number.')).toBeInTheDocument();
+    expect(screen.getByText('Play to safer targets.')).toBeInTheDocument();
     expect(
-      screen.getByText('Next Round: Prioritize conservative targets and keep penalties off the card.'),
+      screen.getByText('Next Round: Prioritize conservative targets.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
   });
@@ -471,7 +471,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('Start with solid decisions.');
     expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the widest target and keep the ball in play.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();

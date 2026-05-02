@@ -104,9 +104,12 @@ describe('/api/insights/overall contract', () => {
     expect(body.selectedMode).toBe('9');
     expect(body.insights.tier_context.isPremium).toBe(false);
     expect(body.insights.sg_locked).toBe(true);
+    expect(body.insights.confidence).toBeDefined();
+    expect(['low', 'medium', 'high']).toContain(body.insights.confidence);
     expect(body.insights.sg).toBeTruthy();
     expect(body.insights.sg.trend.sgTotal.length).toBeGreaterThan(0);
-    expect(body.insights.cards).toHaveLength(6);
+    expect(body.insights.cards).toHaveLength(3);
+    expect(body.insights.cards_locked_count).toBe(0);
     expect(body.insights.cards_by_mode).toBeTruthy();
     expect(body.insights.cards_by_mode).toHaveProperty('combined');
     expect(body.insights.cards_by_mode).toHaveProperty('9');
@@ -117,6 +120,14 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.projection.projectedHandicapIn10).toBeNull();
     expect(body.insights.projection_by_mode.combined.projectedScoreIn10).toBeNull();
     expect(body.insights.projection_ranges).toBeUndefined();
+    expect(body.insights.refresh).toBeUndefined();
+    expect(body.insights.refresh?.manual_cooldown_hours).toBeUndefined();
+    const freeCardsText = body.insights.cards.join(' ').toLowerCase();
+    expect(freeCardsText).not.toContain('priority first');
+    expect(freeCardsText).not.toContain('on-course strategy');
+    expect(freeCardsText).not.toContain('projection:');
+    expect(freeCardsText).not.toContain('baseline');
+    expect(freeCardsText).not.toContain('not enough data');
     expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -142,8 +153,10 @@ describe('/api/insights/overall contract', () => {
     expect(body.selectedMode).toBe('18');
     expect(body.insights.tier_context.isPremium).toBe(true);
     expect(body.insights.sg_locked).toBe(false);
+    expect(body.insights.confidence).toBeDefined();
     expect(body.insights.sg).toBeTruthy();
-    expect(body.insights.cards).toHaveLength(6);
+    expect(body.insights.cards).toHaveLength(3);
+    expect(body.insights.cards_locked_count).toBe(0);
     expect(body.insights.cards_by_mode).toBeTruthy();
     expect(body.insights.cards).toEqual(body.insights.cards_by_mode['18']);
     expect(body.insights.mode_payload).toHaveProperty('combined');
@@ -153,9 +166,17 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.projection_by_mode).toHaveProperty('9');
     expect(body.insights.projection_by_mode).toHaveProperty('18');
     expect(body.insights.projection.projectedScoreIn10).not.toBeNull();
+    expect(body.insights.refresh).toBeUndefined();
+    expect(body.insights.refresh?.manual_cooldown_hours).toBeUndefined();
+    const premiumCardsText = body.insights.cards.join(' ').toLowerCase();
+    expect(premiumCardsText).not.toContain('priority first');
+    expect(premiumCardsText).not.toContain('on-course strategy');
+    expect(premiumCardsText).not.toContain('projection:');
+    expect(premiumCardsText).not.toContain('baseline');
+    expect(premiumCardsText).not.toContain('not enough data');
   });
 
-  it('resets variantOffset to 0 when auto generation sees a changed data hash', async () => {
+  it('stores auto-generated payload without manual refresh fields', async () => {
     mockedPrisma.user.findUnique.mockResolvedValue({
       subscriptionTier: 'premium',
       subscriptionStatus: 'active',
@@ -163,38 +184,18 @@ describe('/api/insights/overall contract', () => {
     mockedPrisma.overallInsight.findUnique.mockResolvedValue({
       userId: BigInt(1),
       modelUsed: 'overall-deterministic-v1',
-      insights: { cards: Array.from({ length: 6 }, () => ''), tier_context: { isPremium: true } },
+      insights: { cards: Array.from({ length: 3 }, () => ''), tier_context: { isPremium: true } },
       dataHash: 'outdated-hash',
       variantOffset: 9,
       generatedAt: new Date('2026-02-01T00:00:00.000Z'),
     });
 
-    await generateAndStoreOverallInsights(BigInt(1), false);
+    await generateAndStoreOverallInsights(BigInt(1));
 
     expect(mockedPrisma.overallInsight.upsert).toHaveBeenCalledTimes(1);
     const upsertArgs = mockedPrisma.overallInsight.upsert.mock.calls[0][0];
-    expect(upsertArgs.update.variantOffset).toBe(0);
-  });
-
-  it('increments variantOffset on manual regenerate', async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue({
-      subscriptionTier: 'premium',
-      subscriptionStatus: 'active',
-    });
-    mockedPrisma.overallInsight.findUnique.mockResolvedValue({
-      userId: BigInt(1),
-      modelUsed: 'overall-deterministic-v1',
-      insights: { cards: Array.from({ length: 6 }, () => ''), tier_context: { isPremium: true } },
-      dataHash: 'some-hash',
-      variantOffset: 4,
-      generatedAt: new Date('2026-02-01T00:00:00.000Z'),
-    });
-
-    await generateAndStoreOverallInsights(BigInt(1), true);
-
-    expect(mockedPrisma.overallInsight.upsert).toHaveBeenCalledTimes(1);
-    const upsertArgs = mockedPrisma.overallInsight.upsert.mock.calls[0][0];
-    expect(upsertArgs.update.variantOffset).toBe(5);
+    expect(upsertArgs.update).not.toHaveProperty('variantOffset');
+    expect(upsertArgs.update).not.toHaveProperty('lastManualRefreshAt');
   });
 
   it('returns a generic error message for unexpected failures', async () => {

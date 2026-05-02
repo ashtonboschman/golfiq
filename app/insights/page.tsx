@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import Select from 'react-select';
-import { Sparkles, Lock, RefreshCw, BarChart3, CircleCheck, CircleAlert, Dumbbell, Map as MapIcon, TrendingUp } from 'lucide-react';
+import { Sparkles, Lock, BarChart3, CircleCheck, CircleAlert, Info } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 import { useSubscription } from '@/hooks/useSubscription';
 import TrendCard from '@/components/TrendCard';
@@ -13,9 +13,9 @@ import { formatHandicap, formatNumber } from '@/lib/formatters';
 import { SkeletonText } from '@/components/skeleton/Skeleton';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { useAdaptiveTooltipPlacement } from '@/lib/ui/useAdaptiveTooltipPlacement';
 
 const insightsViewedKeys = new Set<string>();
-const insightsPaywallViewedKeys = new Set<string>();
 
 type StatsMode = 'combined' | '9' | '18';
 
@@ -80,9 +80,11 @@ type EfficiencyMetric = {
 
 type SGComponentKey = 'offTee' | 'approach' | 'putting' | 'penalties' | 'residual';
 type DeltaTone = 'up' | 'down' | 'flat' | 'none';
+type OverallConfidence = 'low' | 'medium' | 'high';
 
 type OverallInsightsPayload = {
   generated_at: string;
+  confidence?: 'high' | 'medium' | 'low' | null;
   cards: string[];
   cards_locked_count: number;
   projection: {
@@ -196,7 +198,7 @@ function formatConsistencyLabel(label: OverallInsightsPayload['consistency']['la
 }
 
 function formatEffValue(v: number | null, type: 'percent' | 'rate'): string {
-  if (v == null || !Number.isFinite(v)) return 'Not tracked';
+  if (v == null || !Number.isFinite(v)) return 'Not shown';
   if (type === 'percent') return `${Math.round(v * 100)}%`;
   return (Math.round(v * 10) / 10).toFixed(1);
 }
@@ -367,6 +369,26 @@ function classifyTrajectoryFromScoringDelta(
   return delta < 0 ? 'improving' : 'worsening';
 }
 
+function deriveOverallConfidence(args: {
+  hasInsights: boolean;
+  modePayload: ModePayload | undefined;
+  roundsRecent: number;
+  consistencyLabel: OverallInsightsPayload['consistency']['label'] | undefined;
+}): OverallConfidence {
+  if (!args.hasInsights || !args.modePayload) return 'low';
+  if (args.roundsRecent <= 1) return 'low';
+  if (args.consistencyLabel === 'insufficient') return 'low';
+  if (args.roundsRecent >= 5) return 'high';
+  return 'medium';
+}
+
+function normalizeOverallConfidence(
+  raw: OverallInsightsPayload['confidence'] | undefined,
+): OverallConfidence | null {
+  if (raw === 'high' || raw === 'medium' || raw === 'low') return raw;
+  return null;
+}
+
 type ComparisonBarCardProps = {
   title: string;
   tooltipText: string;
@@ -405,17 +427,37 @@ function stripOverallCardPrefix(message: string): string {
     .trim();
 }
 
-function getOverallCardMeta(index: number): { icon: ReactNode } {
-  if (index === 0) return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-info" /> };
-  if (index === 1) return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
-  if (index === 2) return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
-  if (index === 3) return { icon: <Dumbbell size={18} className="insight-message-icon insight-level-info" /> };
-  if (index === 4) return { icon: <MapIcon size={18} className="insight-message-icon insight-level-info" /> };
-  return { icon: <TrendingUp size={18} className="insight-message-icon insight-level-great" /> };
+function getOverallCardMeta(index: number, card: string): { icon: ReactNode } {
+  const text = card.toLowerCase();
+  if (index === 0) {
+    if (text.includes('outperforming your usual level') || text.includes('better than your usual level')) {
+      return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-great" /> };
+    }
+    if (text.includes('above your usual level')) {
+      return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-warning" /> };
+    }
+    return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-info" /> };
+  }
+  if (index === 1) {
+    if (text.includes('costing you strokes')) {
+      return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
+    }
+    if (text.includes('helping your score')) {
+      return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
+    }
+    return { icon: <Info size={18} className="insight-message-icon insight-level-info" /> };
+  }
+  if (text.includes('inconsistent')) {
+    return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
+  }
+  if (text.includes('consistent')) {
+    return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
+  }
+  return { icon: <Info size={18} className="insight-message-icon insight-level-info" /> };
 }
 
 function OverallInsightMessage({ card, index }: { card: string; index: number }) {
-  const meta = getOverallCardMeta(index);
+  const meta = getOverallCardMeta(index, card);
   return (
     <div className="insight-message">
       <div className="insight-message-content">
@@ -552,9 +594,16 @@ export default function InsightsPage() {
 
   const [statsMode, setStatsMode] = useState<StatsMode>('combined');
   const [loading, setLoading] = useState(true);
-  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<OverallInsightsPayload | null>(null);
+  const [showOverallConfidenceInfo, setShowOverallConfidenceInfo] = useState(false);
+  const {
+    containerRef: overallConfidenceTooltipRef,
+    tooltipRef: overallConfidenceContentRef,
+    displayPosition: overallConfidenceTooltipPosition,
+    displayVertical: overallConfidenceTooltipVertical,
+    isPositioned: overallConfidenceTooltipIsPositioned,
+  } = useAdaptiveTooltipPlacement(showOverallConfidenceInfo);
 
   const [accentColor, setAccentColor] = useState('#2D6CFF');
   const [accentHighlight, setAccentHighlight] = useState('#36ad64');
@@ -563,12 +612,12 @@ export default function InsightsPage() {
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
 
-  const trackUpgradeCtaClick = useCallback((ctaLocation: string) => {
+  const trackSgTrendUpgradeCtaClick = useCallback(() => {
     captureClientEvent(
       ANALYTICS_EVENTS.upgradeCtaClicked,
       {
-        cta_location: ctaLocation,
-        source_page: pathname,
+        cta_location: 'insights_sg_trend_lock',
+        source_page: 'insights',
       },
       {
         pathname,
@@ -616,6 +665,23 @@ export default function InsightsPage() {
       router.push('/login?redirect=/insights');
     }
   }, [status, router]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        overallConfidenceTooltipRef.current &&
+        !overallConfidenceTooltipRef.current.contains(event.target as Node)
+      ) {
+        setShowOverallConfidenceInfo(false);
+      }
+    };
+
+    if (showOverallConfidenceInfo) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+    return;
+  }, [showOverallConfidenceInfo]);
 
   const fetchInsights = useCallback(async (mode: StatsMode) => {
     setLoading(true);
@@ -681,86 +747,23 @@ export default function InsightsPage() {
     }
   }, [fetchInsights, status, statsMode]);
 
-  const handleRegenerate = async () => {
-    setRegenerating(true);
-    let capturedFailure = false;
-    try {
-      const res = await fetch(`/api/insights/overall/regenerate?statsMode=${statsMode}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        captureClientEvent(
-          ANALYTICS_EVENTS.apiRequestFailed,
-          {
-            endpoint: '/api/insights/overall/regenerate',
-            method: 'POST',
-            status_code: res.status,
-            feature_area: 'insights',
-          },
-          {
-            pathname,
-            user: {
-              id: session?.user?.id,
-              subscription_tier: session?.user?.subscription_tier,
-              auth_provider: session?.user?.auth_provider,
-            },
-            isLoggedIn: status === 'authenticated',
-          },
-        );
-        capturedFailure = true;
-        throw new Error(data?.message || 'Failed to regenerate');
-      }
-      setInsights(data.insights as OverallInsightsPayload);
-      setError(null);
-      captureClientEvent(
-        ANALYTICS_EVENTS.insightRegenerated,
-        {
-          insight_mode: statsMode,
-        },
-        {
-          pathname,
-          user: {
-            id: session?.user?.id,
-            subscription_tier: session?.user?.subscription_tier,
-            auth_provider: session?.user?.auth_provider,
-          },
-          isLoggedIn: status === 'authenticated',
-        },
-      );
-    } catch (e: any) {
-      if (!capturedFailure) {
-        captureClientEvent(
-          ANALYTICS_EVENTS.apiRequestFailed,
-          {
-            endpoint: '/api/insights/overall/regenerate',
-            method: 'POST',
-            status_code: 0,
-            feature_area: 'insights',
-            error_code: 'network_exception',
-          },
-          {
-            pathname,
-            user: {
-              id: session?.user?.id,
-              subscription_tier: session?.user?.subscription_tier,
-              auth_provider: session?.user?.auth_provider,
-            },
-            isLoggedIn: status === 'authenticated',
-          },
-        );
-      }
-      setError(e?.message || 'Failed to regenerate insights');
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
   const modePayload = insights?.mode_payload?.[statsMode];
   const isPremiumContext = insights ? insights.tier_context.isPremium : isPremium;
   const consistency = modePayload?.consistency ?? insights?.consistency ?? { label: 'insufficient' as const, stdDev: null };
   const consistencyLabel = consistency.label;
+  const roundsRecent = modePayload?.kpis.roundsRecent ?? 0;
+  const fallbackConfidence = deriveOverallConfidence({
+    hasInsights: Boolean(insights),
+    modePayload,
+    roundsRecent,
+    consistencyLabel,
+  });
+  const overallConfidence = normalizeOverallConfidence(insights?.confidence) ?? fallbackConfidence;
+  const overallConfidenceLabel = overallConfidence === 'high'
+    ? 'High'
+    : overallConfidence === 'medium'
+      ? 'Medium'
+      : 'Low';
   const efficiency = modePayload?.efficiency ?? insights?.efficiency ?? {
     fir: DEFAULT_EFFICIENCY_METRIC,
     gir: DEFAULT_EFFICIENCY_METRIC,
@@ -774,12 +777,13 @@ export default function InsightsPage() {
   const selectedModeProjection = insights?.projection_by_mode?.[statsMode] ?? null;
   const sgComponents = modePayload?.sgComponents ?? insights?.sg?.components;
   const sgHasComponentData = Boolean(sgComponents?.hasData);
-  const selectedTrajectory = classifyTrajectoryFromScoringDelta(
-    statsMode,
-    modePayload?.kpis.roundsRecent,
-    modePayload?.kpis.avgScoreRecent,
-    modePayload?.kpis.avgScoreBaseline,
-  );
+  const selectedTrajectory = selectedModeProjection?.trajectory
+    ?? classifyTrajectoryFromScoringDelta(
+      statsMode,
+      modePayload?.kpis.roundsRecent,
+      modePayload?.kpis.avgScoreRecent,
+      modePayload?.kpis.avgScoreBaseline,
+    );
   const trajectoryLabel = formatTrajectoryLabel(selectedTrajectory);
   const trajectoryChipTone =
     selectedTrajectory === 'improving'
@@ -969,22 +973,10 @@ export default function InsightsPage() {
   }, [sgHasAnyDelta, sgDeltaRows]);
   const sgComponentDeltaTooltip = useMemo(
     () => sgUseRecentAbsolute
-      ? `Showing recent strokes gained component values from your ${formatRoundCountLabel(sgRecentWindowRounds)} in this mode. Baseline deltas unlock once you have more than ${sgRecentWindowRounds} rounds.`
-      : `Shows each strokes gained component delta comparing your recent ${formatRoundCountLabel(sgRecentWindowRounds)} versus your baseline window of ${formatRoundCountLabel(sgBaselineWindowRounds)} in this mode. Positive means better than baseline, negative means worse.`,
+      ? `Showing recent strokes gained component values from your ${formatRoundCountLabel(sgRecentWindowRounds)} in this mode. Usual-level comparisons unlock once you have more than ${sgRecentWindowRounds} rounds.`
+      : `Shows each strokes gained component change comparing your recent ${formatRoundCountLabel(sgRecentWindowRounds)} versus your usual-level window of ${formatRoundCountLabel(sgBaselineWindowRounds)} in this mode. Positive means better than your usual level, negative means worse.`,
     [sgRecentWindowRounds, sgBaselineWindowRounds, sgUseRecentAbsolute],
   );
-  const aiPrimaryCard = useMemo(() => {
-    if (!insights?.cards?.length) return null;
-    return insights.cards[0] ?? null;
-  }, [insights]);
-
-  const aiPreviewCards = useMemo(() => {
-    if (isPremiumContext || !insights?.cards?.length) return [];
-    const start = 1;
-    const count = Math.min(5, Math.max(0, insights.cards.length - 1));
-    return insights.cards.slice(start, start + count);
-  }, [insights, isPremiumContext]);
-
   const sgTrendData = useMemo(() => {
     if (!insights) return null;
     const modeTrend = modePayload?.trend;
@@ -1047,7 +1039,7 @@ export default function InsightsPage() {
       ANALYTICS_EVENTS.insightsViewed,
       {
         insight_mode: statsMode,
-        rounds_lifetime: modePayload?.kpis?.roundsRecent ?? null,
+        rounds_recent: modePayload?.kpis?.roundsRecent ?? null,
         is_premium_view: isPremiumContext,
       },
       {
@@ -1062,38 +1054,8 @@ export default function InsightsPage() {
     );
   }, [insights, isPremiumContext, loading, modePayload?.kpis?.roundsRecent, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
 
-  useEffect(() => {
-    if (status !== 'authenticated') return;
-    if (loading || !insights || isPremiumContext) return;
-
-    const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:overall_insights_paywall`;
-    if (insightsPaywallViewedKeys.has(dedupeKey)) return;
-    insightsPaywallViewedKeys.add(dedupeKey);
-
-    captureClientEvent(
-      ANALYTICS_EVENTS.paywallViewed,
-      {
-        paywall_context: 'overall_insights',
-        locked_feature: 'overall_insights_cards',
-      },
-      {
-        pathname,
-        user: {
-          id: session?.user?.id,
-          subscription_tier: session?.user?.subscription_tier,
-          auth_provider: session?.user?.auth_provider,
-        },
-        isLoggedIn: true,
-      },
-    );
-  }, [insights, isPremiumContext, loading, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
-
   if (status === 'unauthenticated') return null;
   const showSkeletonContent = status === 'loading' || loading;
-  const overallInsightsTooltip = isPremiumContext
-    ? 'Overall Insights compares your recent rounds (up to 5) against your overall average to detect form trends.'
-    : 'Overall Insights compares your recent rounds (up to 5) against your last 20 rounds to detect form trends.';
-
   return (
     <div className="page-stack">
       <div className="dashboard-filters">
@@ -1241,15 +1203,33 @@ export default function InsightsPage() {
           <div className="insights-title">
             <Sparkles size={20} />
             <h3>Overall Insights</h3>
-            <InfoTooltip text={overallInsightsTooltip} />
           </div>
           <div className="overall-insights-actions">
             {showSkeletonContent ? (
               <span className="skeleton" style={{ display: 'inline-block', width: 78, height: 24, borderRadius: 999 }} />
             ) : (
-              <span className={`insights-badge ${isPremiumContext ? 'is-premium' : 'is-free'}`}>
-                {isPremiumContext ? 'Premium' : 'Free'}
-              </span>
+              <div ref={overallConfidenceTooltipRef} className="info-tooltip-container insights-confidence-tooltip">
+                <button
+                  type="button"
+                  className={`insights-confidence-pill is-${overallConfidence}`}
+                  aria-label={`Overall insights confidence: ${overallConfidenceLabel}`}
+                  onClick={() => setShowOverallConfidenceInfo((prev) => !prev)}
+                >
+                  {overallConfidenceLabel}
+                </button>
+                {showOverallConfidenceInfo && (
+                  <div
+                    ref={overallConfidenceContentRef}
+                    className={`info-tooltip-content ${overallConfidenceTooltipPosition} ${overallConfidenceTooltipVertical} ${overallConfidenceTooltipIsPositioned ? 'ready' : 'measuring'} insights-confidence-popover`}
+                  >
+                    <h4>Insight Confidence</h4>
+                    <p>
+                      This shows how much data GolfIQ has behind your Overall Insights. Low means early trends. Medium means some patterns are available. High means stronger data and clearer patterns.
+                    </p>
+                    <div className={`info-tooltip-arrow ${overallConfidenceTooltipPosition} ${overallConfidenceTooltipVertical}`} />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1257,61 +1237,22 @@ export default function InsightsPage() {
           <p className="secondary-text">
             Last updated {insights?.generated_at ? new Date(insights.generated_at).toLocaleString() : '-'}
           </p>
-          <button
-            type="button"
-            className="btn btn-toggle"
-            onClick={handleRegenerate}
-            disabled={regenerating || showSkeletonContent || !insights}
-          >
-            {regenerating ? <RefreshCw className="spinning" size={16} /> : <RefreshCw size={16} />} Regenerate
-          </button>
         </div>
         {error && <p className="error-text">{error}</p>}
 
         <div className="insights-content">
           {showSkeletonContent ? (
-            Array.from({ length: 6 }).map((_, idx) => (
+            Array.from({ length: 3 }).map((_, idx) => (
               <div key={`overall-insight-skeleton-${idx}`} className="insight-message insight-message-skeleton">
                 <div className="insight-message-content skeleton-insight-message-content">
                   <SkeletonText className="round-insights-line" lines={2} lineHeight={14} lastLineWidth="88%" />
                 </div>
               </div>
             ))
-          ) : isPremiumContext ? (
+          ) : (
             (insights?.cards ?? []).map((card, idx) => (
               <OverallInsightMessage key={`card-${idx}`} card={card} index={idx} />
             ))
-          ) : (
-            <>
-              {aiPrimaryCard ? (
-                <OverallInsightMessage card={aiPrimaryCard} index={0} />
-              ) : (
-                <OverallInsightMessage card="Premium insight preview" index={0} />
-              )}
-
-              <LockedSection
-                locked
-                title="Unlock full Overall Insights"
-                subtitle="See what's costing you strokes, your SG breakdown, and projected ranges."
-                showCta
-                ctaLabel="Unlock Full Insights"
-                onCtaClick={() => {
-                  trackUpgradeCtaClick('insights_overall_cards_lock');
-                  router.push('/pricing');
-                }}
-              >
-                <div className="insights-locked-preview-stack">
-                  {(aiPreviewCards.length
-                    ? aiPreviewCards
-                    : ['Premium insight preview', 'Premium insight preview', 'Premium insight preview', 'Premium insight preview', 'Premium insight preview']
-                  ).map((card, idx) => (
-                    <div key={`blur-card-${idx}`} className="overall-insight-fake">
-                      <OverallInsightMessage card={card} index={idx + 1} />
-                    </div>
-                  ))}
-                </div>
-              </LockedSection>
-            </>
           )}
         </div>
       </div>
@@ -1470,7 +1411,7 @@ export default function InsightsPage() {
               <InfoTooltip text="Based on your last 5 rounds. Lower variation means your scoring is more repeatable." />
             </div>
             <p className="consistency-badge">{formatConsistencyLabel(consistencyLabel)}</p>
-            {consistency.stdDev != null && (
+            {consistency.stdDev != null && consistency.stdDev >= 0.2 && (
               <span className="secondary-text consistency-stdev">+/- {consistency.stdDev.toFixed(1)} Strokes</span>
             )}
           </div>
@@ -1493,8 +1434,14 @@ export default function InsightsPage() {
       <section className="insights-sg-section">
         <LockedSection
           locked={!isPremiumContext}
-          title="Strokes Gained Trend (Premium)"
-          subtitle="See your SG Total trend over time to spot whether shot-value performance is improving or slipping."
+          title="See exactly what's costing you strokes"
+          subtitle="Break down your game and see how many strokes each part is adding or losing per round."
+          showCta={!isPremiumContext}
+          ctaLabel="Unlock Premium Insights"
+          onCtaClick={() => {
+            trackSgTrendUpgradeCtaClick();
+            router.push('/pricing');
+          }}
         >
           {sgTrendData ? (
             <TrendCard
@@ -1575,7 +1522,7 @@ export default function InsightsPage() {
                         />
                       )}
                     </div>
-                    <span className="sg-delta-value">{row.delta == null ? 'Not tracked' : formatSigned(row.delta)}</span>
+                    <span className="sg-delta-value">{row.delta == null ? 'Not shown' : formatSigned(row.delta)}</span>
                   </div>
                 );
               })}

@@ -70,11 +70,7 @@ describe('SG observability state space (16 combinations)', () => {
         weakSeparation: selection.weakSeparation,
       });
 
-      if (missingCount === 0) {
-        expect(focus.text.toLowerCase()).not.toContain('tracking ');
-      } else {
-        expect(focus.text.toLowerCase()).toContain('tracking ');
-      }
+      expect(focus.text.toLowerCase()).not.toContain('track ');
     });
   }
 });

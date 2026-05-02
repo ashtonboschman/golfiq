@@ -34,7 +34,7 @@ function payload(confidence: 'LOW' | 'MED' | 'HIGH') {
     messages: [
       'You shot 79 (+9), which is 2.8 strokes better than your recent average of 81.8.',
       'Approach was the biggest source of lost strokes.',
-      'Next round: Default to a center-green target unless the flag is clearly safe for your dispersion.',
+      'Next round: Play to the center of the green.',
     ],
     message_levels: ['success', 'warning', 'info'],
     confidence,
@@ -117,7 +117,7 @@ describe('RoundInsights confidence pill UI', () => {
       messages: [
         'You shot 89 (+19), which is 8.2 strokes above your recent average of 80.8.',
         'Approach was the biggest source of lost strokes.',
-        'Next round: Default to a center-green target unless the flag is clearly safe for your dispersion.',
+        'Next round: Play to the center of the green.',
       ],
       message_levels: ['warning', 'warning', 'info'],
     };
@@ -152,7 +152,7 @@ describe('RoundInsights confidence pill UI', () => {
     await screen.findByText('Performance Insights');
     expect(screen.getByText('You shot 79 (+9), which is 2.8 strokes better than your recent average of 81.8.')).toBeInTheDocument();
     expect(screen.getByText('Approach was the biggest source of lost strokes.')).toBeInTheDocument();
-    expect(screen.getByText('Next round: Default to a center-green target unless the flag is clearly safe for your dispersion.')).toBeInTheDocument();
+    expect(screen.getByText('Next round: Play to the center of the green.')).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: "Unlock exactly what's costing you strokes" })).toBeInTheDocument();
     expect(screen.getByText("See your biggest weakness and how many strokes it's costing per round.")).toBeInTheDocument();

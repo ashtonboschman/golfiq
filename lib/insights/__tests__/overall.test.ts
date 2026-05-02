@@ -58,7 +58,7 @@ describe('overall insights helpers', () => {
     expect(normalizeByMode([nine, eighteen], '18').map((r) => r.holes)).toEqual([18]);
   });
 
-  it('builds exactly 6 deterministic overall cards without emojis', () => {
+  it('builds exactly 3 deterministic overall cards without emojis', () => {
     const rounds = [
       mkRound({
         score: 78,
@@ -86,7 +86,7 @@ describe('overall insights helpers', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     const cards = buildDeterministicOverallCards({
@@ -94,11 +94,9 @@ describe('overall insights helpers', () => {
       recommendedDrill: 'Use one simple pre-shot routine on every shot.',
       missingStats: { fir: false, gir: false, putts: false, penalties: false },
       isPremium: true,
-      variantSeedBase: 'seed',
-      variantOffset: 0,
     });
 
-    expect(cards).toHaveLength(6);
+    expect(cards).toHaveLength(3);
     cards.forEach((card) => {
       expect(card.startsWith('?')).toBe(false);
       expect(card.startsWith('??')).toBe(false);

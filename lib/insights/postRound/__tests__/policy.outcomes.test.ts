@@ -92,7 +92,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-C',
     messageIndex: 1,
     expectedOutcome: 'M2-C',
-    expectedMessageFragment: 'did not meaningfully impact the score at 0.0 strokes',
+    expectedMessageFragment: "didn't make much difference at 0.0 strokes",
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0 },
@@ -130,7 +130,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-A',
     messageIndex: 2,
     expectedOutcome: 'M3-A',
-    expectedMessageFragment: 'Tracking FIR, GIR, and putts',
+    expectedMessageFragment: 'Next round:',
     input: {
       ...baseInput,
       missing: { fir: true, gir: true, putts: true, penalties: false },
@@ -140,7 +140,7 @@ const cases: OutcomeCase[] = [
     key: 'M3-B',
     messageIndex: 2,
     expectedOutcome: 'M3-B',
-    expectedMessageFragment: 'Tracking penalties',
+    expectedMessageFragment: 'Next round:',
     input: {
       ...baseInput,
       missing: { fir: false, gir: false, putts: false, penalties: true },

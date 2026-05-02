@@ -8,6 +8,7 @@ import { RoundInsightsSkeleton } from '@/components/skeleton/PageSkeletons';
 import { consumeRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { useAdaptiveTooltipPlacement } from '@/lib/ui/useAdaptiveTooltipPlacement';
 
 interface RoundInsightsProps {
   roundId: string;
@@ -171,7 +172,13 @@ export default function RoundInsights({
   const [error, setError] = useState<string | null>(null);
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
   const fetchedCacheKeyRef = useRef<string | null>(null);
-  const confidenceTooltipRef = useRef<HTMLDivElement | null>(null);
+  const {
+    containerRef: confidenceTooltipRef,
+    tooltipRef: confidenceContentRef,
+    displayPosition: confidenceTooltipPosition,
+    displayVertical: confidenceTooltipVertical,
+    isPositioned: confidenceTooltipIsPositioned,
+  } = useAdaptiveTooltipPlacement(showConfidenceInfo);
 
   const trackUpgradeClick = useCallback((ctaLocation: string) => {
     captureClientEvent(
@@ -316,12 +323,15 @@ export default function RoundInsights({
               {confidenceLabel ?? 'Medium'}
             </button>
             {showConfidenceInfo && (
-              <div className="info-tooltip-content center below ready insights-confidence-popover">
+              <div
+                ref={confidenceContentRef}
+                className={`info-tooltip-content ${confidenceTooltipPosition} ${confidenceTooltipVertical} ${confidenceTooltipIsPositioned ? 'ready' : 'measuring'} insights-confidence-popover`}
+              >
                 <h4>Insight Confidence</h4>
                 <p>
-                  This shows how much data GolfIQ has behind this round&apos;s insights. Low means the guidance is based on limited round detail. Medium means some tracked stats or trends are available. High means the insight is backed by stronger tracked data and clearer patterns.
+                  This shows how much data GolfIQ has behind this round&apos;s insights. Low means limited detail. Medium means some stats and trends are available. High means stronger data and clearer trends.
                 </p>
-                <div className="info-tooltip-arrow center below" />
+                <div className={`info-tooltip-arrow ${confidenceTooltipPosition} ${confidenceTooltipVertical}`} />
               </div>
             )}
           </div>

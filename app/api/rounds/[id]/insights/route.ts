@@ -30,6 +30,7 @@ type ViewerEntitlements = {
   showStrokesGained: boolean;
 };
 type ScoreDeltaBucket = 'better' | 'near' | 'worse';
+type RoundContextKey = 'real' | 'simulator' | 'practice';
 
 function sanitizeWhitespace(text: string): string {
   return String(text ?? '').replace(/\s+/g, ' ').trim();
@@ -157,7 +158,7 @@ function buildFreeMessage2(
     return `${worstLabel} was the strongest part of the round.`;
   }
   if (outcome === 'M2-C') {
-    return `${worstLabel} held steady and didn't meaningfully swing the score.`;
+    return `${worstLabel} didn't make much difference to your score.`;
   }
   return sanitizeWhitespace(currentMessage);
 }
@@ -181,7 +182,7 @@ function buildViewerMessages(
     if (index === 0) {
       // Free always gets a score-focused headline, not SG component precision.
       if (noBaselineHistory) {
-        // Keep the baseline-building phrase for first/no-baseline rounds.
+        // Keep the setup phrase for first/no-history rounds.
         return firstNSentences(message, 2);
       }
       return sentenceOne(message);
@@ -386,6 +387,11 @@ type RoundOrderingEntry = {
   createdAt: Date;
 };
 
+function resolveHistoryRoundContext(raw: unknown): RoundContextKey {
+  if (raw === 'simulator' || raw === 'practice' || raw === 'real') return raw;
+  return 'real';
+}
+
 function resolveRoundOrdinalContext(roundId: bigint, rounds: RoundOrderingEntry[]): {
   roundNumber: number;
   previousScore: number | null;
@@ -403,9 +409,12 @@ function resolveRoundOrdinalContext(roundId: bigint, rounds: RoundOrderingEntry[
   };
 }
 
-async function getRoundsInLoggedOrder(userId: bigint): Promise<RoundOrderingEntry[]> {
+async function getRoundsInLoggedOrder(
+  userId: bigint,
+  roundContext: RoundContextKey,
+): Promise<RoundOrderingEntry[]> {
   const rounds = await prisma.round.findMany({
-    where: { userId },
+    where: { userId, roundContext },
     select: { id: true, score: true, createdAt: true },
     // Onboarding should follow logging sequence, not play-date sequence.
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -549,8 +558,9 @@ async function generateInsightsInternal(
   const currentSegment = ((round as any).teeSegment ?? 'full') as TeeSegment;
   const currentContext = resolveTeeContext(round.tee, currentSegment);
   const currentHolesPlayed = currentContext.holes;
+  const historyRoundContext = resolveHistoryRoundContext((round as any).roundContext);
 
-  const roundsInOrder = await getRoundsInLoggedOrder(userId);
+  const roundsInOrder = await getRoundsInLoggedOrder(userId, historyRoundContext);
   const { roundNumber, previousScore, totalRounds } = resolveRoundOrdinalContext(roundId, roundsInOrder);
   const isOnboardingRound = false;
   const shouldBumpVariant = generationOptions.forceRegenerate && generationOptions.bumpVariant && !isOnboardingRound;
@@ -565,7 +575,7 @@ async function generateInsightsInternal(
   });
 
   const last5Rounds = await prisma.round.findMany({
-    where: { userId, id: { not: roundId } },
+    where: { userId, roundContext: historyRoundContext, id: { not: roundId } },
     orderBy: { date: 'desc' },
     take: 5,
     include: {

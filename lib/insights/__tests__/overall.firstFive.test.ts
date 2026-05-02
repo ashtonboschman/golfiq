@@ -41,7 +41,7 @@ describe('overall insights first-5-round behavior', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.analysis.strength.name).toBe('off_tee');
@@ -57,12 +57,12 @@ describe('overall insights first-5-round behavior', () => {
     expect(sg!.recentAvg.penalties).toBeCloseTo(sg!.baselineAvg.penalties!, 6);
   });
 
-  it('shows card-1 baseline comparison copy (not unavailable copy) at exactly 5 rounds', () => {
+  it('returns 3-card copy at exactly 5 rounds', () => {
     const payload = computeOverallPayload({
       rounds: buildFiveRounds(),
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     const cards = buildDeterministicOverallCards({
@@ -70,15 +70,11 @@ describe('overall insights first-5-round behavior', () => {
       recommendedDrill: 'Use one simple pre-shot routine on every shot.',
       missingStats: { fir: false, gir: false, putts: false, penalties: false },
       isPremium: true,
-      variantSeedBase: 'first-five-card1-seed',
-      variantOffset: 0,
       mode: 'combined',
     });
 
-    expect(cards[0]).toContain('Scoring trend:');
-    expect(cards[0]).toContain('Latest round');
-    expect(cards[0].toLowerCase()).not.toContain('not available');
-    expect(cards[0].toLowerCase()).not.toContain('no combined rounds');
+    expect(cards).toHaveLength(3);
+    expect(cards[0].toLowerCase()).toContain('usual level');
   });
 
   it('uses a 5-round consistency window (4 rounds insufficient, 5 rounds evaluated)', () => {
@@ -86,7 +82,7 @@ describe('overall insights first-5-round behavior', () => {
       rounds: Array.from({ length: 4 }, (_, i) => mkRound(i)),
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
     expect(fourRoundsPayload.consistency.label).toBe('insufficient');
     expect(fourRoundsPayload.consistency.stdDev).toBeNull();
@@ -95,7 +91,7 @@ describe('overall insights first-5-round behavior', () => {
       rounds: buildFiveRounds(),
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
     expect(fiveRoundsPayload.consistency.label).toBe('stable');
     expect(fiveRoundsPayload.consistency.stdDev).toBe(0);
@@ -112,7 +108,7 @@ describe('overall insights first-5-round behavior', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.trajectory).toBe('flat');
@@ -130,7 +126,7 @@ describe('overall insights first-5-round behavior', () => {
       rounds,
       isPremium: false,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.analysis.window_baseline).toBe('last20');
@@ -143,4 +139,3 @@ describe('overall insights first-5-round behavior', () => {
     expect(payload.efficiency.penaltiesPerRound.recent).toBeCloseTo(payload.efficiency.penaltiesPerRound.baseline!, 6);
   });
 });
-

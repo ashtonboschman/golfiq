@@ -128,7 +128,8 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[2]).toBe('M3-B');
-    expect(out.messages[2]).toContain('Tracking penalties');
+    expect(out.messages[2]).toContain('Next round:');
+    expect(out.messages[2].toLowerCase()).not.toContain('track ');
   });
 
   test('single measured negative avoids comparative "best" phrasing', () => {
@@ -154,7 +155,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[0]).toBe('M1-B');
-    expect(out.messages[0]).toContain('Only Putting was tracked');
+    expect(out.messages[0]).toContain('Only Putting was logged');
     expect(out.messages[0]).toContain('(38 total putts)');
     expect(out.messages[0].toLowerCase()).not.toContain('best measured');
   });
@@ -243,7 +244,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.outcomes[1]).toBe('M2-D');
     expect(out.messages[1].toLowerCase()).toMatch(
-      /short game and recovery shots|parts of the round these stats do not fully capture|not every scoring swing is captured|areas outside this breakdown|other untracked details/,
+      /short game and getting up and down|not shown in these stats|other parts of your game not shown in these stats/,
     );
   });
 
@@ -448,7 +449,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.messages[1].toLowerCase()).not.toContain('rounds like this');
   });
 
-  test('score-only with baseline in M1 avoids trend/baseline duplication in M2', () => {
+  test('score-only with usual-level context in M1 avoids trend duplication in M2', () => {
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
         measuredComponents: [],
@@ -463,6 +464,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.messages[0].toLowerCase()).toContain('recent average');
     expect(out.messages[1].toLowerCase()).not.toContain('recent scoring baseline');
+    expect(out.messages[1].toLowerCase()).not.toContain('recent usual scoring level');
     expect(out.messages[1].toLowerCase()).not.toContain('recent average');
     expect(out.messages[1].toLowerCase()).not.toContain('recent pattern');
     expect(out.messages[1].toLowerCase()).not.toContain('normal scoring range');
@@ -470,7 +472,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.messages[1].toLowerCase()).not.toContain('recent trend');
   });
 
-  test('no-baseline M1 includes baseline-building phrase', () => {
+  test('no-usual-level M1 includes setup phrase', () => {
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
         confidence: 'LOW',
@@ -487,11 +489,11 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.messages[0]).toContain('You shot 46 (+10).');
     expect(out.messages[0]).toMatch(
-      /A solid starting point to build from\.|A good baseline to build from\.|This gives you a starting point for future rounds\./,
+      /A solid starting point to build from\.|A good usual level to build from\.|This gives you a starting point for future rounds\./,
     );
   });
 
-  test('baseline M1 keeps recent-average comparison and does not append baseline-building suffix', () => {
+  test('usual-level M1 keeps recent-average comparison and does not append setup suffix', () => {
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
         confidence: 'MED',
@@ -508,7 +510,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.messages[0]).toContain('recent average');
     expect(out.messages[0]).not.toContain('A solid starting point to build from.');
-    expect(out.messages[0]).not.toContain('A good baseline to build from.');
+    expect(out.messages[0]).not.toContain('A good usual level to build from.');
     expect(out.messages[0]).not.toContain('This gives you a starting point for future rounds.');
   });
 });

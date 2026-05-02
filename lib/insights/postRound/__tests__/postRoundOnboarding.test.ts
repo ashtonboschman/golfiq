@@ -14,7 +14,7 @@ describe('buildOnboardingPostRoundInsights', () => {
     expect(out.messages[0]).toContain('You shot 92 (+20)');
     expect(out.messages[1]).toContain('Two more rounds');
     expect(out.messages[2]).toContain('Next round:');
-    expect(out.messages[2].toLowerCase()).toContain('track fairways, greens, putts, and penalties');
+    expect(out.messages[2]).toBe('Next round: Log your score again.');
   });
 
   test('round 2 maps to better/same/worse outcomes from previous score', () => {
@@ -67,7 +67,7 @@ describe('buildOnboardingPostRoundInsights', () => {
     expect(worse.outcomes).toEqual(['OB-3-WORSE', 'OB-3-WORSE', 'OB-3-WORSE']);
 
     for (const output of [better, same, worse]) {
-      expect(output.messages[2].toLowerCase()).toContain('full post-round insights start');
+      expect(output.messages[2]).toBe("Next round: You'll start getting full insights.");
     }
   });
 

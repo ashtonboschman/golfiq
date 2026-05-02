@@ -204,6 +204,116 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(savedInsights.message_outcomes[0]).not.toMatch(/^OB-/);
   });
 
+  it('scopes real-round context queries to real rounds only', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 74,
+      firHit: 7,
+      girHit: 9,
+      putts: 33,
+      penalties: 1,
+      roundContext: 'real',
+      teeSegment: 'full',
+      tee: makeTee(),
+    });
+
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+        { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+        { id: BigInt(30), score: 76, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+        { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+      ]);
+
+    await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: BigInt(1),
+          roundContext: 'real',
+        }),
+      }),
+    );
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: BigInt(1),
+          roundContext: 'real',
+        }),
+      }),
+    );
+  });
+
+  it('scopes simulator-round context queries to simulator rounds', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 74,
+      firHit: 7,
+      girHit: 9,
+      putts: 33,
+      penalties: 1,
+      roundContext: 'simulator',
+      teeSegment: 'full',
+      tee: makeTee(),
+    });
+
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+        { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+        { id: BigInt(30), score: 76, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+        { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+      ]);
+
+    await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: BigInt(1),
+          roundContext: 'simulator',
+        }),
+      }),
+    );
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: BigInt(1),
+          roundContext: 'simulator',
+        }),
+      }),
+    );
+  });
+
   it('returns generic errors for unexpected GET failures', async () => {
     mockedPrisma.user.findUnique.mockRejectedValueOnce(new Error('sensitive backend failure'));
 
@@ -291,7 +401,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     );
 
     expect(dominant.messages[1].toLowerCase()).toMatch(
-      /short game and recovery shots|parts of the round these stats do not fully capture|not every scoring swing is captured in the tracked stats|areas outside this breakdown|other untracked details/,
+      /short game and getting up and down|not shown in these stats|other parts of your game not shown in these stats/,
     );
     expect(dominant.messages.join(' ').toLowerCase()).not.toContain('residual');
 
@@ -353,7 +463,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     );
 
     expect(belowThreshold.messages.join(' ').toLowerCase()).not.toMatch(
-      /short game and recovery shots|parts of the round these stats do not fully capture|areas outside this breakdown|other untracked details/,
+      /short game and getting up and down|not shown in these stats|other parts of your game not shown in these stats/,
     );
   });
 
@@ -397,7 +507,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[1]).not.toMatch(/\b\d+(\.\d)? strokes\b/i);
   });
 
-  it('round 1 score-only premium M1 includes baseline-building phrase when no baseline exists', async () => {
+  it('round 1 score-only premium M1 includes setup phrase when no history exists', async () => {
     mockedPrisma.round.findUnique.mockResolvedValue({
       id: BigInt(40),
       userId: BigInt(1),
@@ -438,12 +548,12 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     expect(insights.messages[0]).toContain('You shot 46');
     expect(insights.messages[0]).toMatch(
-      /A solid starting point to build from\.|A good baseline to build from\.|This gives you a starting point for future rounds\./,
+      /A solid starting point to build from\.|A good usual level to build from\.|This gives you a starting point for future rounds\./,
     );
     expect(insights.message_levels[0]).toBe('success');
   });
 
-  it('round 1 score-only free M1 keeps baseline-building phrase (not first sentence only)', async () => {
+  it('round 1 score-only free M1 keeps setup phrase (not first sentence only)', async () => {
     mockedPrisma.round.findUnique.mockResolvedValue({
       id: BigInt(40),
       userId: BigInt(1),
@@ -484,7 +594,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     expect(insights.messages[0]).toContain('You shot 46');
     expect(insights.messages[0]).toMatch(
-      /A solid starting point to build from\.|A good baseline to build from\.|This gives you a starting point for future rounds\./,
+      /A solid starting point to build from\.|A good usual level to build from\.|This gives you a starting point for future rounds\./,
     );
     expect(insights.messages[0]).not.toBe('You shot 46 (+10).');
     expect(insights.message_levels[0]).toBe('success');
@@ -795,7 +905,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           residualDominant: false,
           weakSeparation: false,
         },
-        expectedText: "Off The Tee held steady and didn't meaningfully swing the score.",
+        expectedText: "Off The Tee didn't make much difference to your score.",
         expectedLevel: 'info',
       },
     ] as const;

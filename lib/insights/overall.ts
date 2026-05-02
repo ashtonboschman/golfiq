@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+﻿import crypto from 'crypto';
 import { formatDate } from '@/lib/formatters';
 
 export type StatsMode = 'combined' | '9' | '18';
@@ -130,8 +130,11 @@ type EfficiencyMetric = {
   coverageRecent: string;
 };
 
+type OverallConfidence = 'high' | 'medium' | 'low';
+
 export type OverallInsightsPayload = {
   generated_at: string;
+  confidence?: OverallConfidence;
   analysis: {
     window_recent: number;
     window_baseline: 'last20' | 'overall';
@@ -222,9 +225,6 @@ export type OverallInsightsPayload = {
   cards: string[];
   cards_by_mode: Record<StatsMode, string[]>;
   cards_locked_count: number;
-  refresh: {
-    manual_cooldown_hours: number;
-  };
   mode_payload: Record<StatsMode, ModePayload>;
   handicap_trend: {
     labels: string[];
@@ -254,11 +254,11 @@ const HANDICAP_PROJECTED_SHIFT_MAX = 1.2;
 
 const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
   off_tee: [
-    'Fairway corridor: Pick a target and define a 25-yard corridor. Hit 12 drives with full routine. Score 2 = inside corridor, 1 = in play but outside corridor, 0 = clear trouble (would be lost ball or penalty). Goal: 18 points.',
+    'Fairway target area: Pick a target and define a 25-yard target area. Hit 12 drives with full routine. Score 2 = inside the target area, 1 = in play but outside the area, 0 = clear trouble (would be lost ball or penalty). Goal: 18 points.',
     'Start-line gate: Set a gate 3 feet in front of the ball with two tees. Hit 10 drives starting through the gate. Goal: 7 of 10 through the gate.',
-    'Driver and 3-wood split: Alternate driver and 3-wood to the same target line, 6 each. Track in-play rate and corridor. Goal: 9 of 12 in play, with at least 6 inside a 30-yard corridor.',
+    'Driver and 3-wood split: Alternate driver and 3-wood to the same target line, 6 each. Track in-play rate and target area. Goal: 9 of 12 in play, with at least 6 inside a 30-yard target area.',
     'Finish hold: Hit 9 drives and hold your finish for 3 seconds. Any balance break is a failed rep. Goal: 9 clean finishes.',
-    'Safe-side miss: Pick a safe side and a danger side. Hit 12 drives. Any miss must finish on the safe side. Goal: 10 of 12 safe-side outcomes.',
+    'Safe-side miss: Pick a safe side and a danger side. Hit 12 drives. Any miss must finish on the safe side. Goal: 10 of 12 safe-side results.',
     'Tee height test: Hit 3 drives low tee, 3 normal, 3 high. Choose the best strike pattern and hit 6 more at that height. Goal: 7 of 9 solid strikes and zero clear trouble balls.',
     'In-play pressure set: Hit 3 drives in a row that finish in play. Repeat until you complete 4 sets. Any clear trouble ball resets the set. Goal: complete 4 sets.',
     'Intermediate target starts: Pick a downrange target and an intermediate target. Hit 10 drives focusing only on start line over the intermediate target. Goal: 8 of 10 on intended start line.',
@@ -301,7 +301,7 @@ const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
     'Club-down safety: On any hole with a penalty zone, take one less club and prioritize in-play. Goal: zero penalties on those holes.',
     'Miss-side rule: On approaches with short-side risk, aim to the safe side and accept longer putts. Goal: zero short-side recoveries that lead to doubles.',
     'Recovery scoring: A recovery is successful if the next shot is from fairway or a clean angle. Track up to 6 recoveries. Goal: 5 successful recoveries.',
-    'Decision audit: After the round, label each penalty as decision or execution. Next round, apply a conservative target on every decision-penalty hole. Goal: eliminate repeat decision penalties.',
+    'Decision audit: After the round, label each penalty as decision or shot. Next round, apply a conservative target on every decision-penalty hole. Goal: eliminate repeat decision penalties.',
     'Layup habit: When reaching requires a perfect strike, lay up to a full wedge yardage. Track up to 6 opportunities. Goal: 6 conservative layups executed.',
   ],
 
@@ -327,7 +327,7 @@ const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
     'Par-3 rule: Aim center-green on every par 3. Goal: hit 50 percent of greens or finish pin-high on the safe side.',
     'Smart doubles: When out of position, play for bogey instead of forcing par. Goal: zero doubles from decision errors.',
     'One stat goal: Pick one stat goal for the round and write it down before teeing off. Goal: review it after and log the result.',
-    'Green-light only: Attack pins only on green-light numbers and send all others to center. Goal: zero forced carries when you are between clubs.',
+    "Green-light only: Attack pins only on green-light numbers and send all others to center. Goal: zero forced carries when you're between clubs.",
     'Reset between shots: After every shot, take one full breath and re-commit to the next target. Goal: zero rushed next swings.',
   ],
 };
@@ -341,365 +341,15 @@ const OVERALL_COPY_BANNED_TOKENS = [
   '\u2014',
   '\u2013',
   '&mdash;',
-  '—',
-  '–',
+  'â€”',
+  'â€“',
 ] as const;
-
-const CARD1_VARIANTS = {
-  A: [
-    'Scoring trend: Latest round {scoreCompact}. Not enough rounds in this mode to compare recent vs baseline yet.',
-    'Scoring trend: Latest round {scoreCompact}. This mode needs more rounds before baseline comparison is available.',
-    'Scoring trend: Latest round {scoreCompact}. Recent vs baseline scoring is locked until this mode has enough history.',
-    'Scoring trend: Latest round {scoreCompact}. Log more rounds in this mode to activate trend comparison.',
-    'Scoring trend: Latest round {scoreCompact}. Baseline comparison unlocks after more rounds are logged in this mode.',
-    'Scoring trend: Latest round {scoreCompact}. Trend comparison is not ready in this mode yet.',
-    'Scoring trend: Latest round {scoreCompact}. This mode does not have enough history to evaluate a scoring shift.',
-    'Scoring trend: Latest round {scoreCompact}. Add more rounds in this mode to build a scoring baseline.',
-    'Scoring trend: Latest round {scoreCompact}. Score context will populate after more valid rounds in this mode.',
-    'Scoring trend: Latest round {scoreCompact}. Comparison needs more mode-specific rounds.',
-  ],
-
-  B: [
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring matches your baseline, holding steady.',
-    'Scoring trend: Latest round {scoreCompact}. Recent rounds are in line with your baseline scoring level.',
-    'Scoring trend: Latest round {scoreCompact}. No meaningful scoring shift versus baseline.',
-    'Scoring trend: Latest round {scoreCompact}. Scoring is stable relative to baseline.',
-    'Scoring trend: Latest round {scoreCompact}. This stretch is tracking at your normal scoring level.',
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring is holding near baseline.',
-    'Scoring trend: Latest round {scoreCompact}. Your scoring level is steady versus baseline.',
-    'Scoring trend: Latest round {scoreCompact}. Recent results mirror your long-term scoring average.',
-    'Scoring trend: Latest round {scoreCompact}. Baseline comparison shows a stable scoring band.',
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring is aligned with baseline expectations.',
-  ],
-
-  C: [
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring is {delta} strokes better than baseline.',
-    'Scoring trend: Latest round {scoreCompact}. Recent rounds are {delta} strokes lower than baseline.',
-    'Scoring trend: Latest round {scoreCompact}. You are scoring {delta} strokes better than baseline in this window.',
-    'Scoring trend: Latest round {scoreCompact}. Baseline comparison shows a {delta}-stroke scoring gain.',
-    'Scoring trend: Latest round {scoreCompact}. Scoring has moved {delta} strokes in the right direction versus baseline.',
-    'Scoring trend: Latest round {scoreCompact}. This stretch is {delta} strokes better than your baseline level.',
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring is ahead of baseline by {delta} strokes.',
-    'Scoring trend: Latest round {scoreCompact}. Your current scoring window is {delta} strokes better than baseline.',
-    'Scoring trend: Latest round {scoreCompact}. Baseline comparison shows a {delta}-stroke improvement.',
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring is stronger than baseline by {delta} strokes.',
-  ],
-
-  D: [
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring is {delta} strokes worse than baseline.',
-    'Scoring trend: Latest round {scoreCompact}. Recent rounds are {delta} strokes higher than baseline.',
-    'Scoring trend: Latest round {scoreCompact}. You are scoring {delta} strokes above baseline in this window.',
-    'Scoring trend: Latest round {scoreCompact}. Baseline comparison shows a {delta}-stroke drop in scoring.',
-    'Scoring trend: Latest round {scoreCompact}. Scoring has slipped by {delta} strokes versus baseline.',
-    'Scoring trend: Latest round {scoreCompact}. This stretch is running {delta} strokes above your baseline level.',
-    'Scoring trend: Latest round {scoreCompact}. Recent scoring is behind baseline by {delta} strokes.',
-    'Scoring trend: Latest round {scoreCompact}. Baseline comparison shows a {delta}-stroke setback.',
-    'Scoring trend: Latest round {scoreCompact}. Recent results are {delta} strokes above baseline.',
-    'Scoring trend: Latest round {scoreCompact}. This recent window is {delta} strokes worse than baseline.',
-  ],
-
-  E: [
-    'Scoring trend: No {modeLabel} rounds logged yet in this view. Log {modeLabel} rounds to activate scoring context.',
-    'Scoring trend: This mode has no round history yet. Add {modeLabel} rounds to unlock baseline comparison.',
-    'Scoring trend: Scoring cannot be evaluated in this view until {modeLabel} rounds are logged.',
-    'Scoring trend: Baseline comparison requires {modeLabel} rounds in this view.',
-    'Scoring trend: Add {modeLabel} rounds to build a scoring baseline in this view.',
-    'Scoring trend: Trend analysis is locked until {modeLabel} rounds exist in this view.',
-    'Scoring trend: Log {modeLabel} rounds to establish a scoring trend here.',
-    'Scoring trend: This view activates after {modeLabel} rounds are logged.',
-    'Scoring trend: Add {modeLabel} rounds to unlock recent vs baseline scoring.',
-    'Scoring trend: This view needs {modeLabel} rounds before it can show scoring context.',
-  ],
-} as const;
-
-const CARD2_VARIANTS = {
-  A: [
-    'Strength: Not enough tracked detail yet to name one clear strength.',
-    'Strength: Track more complete stats to separate which area is truly leading.',
-    'Strength: This read needs more full-stat rounds before a strength stands out.',
-    'Strength: Keep logging full stats so the strongest area separates cleanly.',
-    'Strength: Coverage is too limited right now to call a reliable strength.',
-    'Strength: Log more full-stat rounds to confirm which component is leading.',
-    'Strength: The current data does not separate a clear leader yet.',
-    'Strength: Add consistent full tracking to lock in the top strength.',
-    'Strength: More tracked detail is needed before one area clearly leads.',
-    'Strength: Track full stats so the strength call is backed by stronger evidence.',
-  ],
-
-  B: [
-    'Strength: {label} is your biggest positive shift at +{delta} strokes versus baseline.',
-    'Strength: {label} is up +{delta} strokes versus baseline, leading your recent gains.',
-    'Strength: {label} is +{delta} strokes better than baseline, standing out as your top strength.',
-    'Strength: {label} is delivering a +{delta}-stroke gain versus baseline, the clearest edge in this window.',
-    'Strength: {label} is trending +{delta} strokes versus baseline, driving your strongest improvement signal.',
-    'Strength: {label} is +{delta} strokes versus baseline, your best moving component right now.',
-    'Strength: {label} is up +{delta} strokes versus baseline, the most meaningful lift in this stretch.',
-    'Strength: {label} is +{delta} strokes stronger than baseline, setting the direction for this window.',
-    'Strength: {label} is producing a +{delta}-stroke advantage versus baseline, your clearest strength read.',
-    'Strength: {label} is +{delta} strokes versus baseline, the top positive driver in this sample.',
-  ],
-
-  C: [
-    'Strength: {label} is leading, but the gap to the other areas is small.',
-    'Strength: {label} is first right now, with tight separation across components.',
-    'Strength: {label} edges the others, but the spread remains narrow.',
-    'Strength: {label} is on top in a closely grouped set.',
-    'Strength: {label} leads by a small margin, without clear dominance.',
-    'Strength: {label} ranks highest, but the components are clustered.',
-    'Strength: {label} is the narrow leader in this window.',
-    'Strength: {label} sits first, with limited separation overall.',
-    'Strength: {label} is leading slightly in a tight field.',
-    'Strength: {label} is ahead, but the group is still compact.',
-  ],
-
-  D: [
-    'Strength: {label} is leading so far, but this read is based on limited coverage.',
-    'Strength: {label} is the early leader, with more full tracking needed to confirm it.',
-    'Strength: {label} ranks first in the current window, pending more rounds for stability.',
-    'Strength: {label} is on top in this small sample, with more data needed to lock it in.',
-    'Strength: {label} is currently the best area, but the dataset is still thin.',
-    'Strength: {label} leads right now, with additional rounds needed for confirmation.',
-    'Strength: {label} is the top signal so far, with limited history in this mode.',
-    'Strength: {label} sits first at this stage, supported by a small set of rounds.',
-    'Strength: {label} is ahead in this window, with more tracking required to solidify it.',
-    'Strength: {label} is leading early, but needs more full-stat rounds to confirm.',
-  ],
-
-  E: [
-    'Strength: {label} is holding up best, even though the overall window is negative.',
-    'Strength: {label} is the most resilient area in this stretch.',
-    'Strength: {label} is limiting losses better than the other components.',
-    'Strength: {label} is the steadiest area during a tough run.',
-    'Strength: {label} is maintaining the highest level among the measured areas.',
-    'Strength: {label} is the most stable component in this sample.',
-    'Strength: {label} is the strongest relative performer in a negative phase.',
-    'Strength: {label} is showing the best relative control across components.',
-    'Strength: {label} is the strongest area available in this window.',
-    'Strength: {label} is holding up best compared to the rest, despite the overall trend.',
-  ],
-} as const;
-
-const CARD3_VARIANTS = {
-  A: [
-    'Opportunity: Not enough tracked detail yet to name one clear next focus.',
-    'Opportunity: Track more complete stats to separate the top improvement area.',
-    'Opportunity: This read needs more full-stat rounds before one priority stands out.',
-    'Opportunity: Keep logging full stats so the next focus separates cleanly.',
-    'Opportunity: Coverage is too limited right now to call a reliable priority.',
-    'Opportunity: Log more full-stat rounds to confirm which component is trailing.',
-    'Opportunity: The current data does not separate a clear focus yet.',
-    'Opportunity: Add consistent full tracking to lock in the next priority.',
-    'Opportunity: More tracked detail is needed before one area stands out as the main opportunity.',
-    'Opportunity: Track full stats so the focus call is backed by stronger evidence.',
-  ],
-
-  B: [
-    'Opportunity: {label} is -{delta} strokes versus baseline, the clearest place to gain strokes back.',
-    'Opportunity: {label} is trending -{delta} strokes versus baseline, creating the biggest scoring drag in this window.',
-    'Opportunity: {label} is -{delta} strokes below baseline, the top improvement target right now.',
-    'Opportunity: {label} is down -{delta} strokes versus baseline, making it the first area to address.',
-    'Opportunity: {label} is under baseline by -{delta} strokes, the top priority in this stretch.',
-    'Opportunity: {label} is -{delta} strokes versus baseline, the biggest gap in this sample.',
-    'Opportunity: {label} has dropped by -{delta} strokes versus baseline, setting the main focus.',
-    'Opportunity: {label} is -{delta} strokes relative to baseline, the most direct path to scoring improvement.',
-    'Opportunity: {label} is -{delta} strokes off baseline, the clearest opportunity to improve.',
-    'Opportunity: {label} is producing a -{delta}-stroke deficit versus baseline, defining the priority in this window.',
-  ],
-
-  C: [
-    'Opportunity: {label} is lowest, but the gap to the other areas is small.',
-    'Opportunity: {label} sits slightly behind the others, with tight separation across components.',
-    'Opportunity: {label} is currently last, though the spread remains narrow.',
-    'Opportunity: {label} trails modestly, making it the next logical focus.',
-    'Opportunity: {label} is behind the group, but margins remain small.',
-    'Opportunity: {label} ranks lowest in a closely grouped set.',
-    'Opportunity: {label} sits last, without clear underperformance.',
-    'Opportunity: {label} is the cleanest next focus in an otherwise balanced window.',
-    'Opportunity: {label} is slightly below the others, pointing to incremental upside.',
-    'Opportunity: {label} is the next area to tighten in a tightly grouped sample.',
-  ],
-
-  D: [
-    'Opportunity: {label} is the current priority, but this read is based on limited coverage.',
-    'Opportunity: {label} ranks lowest so far, with more full tracking needed to confirm it.',
-    'Opportunity: {label} is the early focus, pending more rounds for stability.',
-    'Opportunity: {label} sits last in this small sample, with more data needed to lock it in.',
-    'Opportunity: {label} is the early improvement signal, with additional rounds needed for confirmation.',
-    'Opportunity: {label} is currently lowest, but the dataset is still thin.',
-    'Opportunity: {label} trails in early coverage, requiring more rounds to solidify the read.',
-    'Opportunity: {label} is the likely next focus at this stage, pending stronger evidence.',
-    'Opportunity: {label} ranks last so far, with more tracking needed to confirm the priority.',
-    'Opportunity: {label} is lowest early, but needs more full-stat rounds to confirm.',
-  ],
-
-  E: [
-    'Opportunity: {label} ranks lowest so far, but separation across areas is tight.',
-    'Opportunity: {label} sits last in a closely grouped sample.',
-    'Opportunity: {label} is currently lowest, though margins remain narrow.',
-    'Opportunity: {label} trails slightly within a tight cluster.',
-    'Opportunity: {label} is bottom-ranked so far, without strong separation.',
-    'Opportunity: {label} ranks last in early data, with only modest differences.',
-    'Opportunity: {label} is currently lowest, and the spread remains compact.',
-    'Opportunity: {label} sits at the bottom of a narrow grouping.',
-    'Opportunity: {label} is lowest in this sample, but differences remain small.',
-    'Opportunity: {label} is bottom-ranked in a tightly grouped window.',
-  ],
-} as const;
-
-const CARD4_VARIANTS = {
-  A: [
-    'Priority first: Track {missingList} each round so the plan is grounded in complete data.',
-    'Priority first: Log {missingList} each round so the read reflects what happened on course.',
-    'Priority first: Add {missingList} so the next recommendation is more specific.',
-    'Priority first: Record {missingList} so strengths and priorities separate cleanly.',
-    'Priority first: Track {missingList} consistently so your practice target stays accurate.',
-    'Priority first: Log {missingList} so the priority is backed by stronger evidence.',
-    'Priority first: Capture {missingList} each round so guidance stays precise.',
-    'Priority first: Add {missingList} so the next focus is based on full stats.',
-    'Priority first: Track {missingList} to reduce noise and sharpen takeaways.',
-    'Priority first: Log {missingList} every round so the next drill fits your trends.',
-  ],
-
-  B: Array.from({ length: 10 }, () => 'Priority first: {drill}') as unknown as readonly string[],
-
-  C: [
-    'Priority first: {drillInline} Track {missingList} next round to tighten the follow-up.',
-    'Priority first: {drillInline} Log {missingList} next round so the next call is clearer.',
-    'Priority first: {drillInline} Record {missingList} next round to sharpen the next recommendation.',
-    'Priority first: {drillInline} Add {missingList} next round so the focus is more specific.',
-    'Priority first: {drillInline} Track {missingList} next round to reduce noise.',
-    'Priority first: {drillInline} Log {missingList} next round so strengths and priorities separate cleanly.',
-    'Priority first: {drillInline} Capture {missingList} next round so future reads are more reliable.',
-    'Priority first: {drillInline} Keep {missingList} tracked next round so the plan stays accurate.',
-    'Priority first: {drillInline} Log {missingList} next round for cleaner separation.',
-    'Priority first: {drillInline} Track {missingList} next round for better precision.',
-  ],
-} as const;
-
-const CARD5_VARIANTS_BY_OPPORTUNITY: Record<
-  'off_tee' | 'approach' | 'putting' | 'penalties' | 'general',
-  readonly string[]
-> = {
-  off_tee: [
-    'On-course strategy: Pick the tee line that removes the penalty side, even if it leaves a longer approach.',
-    'On-course strategy: Start every tee shot with a safe-side miss plan, then aim to protect it.',
-    'On-course strategy: Favor the widest landing area off the tee. Distance is secondary.',
-    'On-course strategy: Choose a conservative target, then commit to a start line that keeps trouble out.',
-    'On-course strategy: When hazard is in play, aim away from it and treat the safe side as success.',
-    'On-course strategy: Use a fairway corridor target and play for center, not perfect.',
-    'On-course strategy: If the hole is tight, club down and prioritize a playable second shot.',
-    'On-course strategy: Pick an intermediate target and judge the start line, not the result.',
-    'On-course strategy: When your miss is one-sided, set the target so that miss finishes safe.',
-    'On-course strategy: Make no doubles from the tee the rule and choose lines that keep you in position.',
-  ],
-  approach: [
-    'On-course strategy: Default to center-green unless you have a clear scoring number and a safe miss.',
-    'On-course strategy: Choose the biggest green section and aim there, not at flags.',
-    'On-course strategy: Avoid short-siding by aiming to the safe side of the pin.',
-    'On-course strategy: When distance is uncertain, take more club and play for the middle.',
-    'On-course strategy: If the miss is trouble, aim to the opposite side and accept the longer putt.',
-    'On-course strategy: Treat pin-hunting as a bonus. Center targets are the baseline.',
-    'On-course strategy: Prioritize the good miss side and make that your default target.',
-    'On-course strategy: Play to the widest part of the green and keep misses in simple recovery zones.',
-    'On-course strategy: Pick a conservative landing zone and commit to that window.',
-    'On-course strategy: When you are between clubs, choose the safer carry and take the middle target.',
-  ],
-  putting: [
-    'On-course strategy: On long putts, pick a finish zone and roll everything to that pace.',
-    'On-course strategy: Outside make range, speed is the priority. Leave a stress-free second putt.',
-    'On-course strategy: Treat every putt over 20 feet as a lag. Pace first, line second.',
-    'On-course strategy: Choose a leave-distance goal inside 3 feet and judge every putt by it.',
-    'On-course strategy: On breaking putts, pick a start line and match pace to keep the second putt short.',
-    'On-course strategy: When you are unsure on line, bias toward speed control and avoid the three-putt.',
-    'On-course strategy: Aim to finish every lag putt inside a tight circle, then clean up.',
-    'On-course strategy: Commit to one pace decision per putt and protect the comeback.',
-    'On-course strategy: Make no three-putts the round rule. Pace decisions come before read details.',
-    'On-course strategy: On fast greens, play to die the ball at the hole and protect the comeback putt.',
-  ],
-  penalties: [
-    'On-course strategy: When trouble is in play, choose the target that removes the penalty option entirely.',
-    'On-course strategy: Near OB or water, make the wide target the default. Position over distance.',
-    'On-course strategy: If the shot requires a perfect strike, switch to the conservative play immediately.',
-    'On-course strategy: In recovery, advance to safety first and do not force hero lines through gaps.',
-    'On-course strategy: On risk holes, plan the next shot first, then choose the tee target that supports it.',
-    'On-course strategy: When hazards exist, play away from them and commit to the safe side start line.',
-    'On-course strategy: Use green, yellow, red decisions. Red shots always get the conservative target.',
-    'On-course strategy: If your miss brings penalty into play, club down and play the wide lane.',
-    'On-course strategy: Treat bogey as the ceiling from trouble. Reset the hole with the simple shot.',
-    'On-course strategy: Keep the ball playable as the only KPI on penalty holes.',
-  ],
-  general: [
-    'On-course strategy: Pick one conservative target rule and apply it on every full swing.',
-    'On-course strategy: Choose center targets and remove the biggest miss from play.',
-    'On-course strategy: Make position the priority and play to the widest safe areas all round.',
-    'On-course strategy: Use the same routine and the same conservative target bias on every hole.',
-    'On-course strategy: When you are unsure, aim to the middle and keep outcomes simple.',
-    'On-course strategy: Choose the safe side, then commit fully to that plan.',
-    'On-course strategy: Avoid high-risk targets. Repeat the boring play and let scoring follow.',
-    'On-course strategy: Keep decisions simple: wide targets, clean angles, no forced carries.',
-    'On-course strategy: Protect the scorecard by removing doubles. Conservative targets win.',
-    'On-course strategy: Apply one safe target rule for every hole and stick to it.',
-  ],
-};
-
-const CARD6_VARIANTS = {
-  A: [
-    'Projection: Trajectory is {traj}. Upgrade to unlock projected score and handicap ranges.',
-    'Projection: Trajectory is {traj}. Upgrade to view your projected score and handicap bands.',
-    'Projection: Trajectory is {traj}. Upgrade to unlock forward score and handicap targets.',
-    'Projection: Trajectory is {traj}. Upgrade to see the next ~10 round outlook.',
-    'Projection: Trajectory is {traj}. Upgrade to unlock full projection detail.',
-    'Projection: Trajectory is {traj}. Upgrade to view your score and handicap outlook.',
-    'Projection: Trajectory is {traj}. Upgrade to unlock mode-specific projections.',
-    'Projection: Trajectory is {traj}. Upgrade to see your forward scoring outlook.',
-    'Projection: Trajectory is {traj}. Upgrade to unlock full projection context.',
-    'Projection: Trajectory is {traj}. Upgrade to unlock complete projection insights.',
-  ],
-
-  B: [
-    'Projection: At this pace, expect about {score} over the next ~10 rounds, with handicap near {hcp}.',
-    'Projection: Current trend projects about {score} in ~10 rounds, with handicap near {hcp}.',
-    'Projection: Pace projects about {score} over ~10 rounds, with handicap near {hcp}.',
-    'Projection: Projection target is about {score} in ~10 rounds, with handicap around {hcp}.',
-    'Projection: Next ~10 rounds project near {score}, with handicap near {hcp}.',
-    'Projection: Current path points to about {score} over ~10 rounds, with handicap near {hcp}.',
-    'Projection: Scoring projection is about {score} in ~10 rounds, with handicap near {hcp}.',
-    'Projection: Trend projects about {score} over the next ~10 rounds, with handicap near {hcp}.',
-    'Projection: Target pace is about {score} in ~10 rounds, with handicap near {hcp}.',
-    'Projection: Current projection is about {score} over ~10 rounds, with handicap near {hcp}.',
-  ],
-
-  C: [
-    'Projection: Trajectory is {traj}. Log 10 rounds to unlock projected ranges.',
-    'Projection: Trajectory is {traj}. Add more rounds to unlock score and handicap projections.',
-    'Projection: Trajectory is {traj}. Reach 10 rounds to activate projected targets.',
-    'Projection: Trajectory is {traj}. Keep logging to unlock projection bands.',
-    'Projection: Trajectory is {traj}. Add rounds to unlock mode-specific score projections.',
-    'Projection: Trajectory is {traj}. Log more handicap history to unlock the handicap projection.',
-    'Projection: Trajectory is {traj}. Build to 10 rounds for full projection context.',
-    'Projection: Trajectory is {traj}. More rounds are needed to unlock projected ranges.',
-    'Projection: Trajectory is {traj}. Keep logging rounds to unlock projection detail.',
-    'Projection: Trajectory is {traj}. Log 10 rounds to enable score and handicap ranges.',
-  ],
-
-  D: [
-    'Projection: Score projection is ready at about {score} over the next ~10 rounds. Handicap projection needs more handicap history.',
-    'Projection: Projected score is about {score} in ~10 rounds. Add more handicap history to unlock handicap projection.',
-    'Projection: Score outlook is about {score} in ~10 rounds. Handicap projection needs a longer handicap trend.',
-    'Projection: Projected score is near {score} over ~10 rounds. Handicap projection unlocks after more handicap history.',
-    'Projection: Score projection is available at about {score}. Handicap projection needs more tracked handicap rounds.',
-  ],
-} as const;
 
 function sanitizeCopy(text: string): string {
   return String(text ?? '')
     .replace(/\s+([.,!?;:])/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function inlineSentence(text: string): string {
-  return sanitizeCopy(String(text ?? '').replace(/[.!?]+$/g, ''));
 }
 
 function normalizeForGuard(text: string): string {
@@ -717,30 +367,6 @@ function assertOverallCopySafe(text: string, context: string): void {
     return;
   }
   throw err;
-}
-
-function renderTemplate(template: string, replacements: Record<string, string>): string {
-  let output = template;
-  for (const [key, value] of Object.entries(replacements)) {
-    output = output.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
-  }
-  return sanitizeCopy(output);
-}
-
-function pickVariantFromPool(
-  pool: readonly string[],
-  variantSeedBase: string,
-  namespace: string,
-  variantOffset: number,
-): { text: string; index: number } {
-  const safeOffset = Number.isFinite(variantOffset) ? Math.max(0, Math.floor(variantOffset)) : 0;
-  const hash = crypto
-    .createHash('sha256')
-    .update(`${variantSeedBase}|${namespace}`)
-    .digest('hex');
-  const baseIndex = parseInt(hash.slice(0, 8), 16) % pool.length;
-  const index = (baseIndex + safeOffset) % pool.length;
-  return { text: pool[index], index };
 }
 
 function formatToParShort(toPar: number): string {
@@ -1194,13 +820,11 @@ function computeProjectionByMode(
   };
 }
 
-function deterministicDrill(area: SGComponentName | null, seed: string, rotationOffset = 0): string {
+function deterministicDrill(area: SGComponentName | null, seed: string): string {
   const key = area ?? 'general';
   const list = DRILL_LIBRARY[key] ?? DRILL_LIBRARY.general;
   const h = crypto.createHash('sha256').update(seed).digest('hex');
-  const baseIndex = parseInt(h.slice(0, 8), 16) % list.length;
-  const safeOffset = Number.isFinite(rotationOffset) ? Math.max(0, Math.floor(rotationOffset)) : 0;
-  const idx = (baseIndex + safeOffset) % list.length;
+  const idx = parseInt(h.slice(0, 8), 16) % list.length;
   const selected = sanitizeCopy(list[idx]);
   assertOverallCopySafe(selected, `drill:${key}:${idx}`);
   return selected;
@@ -1485,8 +1109,19 @@ export function computeOverallPayload(args: {
     };
   })();
 
+  const confidence: OverallConfidence = (() => {
+    const combinedPayload = modePayload.combined;
+    if (!combinedPayload) return 'low';
+    const combinedRoundsRecent = combinedPayload.kpis.roundsRecent ?? 0;
+    if (combinedRoundsRecent <= 1) return 'low';
+    if (combinedPayload.consistency?.label === 'insufficient') return 'low';
+    if (combinedRoundsRecent >= 5) return 'high';
+    return 'medium';
+  })();
+
   const payload: OverallInsightsPayload = {
     generated_at: new Date().toISOString(),
+    confidence,
     analysis: {
       window_recent: OVERALL_RECENT_WINDOW,
       window_baseline: args.isPremium ? 'overall' : 'last20',
@@ -1523,10 +1158,7 @@ export function computeOverallPayload(args: {
       '9': [...args.cards],
       '18': [...args.cards],
     },
-    cards_locked_count: Math.max(0, args.cards.length - 1),
-    refresh: {
-      manual_cooldown_hours: 0,
-    },
+    cards_locked_count: 0,
     mode_payload: modePayload,
     handicap_trend: {
       labels: handicapPoints.map((p) => p.label),
@@ -1537,34 +1169,11 @@ export function computeOverallPayload(args: {
   return payload;
 }
 
-function formatMissingStatsList(missing: { fir: boolean; gir: boolean; putts: boolean; penalties: boolean }): string {
-  const missingLabels = [
-    missing.fir ? 'FIR' : null,
-    missing.gir ? 'GIR' : null,
-    missing.putts ? 'putts' : null,
-    missing.penalties ? 'penalties' : null,
-  ].filter((item): item is string => item != null);
-  if (!missingLabels.length) return 'FIR, GIR, putts, and penalties';
-  if (missingLabels.length === 1) return missingLabels[0];
-  if (missingLabels.length === 2) return `${missingLabels[0]} and ${missingLabels[1]}`;
-  return `${missingLabels.slice(0, -1).join(', ')}, and ${missingLabels[missingLabels.length - 1]}`;
-}
-
-function formatTrajectoryLabel(trajectory: ProjectionPayload['trajectory']): string {
-  if (trajectory === 'improving') return 'improving';
-  if (trajectory === 'flat') return 'flat';
-  if (trajectory === 'worsening') return 'worsening';
-  if (trajectory === 'volatile') return 'volatile';
-  return 'not available';
-}
-
 export function buildDeterministicOverallCards(args: {
   payload: OverallInsightsPayload;
   recommendedDrill: string;
   missingStats: { fir: boolean; gir: boolean; putts: boolean; penalties: boolean };
   isPremium: boolean;
-  variantSeedBase: string;
-  variantOffset: number;
   mode?: StatsMode;
 }): string[] {
   const analysis = args.payload.analysis;
@@ -1574,173 +1183,99 @@ export function buildDeterministicOverallCards(args: {
     strength: analysis.strength,
     opportunity: analysis.opportunity,
   };
-  const projection = args.payload.projection;
-  const projectionByMode = args.payload.projection_by_mode?.[mode] ?? null;
-  const missingCount =
-    Number(args.missingStats.fir) +
-    Number(args.missingStats.gir) +
-    Number(args.missingStats.putts) +
-    Number(args.missingStats.penalties);
-  const missingList = formatMissingStatsList(args.missingStats);
-  const variantOffset = Number.isFinite(args.variantOffset) ? Math.floor(args.variantOffset) : 0;
-  const baseSeed = args.variantSeedBase || 'overall';
-
-  const choose = (
-    namespace: string,
-    outcome: string,
-    pool: readonly string[],
-    replacements: Record<string, string>,
-  ): string => {
-    const picked = pickVariantFromPool(pool, baseSeed, `${namespace}|${outcome}`, variantOffset);
-    const rendered = renderTemplate(picked.text, replacements);
-    assertOverallCopySafe(rendered, `${namespace}:${outcome}:${picked.index}`);
-    return rendered;
-  };
 
   const formatOneDecimal = (value: number): string => (Math.round(value * 10) / 10).toFixed(1);
   const scoreNearThreshold = mode === '9' ? 0.5 : 1.0;
-  const modeLabel = mode === '9' ? '9-hole' : mode === '18' ? '18-hole' : 'combined';
   const modeRoundsRecent = modePayload?.kpis.roundsRecent ?? 0;
-  const scoreCompact = modePayload?.kpis.scoreCompact ?? analysis.score_compact;
   const scoreRecent = modePayload?.kpis.avgScoreRecent ?? analysis.avg_score_recent;
   const scoreBaseline = modePayload?.kpis.avgScoreBaseline ?? analysis.avg_score_baseline;
+  const consistency = modePayload?.consistency ?? args.payload.consistency;
 
-  const scoreSummary = (() => {
-    if (modeRoundsRecent === 0) {
-      return choose('card1', '1E', CARD1_VARIANTS.E, {
-        modeLabel,
-      });
+  const card1 = (() => {
+    if (modeRoundsRecent === 0 || scoreRecent == null || scoreBaseline == null || modeRoundsRecent < 3) {
+      return 'Early trends are forming. Keep logging rounds to see how your scoring compares over time.';
     }
-    const recent = scoreRecent;
-    const baseline = scoreBaseline;
-    if (recent == null || baseline == null) {
-      return choose('card1', '1A', CARD1_VARIANTS.A, {
-        scoreCompact,
-      });
-    }
-    const delta = recent - baseline;
+    const delta = scoreRecent - scoreBaseline;
     if (Math.abs(delta) <= scoreNearThreshold) {
-      return choose('card1', '1B', CARD1_VARIANTS.B, {
-        scoreCompact,
-      });
+      return 'Your recent rounds are close to your usual level. Your scoring is staying in its normal range.';
     }
     if (delta < 0) {
-      return choose('card1', '1C', CARD1_VARIANTS.C, {
-        scoreCompact,
-        delta: formatOneDecimal(Math.abs(delta)),
-      });
+      return `Your recent rounds are outperforming your usual level. You're scoring about ${formatOneDecimal(Math.abs(delta))} strokes lower over your recent rounds.`;
     }
-    return choose('card1', '1D', CARD1_VARIANTS.D, {
-      scoreCompact,
-      delta: formatOneDecimal(delta),
-    });
+    return `Your recent rounds are above your usual level. You're scoring about ${formatOneDecimal(delta)} strokes higher over your recent rounds.`;
   })();
 
-  const strength = (() => {
-    if (!narrative.strength.label) {
-      return choose('card2', '2A', CARD2_VARIANTS.A, {});
-    }
-    if (narrative.strength.lowCoverage) {
-      return choose('card2', '2D', CARD2_VARIANTS.D, { label: narrative.strength.label });
-    }
-    if (narrative.strength.value != null && narrative.strength.value < 0) {
-      return choose('card2', '2E', CARD2_VARIANTS.E, { label: narrative.strength.label });
-    }
-    if (narrative.strength.value != null && narrative.strength.value >= 0.5) {
-      return choose('card2', '2B', CARD2_VARIANTS.B, {
-        label: narrative.strength.label,
-        delta: formatOneDecimal(Math.abs(narrative.strength.value)),
-      });
-    }
-    return choose('card2', '2C', CARD2_VARIANTS.C, { label: narrative.strength.label });
-  })();
+  const card2 = (() => {
+    const strongestLabel = narrative.strength.label;
+    const strongestValue = narrative.strength.value;
+    const weakestLabel = narrative.opportunity.label;
+    const weakestValue = narrative.opportunity.value;
+    const weakestIsWeakness = narrative.opportunity.isWeakness;
+    const lowCoverage = narrative.opportunity.lowCoverage || narrative.strength.lowCoverage;
+    const weakestAbs = weakestValue != null && Number.isFinite(weakestValue) ? Math.abs(weakestValue) : null;
+    const strongestAbs = strongestValue != null && Number.isFinite(strongestValue) ? Math.abs(strongestValue) : null;
 
-
-  const opportunity = (() => {
-    if (!narrative.opportunity.label) {
-      return choose('card3', '3A', CARD3_VARIANTS.A, {});
+    if (lowCoverage) {
+      return 'No clear reason yet. A few more rounds will make this clearer.';
     }
-    if (narrative.opportunity.lowCoverage) {
-      if (narrative.opportunity.isWeakness) {
-        return choose('card3', '3D', CARD3_VARIANTS.D, { label: narrative.opportunity.label });
+
+    if (weakestLabel && weakestIsWeakness) {
+      if (weakestAbs != null && weakestAbs < 0.1) {
+        return 'Your game is well balanced. No area clearly stands out as a weakness.';
       }
-      return choose('card3', '3E', CARD3_VARIANTS.E, { label: narrative.opportunity.label });
+      if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue)) {
+        return `${weakestLabel} is costing you strokes. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes per round compared to your usual level.`;
+      }
+      return `${weakestLabel} is costing you strokes. This has been the biggest difference in your recent rounds. The full breakdown shows exactly how much.`;
     }
-    if (narrative.opportunity.isWeakness) {
-      return choose('card3', '3B', CARD3_VARIANTS.B, {
-        label: narrative.opportunity.label,
-        delta:
-          narrative.opportunity.value != null
-            ? formatOneDecimal(Math.abs(narrative.opportunity.value))
-            : '0.0',
-      });
+
+    if (strongestLabel && strongestValue != null && Number.isFinite(strongestValue) && strongestValue > 0.15) {
+      if (strongestAbs != null && strongestAbs < 0.1) {
+        return 'Your game is well balanced. No area clearly stands out as a weakness.';
+      }
+      if (args.isPremium) {
+        return `${strongestLabel} is helping your score. You're gaining about ${formatOneDecimal(Math.abs(strongestValue))} strokes per round compared to your usual level.`;
+      }
+      return `${strongestLabel} is helping your score. This has been your strongest area recently.`;
     }
-    return choose('card3', '3C', CARD3_VARIANTS.C, { label: narrative.opportunity.label });
+
+    if (!weakestLabel && !strongestLabel) {
+      return 'No clear reason yet. A few more rounds will make this clearer.';
+    }
+
+    return 'Your game is well balanced. No area clearly stands out as a weakness.';
   })();
 
-  const card4 = (() => {
-    if (missingCount >= 3) {
-      return choose('card4', '4A', CARD4_VARIANTS.A, {
-        missingList,
-      });
+  const card3 = (() => {
+    const stdDev = consistency.stdDev;
+    if (stdDev != null && Number.isFinite(stdDev)) {
+      if (stdDev < 0.05) {
+        return 'Your scoring is extremely consistent. Your scores have been steady from round to round.';
+      }
+      if (stdDev < 0.2) {
+        return 'Your scoring is very consistent. Your scores have barely changed from round to round.';
+      }
+      if (stdDev <= 1.5) {
+        return `Your scoring is consistent. Your scores are staying within about +/-${formatOneDecimal(stdDev)} strokes recently.`;
+      }
+      if (stdDev <= 2.5) {
+        return 'Your scoring has some movement. Your scores are moving around, but not wildly from round to round.';
+      }
+      return 'Your scoring is inconsistent. Your scores are varying more than usual from round to round.';
     }
-    if (missingCount >= 1) {
-      return choose('card4', '4C', CARD4_VARIANTS.C, {
-        drillInline: inlineSentence(args.recommendedDrill),
-        missingList,
-      });
+    if (consistency.label === 'moderate') {
+      return 'Your scoring has some movement. Your scores are moving around, but not wildly from round to round.';
     }
-    return choose('card4', '4B', CARD4_VARIANTS.B, {
-      drill: sanitizeCopy(args.recommendedDrill),
-    });
+    if (consistency.label === 'volatile') {
+      return 'Your scoring is inconsistent. Your scores are varying more than usual from round to round.';
+    }
+    return 'Consistency is still forming. A few more rounds will show how steady your scoring really is.';
   })();
 
-  const card5 = (() => {
-    const opportunityKey =
-      narrative.opportunity.name === 'off_tee' ||
-      narrative.opportunity.name === 'approach' ||
-      narrative.opportunity.name === 'putting' ||
-      narrative.opportunity.name === 'penalties'
-        ? narrative.opportunity.name
-        : 'general';
-
-    const base = choose('card5', `5${opportunityKey}`, CARD5_VARIANTS_BY_OPPORTUNITY[opportunityKey], {});
-
-    // Avoid repetition: Card 4 owns the tracking-first nudge when lots is missing.
-    if (missingCount === 0) return base;
-    if (missingCount >= 3) return base;
-
-    return sanitizeCopy(`${base} Tracking ${missingList} will make this more targeted.`);
-  })();
-
-  const card6 = (() => {
-    const trajectory = formatTrajectoryLabel(projectionByMode?.trajectory ?? projection.trajectory);
-
-    if (!args.isPremium) {
-      return choose('card6', '6A', CARD6_VARIANTS.A, { traj: trajectory });
-    }
-
-    const projectedScoreForMode = projectionByMode?.projectedScoreIn10 ?? null;
-    const projectedHandicap = projection.projectedHandicapIn10;
-
-    if (projectedScoreForMode != null && projectedHandicap != null) {
-      return choose('card6', '6B', CARD6_VARIANTS.B, {
-        score: `${Math.round(projectedScoreForMode)}`,
-        hcp: formatOneDecimal(projectedHandicap),
-      });
-    }
-
-    // Partial unlock: score projection available, handicap projection not available.
-    if (projectedScoreForMode != null && projectedHandicap == null) {
-      return choose('card6', '6D', CARD6_VARIANTS.D, {
-        score: `${Math.round(projectedScoreForMode)}`,
-      });
-    }
-
-    return choose('card6', '6C', CARD6_VARIANTS.C, { traj: trajectory });
-  })();
-
-  return [scoreSummary, strength, opportunity, card4, card5, card6];
+  return [card1, card2, card3].map((card, index) => {
+    assertOverallCopySafe(card, `overall_card_${index + 1}`);
+    return card;
+  });
 }
 
 export function computeOverallDataHash(rounds: OverallRoundPoint[], isPremium: boolean): string {
@@ -1750,7 +1285,6 @@ export function computeOverallDataHash(rounds: OverallRoundPoint[], isPremium: b
 export function pickDeterministicDrillSeeded(
   area: SGComponentName | null,
   roundSeed: string,
-  variantOffset = 0,
 ): string {
-  return deterministicDrill(area, roundSeed, variantOffset);
+  return deterministicDrill(area, roundSeed);
 }

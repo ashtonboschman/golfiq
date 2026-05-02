@@ -614,7 +614,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.confidence).toBe('low');
     expect(state.focus.headline).toBe('Start with solid decisions.');
     expect(state.focus.body).toBe('Early rounds usually come down to missed greens and a few costly holes.');
-    expect(state.focus.nextRound).toBe('Play to the widest target and keep the ball in play.');
+    expect(state.focus.nextRound).toBe('Play to the widest target.');
   });
 
   it('no longer returns locked state for historical data gating flags', () => {
@@ -665,7 +665,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('component_opportunity');
     expect(state.focus.headline).toBe('Approach is your biggest scoring opportunity.');
     expect(state.focus.body).toBe('This area is costing you the most strokes.');
-    expect(state.focus.nextRound).toBe('Default to center-green targets and avoid short-siding.');
+    expect(state.focus.nextRound).toBe('Play to the center of the green.');
     expect(state.focus.component).toBe('approach');
   });
 
@@ -689,7 +689,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('component_strength');
     expect(state.focus.headline).toBe('Approach is driving your improvement.');
     expect(state.focus.body).toBe('This area is gaining about 0.2 strokes per round.');
-    expect(state.focus.nextRound).toBe('Keep trusting your approach targets and stock swing.');
+    expect(state.focus.nextRound).toBe('Keep trusting your approach shots.');
     expect(state.focus.component).toBe('approach');
   });
 
@@ -735,7 +735,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('component_balanced');
     expect(state.focus.headline).toBe('Your game is well balanced.');
     expect(state.focus.body).toBe('No area clearly stands out as a weakness.');
-    expect(state.focus.nextRound).toBe('Keep making simple decisions and avoid low-percentage shots.');
+    expect(state.focus.nextRound).toBe('Make simple decisions.');
     expect(state.focus.component).toBeNull();
   });
 
@@ -765,7 +765,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('component_opportunity');
     expect(state.focus.headline).toBe('Putting is your biggest scoring opportunity.');
     expect(state.focus.body).toBe('This area is costing you the most strokes.');
-    expect(state.focus.nextRound).toBe('Prioritize lag speed and leave shorter second putts.');
+    expect(state.focus.nextRound).toBe('Focus on lag speed.');
     expect(state.focus.component).toBe('putting');
   });
 
@@ -863,8 +863,8 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('score_only_stable');
     expect(state.focus.headline).toBe('Your scoring is stable.');
-    expect(state.focus.body).toBe('Choose one area to improve and commit to it next round.');
-    expect(state.focus.nextRound).toBe('Choose one focus for the next round and commit to it.');
+    expect(state.focus.body).toBe('Pick one area next round.');
+    expect(state.focus.nextRound).toBe('Commit to one focus.');
     expect(state.focus.component).toBeNull();
   });
 
@@ -898,7 +898,7 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('score_only_stable');
     expect(state.focus.headline).toBe('Your scoring is stable.');
-    expect(state.focus.nextRound).toBe('Choose one focus for the next round and commit to it.');
+    expect(state.focus.nextRound).toBe('Commit to one focus.');
     expect(state.focus.component).toBeNull();
   });
 
@@ -929,7 +929,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('early_guidance');
     expect(state.focus.headline).toBe('Start with solid decisions.');
     expect(state.focus.body).toBe('Early rounds usually come down to missed greens and a few costly holes.');
-    expect(state.focus.nextRound).toBe('Play to the widest target and keep the ball in play.');
+    expect(state.focus.nextRound).toBe('Play to the widest target.');
     expect(state.focus.component).toBeNull();
   });
 
@@ -953,7 +953,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('early_guidance');
     expect(state.focus.headline).toBe('Start with solid decisions.');
     expect(state.focus.body).toBe('Early rounds usually come down to missed greens and a few costly holes.');
-    expect(state.focus.nextRound).toBe('Play to the widest target and keep the ball in play.');
+    expect(state.focus.nextRound).toBe('Play to the widest target.');
   });
 
   it('does not name a component when residual is dominant', () => {
@@ -1037,7 +1037,7 @@ describe('dashboardFocus state output', () => {
     );
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.nextRound).toBe('Default to center-green targets and avoid short-siding.');
+    expect(state.focus.nextRound).toBe('Play to the center of the green.');
   });
 
   it('never uses generic momentum headline copy', () => {
@@ -1047,6 +1047,28 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.headline).not.toBe('Build on momentum.');
     expect(state.focus.headline).not.toBe('Keep improving.');
     expect(state.focus.headline).not.toBe('Stay consistent.');
+  });
+
+  it('keeps Next Round copy short and single-action', () => {
+    const states = [
+      buildRoundFocusState(makeSummary(), true, false),
+      buildRoundFocusState(makeSummary(), false, false),
+      buildRoundFocusState(null, true, false),
+      buildRoundFocusState(null, false, false),
+    ];
+
+    for (const state of states) {
+      const nextRound = state.focus.nextRound;
+      const normalized = nextRound.replace(/[.!?]+$/g, '').trim();
+      const words = normalized.split(/\s+/).filter(Boolean);
+      expect(normalized.toLowerCase()).not.toContain('track ');
+      expect(normalized.toLowerCase()).not.toContain('tracking');
+      expect(normalized).not.toContain(',');
+      expect(normalized.toLowerCase()).not.toMatch(/\band\b/);
+      expect(normalized.toLowerCase()).not.toMatch(/\bthen\b/);
+      expect(normalized.toLowerCase()).not.toMatch(/\bfor\b/);
+      expect(words.length).toBeLessThanOrEqual(12);
+    }
   });
 });
 

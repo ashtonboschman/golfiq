@@ -67,7 +67,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection_by_mode.combined.projectedScoreIn10).not.toBeNull();
@@ -88,7 +88,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.trajectory).toBe('improving');
@@ -104,7 +104,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.trajectory).toBe('worsening');
@@ -120,7 +120,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.trajectory).toBe('flat');
@@ -136,7 +136,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.trajectory).toBe('flat');
@@ -152,7 +152,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.projectedScoreIn10).not.toBeNull();
@@ -179,7 +179,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.handicapCurrent).toBeCloseTo(2.8, 1);
@@ -198,7 +198,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.projectedScoreIn10).toBeNull();
@@ -216,7 +216,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.projectedScoreIn10).not.toBeNull();
@@ -235,7 +235,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
       currentHandicapOverride: 2.8,
     });
 
@@ -255,7 +255,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
       currentHandicapOverride: null,
     });
 
@@ -274,7 +274,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.trajectory).toBe('improving');
@@ -294,7 +294,7 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
-      cards: Array.from({ length: 6 }, () => ''),
+      cards: Array.from({ length: 3 }, () => ''),
     });
 
     expect(payload.projection.projectedScoreIn10).toBeLessThan(75);

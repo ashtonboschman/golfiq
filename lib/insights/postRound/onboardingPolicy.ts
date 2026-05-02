@@ -57,10 +57,10 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
   if (input.roundNumber === 1) {
     return {
       messages: [
-        withGuard(`You shot ${scoreLine}. That puts your first round on the board and sets a clear baseline.`, 'OB-1'),
+        withGuard(`You shot ${scoreLine}. That gives you your first round and sets your starting point.`, 'OB-1'),
         withGuard('Good start. Early on, the goal is context. Two more rounds give enough history for patterns to start forming.', 'OB-1'),
         withGuard(
-          'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer where strokes are coming from.',
+          'Next round: Log your score again.',
           'OB-1',
         ),
       ],
@@ -90,7 +90,7 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
             'OB-2-BETTER',
           ),
           withGuard(
-            'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer what is driving the improvement.',
+            'Next round: Log your score again.',
             'OB-2-BETTER',
           ),
         ],
@@ -111,7 +111,7 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
             'OB-2-WORSE',
           ),
           withGuard(
-            'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer what is pushing the score up.',
+            'Next round: Log your score again.',
             'OB-2-WORSE',
           ),
         ],
@@ -131,7 +131,7 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
           'OB-2-SAME',
         ),
         withGuard(
-          'Next round: Log your score again. If you can, track fairways, greens, putts, and penalties so it is clearer what is keeping the score steady.',
+          'Next round: Log your score again.',
           'OB-2-SAME',
         ),
       ],
@@ -153,7 +153,7 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
           'OB-3-BETTER',
         ),
         withGuard(
-          'Next round: Full post-round insights start. If you can, track fairways, greens, putts, and penalties so it is clearer what is driving the improvement.',
+          "Next round: You'll start getting full insights.",
           'OB-3-BETTER',
         ),
       ],
@@ -174,7 +174,7 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
           'OB-3-WORSE',
         ),
         withGuard(
-          'Next round: Full post-round insights start. If you can, track fairways, greens, putts, and penalties so it is clearer what is pushing the score up.',
+          "Next round: You'll start getting full insights.",
           'OB-3-WORSE',
         ),
       ],
@@ -194,7 +194,7 @@ export function buildOnboardingPostRoundInsights(input: OnboardingPolicyInput): 
         'OB-3-SAME',
       ),
       withGuard(
-        'Next round: Full post-round insights start. If you can, track fairways, greens, putts, and penalties so it is clearer what is keeping the score steady.',
+        "Next round: You'll start getting full insights.",
         'OB-3-SAME',
       ),
     ],

@@ -12,6 +12,17 @@ export const BANNED_TOKENS: readonly string[] = [
   'improve your efficiency',
   'keep a close eye on',
   'round context',
+  'track ',
+  'tracking',
+  'captured',
+  'recovery shots',
+  'stock swing',
+  'stock flight',
+  'dispersion',
+  'variance',
+  'execution',
+  'corridor',
+  'optimal',
 ];
 
 export function assertNoBannedCopy(
