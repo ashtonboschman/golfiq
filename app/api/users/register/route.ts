@@ -3,7 +3,13 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { errorResponse, successResponse } from '@/lib/api-auth';
-import { sendEmail, generateEmailVerificationEmail, EMAIL_FROM } from '@/lib/email';
+import {
+  sendEmail,
+  generateEmailVerificationEmail,
+  generateNewSignupInternalNotificationEmail,
+  sendInternalNotificationEmail,
+  EMAIL_FROM,
+} from '@/lib/email';
 import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
@@ -127,6 +133,24 @@ export async function POST(request: NextRequest) {
 
     if (!emailSent) {
       console.error('Failed to send verification email to:', user.email);
+    }
+
+    const internalSignupEmail = generateNewSignupInternalNotificationEmail({
+      userId: user.id.toString(),
+      email: user.email,
+      firstName: user.profile?.firstName || null,
+      lastName: user.profile?.lastName || null,
+      registeredAt: new Date(),
+    });
+
+    const internalNotificationSent = await sendInternalNotificationEmail({
+      subject: internalSignupEmail.subject,
+      html: internalSignupEmail.html,
+      text: internalSignupEmail.text,
+      from: EMAIL_FROM.UPDATES,
+    });
+    if (internalNotificationSent === false) {
+      console.error('Failed to send internal signup notification for:', user.email);
     }
 
     await captureServerEvent({

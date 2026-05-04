@@ -10,13 +10,14 @@ import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 
 const mockPush = jest.fn();
+const mockRouter = { push: mockPush };
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
 }));
 
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => mockRouter,
   usePathname: () => '/insights',
 }));
 
@@ -521,10 +522,76 @@ describe('/insights page', () => {
     fireEvent.change(screen.getByTestId('stats-mode-select'), { target: { value: '9' } });
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/insights/overall?statsMode=9', { credentials: 'include' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/insights/overall?statsMode=9',
+        expect.objectContaining({ credentials: 'include' }),
+      );
     });
 
     await screen.findByText('39.4');
     expect(screen.getByText('41.0')).toBeInTheDocument();
+  });
+
+  it('does not show mode-switch error state when stale insights request fails after switching mode', async () => {
+    const nineInsights = makeInsights(true, {
+      '9': {
+        kpis: {
+          roundsRecent: 5,
+          avgScoreRecent: 39.4,
+          avgScoreBaseline: 41.0,
+          avgToParRecent: 3.0,
+          avgSgTotalRecent: 0.1,
+          bestScoreRecent: 37,
+          deltaVsBaseline: -1.6,
+        },
+      },
+    });
+
+    let rejectCombinedRequest: ((reason?: unknown) => void) | null = null;
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('statsMode=combined')) {
+        return new Promise((_, reject) => {
+          rejectCombinedRequest = reject;
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ insights: nineInsights }),
+      });
+    });
+
+    render(<InsightsPage />);
+
+    fireEvent.change(screen.getByTestId('stats-mode-select'), { target: { value: '9' } });
+
+    await screen.findByText('39.4');
+
+    rejectCombinedRequest?.(new Error('stale insights fetch failed'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('stale insights fetch failed')).not.toBeInTheDocument();
+      expect(screen.queryByText('Failed to load insights')).not.toBeInTheDocument();
+    });
+  });
+
+  it('still shows error state when active insights mode request fails', async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ insights: makeInsights(true) }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: 'Insights mode load failed' }),
+      });
+
+    render(<InsightsPage />);
+
+    await screen.findByText('75.2');
+
+    fireEvent.change(screen.getByTestId('stats-mode-select'), { target: { value: '9' } });
+
+    await screen.findByText('Insights mode load failed');
   });
 });

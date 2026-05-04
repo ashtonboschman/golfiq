@@ -23,6 +23,7 @@ model User {
   subscriptionCancelAtPeriodEnd Boolean            @default(false) @map("subscription_cancel_at_period_end")
   subscriptionTier        SubscriptionTier         @default(free) @map("subscription_tier")
   dataExports             DataExport[]
+  courseRequests          CourseRequest[]
   feedbackSubmissions     UserFeedback[]
   friendRequestsReceived  FriendRequest[]          @relation("RecipientRelation")
   friendRequestsSent      FriendRequest[]          @relation("RequesterRelation")
@@ -360,6 +361,28 @@ model UserFeedback {
   @@map("user_feedback")
 }
 
+model CourseRequest {
+  id         BigInt              @id @default(autoincrement())
+  userId     BigInt              @map("user_id")
+  query      String?             @db.VarChar(255)
+  courseName String              @map("course_name") @db.VarChar(255)
+  city       String?             @db.VarChar(100)
+  province   String?             @db.VarChar(100)
+  country    String?             @db.VarChar(100)
+  status     CourseRequestStatus @default(pending)
+  notes      String?
+  source     CourseRequestSource @default(manual)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_course_requests_user")
+  @@index([status], map: "idx_course_requests_status")
+  @@index([source], map: "idx_course_requests_source")
+  @@index([createdAt], map: "idx_course_requests_created_at")
+  @@map("course_requests")
+}
+
 model ApiUsageLog {
   id        BigInt   @id @default(autoincrement())
   endpoint  String   @db.VarChar(100)
@@ -601,6 +624,18 @@ enum FeedbackStatus {
   in_review
   resolved
   closed
+}
+
+enum CourseRequestStatus {
+  pending
+  added
+  rejected
+}
+
+enum CourseRequestSource {
+  local_search
+  global_api_no_result
+  manual
 }
 
 enum RoundContext {

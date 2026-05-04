@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/api-auth';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { prisma } from '@/lib/db';
+import { EMAIL_FROM, generateFeedbackInternalNotificationEmail, sendInternalNotificationEmail } from '@/lib/email';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
@@ -14,6 +15,9 @@ jest.mock('@/lib/api-auth', () => {
 
 jest.mock('@/lib/db', () => ({
   prisma: {
+    user: {
+      findUnique: jest.fn(),
+    },
     userFeedback: {
       count: jest.fn(),
       create: jest.fn(),
@@ -25,7 +29,18 @@ jest.mock('@/lib/analytics/server', () => ({
   captureServerEvent: jest.fn(),
 }));
 
+jest.mock('@/lib/email', () => ({
+  sendInternalNotificationEmail: jest.fn(),
+  generateFeedbackInternalNotificationEmail: jest.fn(),
+  EMAIL_FROM: {
+    UPDATES: 'updates@golfiq.ca',
+  },
+}));
+
 type MockPrisma = {
+  user: {
+    findUnique: jest.Mock;
+  };
   userFeedback: {
     count: jest.Mock;
     create: jest.Mock;
@@ -35,6 +50,8 @@ type MockPrisma = {
 const mockedRequireAuth = requireAuth as jest.Mock;
 const mockedCaptureServerEvent = captureServerEvent as jest.Mock;
 const mockedPrisma = prisma as unknown as MockPrisma;
+const mockedSendInternalNotificationEmail = sendInternalNotificationEmail as jest.Mock;
+const mockedGenerateFeedbackInternalNotificationEmail = generateFeedbackInternalNotificationEmail as jest.Mock;
 
 describe('/api/feedback route contract', () => {
   let consoleErrorSpy: jest.SpyInstance;
@@ -43,8 +60,21 @@ describe('/api/feedback route contract', () => {
     jest.clearAllMocks();
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      email: 'user@example.com',
+      profile: {
+        firstName: 'Test',
+        lastName: 'User',
+      },
+    });
     mockedPrisma.userFeedback.count.mockResolvedValue(0);
     mockedPrisma.userFeedback.create.mockResolvedValue({ id: BigInt(10) });
+    mockedGenerateFeedbackInternalNotificationEmail.mockReturnValue({
+      subject: 'Internal feedback',
+      html: '<p>feedback</p>',
+      text: 'feedback',
+    });
+    mockedSendInternalNotificationEmail.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -179,6 +209,12 @@ describe('/api/feedback route contract', () => {
         appVersion: '1.2.3',
       }),
     });
+    expect(mockedSendInternalNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Internal feedback',
+        from: EMAIL_FROM.UPDATES,
+      }),
+    );
     expect(mockedCaptureServerEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         event: ANALYTICS_EVENTS.feedbackSubmitted,
@@ -214,6 +250,24 @@ describe('/api/feedback route contract', () => {
         appVersion: longVersion.slice(0, 64),
       }),
     });
+  });
+
+  it('does not fail feedback submission when internal notification send fails', async () => {
+    mockedSendInternalNotificationEmail.mockResolvedValue(false);
+
+    const request = new Request('http://localhost/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'idea',
+        message: 'This submission should still persist if internal email delivery fails.',
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(201);
+    expect(mockedSendInternalNotificationEmail).toHaveBeenCalled();
   });
 
   it('tracks server_error when persistence fails', async () => {

@@ -3,7 +3,13 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
-import { EMAIL_FROM, generateEmailVerificationEmail, sendEmail } from '@/lib/email';
+import {
+  EMAIL_FROM,
+  generateEmailVerificationEmail,
+  generateNewSignupInternalNotificationEmail,
+  sendEmail,
+  sendInternalNotificationEmail,
+} from '@/lib/email';
 
 jest.mock('bcryptjs', () => ({
   hash: jest.fn(),
@@ -24,9 +30,12 @@ jest.mock('@/lib/db', () => ({
 
 jest.mock('@/lib/email', () => ({
   sendEmail: jest.fn(),
+  sendInternalNotificationEmail: jest.fn(),
   generateEmailVerificationEmail: jest.fn(),
+  generateNewSignupInternalNotificationEmail: jest.fn(),
   EMAIL_FROM: {
     NOREPLY: 'noreply@golfiq.ca',
+    UPDATES: 'updates@golfiq.ca',
   },
 }));
 
@@ -49,6 +58,8 @@ const mockedBcrypt = bcrypt as unknown as { hash: jest.Mock };
 const mockedPrisma = prisma as unknown as MockPrisma;
 const mockedSendEmail = sendEmail as jest.Mock;
 const mockedGenerateVerificationEmail = generateEmailVerificationEmail as jest.Mock;
+const mockedGenerateInternalSignupEmail = generateNewSignupInternalNotificationEmail as jest.Mock;
+const mockedSendInternalNotificationEmail = sendInternalNotificationEmail as jest.Mock;
 const mockedCaptureServerEvent = captureServerEvent as jest.Mock;
 
 describe('/api/users/register route contract', () => {
@@ -77,7 +88,13 @@ describe('/api/users/register route contract', () => {
       html: '<p>verify</p>',
       text: 'verify',
     });
+    mockedGenerateInternalSignupEmail.mockReturnValue({
+      subject: 'Internal signup',
+      html: '<p>internal</p>',
+      text: 'internal',
+    });
     mockedSendEmail.mockResolvedValue(true);
+    mockedSendInternalNotificationEmail.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -123,6 +140,12 @@ describe('/api/users/register route contract', () => {
       expect.objectContaining({
         to: 'newuser@example.com',
         from: EMAIL_FROM.NOREPLY,
+      }),
+    );
+    expect(mockedSendInternalNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Internal signup',
+        from: EMAIL_FROM.UPDATES,
       }),
     );
     expect(mockedCaptureServerEvent).toHaveBeenCalledWith(
@@ -230,5 +253,25 @@ describe('/api/users/register route contract', () => {
         }),
       }),
     );
+  });
+
+  it('does not fail registration when internal notification send fails', async () => {
+    mockedSendInternalNotificationEmail.mockResolvedValue(false);
+
+    const request = new Request('http://localhost/api/users/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'internalfail@example.com',
+        password: 'Password123',
+        first_name: 'Internal',
+        last_name: 'Fail',
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(200);
+    expect(mockedSendInternalNotificationEmail).toHaveBeenCalled();
   });
 });

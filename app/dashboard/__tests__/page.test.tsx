@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import DashboardPage from '@/app/dashboard/page';
 import { useSession } from 'next-auth/react';
@@ -15,16 +15,17 @@ const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
 const mockUpgradeModal = jest.fn();
 const mockInfoTooltip = jest.fn();
+const mockRouter = {
+  push: mockPush,
+  replace: mockReplace,
+};
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
 }));
 
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-    replace: mockReplace,
-  }),
+  useRouter: () => mockRouter,
   usePathname: () => '/dashboard',
   useSearchParams: () => ({
     get: () => null,
@@ -282,7 +283,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByTestId('dashboard-focus-card');
     expect(screen.getByText('Round Focus')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Focus confidence: Medium/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Focus confidence: Medium/i })).toBeInTheDocument();
     const tooltipTexts = mockInfoTooltip.mock.calls.map(([props]) => props?.text);
     expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
   });
@@ -605,6 +606,91 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.queryByText('Failed to load dashboard.')).not.toBeInTheDocument();
   });
 
+  it('does not show error modal when stale mode request fails after switching dashboard mode', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    let rejectCombinedRequest: ((reason?: unknown) => void) | null = null;
+
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('statsMode=combined')) {
+        return new Promise((_, reject) => {
+          rejectCombinedRequest = reject;
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () =>
+          makeDashboardPayload({
+            total_rounds: 3,
+            all_rounds: [],
+          }),
+      });
+    });
+
+    render(<DashboardPage />);
+
+    fireEvent.change(screen.getByLabelText('dashboard-stats-mode-input'), {
+      target: { value: '9' },
+    });
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('statsMode=9'),
+        expect.objectContaining({
+          cache: 'no-store',
+          credentials: 'include',
+        }),
+      );
+    });
+
+    rejectCombinedRequest?.(new Error('stale request failed'));
+
+    await waitFor(() => {
+      expect(mockShowMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  it('still shows error modal when active dashboard mode request fails', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => makeDashboardPayload(),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => 'application/json' },
+        json: async () => ({
+          type: 'error',
+          message: 'Dashboard mode load failed',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => 'application/json' },
+        json: async () => ({
+          type: 'error',
+          message: 'Dashboard mode load failed',
+        }),
+      });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Pebble Beach');
+
+    fireEvent.change(screen.getByLabelText('dashboard-stats-mode-input'), {
+      target: { value: '9' },
+    });
+
+    await waitFor(() => {
+      expect(mockShowMessage).toHaveBeenCalledWith('Dashboard mode load failed', 'error');
+    });
+  });
+
   it('shows zero-round welcome beta modal once before acknowledgment', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -686,6 +772,86 @@ describe('/dashboard Round Focus card', () => {
           props.milestoneRound === 3,
       );
       expect(hasOpenUnlockCall).toBe(true);
+    });
+  });
+
+  it('keeps round-3 unlock modal dismissed across stats mode switches after acknowledgment', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockImplementation((input: RequestInfo | URL) => {
+      const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const parsed = new URL(rawUrl, 'http://localhost');
+      const mode = parsed.searchParams.get('statsMode');
+
+      let payload = makeDashboardPayload({
+        total_rounds: 3,
+        totalRoundsInDb: 3,
+      });
+
+      if (mode === '9') {
+        payload = makeDashboardPayload({
+          total_rounds: 0,
+          totalRoundsInDb: 3,
+          all_rounds: [],
+          hbh_stats: {
+            par3_avg: null,
+            par4_avg: null,
+            par5_avg: null,
+            hbh_rounds_count: 0,
+            scoring_breakdown: {
+              ace: 0,
+              albatross: 0,
+              eagle: 0,
+              birdie: 0,
+              par: 0,
+              bogey: 0,
+              double_plus: 0,
+            },
+          },
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => payload,
+      });
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+      );
+      expect(hasOpenUnlockCall).toBe(true);
+    });
+
+    const initialUnlockCall = [...mockUpgradeModal.mock.calls]
+      .reverse()
+      .find(([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true);
+    expect(initialUnlockCall).toBeTruthy();
+
+    await act(async () => {
+      initialUnlockCall?.[0]?.onClose?.();
+    });
+
+    expect(localStorage.getItem('milestone-modal-ack:1:unlock:3')).toBe('true');
+
+    mockUpgradeModal.mockClear();
+
+    fireEvent.change(screen.getByLabelText('dashboard-stats-mode-input'), {
+      target: { value: '9' },
+    });
+
+    await waitFor(() => {
+      expect((global.fetch as jest.Mock).mock.calls.some((call) => String(call[0]).includes('statsMode=9'))).toBe(true);
+    });
+
+    await waitFor(() => {
+      const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+      );
+      expect(hasOpenUnlockCall).toBe(false);
     });
   });
 

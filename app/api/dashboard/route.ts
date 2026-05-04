@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
       return successResponse({
         message: 'No rounds found',
         total_rounds: 0,
+        totalRoundsInDb: 0,
         best_score: null,
         worst_score: null,
         average_score: null,
@@ -233,6 +234,7 @@ export async function GET(request: NextRequest) {
       return successResponse({
         message: '',
         total_rounds: 0,
+        totalRoundsInDb: rounds.length,
         best_score: null,
         worst_score: null,
         average_score: null,

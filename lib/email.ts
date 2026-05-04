@@ -5,7 +5,7 @@
 import { Resend } from 'resend';
 
 interface SendEmailOptions {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   text?: string;
@@ -19,6 +19,23 @@ export const EMAIL_FROM = {
   ONBOARDING: 'GolfIQ <onboarding@golfiq.ca>',
   UPDATES: 'GolfIQ <updates@golfiq.ca>',
 } as const;
+
+function getInternalNotificationRecipients(): string[] {
+  const raw = process.env.ADMIN_NOTIFICATION_EMAIL;
+  if (!raw) return [];
+
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function getAdminNotificationRecipient(): string | null {
+  const raw = process.env.ADMIN_NOTIFICATION_EMAIL;
+  if (!raw) return null;
+  const recipient = raw.trim();
+  return recipient.length > 0 ? recipient : null;
+}
 
 export async function sendEmail({ to, subject, html, text, from }: SendEmailOptions): Promise<boolean> {
   if (process.env.NODE_ENV === 'development') {
@@ -53,6 +70,151 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailOpti
     console.error('Failed to send email:', error);
     return false;
   }
+}
+
+export async function sendInternalNotificationEmail(
+  options: Omit<SendEmailOptions, 'to'>
+): Promise<boolean | null> {
+  const recipients = getInternalNotificationRecipients();
+  if (recipients.length === 0) {
+    return null;
+  }
+
+  return sendEmail({
+    ...options,
+    to: recipients,
+  });
+}
+
+export async function sendAdminNotificationEmail(
+  options: Omit<SendEmailOptions, 'to'>
+): Promise<boolean | null> {
+  const recipient = getAdminNotificationRecipient();
+  if (!recipient) {
+    console.warn('ADMIN_NOTIFICATION_EMAIL is not set; skipping admin notification email.');
+    return null;
+  }
+
+  return sendEmail({
+    ...options,
+    to: recipient,
+  });
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+type SignupNotificationEmailInput = {
+  userId: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  registeredAt: Date;
+};
+
+export function generateNewSignupInternalNotificationEmail({
+  userId,
+  email,
+  firstName,
+  lastName,
+  registeredAt,
+}: SignupNotificationEmailInput) {
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Not provided';
+  const submittedAt = registeredAt.toISOString();
+  const escapedFullName = escapeHtml(fullName);
+  const escapedEmail = escapeHtml(email);
+  const escapedUserId = escapeHtml(userId);
+  const escapedSubmittedAt = escapeHtml(submittedAt);
+  const subject = `New signup: ${email}`;
+
+  const html = `
+    <h2>New GolfIQ Signup</h2>
+    <p>A new user created an account.</p>
+    <ul>
+      <li><strong>User ID:</strong> ${escapedUserId}</li>
+      <li><strong>Email:</strong> ${escapedEmail}</li>
+      <li><strong>Name:</strong> ${escapedFullName}</li>
+      <li><strong>Created At:</strong> ${escapedSubmittedAt}</li>
+    </ul>
+  `;
+
+  const text = [
+    'New GolfIQ Signup',
+    '',
+    'A new user created an account.',
+    `User ID: ${userId}`,
+    `Email: ${email}`,
+    `Name: ${fullName}`,
+    `Created At: ${submittedAt}`,
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+type FeedbackNotificationEmailInput = {
+  userId: string;
+  userEmail: string;
+  userName?: string | null;
+  type: 'bug' | 'idea' | 'other';
+  message: string;
+  page: string | null;
+  appVersion: string | null;
+  submittedAt: Date;
+};
+
+export function generateFeedbackInternalNotificationEmail({
+  userId,
+  userEmail,
+  userName,
+  type,
+  message,
+  page,
+  appVersion,
+  submittedAt,
+}: FeedbackNotificationEmailInput) {
+  const normalizedUserName = userName?.trim() || 'Not provided';
+  const normalizedPage = page || 'Not provided';
+  const normalizedAppVersion = appVersion || 'Not provided';
+  const normalizedSubmittedAt = submittedAt.toISOString();
+  const subject = `New feedback (${type}) from ${userEmail}`;
+
+  const html = `
+    <h2>New GolfIQ Feedback</h2>
+    <ul>
+      <li><strong>User ID:</strong> ${escapeHtml(userId)}</li>
+      <li><strong>Email:</strong> ${escapeHtml(userEmail)}</li>
+      <li><strong>Name:</strong> ${escapeHtml(normalizedUserName)}</li>
+      <li><strong>Type:</strong> ${escapeHtml(type)}</li>
+      <li><strong>Page:</strong> ${escapeHtml(normalizedPage)}</li>
+      <li><strong>App Version:</strong> ${escapeHtml(normalizedAppVersion)}</li>
+      <li><strong>Submitted At:</strong> ${escapeHtml(normalizedSubmittedAt)}</li>
+    </ul>
+    <p><strong>Message</strong></p>
+    <pre style="white-space:pre-wrap;font-family:inherit;">${escapeHtml(message)}</pre>
+  `;
+
+  const text = [
+    'New GolfIQ Feedback',
+    '',
+    `User ID: ${userId}`,
+    `Email: ${userEmail}`,
+    `Name: ${normalizedUserName}`,
+    `Type: ${type}`,
+    `Page: ${normalizedPage}`,
+    `App Version: ${normalizedAppVersion}`,
+    `Submitted At: ${normalizedSubmittedAt}`,
+    '',
+    'Message:',
+    message,
+  ].join('\n');
+
+  return { subject, html, text };
 }
 
 const buttonInlineStyle = (bgColor: string) => `

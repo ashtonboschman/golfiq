@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
@@ -17,7 +17,17 @@ export default function CourseSearchPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [lastSearchOutcome, setLastSearchOutcome] = useState<'idle' | 'success_with_results' | 'success_no_results' | 'error'>('idle');
   const [importingCourseId, setImportingCourseId] = useState<number | null>(null);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [requestForm, setRequestForm] = useState({
+    courseName: '',
+    city: '',
+    province: '',
+    country: '',
+    notes: '',
+  });
 
   const trackApiFailure = (properties: Record<string, unknown>) => {
     captureClientEvent(
@@ -35,9 +45,14 @@ export default function CourseSearchPage() {
     );
   };
 
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+    }
+  }, [router, status]);
+
   if (status === 'loading') return <CoursesSearchSkeleton />;
   if (status === 'unauthenticated') {
-    router.replace('/login');
     return null;
   }
 
@@ -76,13 +91,20 @@ export default function CourseSearchPage() {
       return;
     }
 
+    const queryText = searchQuery.trim();
     setSearchLoading(true);
     setSearchResults([]);
+    setLastSearchOutcome('idle');
+    setRequestError('');
+    setRequestForm((prev) => ({
+      ...prev,
+      courseName: queryText,
+    }));
     clearMessage();
     let capturedFailure = false;
 
     try {
-      const res = await fetch(`/api/golf-course-api/search?query=${encodeURIComponent(searchQuery)}`);
+      const res = await fetch(`/api/golf-course-api/search?query=${encodeURIComponent(queryText)}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -107,13 +129,14 @@ export default function CourseSearchPage() {
 
         if (coursesWithValidTees.length > 0) {
           setSearchResults(coursesWithValidTees);
+          setLastSearchOutcome('success_with_results');
         } else {
           setSearchResults([]);
-          showMessage('No courses found with valid tees. Try a different search term.', 'error');
+          setLastSearchOutcome('success_no_results');
         }
       } else {
         setSearchResults([]);
-        showMessage('No courses found. Try a different search term.', 'error');
+        setLastSearchOutcome('success_no_results');
       }
     } catch (err: any) {
       if (!capturedFailure) {
@@ -127,8 +150,57 @@ export default function CourseSearchPage() {
       }
       showMessage(err.message || 'Failed to search courses', 'error');
       setSearchResults([]);
+      setLastSearchOutcome('error');
     } finally {
       setSearchLoading(false);
+    }
+  };
+
+  const handleRequestCourse = async () => {
+    if (!requestForm.courseName.trim()) {
+      setRequestError('Course name is required.');
+      return;
+    }
+
+    setRequestSubmitting(true);
+    setRequestError('');
+
+    try {
+      const res = await fetch('/api/courses/requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: searchQuery.trim() || undefined,
+          courseName: requestForm.courseName.trim(),
+          city: requestForm.city.trim() || undefined,
+          province: requestForm.province.trim() || undefined,
+          country: requestForm.country.trim() || undefined,
+          notes: requestForm.notes.trim() || undefined,
+          source: lastSearchOutcome === 'success_no_results' ? 'global_api_no_result' : 'manual',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || 'Failed to create course request.');
+      }
+
+      showMessage("Course request sent. We'll let you know once it's added.", 'success');
+      setRequestForm({
+        courseName: searchQuery.trim(),
+        city: '',
+        province: '',
+        country: '',
+        notes: '',
+      });
+      setRequestError('');
+    } catch (error: any) {
+      console.error('Course request submit error:', error);
+      setRequestError("We couldn't send the request. Please try again.");
+    } finally {
+      setRequestSubmitting(false);
     }
   };
 
@@ -188,10 +260,9 @@ export default function CourseSearchPage() {
         <div style={{ padding: '10px', background: '#e3f2fd', borderRadius: '8px', border: '2px solid #2196f3' }}>
           <strong style={{ color: '#1976d2' }}>Search Tips:</strong>
           <ul style={{ marginLeft: '0', marginTop: '8px', marginBottom: '0', paddingLeft: 20, fontSize: '0.9rem', color: '#555' }}>
-            <li>Use complete course names (e.g., "Pebble" not "Peb")</li>
-            <li>Try searching by city name if course name doesn't work</li>
-            <li>Search requires exact or close matches - partial names may not work</li>
-            <li>If not found in API contact support with a photo of scorecard and we will manually ad it!</li>
+            <li>Try the full course name</li>
+            <li>You can also search by city</li>
+            <li>Can&apos;t find it? Request it below</li>
           </ul>
         </div>
 
@@ -204,7 +275,7 @@ export default function CourseSearchPage() {
               const len = e.target.value.length;
               e.target.setSelectionRange(len, len);
             }}
-            onKeyPress={(e) => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 handleSearch();
                 e.currentTarget.blur();
@@ -214,7 +285,7 @@ export default function CourseSearchPage() {
             className="form-input"
             disabled={searchLoading}
             enterKeyHint="search"
-            max={250}
+            maxLength={250}
           />
           <button
             type="button"
@@ -226,6 +297,78 @@ export default function CourseSearchPage() {
             {searchLoading ? 'Searching...' : 'Search'}
           </button>
         </div>
+
+        {!searchLoading && (
+          <div className="card border-color course-request-fallback-card">
+            <h3>Still can't find it?</h3>
+            <p className="secondary-text course-request-fallback-copy">
+              Send us the course name and city. We&apos;ll review it and add it if scorecard data is available.
+            </p>
+
+            <div className="course-request-fallback-fields">
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.courseName}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, courseName: e.target.value }))}
+                placeholder="Course name"
+                maxLength={255}
+                disabled={requestSubmitting}
+              />
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.city}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, city: e.target.value }))}
+                placeholder="City"
+                maxLength={100}
+                disabled={requestSubmitting}
+              />
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.province}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, province: e.target.value }))}
+                placeholder="Province"
+                maxLength={100}
+                disabled={requestSubmitting}
+              />
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.country}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, country: e.target.value }))}
+                placeholder="Country (optional)"
+                maxLength={100}
+                disabled={requestSubmitting}
+              />
+              <textarea
+                className="form-input"
+                value={requestForm.notes}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Notes (optional)"
+                maxLength={2000}
+                rows={3}
+                disabled={requestSubmitting}
+              />
+
+              {requestError && (
+                <p className="secondary-text" style={{ color: '#b54747', margin: 0 }}>
+                  {requestError}
+                </p>
+              )}
+
+              <button
+                type="button"
+                className="btn btn-save"
+                onClick={handleRequestCourse}
+                disabled={requestSubmitting || !requestForm.courseName.trim()}
+              >
+                {requestSubmitting ? 'Submitting...' : 'Request Course'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {searchResults.length > 0 && (
           <div style={{ marginTop: '16px' }}>
@@ -286,19 +429,6 @@ export default function CourseSearchPage() {
             </div>
           </div>
         )}
-      </div>
-
-      <div className="card">
-        <h3>How It Works</h3>
-        <ol className='secondary-text'>
-          <li>Search for a golf course by name or city</li>
-          <li>Click "Add Course" next to the course you want</li>
-          <li>All valid tees will be imported automatically</li>
-          <li>The course will be available for everyone to use!</li>
-        </ol>
-        <div style={{ padding: '10px', background: '#fff3cd', borderRadius: '8px', border: '2px solid #ffc107' }}>
-          <strong>Note:</strong> All users share a limit of 200 course searches per day. Invalid tees (tees with "Combo", "-", or "/") are automatically excluded.
-        </div>
       </div>
     </div>
   );

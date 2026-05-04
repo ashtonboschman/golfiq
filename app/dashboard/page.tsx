@@ -157,6 +157,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
   const [showFocusConfidenceInfo, setShowFocusConfidenceInfo] = useState(false);
   const focusConfidenceTooltipRef = useRef<HTMLDivElement | null>(null);
+  const statsRequestIdRef = useRef(0);
   const [stats, setStats] = useState<DashboardStats>({
     handicap: null,
     handicap_message: null,
@@ -260,6 +261,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     const MAX_ATTEMPTS = 2;
     const RETRY_DELAY_MS = 350;
     const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const controller = new AbortController();
+    const requestId = statsRequestIdRef.current + 1;
+    statsRequestIdRef.current = requestId;
+    const isStaleOrAborted = () => controller.signal.aborted || requestId !== statsRequestIdRef.current;
 
     const fetchStats = async () => {
       setLoading(true);
@@ -274,10 +279,13 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               cache: 'no-store',
               credentials: 'include',
               headers: { Accept: 'application/json' },
+              signal: controller.signal,
             },
           );
+          if (isStaleOrAborted()) return;
 
           if (res.status === 403) {
+            if (isStaleOrAborted()) return;
             setError('This dashboard is private or visible to friends only.');
             setStats({
               handicap: null,
@@ -301,6 +309,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           }
 
           if (res.status === 401) {
+            if (isStaleOrAborted()) return;
             router.replace('/login');
             return;
           }
@@ -310,7 +319,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
           if (contentType.includes('application/json')) {
             data = await res.json();
+            if (isStaleOrAborted()) return;
           } else if (!res.ok && attempt < MAX_ATTEMPTS && res.status >= 500) {
+            if (isStaleOrAborted()) return;
             await delay(RETRY_DELAY_MS);
             continue;
           } else if (!contentType.includes('application/json')) {
@@ -345,18 +356,30 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               return;
             }
             if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
+              if (isStaleOrAborted()) return;
               await delay(RETRY_DELAY_MS);
               continue;
             }
+            if (isStaleOrAborted()) return;
             console.error('Dashboard API error:', message);
             showMessage(message, 'error');
             setError(message);
             return;
           }
 
+          if (isStaleOrAborted()) return;
           setStats(data);
           return;
         } catch (err) {
+          const isAbortError =
+            (err instanceof DOMException && err.name === 'AbortError') ||
+            (typeof err === 'object' &&
+              err !== null &&
+              'name' in err &&
+              (err as { name?: string }).name === 'AbortError');
+          if (isAbortError || isStaleOrAborted()) {
+            return;
+          }
           if (attempt < MAX_ATTEMPTS) {
             await delay(RETRY_DELAY_MS);
             continue;
@@ -370,14 +393,29 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       setLoading(false);
     };
 
-    fetchStats().finally(() => setLoading(false));
+    fetchStats().finally(() => {
+      if (!isStaleOrAborted()) {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      controller.abort();
+    };
   }, [status, statsMode, dateFilter, requestedUserId, router, showMessage, clearMessage]);
 
   const isOwnDashboard = parseInt(requestedUserId?.toString() || '0') === parseInt(session?.user?.id || '0');
+  const lastKnownTotalRoundsInDbRef = useRef<number | null>(null);
 
   // Use totalRoundsInDb (unfiltered count) to ensure milestone modals
   // are evaluated against lifetime rounds regardless of mode/date filters.
-  const totalRoundsForModal = stats.totalRoundsInDb ?? stats.total_rounds;
+  const totalRoundsForModal = stats.totalRoundsInDb ?? lastKnownTotalRoundsInDbRef.current ?? stats.total_rounds;
+
+  useEffect(() => {
+    if (typeof stats.totalRoundsInDb === 'number') {
+      lastKnownTotalRoundsInDbRef.current = stats.totalRoundsInDb;
+    }
+  }, [stats.totalRoundsInDb]);
 
   const getMilestoneAckKey = useCallback((modalType: 'welcome' | 'unlock' | 'upgrade', rounds: number) => {
     return `milestone-modal-ack:${session?.user?.id ?? 'anon'}:${modalType}:${rounds}`;
@@ -387,9 +425,14 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     // If round count drops, clear acknowledged keys above current rounds so
     // re-hitting that milestone (e.g. 3 -> 2 -> 3) shows the modal again.
     if (loading || subscriptionLoading || status !== 'authenticated' || !isOwnDashboard) return;
+    const reliableRounds =
+      typeof stats.totalRoundsInDb === 'number'
+        ? stats.totalRoundsInDb
+        : lastKnownTotalRoundsInDbRef.current;
+    if (typeof reliableRounds !== 'number') return;
 
     const userPrefix = `milestone-modal-ack:${session?.user?.id ?? 'anon'}:`;
-    const currentRounds = totalRoundsForModal;
+    const currentRounds = reliableRounds;
 
     for (let i = localStorage.length - 1; i >= 0; i -= 1) {
       const key = localStorage.key(i);

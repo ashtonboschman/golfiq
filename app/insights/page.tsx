@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import Select from 'react-select';
@@ -593,6 +593,8 @@ export default function InsightsPage() {
   const { isPremium } = useSubscription();
 
   const [statsMode, setStatsMode] = useState<StatsMode>('combined');
+  const insightsRequestIdRef = useRef(0);
+  const insightsAbortControllerRef = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<OverallInsightsPayload | null>(null);
@@ -684,12 +686,26 @@ export default function InsightsPage() {
   }, [showOverallConfidenceInfo]);
 
   const fetchInsights = useCallback(async (mode: StatsMode) => {
+    insightsAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    insightsAbortControllerRef.current = controller;
+    const requestId = insightsRequestIdRef.current + 1;
+    insightsRequestIdRef.current = requestId;
+    const isStaleOrAborted = () =>
+      controller.signal.aborted || requestId !== insightsRequestIdRef.current;
+
     setLoading(true);
     let capturedFailure = false;
     try {
-      const res = await fetch(`/api/insights/overall?statsMode=${mode}`, { credentials: 'include' });
+      const res = await fetch(`/api/insights/overall?statsMode=${mode}`, {
+        credentials: 'include',
+        signal: controller.signal,
+      });
+      if (isStaleOrAborted()) return;
       const data = await res.json();
+      if (isStaleOrAborted()) return;
       if (!res.ok) {
+        if (isStaleOrAborted()) return;
         captureClientEvent(
           ANALYTICS_EVENTS.apiRequestFailed,
           {
@@ -711,9 +727,19 @@ export default function InsightsPage() {
         capturedFailure = true;
         throw new Error(data?.message || 'Failed to load insights');
       }
+      if (isStaleOrAborted()) return;
       setInsights(data.insights as OverallInsightsPayload);
       setError(null);
     } catch (e: any) {
+      const isAbortError =
+        (e instanceof DOMException && e.name === 'AbortError') ||
+        (typeof e === 'object' &&
+          e !== null &&
+          'name' in e &&
+          (e as { name?: string }).name === 'AbortError');
+      if (isAbortError || isStaleOrAborted()) {
+        return;
+      }
       if (!capturedFailure) {
         captureClientEvent(
           ANALYTICS_EVENTS.apiRequestFailed,
@@ -737,7 +763,9 @@ export default function InsightsPage() {
       }
       setError(e?.message || 'Failed to load insights');
     } finally {
-      setLoading(false);
+      if (!isStaleOrAborted()) {
+        setLoading(false);
+      }
     }
   }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
@@ -746,6 +774,12 @@ export default function InsightsPage() {
       fetchInsights(statsMode);
     }
   }, [fetchInsights, status, statsMode]);
+
+  useEffect(() => {
+    return () => {
+      insightsAbortControllerRef.current?.abort();
+    };
+  }, []);
 
   const modePayload = insights?.mode_payload?.[statsMode];
   const isPremiumContext = insights ? insights.tier_context.isPremium : isPremium;

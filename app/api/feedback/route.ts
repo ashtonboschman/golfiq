@@ -3,6 +3,11 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { prisma } from '@/lib/db';
 import { errorResponse, requireAuth, successResponse } from '@/lib/api-auth';
+import {
+  generateFeedbackInternalNotificationEmail,
+  sendInternalNotificationEmail,
+  EMAIL_FROM,
+} from '@/lib/email';
 
 const ALLOWED_TYPES = new Set(['bug', 'idea', 'other'] as const);
 const MIN_MESSAGE_LENGTH = 10;
@@ -80,6 +85,18 @@ export async function POST(request: NextRequest) {
     }
 
     userId = await requireAuth(request);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        profile: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
 
     let body: FeedbackBody;
     try {
@@ -148,6 +165,30 @@ export async function POST(request: NextRequest) {
         appVersion: parsed.data.appVersion,
       },
     });
+
+    if (user?.email) {
+      const userName = [user.profile?.firstName, user.profile?.lastName].filter(Boolean).join(' ').trim() || null;
+      const internalFeedbackEmail = generateFeedbackInternalNotificationEmail({
+        userId: userId.toString(),
+        userEmail: user.email,
+        userName,
+        type: parsed.data.type,
+        message: parsed.data.message,
+        page: parsed.data.page,
+        appVersion: parsed.data.appVersion,
+        submittedAt: new Date(),
+      });
+
+      const internalNotificationSent = await sendInternalNotificationEmail({
+        subject: internalFeedbackEmail.subject,
+        html: internalFeedbackEmail.html,
+        text: internalFeedbackEmail.text,
+        from: EMAIL_FROM.UPDATES,
+      });
+      if (internalNotificationSent === false) {
+        console.error('Failed to send internal feedback notification for user:', userId.toString());
+      }
+    }
 
     await captureServerEvent({
       event: ANALYTICS_EVENTS.feedbackSubmitted,
