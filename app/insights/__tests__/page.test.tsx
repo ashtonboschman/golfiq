@@ -254,6 +254,7 @@ describe('/insights page', () => {
     expect(screen.getByText('Your scoring has some movement. Your scores are moving around, but not wildly from round to round.')).toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Not enough data')).not.toBeInTheDocument();
     expect(container.querySelectorAll('.overall-insight-fake')).toHaveLength(0);
   });
 
@@ -352,6 +353,8 @@ describe('/insights page', () => {
     const lowRender = render(<InsightsPage />);
     const lowPill = await screen.findByRole('button', { name: 'Overall insights confidence: Low' });
     expect(lowPill).toHaveClass('is-low');
+    expect(lowRender.container.querySelector('.consistency-badge')).toHaveTextContent('Needs more rounds');
+    expect(screen.queryByText('Not enough data')).not.toBeInTheDocument();
     lowRender.unmount();
 
     (global.fetch as jest.Mock).mockResolvedValueOnce({

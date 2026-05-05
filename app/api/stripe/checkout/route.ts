@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
 import { createCheckoutSession, createStripeCustomer } from '@/lib/stripe';
-import { PRICING } from '@/lib/subscription';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 
@@ -29,6 +28,18 @@ export async function POST(req: NextRequest) {
     }
 
     const { priceId, interval } = await req.json();
+
+    const configuredMonthlyPriceId = process.env.STRIPE_PRICE_MONTHLY_CAD;
+    const configuredAnnualPriceId = process.env.STRIPE_PRICE_ANNUAL_CAD;
+
+    const allowedPriceIds = [configuredMonthlyPriceId, configuredAnnualPriceId].filter(
+      (id): id is string => Boolean(id && id.trim()),
+    );
+
+    if (!allowedPriceIds.length) {
+      console.error('Stripe checkout is misconfigured: no allowed Stripe premium price IDs are set.');
+      return NextResponse.json({ message: 'Checkout is not configured' }, { status: 500 });
+    }
 
     // Validate priceId
     if (!priceId || typeof priceId !== 'string') {
@@ -82,9 +93,42 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
+    if (!allowedPriceIds.includes(priceId)) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.checkoutFailed,
+        distinctId: session.user.id ?? session.user.email,
+        properties: {
+          failure_stage: 'validation',
+          error_code: 'invalid_price_id_allowlist',
+        },
+        context: { request: req, sourcePage: '/api/stripe/checkout', isLoggedIn: true },
+      });
+      return NextResponse.json({ error: 'Invalid price', message: 'Invalid price' }, { status: 400 });
+    }
 
-    // Check if user already has premium/lifetime
-    if (user.subscriptionTier === 'premium' || user.subscriptionTier === 'lifetime') {
+    const subscriptionStatus = String(user.subscriptionStatus ?? '').toLowerCase();
+    const hasActivePremium = user.subscriptionTier === 'premium' && ['active', 'trialing'].includes(subscriptionStatus);
+
+    // Check if user already has lifetime access
+    if (user.subscriptionTier === 'lifetime') {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.checkoutFailed,
+        distinctId: user.id.toString(),
+        properties: {
+          failure_stage: 'business_rule',
+          error_code: 'already_subscribed',
+          plan_tier: user.subscriptionTier,
+        },
+        context: { request: req, sourcePage: '/api/stripe/checkout', isLoggedIn: true, planTier: user.subscriptionTier },
+      });
+      return NextResponse.json(
+        { message: 'You already have an active subscription' },
+        { status: 400 }
+      );
+    }
+
+    // Block only active/trialing premium users from starting a new checkout.
+    if (hasActivePremium) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: user.id.toString(),

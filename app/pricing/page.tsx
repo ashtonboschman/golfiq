@@ -21,7 +21,6 @@ function PricingContent() {
   const [activeTab, setActiveTab] = useState<PlanTab>('monthly');
   const { isPremium, loading: subscriptionLoading } = useSubscription();
   const viewedRef = useRef(false);
-  const checkoutExitTrackedRef = useRef(false);
   const checkoutCancelTrackedRef = useRef(false);
 
   useEffect(() => {
@@ -82,42 +81,11 @@ function PricingContent() {
     }
   }, [pathname, searchParams, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
-  // Clear loading state when page becomes visible (handles iOS popup X button)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && loading !== null) {
-        if (!checkoutExitTrackedRef.current) {
-          checkoutExitTrackedRef.current = true;
-          captureClientEvent(
-            ANALYTICS_EVENTS.checkoutFailed,
-            {
-              failure_stage: 'checkout_exited',
-              source_page: pathname,
-              checkout_intent: loading,
-            },
-            {
-              pathname,
-              user: {
-                id: session?.user?.id,
-                subscription_tier: session?.user?.subscription_tier,
-                auth_provider: session?.user?.auth_provider,
-              },
-              isLoggedIn: status === 'authenticated',
-            },
-          );
-        }
-        setLoading(null);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [loading, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
-
   const handleSubscribe = async (priceId: string, interval: 'month' | 'year') => {
+    if (loading !== null) return;
+
     setLoading(interval);
     setMessage(null);
-    checkoutExitTrackedRef.current = false;
     checkoutCancelTrackedRef.current = false;
     captureClientEvent(
       ANALYTICS_EVENTS.upgradeCtaClicked,
@@ -149,6 +117,10 @@ function PricingContent() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data?.portalUrl && typeof data.portalUrl === 'string') {
+          window.location.href = data.portalUrl;
+          return;
+        }
         captureClientEvent(
           ANALYTICS_EVENTS.apiRequestFailed,
           {
@@ -194,7 +166,7 @@ function PricingContent() {
   return (
     <div className="page-stack">
       {message && (
-        <div className='secondary-text'>
+        <div className={message.type === 'success' ? 'text-green' : 'text-red'}>
           {message.text}
         </div>
       )}
@@ -227,21 +199,20 @@ function PricingContent() {
             <div className="pricing-badge">Most Popular</div>
             <div className="pricing-card-header">
               <h2>Premium Monthly</h2>
-              <h4>Deeper insights. Smarter decisions. Faster improvement.</h4>
+              <h4>See what&apos;s actually costing you strokes.</h4>
               <div className="pricing-price">
-                <span className="price-amount">${PRICING.monthly.price}</span>
+                <span className="price-amount">${PRICING.monthly.price.toFixed(2)}</span>
                 <span className="price-period">/month</span>
               </div>
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">
+                <li><Check color='green' size='20' className="feature-icon"/> Full strokes gained breakdown with component-level insights</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Post-round breakdowns and overall insights across your rounds</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Projection ranges and deeper comparisons</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Trends across all your rounds</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Premium themes and enhanced filtering</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Everything in Free</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Unlimited stat calculations & advanced trend charts</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Strokes gained per round & KPI comparisons</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Round-based and overall Intelligent Insights with personalized recommendations</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Course insights, tee recommendations & course-specific leaderboards</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Premium themes & enhanced filtering</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Priority support</li>
               </ul>
               <button
                 className="btn-upgrade"
@@ -249,11 +220,11 @@ function PricingContent() {
                 onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
                 disabled={loading !== null || status === 'loading' || subscriptionLoading}
               >
-                {loading === 'month' ? 'Loading...' : 'Upgrade to Premium'}
+                {loading === 'month' ? 'Loading...' : "See What's Costing You Strokes"}
               </button>
               <div>
                 <p className="price-subtext">
-                  Billed ${PRICING.monthly.price}/month. Cancel anytime.
+                  ${PRICING.monthly.price.toFixed(2)} CAD billed monthly. Cancel anytime.
                 </p>
               </div>
             </div>
@@ -265,23 +236,22 @@ function PricingContent() {
             <div className="pricing-badge savings">Save {PRICING.annual.savings}</div>
             <div className="pricing-card-header">
               <h2>Premium Annual</h2>
-              <h4>Best value for committed golfers.</h4>
+              <h4>Track your improvement across the full season.</h4>
               <div className="pricing-price">
-                <span className="price-amount">${PRICING.annual.price}</span>
+                <span className="price-amount">${PRICING.annual.price.toFixed(2)}</span>
                 <span className="price-period">/year</span>
               </div>
               <p className="price-breakdown">
-                Just <strong>${(PRICING.annual.price / 12).toFixed(2)}</strong>/month
+                Only <strong>${(PRICING.annual.price / 12).toFixed(2)} per month</strong>
               </p>
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">
-                <li><Check color='green' size='20' className="feature-icon"/> Everything in Premium</li>
                 <li><Check color='green' size='20' className="feature-icon"/> <span>Save <strong>{PRICING.annual.savings}</strong> vs monthly</span></li>
-                <li><Check color='green' size='20' className="feature-icon"/> Best value for dedicated golfers</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Full season & year-over-year analysis</li>
-                <li><Check color='green' size='20' className="feature-icon"/> One payment, no monthly friction</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Ideal for long-term improvement tracking</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Track your improvement across the full season</li>
+                <li><Check color='green' size='20' className="feature-icon"/> See how your game evolves over time</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Annual subscription, billed yearly</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Built for golfers who want to improve consistently</li>
               </ul>
               <button
                 className="btn-upgrade"
@@ -289,11 +259,11 @@ function PricingContent() {
                 onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
                 disabled={loading !== null || status === 'loading' || subscriptionLoading}
               >
-                {loading === 'year' ? 'Loading...' : 'Upgrade to Premium Annual'}
+                {loading === 'year' ? 'Loading...' : "See What's Costing You Strokes"}
               </button>
               <div>
                 <p className="price-subtext">
-                  Billed ${PRICING.annual.price}/year - One-time payment - Save {PRICING.annual.savings} vs monthly
+                  ${PRICING.annual.price.toFixed(2)} CAD billed yearly. Save {PRICING.annual.savings} vs monthly.
                 </p>
               </div>
             </div>
@@ -309,7 +279,7 @@ function PricingContent() {
                 <span className="price-period">/forever</span>
               </div>
               <p className="price-breakdown">
-                Free forever. Upgrade when you want deeper insights.
+                Free forever. Upgrade when you want deeper insight.
               </p>
             </div>
             <div className="pricing-card-body">
@@ -320,9 +290,9 @@ function PricingContent() {
                 <li><Check color='green' size='20' className="feature-icon"/> 9-hole & 18-hole support</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Course search, scorecards, friends, & leaderboards</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Light & dark themes, multi-device sync</li>
-                <li><X color='red' size='20' className="feature-icon"/> Advanced analytics & predictions</li>
-                <li><X color='red' size='20' className="feature-icon"/> Round-based Intelligent Insights</li>
-                <li><X color='red' size='20' className="feature-icon"/> Custom dashboards & advanced filters</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Basic post-round insights</li>
+                <li><X color='red' size='20' className="feature-icon"/> Full strokes gained breakdown</li>
+                <li><X color='red' size='20' className="feature-icon"/> Advanced analytics, projections, and comparisons</li>
               </ul>
               <button
                 className="pricing-button current"

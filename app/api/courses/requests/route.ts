@@ -29,7 +29,7 @@ function buildAdminCourseRequestTextEmail(args: {
   const location = locationParts.length > 0 ? locationParts.join(', ') : 'Not provided';
   const displayUser = args.userName || args.userEmail || args.userId;
 
-  const subject = `[GolfIQ] Course request – ${args.courseName}`;
+  const subject = `[GolfIQ] Course request - ${args.courseName}`;
   const text = [
     'Course request submitted',
     '',

@@ -228,7 +228,7 @@ export default function SettingsPage() {
                       <div className="subscription-detail-box">
                         <p>
                           You're currently on the free plan. Upgrade to Premium to unlock
-                          advanced features like Insights, strokes gained, unlimited analytics history,
+                          full strokes gained breakdown, trends, deeper analytics history,
                           premium themes, and more!
                         </p>
                         <button

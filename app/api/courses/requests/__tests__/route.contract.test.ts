@@ -129,9 +129,11 @@ describe('/api/courses/requests route contract', () => {
     expect(mockedSendAdminNotificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         from: EMAIL_FROM.UPDATES,
-        subject: expect.stringContaining('Pebble Beach Golf Links'),
+        subject: `[GolfIQ] Course request - Pebble Beach Golf Links`,
       }),
     );
+    const emailCall = mockedSendAdminNotificationEmail.mock.calls[0]?.[0];
+    expect(emailCall?.subject).not.toContain('â€“');
   });
 
   it('does not fail when ADMIN_NOTIFICATION_EMAIL is missing', async () => {
@@ -171,4 +173,3 @@ describe('/api/courses/requests route contract', () => {
     );
   });
 });
-

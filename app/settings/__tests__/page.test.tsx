@@ -202,4 +202,20 @@ describe('/settings page', () => {
     expect(screen.getByRole('button', { name: /import course data/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /manage feedback/i })).toBeInTheDocument();
   });
+
+  it('uses deeper analytics history copy for free plan upsell', () => {
+    mockedUseSubscription.mockReturnValue({
+      tier: 'free',
+      status: 'active',
+      endsAt: null,
+      cancelAtPeriodEnd: false,
+      loading: false,
+      isPremium: false,
+    });
+
+    render(<SettingsPage />);
+
+    expect(screen.getByText(/deeper analytics history/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unlimited analytics history/i)).not.toBeInTheDocument();
+  });
 });

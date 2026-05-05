@@ -1,4 +1,4 @@
-import { Brain, TrendingUp, Trophy, Users2, BarChart3, MapPin } from 'lucide-react';
+import { Brain, TrendingUp, Trophy, Users2, BarChart3 } from 'lucide-react';
 
 export default function Features() {
   const SHOW_ACHIEVEMENTS_STREAKS = false;
@@ -32,11 +32,6 @@ export default function Features() {
       icon: <TrendingUp size={32} />,
       title: 'Trend Analysis',
       description: 'Reveal patterns in your game over time. Understand what is improving, what needs attention, and where focused practice will deliver results.',
-    },
-    {
-      icon: <MapPin size={32} />,
-      title: 'Course-Specific Insights',
-      description: 'Play smarter on every course. GolfIQ highlights how each course impacts your scoring and suggests focus areas based on your performance history.',
     },
   ];
 

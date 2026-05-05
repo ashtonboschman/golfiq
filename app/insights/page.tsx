@@ -194,7 +194,7 @@ function formatConsistencyLabel(label: OverallInsightsPayload['consistency']['la
   if (label === 'stable') return 'Stable';
   if (label === 'moderate') return 'Moderate';
   if (label === 'volatile') return 'Volatile';
-  return 'Not enough data';
+  return 'Needs more rounds';
 }
 
 function formatEffValue(v: number | null, type: 'percent' | 'rate'): string {
@@ -286,7 +286,7 @@ function getPercentFixedWidths(
 
 function getScoringDeltaSummary(recent: number | null, typical: number | null): { text: string; tone: DeltaTone } {
   if (recent == null || typical == null || !Number.isFinite(recent) || !Number.isFinite(typical)) {
-    return { text: 'Not enough data', tone: 'none' };
+    return { text: 'Needs more rounds', tone: 'none' };
   }
 
   // Keep delta consistent with card values (both shown to 1 decimal place).
@@ -301,7 +301,7 @@ function getPercentDeltaSummary(
   metricLabel: 'FIR' | 'GIR',
 ): { text: string; tone: DeltaTone } {
   if (recent == null || typical == null || !Number.isFinite(recent) || !Number.isFinite(typical)) {
-    return { text: 'Not enough data', tone: 'none' };
+    return { text: 'Needs more rounds', tone: 'none' };
   }
 
   // Align delta math with displayed whole-percent values in the cards.
@@ -314,7 +314,7 @@ function getPercentDeltaSummary(
 }
 function getLowerBetterRateDeltaSummary(recent: number | null, typical: number | null): { text: string; tone: DeltaTone } {
   if (recent == null || typical == null || !Number.isFinite(recent) || !Number.isFinite(typical)) {
-    return { text: 'Not enough data', tone: 'none' };
+    return { text: 'Needs more rounds', tone: 'none' };
   }
 
   // Keep delta consistent with card values (both shown to 1 decimal place).
@@ -325,7 +325,7 @@ function getLowerBetterRateDeltaSummary(recent: number | null, typical: number |
 }
 function getPenaltyRateDeltaSummary(recent: number | null, typical: number | null): { text: string; tone: DeltaTone } {
   if (recent == null || typical == null || !Number.isFinite(recent) || !Number.isFinite(typical)) {
-    return { text: 'Not enough data', tone: 'none' };
+    return { text: 'Needs more rounds', tone: 'none' };
   }
 
   // Keep delta consistent with card values (both shown to 1 decimal place).
@@ -347,7 +347,7 @@ function formatTrajectoryLabel(
   if (trajectory === 'flat') return 'Flat';
   if (trajectory === 'worsening') return 'Worsening';
   if (trajectory === 'volatile') return 'Volatile';
-  return 'Not enough data';
+  return 'Data is still building';
 }
 
 function getScoreNearThresholdForMode(mode: StatsMode): number {
