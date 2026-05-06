@@ -33,19 +33,45 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
     setCourseInfo({ ...courseInfo, [e.target.name]: e.target.value });
   };
 
+  const createDefaultHole = (holeNumber: number) => ({
+    hole_number: holeNumber,
+    par: 4,
+    yardage: 0,
+    handicap: holeNumber,
+  });
+
+  const resizeHoles = (existingHoles: any[], nextHoleCount: number) =>
+    Array.from({ length: nextHoleCount }, (_, idx) => {
+      const holeNumber = idx + 1;
+      const existingHole = existingHoles[idx];
+      if (!existingHole) {
+        return createDefaultHole(holeNumber);
+      }
+
+      return {
+        hole_number: holeNumber,
+        par: typeof existingHole.par === 'number' ? existingHole.par : 4,
+        yardage: typeof existingHole.yardage === 'number' ? existingHole.yardage : 0,
+        handicap: typeof existingHole.handicap === 'number' ? existingHole.handicap : holeNumber,
+      };
+    });
+
   const handleTeeChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setCurrentTee({ ...currentTee, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    setCurrentTee({ ...currentTee, [name]: value });
+
+    if (name === 'number_of_holes' && holes.length > 0) {
+      const numHoles = parseInt(value, 10);
+      if (!Number.isNaN(numHoles)) {
+        setHoles(resizeHoles(holes, numHoles));
+      }
+    }
   };
 
   const initializeHoles = () => {
-    const numHoles = parseInt(currentTee.number_of_holes);
-    const newHoles = Array.from({ length: numHoles }, (_, i) => ({
-      hole_number: i + 1,
-      par: 4,
-      yardage: 0,
-      handicap: i + 1,
-    }));
-    setHoles(newHoles);
+    const numHoles = parseInt(currentTee.number_of_holes, 10);
+    setHoles(resizeHoles([], numHoles));
   };
 
   const updateHole = (index: number, field: string, value: string) => {
@@ -88,6 +114,21 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
 
   const removeTee = (index: number) => {
     setTees(tees.filter((_, i) => i !== index));
+  };
+
+  const duplicateTee = (index: number) => {
+    const teeToDuplicate = tees[index];
+    const numberOfHoles = teeToDuplicate.number_of_holes || 18;
+
+    setCurrentTee({
+      gender: teeToDuplicate.gender,
+      tee_name: teeToDuplicate.tee_name || '',
+      course_rating: teeToDuplicate.course_rating?.toString() || '',
+      slope_rating: teeToDuplicate.slope_rating?.toString() || '',
+      number_of_holes: numberOfHoles.toString(),
+      par_total: teeToDuplicate.par_total?.toString() || '',
+    });
+    setHoles(resizeHoles(teeToDuplicate.holes || [], numberOfHoles));
   };
 
   const handleSubmit = () => {
@@ -372,14 +413,24 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                     {tee.number_of_holes} holes
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeTee(idx)}
-                  className="btn btn-cancel"
-                  style={{ width: 'auto', padding: '10px' }}
-                >
-                  Remove
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => duplicateTee(idx)}
+                    className="btn btn-toggle"
+                    style={{ width: 'auto', padding: '10px' }}
+                  >
+                    Duplicate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeTee(idx)}
+                    className="btn btn-cancel"
+                    style={{ width: 'auto', padding: '10px' }}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>
