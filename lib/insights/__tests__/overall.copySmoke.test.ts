@@ -41,6 +41,8 @@ function mkRound(partial: Partial<OverallRoundPoint>): OverallRoundPoint {
     sgResidual: -0.5,
     sgConfidence: null,
     sgPartialAnalysis: null,
+    firDirections: [],
+    girDirections: [],
     ...partial,
   };
 }
@@ -72,8 +74,9 @@ describe('overall copy smoke (3-card system)', () => {
     expect(cards).toHaveLength(3);
 
     const joined = cards.join(' ').toLowerCase();
-    expect(joined).toContain('usual level');
+    expect(joined).toContain('normal scoring range');
     BANNED_TOKENS.forEach((token) => expect(joined).not.toContain(token));
     expect(joined).not.toContain('baseline');
   });
 });
+

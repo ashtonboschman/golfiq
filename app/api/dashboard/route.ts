@@ -6,6 +6,18 @@ import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { buildDashboardOverallInsightsSummary } from '@/lib/insights/dashboardFocus';
 
+const MISS_DIRECTION_KEYS = ['miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
+type MissDirectionKey = (typeof MISS_DIRECTION_KEYS)[number];
+
+function emptyDirectionCounts(): Record<MissDirectionKey, number> {
+  return {
+    miss_left: 0,
+    miss_right: 0,
+    miss_short: 0,
+    miss_long: 0,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const currentUserId = await requireAuth(request);
@@ -157,6 +169,7 @@ export async function GET(request: NextRequest) {
         handicap: null,
         all_rounds: [],
         hbh_stats: null,
+        miss_tendencies: null,
         overallInsightsSummary,
         latestRoundUpdatedAt: null,
       });
@@ -247,6 +260,7 @@ export async function GET(request: NextRequest) {
         gir_avg: null,
         avg_putts: null,
         avg_penalties: null,
+        miss_tendencies: null,
         hbh_stats: {
           par3_avg: null,
           par4_avg: null,
@@ -278,6 +292,16 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+    const roundHolesByRoundId = roundHoles.reduce((acc, hole: any) => {
+      const key = hole.roundId.toString();
+      const existing = acc.get(key);
+      if (existing) {
+        existing.push(hole);
+      } else {
+        acc.set(key, [hole]);
+      }
+      return acc;
+    }, new Map<string, any[]>());
 
     // Calculate hole-by-hole stats
     const parBuckets: Record<number, { sum: number; count: number }> = {
@@ -301,7 +325,7 @@ export async function GET(request: NextRequest) {
     roundsForStats.forEach((r: any) => {
       if (!r.hole_by_hole) return;
       const weight = 1;
-      const holes = roundHoles.filter((rh: any) => rh.roundId === BigInt(r.id));
+      const holes = roundHolesByRoundId.get(String(r.id)) ?? [];
       if (!holes.length) return;
 
       hbhRoundCount += weight;
@@ -332,6 +356,54 @@ export async function GET(request: NextRequest) {
       par5_avg: parBuckets[5].count ? parBuckets[5].sum / parBuckets[5].count : null,
       scoring_breakdown: scoring,
       hbh_rounds_count: hbhRoundCount,
+    };
+
+    const firDirectionCounts = emptyDirectionCounts();
+    const girDirectionCounts = emptyDirectionCounts();
+    let firTotalMisses = 0;
+    let girTotalMisses = 0;
+
+    roundHoles.forEach((rh: any) => {
+      if (rh.firHit === 0) firTotalMisses += 1;
+      if (rh.girHit === 0) girTotalMisses += 1;
+
+      if (rh.firDirection && MISS_DIRECTION_KEYS.includes(rh.firDirection)) {
+        firDirectionCounts[rh.firDirection as MissDirectionKey] += 1;
+      }
+      if (rh.girDirection && MISS_DIRECTION_KEYS.includes(rh.girDirection)) {
+        girDirectionCounts[rh.girDirection as MissDirectionKey] += 1;
+      }
+    });
+
+    const firTrackedMisses = MISS_DIRECTION_KEYS.reduce((sum, key) => sum + firDirectionCounts[key], 0);
+    const girTrackedMisses = MISS_DIRECTION_KEYS.reduce((sum, key) => sum + girDirectionCounts[key], 0);
+    const missLabels: Record<MissDirectionKey, string> = {
+      miss_left: 'Left',
+      miss_right: 'Right',
+      miss_short: 'Short',
+      miss_long: 'Long',
+    };
+    const miss_tendencies = {
+      labels: MISS_DIRECTION_KEYS.map((key) => missLabels[key]),
+      keys: [...MISS_DIRECTION_KEYS],
+      fir: {
+        percentages: MISS_DIRECTION_KEYS.map((key) =>
+          firTrackedMisses > 0 ? (firDirectionCounts[key] / firTrackedMisses) * 100 : null,
+        ),
+        counts: MISS_DIRECTION_KEYS.map((key) => firDirectionCounts[key]),
+        tracked_misses: firTrackedMisses,
+        total_misses: firTotalMisses,
+        untracked_misses: Math.max(0, firTotalMisses - firTrackedMisses),
+      },
+      gir: {
+        percentages: MISS_DIRECTION_KEYS.map((key) =>
+          girTrackedMisses > 0 ? (girDirectionCounts[key] / girTrackedMisses) * 100 : null,
+        ),
+        counts: MISS_DIRECTION_KEYS.map((key) => girDirectionCounts[key]),
+        tracked_misses: girTrackedMisses,
+        total_misses: girTotalMisses,
+        untracked_misses: Math.max(0, girTotalMisses - girTrackedMisses),
+      },
     };
 
     // Calculate aggregate stats based on the same capped set used for free-tier stats.
@@ -389,6 +461,7 @@ export async function GET(request: NextRequest) {
       avg_putts,
       avg_penalties,
       hbh_stats,
+      miss_tendencies,
       isPremium,
       limitedToLast20: !isPremium && rounds.length > 20,
       totalRoundsInDb: rounds.length,

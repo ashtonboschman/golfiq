@@ -683,7 +683,7 @@ export default function InsightsPage() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
     return;
-  }, [showOverallConfidenceInfo]);
+  }, [overallConfidenceTooltipRef, showOverallConfidenceInfo]);
 
   const fetchInsights = useCallback(async (mode: StatsMode) => {
     insightsAbortControllerRef.current?.abort();

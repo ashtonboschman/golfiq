@@ -2280,11 +2280,19 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--color-border);
 }
 
 .trend-card .recharts-responsive-container {
   margin: 0 auto;
+}
+
+.trend-card canvas {
+  display: block;
+  max-width: 100%;
 }
 
 /* ===========================
@@ -5771,6 +5779,87 @@ input[type='date'].form-input {
   color: var(--color-primary-text);
 }
 
+.directional-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.directional-result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(42px, auto));
+  gap: 6px;
+}
+
+.directional-result-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-secondary-surface);
+  color: var(--color-secondary-text);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 42px;
+}
+
+.directional-result-btn.pos-up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.directional-result-btn.pos-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.directional-result-btn.pos-center {
+  grid-column: 2;
+  grid-row: 2;
+  font-weight: 700;
+}
+
+.directional-result-btn.pos-right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.directional-result-btn.pos-down {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.directional-result-btn.active {
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  border-color: var(--color-accent);
+  color: var(--color-primary-text);
+}
+
+.directional-result-btn.active-hit {
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: var(--color-white-text);
+}
+
+.directional-result-btn.active-miss {
+  background: var(--color-red);
+  border-color: var(--color-red);
+  color: var(--color-white-text);
+}
+
+.directional-result-miss-note {
+  font-size: 0.75rem;
+  color: var(--color-secondary-text);
+}
+
+.directional-result-na {
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  color: var(--color-secondary-text);
+}
+
 .stepper-controls {
   display: flex;
   align-items: center;
@@ -6517,18 +6606,24 @@ input[type='date'].form-input {
   gap: var(--gap);
   align-items: center;
   width: 100%;
+  min-width: 0;
 }
 
 .sg-delta-label {
   color: var(--color-primary-text);
   font-size: 0.9rem;
   font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sg-delta-value {
   color: var(--color-secondary-text);
   text-align: right;
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .sg-delta-track {
@@ -6536,6 +6631,7 @@ input[type='date'].form-input {
   height: 12px;
   min-width: 140px;
   width: 100%;
+  max-width: 100%;
   justify-self: stretch;
   border-radius: 999px;
   background: var(--color-secondary-surface);

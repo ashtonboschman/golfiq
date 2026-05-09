@@ -20,6 +20,7 @@ jest.mock('@/lib/db', () => ({
     round: { findMany: jest.fn() },
     user: { findUnique: jest.fn() },
     roundHole: { findMany: jest.fn() },
+    overallInsight: { findUnique: jest.fn() },
   },
 }));
 
@@ -42,6 +43,7 @@ type MockPrisma = {
   round: { findMany: jest.Mock };
   user: { findUnique: jest.Mock };
   roundHole: { findMany: jest.Mock };
+  overallInsight: { findUnique: jest.Mock };
 };
 
 const mockedRequireAuth = requireAuth as jest.Mock;
@@ -106,6 +108,7 @@ describe('/api/dashboard route contract', () => {
     mockedNormalizeRoundsByMode.mockImplementation((rounds: any[]) => rounds);
     mockedPrisma.roundHole.findMany.mockResolvedValue([]);
     mockedCalculateHandicap.mockReturnValue(10.2);
+    mockedPrisma.overallInsight.findUnique.mockResolvedValue(null);
   });
 
   it('caps free-user aggregate averages to the latest 20 rounds', async () => {
@@ -141,5 +144,128 @@ describe('/api/dashboard route contract', () => {
     );
     const handicapInput = mockedCalculateHandicap.mock.calls[0][0];
     expect(handicapInput).toHaveLength(20);
+  });
+
+  it('preserves persistence and volatility signals in overallInsightsSummary contract', async () => {
+    mockedPrisma.overallInsight.findUnique.mockResolvedValue({
+      insights: {
+        generated_at: '2026-02-24T10:00:00.000Z',
+        tier_context: { recentWindow: 5 },
+        projection: { projectedHandicapIn10: 7.2 },
+        projection_by_mode: {
+          combined: {
+            projectedScoreIn10: 79.3,
+            scoreLow: 78.1,
+            scoreHigh: 80.5,
+          },
+          '9': { projectedScoreIn10: null, scoreLow: null, scoreHigh: null },
+          '18': { projectedScoreIn10: null, scoreLow: null, scoreHigh: null },
+        },
+        mode_payload: {
+          combined: {
+            kpis: {
+              roundsRecent: 5,
+              avgScoreRecent: 80.2,
+              avgScoreBaseline: 79.0,
+              deltaVsBaseline: 1.2,
+            },
+            consistency: { label: 'volatile', stdDev: 4.3 },
+            sgComponents: {
+              hasData: true,
+              recentAvg: {
+                offTee: -0.1,
+                approach: -0.3,
+                putting: -0.2,
+                penalties: -0.05,
+                residual: 0,
+              },
+              baselineAvg: {
+                offTee: 0,
+                approach: 0,
+                putting: 0,
+                penalties: 0,
+                residual: 0,
+              },
+            },
+            efficiency: {
+              fir: { recent: 0.5, baseline: 0.5, coverageRecent: '5/5' },
+              gir: { recent: 0.4, baseline: 0.4, coverageRecent: '5/5' },
+              puttsTotal: { recent: 32, baseline: 32, coverageRecent: '5/5' },
+              penaltiesPerRound: { recent: 1.4, baseline: 1.2, coverageRecent: '5/5' },
+            },
+          },
+          '9': { kpis: { roundsRecent: 0 } },
+          '18': { kpis: { roundsRecent: 5 } },
+        },
+        sg: {
+          components: {
+            latest: { confidence: 'high' },
+            worstComponentFrequencyRecent: {
+              component: 'approach',
+              count: 4,
+              window: 5,
+            },
+          },
+        },
+      },
+    });
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.type).toBe('success');
+    expect(body.overallInsightsSummary).toEqual(
+      expect.objectContaining({
+        confidence: 'high',
+        dataQualityFlags: expect.objectContaining({
+          volatileScoring: true,
+        }),
+        persistenceSignal: {
+          component: 'approach',
+          count: 4,
+          window: 5,
+          tier: 'persistent',
+        },
+      }),
+    );
+  });
+
+  it('returns FIR/GIR miss tendencies percentages from directional misses', async () => {
+    mockedPrisma.roundHole.findMany.mockResolvedValue([
+      { roundId: BigInt(25), firHit: 0, firDirection: 'miss_left', girHit: 0, girDirection: 'miss_short', hole: { par: 4 }, score: 5 },
+      { roundId: BigInt(24), firHit: 0, firDirection: 'miss_right', girHit: 0, girDirection: 'miss_short', hole: { par: 4 }, score: 5 },
+      { roundId: BigInt(23), firHit: 0, firDirection: 'miss_right', girHit: 0, girDirection: 'miss_long', hole: { par: 5 }, score: 6 },
+      { roundId: BigInt(22), firHit: 0, firDirection: null, girHit: 0, girDirection: null, hole: { par: 4 }, score: 5 },
+    ]);
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.type).toBe('success');
+    expect(body.miss_tendencies).toEqual(
+      expect.objectContaining({
+        labels: ['Left', 'Right', 'Short', 'Long'],
+        fir: expect.objectContaining({
+          counts: [1, 2, 0, 0],
+          tracked_misses: 3,
+          total_misses: 4,
+          untracked_misses: 1,
+        }),
+        gir: expect.objectContaining({
+          counts: [0, 0, 2, 1],
+          tracked_misses: 3,
+          total_misses: 4,
+          untracked_misses: 1,
+        }),
+      }),
+    );
+    expect(body.miss_tendencies.fir.percentages[0]).toBeCloseTo(33.333, 2);
+    expect(body.miss_tendencies.fir.percentages[1]).toBeCloseTo(66.666, 2);
+    expect(body.miss_tendencies.gir.percentages[2]).toBeCloseTo(66.666, 2);
+    expect(body.miss_tendencies.gir.percentages[3]).toBeCloseTo(33.333, 2);
   });
 });

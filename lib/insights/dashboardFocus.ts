@@ -1,6 +1,13 @@
 import {
   type StatsMode,
 } from '@/lib/insights/overall';
+import {
+  classifyBalancedComponents,
+  classifyVolatilitySignal,
+  downgradePersistenceTierForWeakness,
+  resolvePersistenceTierFromFrequency,
+  type SharedPersistenceTier,
+} from '@/lib/insights/sharedSignals';
 
 export type DashboardFocusComponent =
   | 'offTee'
@@ -14,6 +21,7 @@ export type RoundFocusOutcome =
   | 'score_only_stable'
   | 'score_only_improving'
   | 'score_only_worsening'
+  | 'volatility_priority'
   | 'component_opportunity'
   | 'component_strength'
   | 'component_balanced';
@@ -56,6 +64,12 @@ export type DashboardOverallInsightsSummary = {
   } | null;
   biggestLeakComponent: DashboardFocusComponent | null;
   confidence: DashboardFocusConfidence;
+  persistenceSignal: {
+    component: Exclude<DashboardFocusComponent, 'residual'> | null;
+    count: number;
+    window: number;
+    tier: 'temporary' | 'emerging' | 'persistent' | null;
+  } | null;
   dataQualityFlags: {
     insufficientRounds: boolean;
     missingScoreTrend: boolean;
@@ -96,10 +110,12 @@ const SG_TIE_BREAK_ORDER: DashboardFocusComponent[] = [
 ];
 
 type SgFocusMode = 'opportunity' | 'strength' | 'balanced';
+type PersistenceTier = 'temporary' | 'emerging' | 'persistent' | null;
 type SelectedSgFocus = {
   mode: SgFocusMode;
   component: Exclude<DashboardFocusComponent, 'residual'> | null;
   sgDelta: number | null;
+  persistenceTier: PersistenceTier;
 };
 
 const SG_OPPORTUNITY_THRESHOLD = -0.15;
@@ -109,6 +125,21 @@ const SG_THRESHOLD_EPSILON = 0.000001;
 const MAX_NEXT_ROUND_RECOMMENDATION_LENGTH = 64;
 const MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS = 3;
 const MIN_MEASURED_COMPONENTS_FOR_COMPONENT_FOCUS = 3;
+const PERSISTENCE_EMERGING_MIN_COUNT = 2;
+const PERSISTENCE_PERSISTENT_MIN_COUNT = 4;
+const PERSISTENCE_EMERGING_BONUS = 0.08;
+const PERSISTENCE_PERSISTENT_BONUS = 0.18;
+const VOLATILITY_OVERRIDE_MAX_COMPONENT_ABS = 0.35;
+const TINY_DELTA_ABS_SUPPRESS_THRESHOLD = 0.15;
+const MANY_ROUND_SCORE_ONLY_MIN_ROUNDS = 5;
+
+function mapPersistedComponent(raw: unknown): Exclude<DashboardFocusComponent, 'residual'> | null {
+  if (raw === 'offTee') return 'offTee';
+  if (raw === 'approach') return 'approach';
+  if (raw === 'putting') return 'putting';
+  if (raw === 'penalties') return 'penalties';
+  return null;
+}
 
 function toNumberOrNull(value: unknown): number | null {
   if (value == null) return null;
@@ -180,6 +211,16 @@ function normalizeConfidence(raw: unknown): DashboardFocusConfidence {
 function resolveFocusConfidence(value: DashboardFocusConfidence): Exclude<DashboardFocusConfidence, null> {
   if (value === 'high' || value === 'medium' || value === 'low') return value;
   return 'low';
+}
+
+function isTinyDelta(delta: number | null): boolean {
+  return delta != null && Number.isFinite(delta) && Math.abs(delta) < TINY_DELTA_ABS_SUPPRESS_THRESHOLD;
+}
+
+function shouldUseMatureScoreOnlyForLowConfidence(summary: DashboardOverallInsightsSummary): boolean {
+  if (summary.roundsRecent < MANY_ROUND_SCORE_ONLY_MIN_ROUNDS) return false;
+  if (summary.scoreTrendDelta == null) return false;
+  return summary.dataQualityFlags.missingComponentData || summary.dataQualityFlags.partialRecentStats;
 }
 
 function parseCoverage(
@@ -303,9 +344,10 @@ function componentHeadlineName(component: Exclude<DashboardFocusComponent, 'resi
 
 function fallbackNextRoundNudge(
   component: Exclude<DashboardFocusComponent, 'residual'> | null,
-  mode: SgFocusMode | 'no_data',
+  mode: SgFocusMode | 'no_data' | 'volatility',
 ): string {
   if (mode === 'no_data') return 'Play to the widest target.';
+  if (mode === 'volatility') return 'Play to center-green targets.';
   if (mode === 'balanced') return 'Make simple decisions.';
 
   if (mode === 'opportunity') {
@@ -415,27 +457,60 @@ function selectSgFocus(summary: DashboardOverallInsightsSummary): SelectedSgFocu
   );
   if (coveredComponents.length < MIN_MEASURED_COMPONENTS_FOR_COMPONENT_FOCUS) return null;
 
-  const orderedByOpportunity = [...coveredComponents].sort((a, b) => a.delta - b.delta);
-  const opportunity = orderedByOpportunity[0];
-  if (opportunity?.delta <= SG_OPPORTUNITY_THRESHOLD + SG_THRESHOLD_EPSILON) {
-    const secondLowest = orderedByOpportunity[1] ?? null;
-    const separation = secondLowest ? secondLowest.delta - opportunity.delta : Number.POSITIVE_INFINITY;
-    if (separation <= SG_OPPORTUNITY_SEPARATION_THRESHOLD) {
-      return {
-        mode: 'balanced',
-        component: null,
-        sgDelta: null,
-      };
+  const withPersistenceWeight = coveredComponents.map((entry) => {
+    const signal = summary.persistenceSignal;
+    if (!signal || signal.component !== entry.component) {
+      return { ...entry, weightedDelta: entry.delta, persistenceTier: null as PersistenceTier };
     }
 
+    const rawTier: SharedPersistenceTier = signal.tier ?? 'none';
+    const effectiveTier = downgradePersistenceTierForWeakness({
+      tier: rawTier,
+      currentDelta: entry.delta,
+    });
+    const persistenceBonus =
+      rawTier === 'persistent'
+        ? PERSISTENCE_PERSISTENT_BONUS
+        : rawTier === 'emerging'
+          ? PERSISTENCE_EMERGING_BONUS
+          : 0;
+    return {
+      ...entry,
+      weightedDelta: entry.delta - persistenceBonus,
+      persistenceTier: effectiveTier === 'none' ? null : effectiveTier,
+    };
+  });
+
+  const balancedState = classifyBalancedComponents({
+    deltas: withPersistenceWeight.map((entry) => entry.weightedDelta),
+    options: {
+      opportunityThreshold: SG_OPPORTUNITY_THRESHOLD,
+      strengthThreshold: SG_STRENGTH_THRESHOLD,
+      tieSeparationThreshold: SG_OPPORTUNITY_SEPARATION_THRESHOLD,
+      neutralBandAbs: Math.abs(SG_OPPORTUNITY_THRESHOLD) - SG_THRESHOLD_EPSILON * 10,
+    },
+  });
+  if (balancedState.isBalanced) {
+    return {
+      mode: 'balanced',
+      component: null,
+      sgDelta: null,
+      persistenceTier: null,
+    };
+  }
+
+  const orderedByOpportunity = [...withPersistenceWeight].sort((a, b) => a.weightedDelta - b.weightedDelta);
+  const opportunity = orderedByOpportunity[0];
+  if (opportunity?.weightedDelta <= SG_OPPORTUNITY_THRESHOLD + SG_THRESHOLD_EPSILON) {
     return {
       mode: 'opportunity',
       component: opportunity.component,
       sgDelta: roundOne(opportunity.delta),
+      persistenceTier: opportunity.persistenceTier,
     };
   }
 
-  const strength = coveredComponents
+  const strength = withPersistenceWeight
     .filter((entry) => entry.delta >= SG_STRENGTH_THRESHOLD - SG_THRESHOLD_EPSILON)
     .sort((a, b) => b.delta - a.delta)[0];
   if (strength) {
@@ -443,6 +518,7 @@ function selectSgFocus(summary: DashboardOverallInsightsSummary): SelectedSgFocu
       mode: 'strength',
       component: strength.component,
       sgDelta: roundOne(strength.delta),
+      persistenceTier: strength.persistenceTier,
     };
   }
 
@@ -450,6 +526,80 @@ function selectSgFocus(summary: DashboardOverallInsightsSummary): SelectedSgFocu
     mode: 'balanced',
     component: null,
     sgDelta: null,
+    persistenceTier: null,
+  };
+}
+
+function shouldPrioritizeVolatility(
+  summary: DashboardOverallInsightsSummary,
+  selected: SelectedSgFocus | null,
+  confidence: Exclude<DashboardFocusConfidence, null>,
+): boolean {
+  if (!summary.dataQualityFlags.volatileScoring) return false;
+  if (summary.roundsRecent < MIN_ROUNDS_FOR_TRENDS) return false;
+  if (!selected || selected.mode === 'balanced') return true;
+  if (selected.mode !== 'opportunity' || selected.sgDelta == null) return false;
+
+  const opportunityAbs = Math.abs(selected.sgDelta);
+  const opportunityIsPersistent = selected.persistenceTier === 'persistent';
+  if (opportunityIsPersistent && confidence === 'high') return false;
+  return opportunityAbs <= VOLATILITY_OVERRIDE_MAX_COMPONENT_ABS;
+}
+
+function buildVolatilityFocus(
+  summary: DashboardOverallInsightsSummary,
+  isPremium: boolean,
+  confidence: Exclude<DashboardFocusConfidence, null>,
+): RoundFocusPayload {
+  const penaltiesLeak = summary.sgComponentDelta?.penalties;
+  const approachLeak = summary.sgComponentDelta?.approach;
+  const nextRound = penaltiesLeak != null && penaltiesLeak < -0.2
+    ? 'Choose the safest line on risk holes.'
+    : approachLeak != null && approachLeak < -0.2
+      ? 'Play to center-green targets.'
+      : 'Prioritize in-play misses on every hole.';
+  const decisive = confidence === 'high';
+
+  return {
+    outcome: 'volatility_priority',
+    focusType: 'score',
+    headline: decisive
+      ? 'Scoring volatility is your top priority.'
+      : 'Scoring volatility is likely holding scores back.',
+    body: isPremium
+      ? decisive
+        ? 'Round-to-round swings are costing more than any mild single-area leak right now.'
+        : 'Large score swings are limiting improvement more than one small stat gap.'
+      : 'Large score swings are adding strokes faster than one mild stat leak.',
+    nextRound,
+    component: null,
+    confidence,
+  };
+}
+
+function buildBalancedFocus(
+  summary: DashboardOverallInsightsSummary,
+  isPremium: boolean,
+  confidence: Exclude<DashboardFocusConfidence, null>,
+): RoundFocusPayload {
+  const decisive = confidence === 'high';
+  const stabilityLean = summary.dataQualityFlags.volatileScoring;
+  return {
+    outcome: 'component_balanced',
+    focusType: 'score',
+    headline: decisive
+      ? 'No single stat is your main scoring limiter.'
+      : 'No single area clearly dominates right now.',
+    body: isPremium
+      ? stabilityLean
+        ? 'Your scoring ceiling now depends on reducing costly swings from hole to hole.'
+        : 'Round-management choices now matter more than chasing one stat fix.'
+      : stabilityLean
+        ? 'Small misses across holes are adding up more than one obvious leak.'
+        : 'Round-management choices are likely worth more than forcing one stat fix.',
+    nextRound: stabilityLean ? 'Choose conservative targets after misses.' : 'Play to center-green targets.',
+    component: null,
+    confidence,
   };
 }
 
@@ -471,7 +621,7 @@ function buildEarlyGuidanceFocus(confidence: DashboardFocusConfidence): RoundFoc
     outcome: 'early_guidance',
     focusType: 'score',
     headline: 'Start with solid decisions.',
-    body: 'Early rounds usually come down to missed greens and a few costly holes.',
+    body: 'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
     nextRound: 'Play to the widest target.',
     component: null,
     confidence,
@@ -492,7 +642,9 @@ function buildScoreOnlyFocus(
   let headline = 'Your scoring is stable.';
   let body = isPremium
     ? 'Your scoring is in line with your usual level.'
-    : 'Pick one area next round.';
+    : confidence === 'medium'
+      ? 'Your scoring trend is established, but detail stats are still limited.'
+      : 'Pick one area next round.';
   let nextRound = 'Commit to one focus.';
 
   if (outcome === 'score_only_improving') {
@@ -505,7 +657,9 @@ function buildScoreOnlyFocus(
     headline = 'Your scores are slipping.';
     body = isPremium
       ? `Your scoring is about ${formatOneDecimal(Math.abs(delta))} strokes worse than usual.`
-      : 'Play to safer targets.';
+      : confidence === 'medium'
+        ? 'Scores are trending higher than usual. Safer choices can steady the pattern.'
+        : 'Play to safer targets.';
     nextRound = 'Prioritize conservative targets.';
   }
 
@@ -527,39 +681,71 @@ function buildSgDrivenFocus(
   confidence: DashboardFocusConfidence,
 ): RoundFocusPayload {
   if (selected.mode === 'balanced' || !selected.component || selected.sgDelta == null) {
-    return {
-      outcome: 'component_balanced',
-      focusType: 'component',
-      headline: 'Your game is well balanced.',
-      body: 'No area clearly stands out as a weakness.',
-      nextRound: fallbackNextRoundNudge(null, 'balanced'),
-      component: null,
-      confidence,
-    };
+    return buildBalancedFocus(summary, isPremium, resolveFocusConfidence(confidence));
   }
 
   const componentLabel = componentHeadlineName(selected.component);
   const scoreOutcome = scoreFocusOutcome(summary);
+  const decisive = confidence === 'high';
+  const persistenceTier = selected.persistenceTier;
+  const isRecurring = persistenceTier === 'persistent';
+  const tinyDelta = isTinyDelta(selected.sgDelta);
 
-  const headline =
-    selected.mode === 'opportunity'
-      ? `${componentLabel} is your biggest scoring opportunity.`
-      : scoreOutcome === 'score_only_worsening'
+  const headline = (() => {
+    if (selected.mode === 'opportunity') {
+      if (selected.component === 'penalties') {
+        if (decisive) {
+          return isRecurring
+            ? 'Penalty avoidance is your clearest recurring way to stabilize scoring.'
+            : 'Penalty avoidance is the clearest way to stabilize scoring right now.';
+        }
+        return 'Penalty avoidance is a likely way to steady scores.';
+      }
+      return decisive
+        ? isRecurring
+          ? `${componentLabel} is the clearest recurring scoring focus right now.`
+          : `${componentLabel} is the clearest scoring focus right now.`
+        : `${componentLabel} is the biggest opportunity right now.`;
+    }
+    return scoreOutcome === 'score_only_worsening'
       ? `${componentLabel} is your strongest area.`
       : `${componentLabel} is driving your improvement.`;
+  })();
 
-  const body =
-    selected.mode === 'opportunity'
-      ? (
-        isPremium
-          ? `You're losing about ${formatAboutSg(selected.sgDelta)} strokes per round.`
-          : 'This area is costing you the most strokes.'
-      )
-      : (
-        isPremium
-          ? `This area is gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`
-          : 'This area is helping your score.'
-      );
+  const body = (() => {
+    if (selected.mode === 'opportunity') {
+      if (isPremium) {
+        if (tinyDelta) {
+          if (selected.component === 'penalties') {
+            return 'Avoiding one high-cost mistake per round could lower scoring variance.';
+          }
+          return isRecurring
+            ? 'This area has been a small but recurring scoring leak.'
+            : 'This area has quietly limited scoring consistency.';
+        }
+        if (decisive) {
+          return isRecurring
+            ? `This area is repeatedly costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`
+            : `This area is costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
+        }
+        return `You're losing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
+      }
+      if (selected.component === 'penalties') {
+        return 'One avoidable mistake is still adding strokes.';
+      }
+      return decisive && isRecurring
+        ? 'This area is repeatedly costing strokes.'
+        : 'This area is costing you the most strokes.';
+    }
+
+    if (isPremium) {
+      if (tinyDelta) return 'This area is a modest scoring strength right now.';
+      return decisive
+        ? `This area is reliably gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`
+        : `This area is gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
+    }
+    return 'This area is helping your score.';
+  })();
 
   return {
     outcome: selected.mode === 'opportunity' ? 'component_opportunity' : 'component_strength',
@@ -685,6 +871,28 @@ export function buildDashboardOverallInsightsSummary(
     roundsRecent < MIN_ROUNDS_FOR_TRENDS;
 
   const recentWindow = toNumberOrNull(payload.tier_context?.recentWindow) ?? 5;
+  const rawPersistence = payload.sg?.components?.worstComponentFrequencyRecent;
+  const persistenceCount = Math.max(0, Math.floor(toNumberOrNull(rawPersistence?.count) ?? 0));
+  const persistenceWindow = Math.max(0, Math.floor(toNumberOrNull(rawPersistence?.window) ?? 0));
+  const persistenceComponent = mapPersistedComponent(rawPersistence?.component);
+  const persistenceTierResolved = resolvePersistenceTierFromFrequency(
+    persistenceCount,
+    persistenceWindow,
+    {
+      emergingMinCount: PERSISTENCE_EMERGING_MIN_COUNT,
+      persistentMinCount: PERSISTENCE_PERSISTENT_MIN_COUNT,
+    },
+  );
+  const persistenceTier: PersistenceTier =
+    persistenceTierResolved === 'none' ? null : persistenceTierResolved;
+  const volatilitySignal = classifyVolatilitySignal({
+    consistencyLabel: modePayload.consistency?.label,
+    stdDev: consistencySpread,
+    options: {
+      strongStdDev: VOLATILE_STDDEV_THRESHOLD,
+      moderateStdDev: VOLATILE_STDDEV_THRESHOLD - 1,
+    },
+  });
 
   return {
     lastUpdatedAt:
@@ -723,6 +931,15 @@ export function buildDashboardOverallInsightsSummary(
     statCoverage,
     biggestLeakComponent,
     confidence: normalizeConfidence(payload.sg?.components?.latest?.confidence),
+    persistenceSignal:
+      persistenceTier == null && !persistenceComponent
+        ? null
+        : {
+            component: persistenceComponent,
+            count: persistenceCount,
+            window: persistenceWindow,
+            tier: persistenceTier,
+          },
     dataQualityFlags: {
       insufficientRounds: roundsRecent < MIN_ROUNDS_FOR_TRENDS,
       missingScoreTrend: scoreTrendDelta == null,
@@ -730,9 +947,7 @@ export function buildDashboardOverallInsightsSummary(
       missingComponentData: !hasAnyMeasuredComponentData(sgDeltas),
       partialRecentStats: missingRecentStatCount > 0,
       residualDominant,
-      volatileScoring:
-        consistencyLabel === 'Volatile' ||
-        (consistencySpread != null && consistencySpread > VOLATILE_STDDEV_THRESHOLD),
+      volatileScoring: volatilitySignal.severity === 'strong',
     },
   };
 }
@@ -759,6 +974,20 @@ export function buildRoundFocusState(
 
   const resolvedConfidence = resolveFocusConfidence(summary.confidence);
   if (resolvedConfidence === 'low') {
+    if (shouldUseMatureScoreOnlyForLowConfidence(summary)) {
+      const scoreOnlyFocus = buildScoreOnlyFocus(summary, isPremium, 'medium');
+      if (!isPremium) {
+        return {
+          kind: 'READY_FREE',
+          focus: scoreOnlyFocus,
+          isLimited,
+        };
+      }
+      return {
+        kind: 'READY_PREMIUM',
+        focus: scoreOnlyFocus,
+      };
+    }
     const fallbackFocus = buildEarlyGuidanceFocus('low');
     if (!isPremium) {
       return {
@@ -773,6 +1002,20 @@ export function buildRoundFocusState(
     };
   }
   const sgFocus = selectSgFocus(summary);
+  if (shouldPrioritizeVolatility(summary, sgFocus, resolvedConfidence)) {
+    const volatilityFocus = buildVolatilityFocus(summary, isPremium, resolvedConfidence);
+    if (!isPremium) {
+      return {
+        kind: 'READY_FREE',
+        focus: volatilityFocus,
+        isLimited,
+      };
+    }
+    return {
+      kind: 'READY_PREMIUM',
+      focus: volatilityFocus,
+    };
+  }
   const shouldPreferScoreOnly =
     summary.roundsRecent <= 1 ||
     summary.scoreTrendDelta == null;

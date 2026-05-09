@@ -513,4 +513,135 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.messages[0]).not.toContain('A good usual level to build from.');
     expect(out.messages[0]).not.toContain('This gives you a starting point for future rounds.');
   });
+
+  test('MED and HIGH confidence produce meaningfully different M2 decisiveness', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.3 },
+      { name: 'approach' as const, label: 'Approach', value: -1.3 },
+      { name: 'putting' as const, label: 'Putting', value: -0.4 },
+    ];
+
+    const med = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'MED',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: true,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+    const high = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'HIGH',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: true,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(med.outcomes[1]).toBe('M2-D');
+    expect(high.outcomes[1]).toBe('M2-D');
+    expect(med.messages[1].toLowerCase()).toContain('likely');
+    expect(high.messages[1].toLowerCase()).not.toContain('likely');
+    expect(med.messages[1]).not.toBe(high.messages[1]);
+  });
+
+  test('HIGH confidence remains decisive without fake certainty mechanics claims', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.2 },
+      { name: 'approach' as const, label: 'Approach', value: -1.5 },
+      { name: 'putting' as const, label: 'Putting', value: -0.6 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'HIGH',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: true,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.messages[1].toLowerCase()).toMatch(/cost|source|largest|clearest/);
+    expect(out.messages[1].toLowerCase()).not.toMatch(/swing|clubface|face angle|path|mechanic/);
+  });
+
+  test('residual-dominant ambiguous rounds acknowledge uncertainty instead of forcing one cause', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.3 },
+      { name: 'approach' as const, label: 'Approach', value: -0.6 },
+      { name: 'putting' as const, label: 'Putting', value: -0.4 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'MED',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: true,
+        residualDominant: true,
+        residualValue: 2.0,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-D');
+    expect(out.messages[1].toLowerCase()).toContain('not shown in these stats');
+    expect(out.messages[1].toLowerCase()).toContain('likely');
+    expect(out.messages[1].toLowerCase()).not.toContain('main source of lost strokes');
+  });
+
+  test('partial-stat MED guidance stays grounded in available evidence', () => {
+    const onlyMeasured = [{ name: 'off_tee' as const, label: 'Off The Tee', value: -0.9 }];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'MED',
+        measuredComponents: onlyMeasured,
+        bestMeasured: onlyMeasured[0],
+        worstMeasured: onlyMeasured[0],
+        missing: { fir: false, gir: true, putts: true, penalties: true },
+        roundEvidence: {
+          fairwaysHit: 5,
+          fairwaysPossible: 14,
+          greensHit: null,
+          greensPossible: null,
+          puttsTotal: null,
+          penaltiesTotal: null,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-A');
+    expect(out.messages[1].toLowerCase()).not.toContain('putting');
+    expect(out.messages[1].toLowerCase()).not.toContain('penalties');
+  });
+
+  test('post-round copy avoids Overall and Round Focus long-term coaching language', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.2 },
+      { name: 'approach' as const, label: 'Approach', value: -1.1 },
+      { name: 'putting' as const, label: 'Putting', value: -0.4 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'HIGH',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: true,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    const text = out.messages.join(' ').toLowerCase();
+    expect(text).not.toContain('long-term');
+    expect(text).not.toContain('persistent trend');
+    expect(text).not.toContain('clearest path to lower scores');
+    expect(text).not.toContain('highest-value priority');
+  });
 });

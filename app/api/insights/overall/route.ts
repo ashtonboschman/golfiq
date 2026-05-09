@@ -121,7 +121,16 @@ function applyTierSafety(payload: any, isPremium: boolean, roundsUsed: number): 
   return next;
 }
 
-async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]> {
+async function loadRoundsForOverall(
+  userId: bigint,
+  options?: {
+    maxRounds?: number | null;
+  },
+): Promise<OverallRoundPoint[]> {
+  const take =
+    options?.maxRounds != null && Number.isFinite(options.maxRounds) && options.maxRounds > 0
+      ? Math.floor(options.maxRounds)
+      : undefined;
   const rounds = await prisma.round.findMany({
     where: {
       userId,
@@ -133,10 +142,13 @@ async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]
       roundHoles: {
         select: {
           penalties: true,
+          firDirection: true,
+          girDirection: true,
         },
       },
     },
     orderBy: [{ date: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
+    ...(take != null ? { take } : {}),
   });
 
   return rounds.map((r: any) => {
@@ -172,6 +184,12 @@ async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]
       sgResidual: r.roundStrokesGained?.sgResidual != null ? Number(r.roundStrokesGained.sgResidual) : null,
       sgConfidence: normalizeSgConfidence(r.roundStrokesGained?.confidence),
       sgPartialAnalysis: r.roundStrokesGained?.partialAnalysis ?? null,
+      firDirections: Array.isArray(r.roundHoles)
+        ? r.roundHoles.map((h: any) => h?.firDirection ?? null)
+        : [],
+      girDirections: Array.isArray(r.roundHoles)
+        ? r.roundHoles.map((h: any) => h?.girDirection ?? null)
+        : [],
     } as OverallRoundPoint;
   });
 }
@@ -179,6 +197,9 @@ async function loadRoundsForOverall(userId: bigint): Promise<OverallRoundPoint[]
 export async function generateAndStoreOverallInsights(
   userId: bigint,
   selectedMode: StatsMode = 'combined',
+  options?: {
+    touchGeneratedAt?: boolean;
+  },
 ) {
   const overallInsightModel = (prisma as any).overallInsight;
   if (!overallInsightModel) {
@@ -204,8 +225,9 @@ export async function generateAndStoreOverallInsights(
       ? Number(leaderboardStats.handicap)
       : null;
 
-  const roundsAll = await loadRoundsForOverall(userId);
-  const rounds = isPremium ? roundsAll : roundsAll.slice(0, 20);
+  const rounds = await loadRoundsForOverall(userId, {
+    maxRounds: isPremium ? null : 20,
+  });
   const dataHash = computeOverallDataHash(rounds, isPremium);
 
   const existing = await overallInsightModel.findUnique({
@@ -257,6 +279,24 @@ export async function generateAndStoreOverallInsights(
 
     if (canReusePersisted) {
       const safePersisted = applyTierSafety(existing?.insights as any, isPremium, rounds.length);
+      if (options?.touchGeneratedAt) {
+        const touchedGeneratedAt = new Date().toISOString();
+        const touchedPayload = {
+          ...safePersisted,
+          generated_at: touchedGeneratedAt,
+        };
+        await overallInsightModel.update({
+          where: { userId },
+          data: {
+            modelUsed: model,
+            insights: touchedPayload as any,
+            dataHash,
+            generatedAt: new Date(touchedGeneratedAt),
+            updatedAt: new Date(),
+          },
+        });
+        return selectCardsForMode(touchedPayload, selectedMode);
+      }
       return selectCardsForMode(safePersisted, selectedMode);
     }
   }

@@ -265,4 +265,138 @@ describe('/api/rounds/[id] route contract', () => {
       }),
     );
   });
+
+  it('GET includes hole-level direction fields when hole-by-hole data exists', async () => {
+    mockedPrisma.round.findFirst.mockResolvedValue({
+      id: BigInt(9),
+      userId: BigInt(1),
+      courseId: BigInt(11),
+      teeId: BigInt(12),
+      holeByHole: true,
+      holesPlayed: 18,
+      roundContext: 'real',
+      toPar: 6,
+      teeSegment: 'full',
+      date: new Date('2026-04-20T12:00:00.000Z'),
+      score: 78,
+      firHit: 8,
+      girHit: 9,
+      putts: 31,
+      penalties: 1,
+      notes: null,
+      createdAt: new Date('2026-04-20T12:00:00.000Z'),
+      updatedAt: new Date('2026-04-20T12:00:00.000Z'),
+      course: {
+        courseName: 'Course',
+        clubName: 'Club',
+        location: { city: 'City', state: 'ST', address: 'Address' },
+      },
+      tee: {
+        teeName: 'Blue',
+        gender: 'male',
+        parTotal: 72,
+        numberOfHoles: 18,
+      },
+    });
+    mockedPrisma.roundHole.findMany.mockResolvedValue([
+      {
+        holeId: BigInt(101),
+        pass: 1,
+        score: 5,
+        firHit: 0,
+        firDirection: 'miss_left',
+        girHit: 1,
+        girDirection: 'hit',
+        putts: 2,
+        penalties: 1,
+      },
+    ]);
+
+    const request = new Request('http://localhost/api/rounds/9');
+    const response = await GET(request as any, params('9'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.round.round_holes).toEqual([
+      expect.objectContaining({
+        fir_direction: 'miss_left',
+        gir_direction: 'hit',
+      }),
+    ]);
+  });
+
+  it('PUT hole-by-hole persists direction fields and clears inconsistent values conservatively', async () => {
+    mockedPrisma.round.findFirst.mockResolvedValue({
+      date: new Date('2026-04-20T12:00:00.000Z'),
+      courseId: BigInt(11),
+      teeId: BigInt(12),
+      teeSegment: 'full',
+      roundContext: 'real',
+      holeByHole: true,
+      score: 78,
+      firHit: 8,
+      girHit: 9,
+      putts: 31,
+      penalties: 1,
+      notes: null,
+    });
+    mockedPrisma.roundHole.findMany.mockResolvedValueOnce([]);
+
+    const request = new Request('http://localhost/api/rounds/9', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        hole_by_hole: 1,
+        round_holes: [
+          {
+            hole_id: 101,
+            pass: 1,
+            score: 5,
+            fir_hit: 0,
+            fir_direction: 'miss_right',
+            gir_hit: 1,
+            gir_direction: 'miss_short',
+            putts: 2,
+            penalties: 1,
+          },
+          {
+            hole_id: 102,
+            pass: 1,
+            score: 4,
+            fir_hit: null,
+            fir_direction: 'miss_left',
+            gir_hit: 0,
+            gir_direction: 'hit',
+            putts: 2,
+            penalties: 0,
+          },
+        ],
+      }),
+    });
+
+    const response = await PUT(request as any, params('9'));
+    expect(response.status).toBe(200);
+
+    expect(mockedPrisma.roundHole.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            firHit: 0,
+            firDirection: 'miss_right',
+            girHit: 1,
+            girDirection: null,
+          }),
+          expect.objectContaining({
+            firHit: null,
+            firDirection: null,
+            girHit: 0,
+            girDirection: null,
+          }),
+        ],
+      }),
+    );
+  });
 });

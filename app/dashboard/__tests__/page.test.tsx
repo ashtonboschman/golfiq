@@ -68,6 +68,11 @@ jest.mock('@/components/TrendCard', () => ({
   default: ({ label }: { label: string }) => <div data-testid={`trend-${label}`}>{label}</div>,
 }));
 
+jest.mock('@/components/MissTendenciesChart', () => ({
+  __esModule: true,
+  default: () => <div data-testid="miss-tendencies-chart">miss-tendencies</div>,
+}));
+
 jest.mock('@/components/RoundCard', () => ({
   __esModule: true,
   default: ({ round }: { round: any }) => <div>{round.course_name}</div>,
@@ -169,11 +174,13 @@ function makeDashboardPayload(overrides: Partial<any> = {}) {
       },
       biggestLeakComponent: 'putting',
       confidence: 'medium',
+      persistenceSignal: null,
       dataQualityFlags: {
         insufficientRounds: false,
         missingScoreTrend: false,
         combinedNeedsMoreNineHoleRounds: false,
         missingComponentData: false,
+        partialRecentStats: false,
         residualDominant: false,
         volatileScoring: false,
       },
@@ -341,7 +348,7 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     const focusCard = await screen.findByTestId('dashboard-focus-card');
-    await screen.findByText('Approach is your biggest scoring opportunity.');
+    await screen.findByText('Approach is the biggest opportunity right now.');
     expect(screen.getByText("You're losing about 0.7 strokes per round.")).toBeInTheDocument();
     expect(screen.getByText('Next Round: Play to the center of the green.')).toBeInTheDocument();
     expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
@@ -350,6 +357,101 @@ describe('/dashboard Round Focus card', () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/insights');
     });
+  });
+
+  it('consumes persistence signal so recurring approach issue can win over a one-off lower SG component', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          overallInsightsSummary: {
+            ...makeDashboardPayload().overallInsightsSummary,
+            confidence: 'high',
+            sgComponentDelta: {
+              offTee: -0.08,
+              approach: -0.22,
+              putting: -0.28,
+              penalties: -0.04,
+              residual: -0.1,
+            },
+            persistenceSignal: {
+              component: 'approach',
+              count: 4,
+              window: 5,
+              tier: 'persistent',
+            },
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Approach is the clearest scoring focus right now.');
+    expect(screen.getByText('Next Round: Play to the center of the green.')).toBeInTheDocument();
+  });
+
+  it('shows volatility-priority focus on dashboard when volatility outweighs mild component leaks', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          overallInsightsSummary: {
+            ...makeDashboardPayload().overallInsightsSummary,
+            confidence: 'high',
+            roundsRecent: 6,
+            sgComponentDelta: {
+              offTee: -0.05,
+              approach: -0.22,
+              putting: -0.08,
+              penalties: -0.03,
+              residual: 0.02,
+            },
+            dataQualityFlags: {
+              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
+              volatileScoring: true,
+            },
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Scoring volatility is your top priority.');
+    expect(screen.getByText('Next Round: Play to center-green targets.')).toBeInTheDocument();
+    expect(screen.queryByText(/is the biggest opportunity right now/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps balanced-state focus actionable at dashboard boundary with one clear next-round action', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          overallInsightsSummary: {
+            ...makeDashboardPayload().overallInsightsSummary,
+            confidence: 'medium',
+            sgComponentDelta: {
+              offTee: -0.05,
+              approach: 0.02,
+              putting: 0.14,
+              penalties: -0.14,
+              residual: 0.8,
+            },
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('No single area clearly dominates right now.');
+    expect(screen.getByText('Next Round: Play to center-green targets.')).toBeInTheDocument();
+    expect(screen.queryByText('No area clearly stands out as a weakness.')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^Next Round:/i)).toHaveLength(1);
   });
 
   it('shows fallback focus instead of locked text when historical gating flags are present', async () => {
@@ -375,7 +477,7 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Start with solid decisions.');
-    expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
+    expect(screen.getByText('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.')).toBeInTheDocument();
     expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
@@ -409,7 +511,7 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Start with solid decisions.');
-    expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
+    expect(screen.getByText('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.')).toBeInTheDocument();
     expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
     expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
     expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
@@ -441,7 +543,9 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Your scores are slipping.');
-    expect(screen.getByText('Play to safer targets.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Scores are trending higher than usual. Safer choices can steady the pattern.'),
+    ).toBeInTheDocument();
     expect(
       screen.getByText('Next Round: Prioritize conservative targets.'),
     ).toBeInTheDocument();
@@ -471,7 +575,7 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Start with solid decisions.');
-    expect(screen.getByText('Early rounds usually come down to missed greens and a few costly holes.')).toBeInTheDocument();
+    expect(screen.getByText('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.')).toBeInTheDocument();
     expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
@@ -608,7 +712,7 @@ describe('/dashboard Round Focus card', () => {
 
   it('does not show error modal when stale mode request fails after switching dashboard mode', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
-    let rejectCombinedRequest: ((reason?: unknown) => void) | null = null;
+    let rejectCombinedRequest: (reason?: unknown) => void = () => {};
 
     (global.fetch as jest.Mock).mockImplementation((url: string) => {
       if (url.includes('statsMode=combined')) {
@@ -644,7 +748,7 @@ describe('/dashboard Round Focus card', () => {
       );
     });
 
-    rejectCombinedRequest?.(new Error('stale request failed'));
+    rejectCombinedRequest(new Error('stale request failed'));
 
     await waitFor(() => {
       expect(mockShowMessage).not.toHaveBeenCalled();
@@ -652,6 +756,7 @@ describe('/dashboard Round Focus card', () => {
   });
 
   it('still shows error modal when active dashboard mode request fails', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({
@@ -689,6 +794,7 @@ describe('/dashboard Round Focus card', () => {
     await waitFor(() => {
       expect(mockShowMessage).toHaveBeenCalledWith('Dashboard mode load failed', 'error');
     });
+    consoleErrorSpy.mockRestore();
   });
 
   it('shows zero-round welcome beta modal once before acknowledgment', async () => {

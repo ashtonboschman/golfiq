@@ -131,7 +131,7 @@ function shouldRequireJsonContentType(pathname: string, method: string): boolean
   return false;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (!pathname.startsWith('/api/')) {
     return NextResponse.next();

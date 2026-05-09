@@ -104,7 +104,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
         score_to_par: scoreDiff,
         score_to_par_formatted: scoreDiffFormatted,
         gir_hit: rh.girHit,
+        gir_direction: rh.girDirection ?? null,
         fir_hit: rh.firHit,
+        fir_direction: rh.firDirection ?? null,
         putts: rh.putts,
         penalties: rh.penalties,
       };

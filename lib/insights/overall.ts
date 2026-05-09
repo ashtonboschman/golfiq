@@ -1,5 +1,16 @@
-﻿import crypto from 'crypto';
+import crypto from 'crypto';
 import { formatDate } from '@/lib/formatters';
+import {
+  pickDirectionalPattern,
+  type DirectionalMissRawValue,
+  type DirectionalPatternSummary,
+} from '@/lib/insights/directionalMiss';
+import {
+  classifyBalancedComponents,
+  classifyVolatilitySignal,
+  downgradePersistenceTierForWeakness,
+  resolvePersistenceTierFromFrequency,
+} from '@/lib/insights/sharedSignals';
 
 export type StatsMode = 'combined' | '9' | '18';
 export type PerformanceBand = 'tough' | 'below' | 'expected' | 'above' | 'great' | 'unknown';
@@ -31,6 +42,8 @@ export type OverallRoundPoint = {
   sgResidual: number | null;
   sgConfidence: 'high' | 'medium' | 'low' | null;
   sgPartialAnalysis: boolean | null;
+  firDirections: DirectionalMissRawValue[];
+  girDirections: DirectionalMissRawValue[];
 };
 
 export type TrendSeries = {
@@ -100,6 +113,11 @@ export type ModePayload = {
     hasData: boolean;
   };
   trend: TrendSeries;
+  directional?: {
+    fir: DirectionalPatternSummary | null;
+    gir: DirectionalPatternSummary | null;
+    dominant: DirectionalPatternSummary | null;
+  };
 };
 
 export type ProjectionPayload = {
@@ -341,8 +359,8 @@ const OVERALL_COPY_BANNED_TOKENS = [
   '\u2014',
   '\u2013',
   '&mdash;',
-  'â€”',
-  'â€“',
+  '—',
+  '–',
 ] as const;
 
 function sanitizeCopy(text: string): string {
@@ -458,6 +476,43 @@ function computeModePayload(points: OverallRoundPoint[], isPremium: boolean): Mo
   const sgTotal = trend.map((p) => round1(p.sgTotal));
   const handicap = trend.map((p) => round1(p.handicapAtRound));
   const sgModePayload = computeSgPayload(sortedDesc);
+  const recentFirDirections = recent.flatMap((point) => point.firDirections ?? []);
+  const recentGirDirections = recent.flatMap((point) => point.girDirections ?? []);
+  const directionalFir = pickDirectionalPattern({
+    firValues: recentFirDirections,
+    girValues: [],
+    preferredArea: 'fir',
+    options: {
+      minMisses: 4,
+      minDominanceRatio: 0.65,
+      minMargin: 2,
+      highConfidenceMisses: 6,
+      highConfidenceDominanceRatio: 0.75,
+    },
+  });
+  const directionalGir = pickDirectionalPattern({
+    firValues: [],
+    girValues: recentGirDirections,
+    preferredArea: 'gir',
+    options: {
+      minMisses: 4,
+      minDominanceRatio: 0.65,
+      minMargin: 2,
+      highConfidenceMisses: 6,
+      highConfidenceDominanceRatio: 0.75,
+    },
+  });
+  const directionalDominant = pickDirectionalPattern({
+    firValues: recentFirDirections,
+    girValues: recentGirDirections,
+    options: {
+      minMisses: 4,
+      minDominanceRatio: 0.65,
+      minMargin: 2,
+      highConfidenceMisses: 6,
+      highConfidenceDominanceRatio: 0.75,
+    },
+  });
 
   return {
     kpis: {
@@ -497,7 +552,43 @@ function computeModePayload(points: OverallRoundPoint[], isPremium: boolean): Mo
       sgTotal,
       handicap,
     },
+    directional: {
+      fir: directionalFir?.area === 'fir' ? directionalFir : null,
+      gir: directionalGir?.area === 'gir' ? directionalGir : null,
+      dominant: directionalDominant,
+    },
   };
+}
+
+function formatDirectionalArea(area: 'fir' | 'gir'): string {
+  return area === 'gir' ? 'GIR' : 'FIR';
+}
+
+function formatDirectionalDirection(direction: 'left' | 'right' | 'short' | 'long'): string {
+  return direction;
+}
+
+function buildOverallDirectionalQualifier(args: {
+  pattern: DirectionalPatternSummary | null;
+  confidence: OverallConfidence;
+  isPremium: boolean;
+}): string | null {
+  const { pattern, confidence, isPremium } = args;
+  if (!pattern || confidence === 'low') return null;
+
+  const area = formatDirectionalArea(pattern.area);
+  const direction = formatDirectionalDirection(pattern.dominantDirection);
+  if (confidence === 'high') {
+    if (isPremium) {
+      return `Recent ${area} misses are consistently skewing ${direction} (${pattern.count}/${pattern.totalDirectionalMisses} recorded misses).`;
+    }
+    return `Recent ${area} misses are consistently skewing ${direction}.`;
+  }
+
+  if (pattern.confidence === 'high' && isPremium) {
+    return `Recent ${area} misses are leaning ${direction} (${pattern.count}/${pattern.totalDirectionalMisses} recorded misses).`;
+  }
+  return `Recent ${area} misses are leaning ${direction}.`;
 }
 
 function computeBand(avgSg: number | null): PerformanceBand {
@@ -1113,9 +1204,30 @@ export function computeOverallPayload(args: {
     const combinedPayload = modePayload.combined;
     if (!combinedPayload) return 'low';
     const combinedRoundsRecent = combinedPayload.kpis.roundsRecent ?? 0;
-    if (combinedRoundsRecent <= 1) return 'low';
-    if (combinedPayload.consistency?.label === 'insufficient') return 'low';
-    if (combinedRoundsRecent >= 5) return 'high';
+    if (combinedRoundsRecent <= 2) return 'low';
+    if (combinedRoundsRecent <= 4) return 'medium';
+
+    const parseCoverage = (coverage: string | undefined): number => {
+      if (!coverage || typeof coverage !== 'string') return 0;
+      const [trackedRaw] = coverage.split('/');
+      const tracked = Number.parseInt(trackedRaw ?? '0', 10);
+      return Number.isFinite(tracked) ? tracked : 0;
+    };
+
+    const trackedSignals = [
+      parseCoverage(combinedPayload.efficiency?.fir?.coverageRecent),
+      parseCoverage(combinedPayload.efficiency?.gir?.coverageRecent),
+      parseCoverage(combinedPayload.efficiency?.puttsTotal?.coverageRecent),
+      parseCoverage(combinedPayload.efficiency?.penaltiesPerRound?.coverageRecent),
+    ].filter((count) => count >= OVERALL_SG_MIN_RECENT_COVERAGE).length;
+
+    const hasReliableConsistency = combinedPayload.consistency?.label !== 'insufficient';
+    const hasSgContext = Boolean(sgPayload?.components?.hasData);
+    const hasDeepHistory = (baselineCombined.length ?? 0) >= 10;
+
+    if (hasReliableConsistency && trackedSignals >= 2 && (hasSgContext || hasDeepHistory)) {
+      return 'high';
+    }
     return 'medium';
   })();
 
@@ -1190,19 +1302,103 @@ export function buildDeterministicOverallCards(args: {
   const scoreRecent = modePayload?.kpis.avgScoreRecent ?? analysis.avg_score_recent;
   const scoreBaseline = modePayload?.kpis.avgScoreBaseline ?? analysis.avg_score_baseline;
   const consistency = modePayload?.consistency ?? args.payload.consistency;
+  const confidence = args.payload.confidence ?? 'low';
+  const scoreRangeTrigger = mode === '9' ? 3 : 6;
+  const scoreRangeModerateTrigger = mode === '9' ? 2 : 4;
+  const recentScores = (modePayload?.trend?.score ?? [])
+    .slice(-OVERALL_RECENT_WINDOW)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const recentScoreRange = recentScores.length
+    ? Math.max(...recentScores) - Math.min(...recentScores)
+    : null;
+  const worstFrequency = args.payload.sg?.components?.worstComponentFrequencyRecent;
+  const persistenceTier = resolvePersistenceTierFromFrequency(
+    worstFrequency?.count,
+    worstFrequency?.window,
+  );
+  const sgDeltas = (() => {
+    const sgComponents = modePayload?.sgComponents;
+    if (!sgComponents?.hasData) return [] as number[];
+    const deltas = [
+      sgComponents.recentAvg?.offTee != null && sgComponents.baselineAvg?.offTee != null
+        ? sgComponents.recentAvg.offTee - sgComponents.baselineAvg.offTee
+        : null,
+      sgComponents.recentAvg?.approach != null && sgComponents.baselineAvg?.approach != null
+        ? sgComponents.recentAvg.approach - sgComponents.baselineAvg.approach
+        : null,
+      sgComponents.recentAvg?.putting != null && sgComponents.baselineAvg?.putting != null
+        ? sgComponents.recentAvg.putting - sgComponents.baselineAvg.putting
+        : null,
+      sgComponents.recentAvg?.penalties != null && sgComponents.baselineAvg?.penalties != null
+        ? sgComponents.recentAvg.penalties - sgComponents.baselineAvg.penalties
+        : null,
+    ];
+    return deltas.filter((value): value is number => value != null && Number.isFinite(value));
+  })();
+  const balancedState = classifyBalancedComponents({
+    deltas: sgDeltas,
+    options: {
+      opportunityThreshold: -0.25,
+      strengthThreshold: 0.25,
+      tieSeparationThreshold: 0.08,
+      neutralBandAbs: 0.25,
+    },
+  });
+  const balancedBySharedSignal =
+    balancedState.reason === 'neutral_band' || balancedState.reason === 'opportunity_tie';
+  const volatilitySignal = classifyVolatilitySignal({
+    consistencyLabel: consistency.label,
+    stdDev: consistency.stdDev,
+    scoreRange: recentScoreRange,
+    options: {
+      strongStdDev: 3,
+      moderateStdDev: 2,
+      strongScoreRange: scoreRangeTrigger,
+      moderateScoreRange: scoreRangeModerateTrigger,
+    },
+  });
+  const directionalQualifier = buildOverallDirectionalQualifier({
+    pattern: modePayload?.directional?.dominant ?? null,
+    confidence,
+    isPremium: args.isPremium,
+  });
 
   const card1 = (() => {
     if (modeRoundsRecent === 0 || scoreRecent == null || scoreBaseline == null || modeRoundsRecent < 3) {
-      return 'Early trends are forming. Keep logging rounds to see how your scoring compares over time.';
+      return 'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.';
     }
     const delta = scoreRecent - scoreBaseline;
     if (Math.abs(delta) <= scoreNearThreshold) {
-      return 'Your recent rounds are close to your usual level. Your scoring is staying in its normal range.';
+      if (confidence === 'high') {
+        return 'Your recent rounds are close to your normal scoring range, and this looks stable over time.';
+      }
+      if (confidence === 'medium') {
+        return 'Your recent rounds are close to your normal scoring range. The trend is holding steady.';
+      }
+      return 'Your recent rounds are close to your normal scoring range. This trend is still early.';
     }
     if (delta < 0) {
-      return `Your recent rounds are outperforming your usual level. You're scoring about ${formatOneDecimal(Math.abs(delta))} strokes lower over your recent rounds.`;
+      if (confidence === 'high') {
+        if (args.isPremium) {
+          return `Your recent rounds are outperforming your recent baseline by about ${formatOneDecimal(Math.abs(delta))} strokes, and this has become a persistent trend.`;
+        }
+        return 'Your recent rounds are outperforming your recent baseline, and this has become a persistent trend.';
+      }
+      if (confidence === 'medium') {
+      return 'Your recent rounds are trending better than your normal scoring range. This is becoming an emerging trend.';
+      }
+    return 'Your recent rounds are trending better than your normal scoring range, but this trend is still early.';
     }
-    return `Your recent rounds are above your usual level. You're scoring about ${formatOneDecimal(delta)} strokes higher over your recent rounds.`;
+    if (confidence === 'high') {
+      if (args.isPremium) {
+        return `Your recent rounds are above your recent baseline by about ${formatOneDecimal(delta)} strokes, and this has become a persistent trend.`;
+      }
+      return 'Your recent rounds are above your recent baseline, and this has become a persistent trend.';
+    }
+    if (confidence === 'medium') {
+      return 'Your recent rounds are trending above your normal scoring range. This is becoming an emerging trend.';
+    }
+    return 'Your recent rounds are trending above your normal scoring range, but this trend is still early.';
   })();
 
   const card2 = (() => {
@@ -1214,65 +1410,158 @@ export function buildDeterministicOverallCards(args: {
     const lowCoverage = narrative.opportunity.lowCoverage || narrative.strength.lowCoverage;
     const weakestAbs = weakestValue != null && Number.isFinite(weakestValue) ? Math.abs(weakestValue) : null;
     const strongestAbs = strongestValue != null && Number.isFinite(strongestValue) ? Math.abs(strongestValue) : null;
+    const weakBalancedProfile =
+      balancedBySharedSignal ||
+      (weakestAbs != null && weakestAbs < 0.25);
+    const strengthBalancedProfile =
+      balancedBySharedSignal ||
+      (strongestAbs != null && strongestAbs < 0.25);
+    const moderateRelativeWeakness =
+      weakestIsWeakness &&
+      weakestAbs != null &&
+      weakestAbs >= 0.15 &&
+      weakestAbs < 0.3 &&
+      balancedState.reason !== 'neutral_band';
 
-    if (lowCoverage) {
-      return 'No clear reason yet. A few more rounds will make this clearer.';
+    if (lowCoverage || (!weakestLabel && !strongestLabel)) {
+      if (confidence === 'high') {
+        return 'Score trends are clearer than shot-pattern detail right now. Logging fairways, greens, putts, and penalties will sharpen the long-term diagnosis.';
+      }
+      if (confidence === 'medium') {
+        return 'Score trends are emerging, but shot-pattern detail is still limited. Logging fairways, greens, putts, and penalties will sharpen this read.';
+      }
+      return 'Score trends are forming, but shot-pattern detail is still light. A few more tracked rounds will sharpen this read.';
     }
 
     if (weakestLabel && weakestIsWeakness) {
-      if (weakestAbs != null && weakestAbs < 0.1) {
-        return 'Your game is well balanced. No area clearly stands out as a weakness.';
+      if (weakBalancedProfile) {
+        if (moderateRelativeWeakness) {
+          if (confidence === 'high') {
+            return `${weakestLabel} is still your weakest relative area, even though your overall profile remains fairly balanced.`;
+          }
+          if (confidence === 'medium') {
+            return `${weakestLabel} looks slightly weaker than the rest, though your overall profile is still fairly balanced.`;
+          }
+          return `${weakestLabel} may be a slight relative weakness, but this pattern is still early.`;
+        }
+        if (confidence === 'high') {
+          return 'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.';
+        }
+        if (confidence === 'medium') {
+          return 'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.';
+        }
+        return 'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.';
       }
-      if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue)) {
-        return `${weakestLabel} is costing you strokes. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes per round compared to your usual level.`;
+      if (confidence === 'low') {
+        return `${weakestLabel} may be quietly limiting scoring recently, but this pattern is still early.`;
       }
-      return `${weakestLabel} is costing you strokes. This has been the biggest difference in your recent rounds. The full breakdown shows exactly how much.`;
+      if (confidence === 'medium') {
+        if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue) && weakestAbs != null && weakestAbs >= 0.3) {
+          return `${weakestLabel} is emerging as the main area holding scores back. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your recent baseline.`;
+        }
+        return `${weakestLabel} is emerging as the clearest area limiting recent scoring.`;
+      }
+      const effectivePersistenceTier = downgradePersistenceTierForWeakness({
+        tier: persistenceTier,
+        currentDelta: weakestValue,
+        recoveringWeaknessThreshold: 0.3,
+      });
+      if (effectivePersistenceTier === 'persistent') {
+        if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue) && weakestAbs != null && weakestAbs >= 0.3) {
+          return `${weakestLabel} has been the most persistent scoring weakness over recent rounds. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your recent baseline.`;
+        }
+        return `${weakestLabel} has been the most persistent scoring weakness over recent rounds.`;
+      }
+      if (effectivePersistenceTier === 'emerging') {
+        return `${weakestLabel} is emerging as the clearest scoring leak across recent rounds.`;
+      }
+      return `${weakestLabel} is the current weak spot, but it has not repeated enough to call it persistent.`;
     }
 
     if (strongestLabel && strongestValue != null && Number.isFinite(strongestValue) && strongestValue > 0.15) {
-      if (strongestAbs != null && strongestAbs < 0.1) {
-        return 'Your game is well balanced. No area clearly stands out as a weakness.';
+      if (strengthBalancedProfile) {
+        if (confidence === 'high') {
+          return 'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.';
+        }
+        if (confidence === 'medium') {
+          return 'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.';
+        }
+        return 'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.';
+      }
+      if (confidence === 'low') {
+        return `${strongestLabel} is helping your score recently, but this pattern is still early.`;
+      }
+      if (confidence === 'medium') {
+        return `${strongestLabel} is helping your score and starting to show up as a reliable trend.`;
       }
       if (args.isPremium) {
-        return `${strongestLabel} is helping your score. You're gaining about ${formatOneDecimal(Math.abs(strongestValue))} strokes per round compared to your usual level.`;
+        return `${strongestLabel} is helping your score and has become a stable long-term strength. You're gaining about ${formatOneDecimal(Math.abs(strongestValue))} strokes versus your usual level.`;
       }
-      return `${strongestLabel} is helping your score. This has been your strongest area recently.`;
+      return `${strongestLabel} is helping your score and has become a stable long-term strength.`;
     }
 
-    if (!weakestLabel && !strongestLabel) {
-      return 'No clear reason yet. A few more rounds will make this clearer.';
+    if (confidence === 'high') {
+      return 'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.';
     }
-
-    return 'Your game is well balanced. No area clearly stands out as a weakness.';
+    if (confidence === 'medium') {
+      return 'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.';
+    }
+    return 'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.';
   })();
+
+  const card2WithDirection = directionalQualifier
+    ? `${card2} ${directionalQualifier}`
+    : card2;
 
   const card3 = (() => {
     const stdDev = consistency.stdDev;
-    if (stdDev != null && Number.isFinite(stdDev)) {
-      if (stdDev < 0.05) {
-        return 'Your scoring is extremely consistent. Your scores have been steady from round to round.';
+    if (volatilitySignal.severity === 'strong') {
+      if (confidence === 'high') {
+        if (volatilitySignal.hasCeilingFloorGap) {
+          return 'Your scoring is inconsistent: the ceiling is strong, but the floor is still low. Volatility is the clearest long-term pattern affecting your averages.';
+        }
+        return 'Your scoring is inconsistent, and volatility is now the clearest long-term pattern affecting your averages.';
       }
-      if (stdDev < 0.2) {
-        return 'Your scoring is very consistent. Your scores have barely changed from round to round.';
+      if (confidence === 'medium') {
+        return 'Your scoring is inconsistent, and this volatility is becoming a meaningful pattern across recent rounds.';
       }
-      if (stdDev <= 1.5) {
-        return `Your scoring is consistent. Your scores are staying within about +/-${formatOneDecimal(stdDev)} strokes recently.`;
-      }
-      if (stdDev <= 2.5) {
-        return 'Your scoring has some movement. Your scores are moving around, but not wildly from round to round.';
-      }
-      return 'Your scoring is inconsistent. Your scores are varying more than usual from round to round.';
+      return 'Your scoring is moving around more than usual. Keep logging rounds to confirm whether volatility is the main trend.';
     }
-    if (consistency.label === 'moderate') {
-      return 'Your scoring has some movement. Your scores are moving around, but not wildly from round to round.';
+
+    if (volatilitySignal.severity === 'moderate') {
+      if (confidence === 'high') {
+        return 'Your scoring still has enough movement to cap average gains, even without extreme volatility.';
+      }
+      if (confidence === 'medium') {
+        return 'Your scoring has moderate movement from round to round, and that is becoming part of the overall pattern.';
+      }
+      return 'Your scoring has some movement from round to round, and this pattern is still forming.';
     }
-    if (consistency.label === 'volatile') {
-      return 'Your scoring is inconsistent. Your scores are varying more than usual from round to round.';
+
+    if (stdDev != null && Number.isFinite(stdDev) && stdDev <= 1.5) {
+      if (confidence === 'high') {
+        return 'Your scoring is consistent, and that stability has become a reliable base for long-term improvement.';
+      }
+      if (confidence === 'medium') {
+        return 'Your scoring is becoming more consistent, which gives your improvement a steadier base.';
+      }
+      return 'Your scoring is showing early signs of consistency, but this pattern is still forming.';
     }
-    return 'Consistency is still forming. A few more rounds will show how steady your scoring really is.';
+
+    if (consistency.label === 'stable') {
+      if (confidence === 'high') {
+        return 'Your scoring is consistent, and that stability has become a reliable base for long-term improvement.';
+      }
+      if (confidence === 'medium') {
+        return 'Your scoring is becoming more consistent, which gives your improvement a steadier base.';
+      }
+      return 'Your scoring is showing early signs of consistency, but this pattern is still forming.';
+    }
+
+    return 'Consistency signals are still forming. A few more rounds will clarify whether stability or volatility is your long-term trend.';
   })();
 
-  return [card1, card2, card3].map((card, index) => {
+  return [card1, card2WithDirection, card3].map((card, index) => {
     assertOverallCopySafe(card, `overall_card_${index + 1}`);
     return card;
   });
@@ -1288,3 +1577,4 @@ export function pickDeterministicDrillSeeded(
 ): string {
   return deterministicDrill(area, roundSeed);
 }
+

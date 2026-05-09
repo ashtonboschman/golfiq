@@ -293,6 +293,7 @@ describe('/courses/search page fallback flow', () => {
   });
 
   it('shows inline fallback error when request submission fails', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({
         ok: true,
@@ -314,6 +315,7 @@ describe('/courses/search page fallback flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Request Course' }));
 
     expect(await screen.findByText("We couldn't send the request. Please try again.")).toBeInTheDocument();
+    consoleErrorSpy.mockRestore();
   });
 
   it('shows import results and keeps fallback visible when API search returns valid courses', async () => {

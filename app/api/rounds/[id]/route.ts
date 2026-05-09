@@ -12,7 +12,28 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 
 const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice'] as const;
+const ROUND_MISS_DIRECTION_VALUES = ['hit', 'miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
 type RoundContext = (typeof ROUND_CONTEXT_VALUES)[number];
+type RoundMissDirection = (typeof ROUND_MISS_DIRECTION_VALUES)[number];
+const roundMissDirectionSchema = z.enum(ROUND_MISS_DIRECTION_VALUES);
+
+function normalizeHoleDirection(
+  hitValue: number | null | undefined,
+  directionValue: RoundMissDirection | null | undefined,
+): RoundMissDirection | null {
+  if (hitValue == null) return null;
+
+  if (hitValue === 1) {
+    return directionValue === 'hit' ? 'hit' : null;
+  }
+
+  if (hitValue === 0) {
+    if (!directionValue || directionValue === 'hit') return null;
+    return directionValue;
+  }
+
+  return null;
+}
 
 // Helper to format round data
 type RoundWithRelations = {
@@ -128,7 +149,9 @@ export async function GET(
       pass: number;
       score: number | null;
       fir_hit: number | null;
+      fir_direction: RoundMissDirection | null;
       gir_hit: number | null;
+      gir_direction: RoundMissDirection | null;
       putts: number | null;
       penalties: number | null;
     }> } = {
@@ -148,7 +171,9 @@ export async function GET(
         pass: h.pass,
         score: h.score,
         fir_hit: h.firHit,
+        fir_direction: h.firDirection ?? null,
         gir_hit: h.girHit,
+        gir_direction: h.girDirection ?? null,
         putts: h.putts,
         penalties: h.penalties,
       }));
@@ -190,7 +215,9 @@ const updateRoundSchema = z.object({
     pass: z.number().optional().default(1),
     score: z.number().nullable(),
     fir_hit: z.number().nullable().optional(),
+    fir_direction: roundMissDirectionSchema.nullable().optional(),
     gir_hit: z.number().nullable().optional(),
+    gir_direction: roundMissDirectionSchema.nullable().optional(),
     putts: z.number().nullable().optional(),
     penalties: z.number().nullable().optional(),
   })).optional().default([]),
@@ -359,7 +386,9 @@ export async function PUT(
             pass: h.pass ?? 1,
             score: h.score ?? 0,
             firHit: h.fir_hit ?? null,
+            firDirection: normalizeHoleDirection(h.fir_hit ?? null, h.fir_direction ?? null),
             girHit: h.gir_hit ?? null,
+            girDirection: normalizeHoleDirection(h.gir_hit ?? null, h.gir_direction ?? null),
             putts: h.putts ?? null,
             penalties: h.penalties ?? null,
           })),
@@ -634,7 +663,7 @@ async function triggerInsightsGeneration(roundId: bigint, userId: bigint, forceR
 
 async function triggerOverallInsightsGeneration(userId: bigint): Promise<void> {
   try {
-    await generateAndStoreOverallInsights(userId);
+    await generateAndStoreOverallInsights(userId, 'combined', { touchGeneratedAt: true });
   } catch (error) {
     // Silently fail - overall insights can be generated on next /insights fetch.
     console.error('Failed to generate overall insights:', error);

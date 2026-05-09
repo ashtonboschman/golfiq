@@ -80,7 +80,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-A',
     messageIndex: 1,
     expectedOutcome: 'M2-A',
-    expectedMessageFragment: 'Rounds like this usually come from missed greens and a few costly holes.',
+    expectedMessageFragment: 'Rounds like this usually come from missed scoring chances and a few difficult recovery situations.',
     input: {
       ...baseInput,
       measuredComponents: [],

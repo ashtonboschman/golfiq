@@ -127,7 +127,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedOutcomes: ['M1-A', 'M2-A', 'M3-A'],
     expectedLevels: ['success', 'success', 'info'],
     m1Includes: ['You shot 90 (+18).'],
-    m2Includes: ['Rounds like this usually come from missed greens and a few costly holes.'],
+    m2Includes: ['Rounds like this usually come from missed scoring chances and a few difficult recovery situations.'],
     m3Includes: ['Next round:'],
   },
 ];

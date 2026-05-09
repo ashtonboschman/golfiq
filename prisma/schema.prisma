@@ -255,7 +255,9 @@ model RoundHole {
   pass      Int      @default(1) @map("pass") @db.SmallInt
   score     Int
   firHit    Int?     @map("fir_hit")
+  firDirection RoundMissDirection? @map("fir_direction")
   girHit    Int?     @map("gir_hit")
+  girDirection RoundMissDirection? @map("gir_direction")
   putts     Int?
   penalties Int?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -642,4 +644,12 @@ enum RoundContext {
   real
   simulator
   practice
+}
+
+enum RoundMissDirection {
+  hit
+  miss_left
+  miss_right
+  miss_short
+  miss_long
 }

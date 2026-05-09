@@ -26,6 +26,8 @@ function mkRound(index: number, partial: Partial<OverallRoundPoint> = {}): Overa
     sgResidual: -0.2,
     sgConfidence: null,
     sgPartialAnalysis: null,
+    firDirections: [],
+    girDirections: [],
     ...partial,
   };
 }
@@ -74,7 +76,7 @@ describe('overall insights first-5-round behavior', () => {
     });
 
     expect(cards).toHaveLength(3);
-    expect(cards[0].toLowerCase()).toContain('usual level');
+    expect(cards[0].toLowerCase()).toContain('normal scoring range');
   });
 
   it('uses a 5-round consistency window (4 rounds insufficient, 5 rounds evaluated)', () => {
@@ -139,3 +141,4 @@ describe('overall insights first-5-round behavior', () => {
     expect(payload.efficiency.penaltiesPerRound.recent).toBeCloseTo(payload.efficiency.penaltiesPerRound.baseline!, 6);
   });
 });
+

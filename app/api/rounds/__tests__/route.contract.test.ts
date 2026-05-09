@@ -274,4 +274,99 @@ describe('/api/rounds route contract', () => {
       where: { userId: BigInt(1), roundContext: 'real' },
     });
   });
+
+  it('POST hole-by-hole works when direction fields are omitted', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValueOnce(null);
+
+    const request = new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        hole_by_hole: 1,
+        round_holes: [
+          { hole_id: 101, pass: 1, score: 4, fir_hit: 1, gir_hit: 0, putts: 2, penalties: 0 },
+        ],
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(201);
+    expect(mockedPrisma.roundHole.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            firHit: 1,
+            girHit: 0,
+            firDirection: null,
+            girDirection: null,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('POST hole-by-hole normalizes inconsistent direction input and preserves valid miss directions', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValueOnce(null);
+
+    const request = new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        hole_by_hole: 1,
+        round_holes: [
+          {
+            hole_id: 101,
+            pass: 1,
+            score: 5,
+            fir_hit: 1,
+            fir_direction: 'miss_left',
+            gir_hit: 0,
+            gir_direction: 'miss_right',
+            putts: 2,
+            penalties: 1,
+          },
+          {
+            hole_id: 102,
+            pass: 1,
+            score: 4,
+            fir_hit: 0,
+            fir_direction: 'hit',
+            gir_hit: null,
+            gir_direction: 'miss_short',
+            putts: 2,
+            penalties: 0,
+          },
+        ],
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(201);
+    expect(mockedPrisma.roundHole.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            firHit: 1,
+            firDirection: null,
+            girHit: 0,
+            girDirection: 'miss_right',
+          }),
+          expect.objectContaining({
+            firHit: 0,
+            firDirection: null,
+            girHit: null,
+            girDirection: null,
+          }),
+        ],
+      }),
+    );
+  });
 });

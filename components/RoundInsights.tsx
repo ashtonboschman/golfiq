@@ -260,7 +260,7 @@ export default function RoundInsights({
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
-  }, [showConfidenceInfo]);
+  }, [confidenceTooltipRef, showConfidenceInfo]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);

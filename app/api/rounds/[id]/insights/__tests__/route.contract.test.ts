@@ -80,6 +80,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
       putts: 33,
       penalties: 1,
       teeSegment: 'full',
+      roundHoles: [],
       tee: makeTee(),
     });
 
@@ -104,6 +105,122 @@ describe('/api/rounds/[id]/insights route contract', () => {
       sgPenalties: -0.1,
       sgResidual: 1.9,
     });
+  });
+
+  it('adds premium directional M2 qualifier only when this-round skew is clearly supported', async () => {
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+        return [
+          { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+          { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+          { id: BigInt(30), score: 76, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+          { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+        ];
+      }
+      if (args?.orderBy?.date === 'desc') {
+        return [
+          { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        ];
+      }
+      return [];
+    });
+
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 74,
+      firHit: 7,
+      girHit: 8,
+      putts: 32,
+      penalties: 1,
+      teeSegment: 'full',
+      roundHoles: [
+        { firDirection: null, girDirection: 'miss_right' },
+        { firDirection: null, girDirection: 'miss_right' },
+        { firDirection: null, girDirection: 'miss_right' },
+        { firDirection: null, girDirection: 'miss_right' },
+        { firDirection: null, girDirection: 'miss_right' },
+        { firDirection: null, girDirection: 'miss_short' },
+      ],
+      tee: makeTee(),
+    });
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'approach', label: 'Approach', value: -1.1 },
+        { name: 'putting', label: 'Putting', value: -0.4 },
+        { name: 'penalties', label: 'Penalties', value: -0.1 },
+      ],
+      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      opportunity: { name: 'approach', label: 'Approach', value: -1.1 },
+      opportunityIsWeak: true,
+      componentCount: 4,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+
+    const premium = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+    const free = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(premium.messages[1]).toMatch(/Recorded GIR misses clustered right this round/i);
+    expect(premium.messages[1].toLowerCase()).not.toMatch(/swing|clubface|path|mechanic|slice/);
+    expect(free.messages[1]).not.toMatch(/Recorded GIR misses clustered right this round/i);
+  });
+
+  it('suppresses directional qualifier when sample is tiny or mixed', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 74,
+      firHit: 7,
+      girHit: 9,
+      putts: 33,
+      penalties: 1,
+      teeSegment: 'full',
+      roundHoles: [
+        { firDirection: 'miss_left', girDirection: null },
+        { firDirection: 'miss_right', girDirection: null },
+        { firDirection: 'miss_left', girDirection: null },
+        { firDirection: 'miss_right', girDirection: null },
+      ],
+      tee: makeTee(),
+    });
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -1.2 },
+        { name: 'approach', label: 'Approach', value: -0.6 },
+        { name: 'putting', label: 'Putting', value: -0.3 },
+      ],
+      best: { name: 'putting', label: 'Putting', value: -0.3 },
+      opportunity: { name: 'off_tee', label: 'Off The Tee', value: -1.2 },
+      opportunityIsWeak: true,
+      componentCount: 3,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(insights.messages[1]).not.toMatch(/Recorded FIR misses|Recorded GIR misses/i);
   });
 
   it('keeps area-specific next-round focus when weak separation exists but a strong leak is present', async () => {
@@ -315,6 +432,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   });
 
   it('returns generic errors for unexpected GET failures', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockedPrisma.user.findUnique.mockRejectedValueOnce(new Error('sensitive backend failure'));
 
     const request = new Request('http://localhost/api/rounds/40/insights');
@@ -324,6 +442,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(response.status).toBe(500);
     expect(body.message).toBe('Error fetching insights');
     expect(body.message).not.toContain('sensitive');
+    consoleErrorSpy.mockRestore();
   });
 
   it('free users do not receive SG numeric precision or residual suffix in insight cards', async () => {
@@ -505,6 +624,114 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[1].toLowerCase()).not.toContain('accounted for the most');
     expect(insights.messages[1].toLowerCase()).not.toContain('strokes gained');
     expect(insights.messages[1]).not.toMatch(/\b\d+(\.\d)? strokes\b/i);
+  });
+
+  it('MED vs HIGH confidence differ in M2 decisiveness at the API boundary', async () => {
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+        return [
+          { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+          { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+          { id: BigInt(30), score: 76, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+          { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+        ];
+      }
+      if (args?.orderBy?.date === 'desc') {
+        return [
+          { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        ];
+      }
+      return [];
+    });
+
+    mockedRunMeasuredSgSelection.mockReset();
+    mockedRunMeasuredSgSelection.mockReturnValueOnce({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'approach', label: 'Approach', value: -1.2 },
+        { name: 'putting', label: 'Putting', value: -0.6 },
+      ],
+      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      opportunity: { name: 'approach', label: 'Approach', value: -1.2 },
+      opportunityIsWeak: true,
+      componentCount: 3,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+    const high = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    mockedRunMeasuredSgSelection.mockReturnValueOnce({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'approach', label: 'Approach', value: -1.2 },
+        { name: 'putting', label: 'Putting', value: -0.6 },
+      ],
+      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      opportunity: { name: 'approach', label: 'Approach', value: -1.2 },
+      opportunityIsWeak: true,
+      componentCount: 3,
+      residualDominant: false,
+      weakSeparation: true,
+    });
+    const med = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(high.confidence).toBe('HIGH');
+    expect(med.confidence).toBe('MED');
+    expect(high.message_outcomes[1]).toBe('M2-D');
+    expect(med.message_outcomes[1]).toBe('M2-D');
+    expect(high.messages[1].toLowerCase()).not.toMatch(/likely|looked like/);
+    expect(med.messages[1].toLowerCase()).toMatch(/likely|looked like/);
+  });
+
+  it('residual-dominant ambiguous rounds acknowledge uncertainty in premium M2 copy', async () => {
+    mockedRunMeasuredSgSelection.mockReset();
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'approach', label: 'Approach', value: -0.6 },
+        { name: 'putting', label: 'Putting', value: -0.4 },
+      ],
+      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      opportunity: { name: 'approach', label: 'Approach', value: -0.6 },
+      opportunityIsWeak: true,
+      componentCount: 3,
+      residualDominant: true,
+      weakSeparation: true,
+    });
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      sgTotal: -1.2,
+      sgOffTee: -0.2,
+      sgApproach: -0.6,
+      sgPutting: -0.4,
+      sgPenalties: null,
+      sgResidual: 2.0,
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(insights.confidence).toBe('MED');
+    expect(insights.message_outcomes[1]).toBe('M2-D');
+    expect(insights.messages[1].toLowerCase()).toContain('not shown in these stats');
+    expect(insights.messages[1].toLowerCase()).toMatch(/likely|looked like/);
+    expect(insights.messages[1].toLowerCase()).not.toContain('main source of lost strokes');
   });
 
   it('round 1 score-only premium M1 includes setup phrase when no history exists', async () => {

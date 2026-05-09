@@ -59,7 +59,9 @@ interface HoleScore {
   par: number | null;
   score: number | null;
   fir_hit: number | null;
+  fir_direction: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   gir_hit: number | null;
+  gir_direction: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   putts: number | null;
   penalties: number | null;
 }
@@ -137,6 +139,7 @@ function AddRoundContent() {
   const [expandedHole, setExpandedHole] = useState<number>(1); // Track which hole is currently expanded
   const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set()); // Track holes where Next was clicked
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const holeScoresRef = useRef<HoleScore[]>([]);
   const hasSubmittedRef = useRef(false);
   const hasInteractedRef = useRef(false);
   const startTrackedRef = useRef(false);
@@ -201,6 +204,10 @@ function AddRoundContent() {
         ? 'course_selected'
         : 'initial';
   }, [round.course_id, round.tee_id]);
+
+  useEffect(() => {
+    holeScoresRef.current = holeScores;
+  }, [holeScores]);
 
   useEffect(() => {
     return () => {
@@ -295,7 +302,9 @@ function AddRoundContent() {
         pass: h.pass,
         score: h.score,
         fir_hit: h.fir_hit,
+        fir_direction: h.fir_direction,
         gir_hit: h.gir_hit,
+        gir_direction: h.gir_direction,
         putts: h.putts,
         penalties: h.penalties,
       }));
@@ -505,6 +514,7 @@ function AddRoundContent() {
 
       const holesArray = data.holes || [];
       setHoles(holesArray);
+      const sourceRoundHoles = existingRoundHoles.length > 0 ? existingRoundHoles : holeScoresRef.current;
 
       let initScores: HoleScore[];
 
@@ -513,7 +523,7 @@ function AddRoundContent() {
         const realHoles = holesArray.filter((h: any) => h.hole_number <= 9);
         // Create 18 entries: pass=1 for holes 1-9, pass=2 for holes 10-18 (same hole IDs)
         const pass1 = realHoles.map((hole: any) => {
-          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 1);
+          const existing = sourceRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 1);
           return {
             hole_id: hole.id,
             hole_number: hole.hole_number,
@@ -521,13 +531,15 @@ function AddRoundContent() {
             par: hole.par,
             score: existing?.score ?? null,
             fir_hit: existing?.fir_hit ?? null,
+            fir_direction: existing?.fir_direction ?? null,
             gir_hit: existing?.gir_hit ?? null,
+            gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
           };
         });
         const pass2 = realHoles.map((hole: any) => {
-          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 2);
+          const existing = sourceRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 2);
           return {
             hole_id: hole.id,
             hole_number: hole.hole_number + 9,
@@ -535,7 +547,9 @@ function AddRoundContent() {
             par: hole.par,
             score: existing?.score ?? null,
             fir_hit: existing?.fir_hit ?? null,
+            fir_direction: existing?.fir_direction ?? null,
             gir_hit: existing?.gir_hit ?? null,
+            gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
           };
@@ -543,7 +557,7 @@ function AddRoundContent() {
         initScores = [...pass1, ...pass2];
       } else {
         initScores = holesArray.map((hole: any) => {
-          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id);
+          const existing = sourceRoundHoles.find((h: any) => h.hole_id === hole.id);
           return {
             hole_id: hole.id,
             hole_number: hole.hole_number,
@@ -551,7 +565,9 @@ function AddRoundContent() {
             par: hole.par,
             score: existing?.score ?? null,
             fir_hit: existing?.fir_hit ?? null,
+            fir_direction: existing?.fir_direction ?? null,
             gir_hit: existing?.gir_hit ?? null,
+            gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
           };
@@ -614,7 +630,7 @@ function AddRoundContent() {
     if (!round.tee_id || !initialized) return;
 
     const initHoles = async () => {
-      await fetchHoles(Number(round.tee_id), [], round.tee_segment);
+      await fetchHoles(Number(round.tee_id), holeScoresRef.current, round.tee_segment);
     };
 
     initHoles();
@@ -693,10 +709,25 @@ function AddRoundContent() {
       const updated = [...prev];
       const hole = updated[index];
 
-      updated[index] = {
+      const nextHole = {
         ...hole,
         [field]: value,
-      };
+      } as HoleScore;
+
+      if (field === 'fir_hit' && value !== 0) {
+        nextHole.fir_direction = null;
+      }
+      if (field === 'gir_hit' && value !== 0) {
+        nextHole.gir_direction = null;
+      }
+      if (field === 'fir_direction' && hole.fir_hit !== 0) {
+        nextHole.fir_direction = null;
+      }
+      if (field === 'gir_direction' && hole.gir_hit !== 0) {
+        nextHole.gir_direction = null;
+      }
+
+      updated[index] = nextHole;
 
       return updated;
     });
@@ -737,7 +768,7 @@ function AddRoundContent() {
       // Ensure holes are fetched if we have a tee selected
       let currentHoles = holes;
       if (holes.length === 0) {
-        currentHoles = await fetchHoles(Number(round.tee_id), [], round.tee_segment);
+        currentHoles = await fetchHoles(Number(round.tee_id), holeScoresRef.current, round.tee_segment);
       }
 
       // Check if we actually got holes
@@ -762,7 +793,9 @@ function AddRoundContent() {
               par: h.par,
               score: existing?.score ?? null,
               fir_hit: existing?.fir_hit ?? null,
+              fir_direction: existing?.fir_direction ?? null,
               gir_hit: existing?.gir_hit ?? null,
+              gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
             };
@@ -776,7 +809,9 @@ function AddRoundContent() {
               par: h.par,
               score: existing?.score ?? null,
               fir_hit: existing?.fir_hit ?? null,
+              fir_direction: existing?.fir_direction ?? null,
               gir_hit: existing?.gir_hit ?? null,
+              gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
             };
@@ -792,7 +827,9 @@ function AddRoundContent() {
               par: h.par,
               score: existing?.score ?? null,
               fir_hit: existing?.fir_hit ?? null,
+              fir_direction: existing?.fir_direction ?? null,
               gir_hit: existing?.gir_hit ?? null,
+              gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
             };
@@ -939,7 +976,9 @@ function AddRoundContent() {
                 par={h.par}
                 score={h.score}
                 fir_hit={h.fir_hit}
+                fir_direction={h.fir_direction}
                 gir_hit={h.gir_hit}
+                gir_direction={h.gir_direction}
                 putts={h.putts}
                 penalties={h.penalties}
                 isExpanded={isExpanded}
@@ -1056,7 +1095,7 @@ function AddRoundContent() {
                 updateSegmentOptions(option?.teeObj);
 
                 if (teeId) {
-                  const holesData = await fetchHoles(teeId);
+                  const holesData = await fetchHoles(teeId, []);
                   const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
                   setRound((prev) => ({ ...prev, par_total: totalPar }));
                 }
@@ -1092,7 +1131,7 @@ function AddRoundContent() {
                     }
                     // Re-fetch holes (double9 duplicates client-side)
                     if (round.tee_id) {
-                      await fetchHoles(Number(round.tee_id), [], newSegment);
+                      await fetchHoles(Number(round.tee_id), holeScoresRef.current, newSegment);
                     }
                   }
                 }}

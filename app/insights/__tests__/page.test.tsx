@@ -550,7 +550,7 @@ describe('/insights page', () => {
       },
     });
 
-    let rejectCombinedRequest: ((reason?: unknown) => void) | null = null;
+    let rejectCombinedRequest: (reason?: unknown) => void = () => {};
     (global.fetch as jest.Mock).mockImplementation((url: string) => {
       if (url.includes('statsMode=combined')) {
         return new Promise((_, reject) => {
@@ -570,7 +570,7 @@ describe('/insights page', () => {
 
     await screen.findByText('39.4');
 
-    rejectCombinedRequest?.(new Error('stale insights fetch failed'));
+    rejectCombinedRequest(new Error('stale insights fetch failed'));
 
     await waitFor(() => {
       expect(screen.queryByText('stale insights fetch failed')).not.toBeInTheDocument();

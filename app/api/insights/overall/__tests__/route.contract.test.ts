@@ -172,7 +172,7 @@ describe('/api/insights/overall contract', () => {
     expect(premiumCardsText).not.toContain('priority first');
     expect(premiumCardsText).not.toContain('on-course strategy');
     expect(premiumCardsText).not.toContain('projection:');
-    expect(premiumCardsText).not.toContain('baseline');
+    expect(premiumCardsText).toContain('recent baseline');
     expect(premiumCardsText).not.toContain('not enough data');
   });
 
@@ -199,6 +199,7 @@ describe('/api/insights/overall contract', () => {
   });
 
   it('returns a generic error message for unexpected failures', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockedRequireAuth.mockRejectedValueOnce(new Error('sensitive backend failure'));
 
     const request = new Request('http://localhost/api/insights/overall');
@@ -209,6 +210,7 @@ describe('/api/insights/overall contract', () => {
     expect(body.type).toBe('error');
     expect(body.message).toBe('Failed to load overall insights');
     expect(body.message).not.toContain('sensitive');
+    consoleErrorSpy.mockRestore();
   });
 });
 

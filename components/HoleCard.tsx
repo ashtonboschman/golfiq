@@ -1,13 +1,18 @@
-import { memo, useEffect, useState } from 'react';
-import { Check, ChevronDown, ChevronUp } from 'lucide-react';
-import BinaryNullToggle from './BinaryNullToggle';
+import { memo, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+
+type MissDirection = 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long';
+type DirectionalResult = 'untracked' | 'hit' | MissDirection;
+const ACCORDION_ICON_SIZE = 24;
 
 interface HoleCardProps {
   hole: number;
   par: number | null;
   score: number | null;
   fir_hit: number | null;
+  fir_direction?: MissDirection | null;
   gir_hit: number | null;
+  gir_direction?: MissDirection | null;
   putts: number | null;
   penalties: number | null;
   isExpanded?: boolean;
@@ -22,7 +27,9 @@ const HoleCard = memo(({
   par,
   score,
   fir_hit,
+  fir_direction = null,
   gir_hit,
+  gir_direction = null,
   putts,
   penalties,
   isExpanded = true,
@@ -32,31 +39,79 @@ const HoleCard = memo(({
   onNext,
 }: HoleCardProps) => {
   // Local state for uncommitted changes
-  const [localScore, setLocalScore] = useState<number | null>(score);
+  const [localScore, setLocalScore] = useState<number | null>(score ?? par);
   const [localFirHit, setLocalFirHit] = useState<number | null>(fir_hit);
+  const [localFirDirection, setLocalFirDirection] = useState<MissDirection | null>(fir_direction);
   const [localGirHit, setLocalGirHit] = useState<number | null>(gir_hit);
+  const [localGirDirection, setLocalGirDirection] = useState<MissDirection | null>(gir_direction);
   const [localPutts, setLocalPutts] = useState<number | null>(putts);
   const [localPenalties, setLocalPenalties] = useState<number | null>(penalties);
 
   const syncLocalStateFromProps = () => {
     setLocalScore(score ?? par);
     setLocalFirHit(fir_hit);
+    setLocalFirDirection(fir_direction);
     setLocalGirHit(gir_hit);
+    setLocalGirDirection(gir_direction);
     setLocalPutts(putts);
     setLocalPenalties(penalties);
   };
 
-  useEffect(() => {
-    if (isExpanded) {
-      syncLocalStateFromProps();
+  const resolveDirectionalResult = (
+    hit: number | null,
+    direction: MissDirection | null,
+  ): DirectionalResult => {
+    if (hit === 1) return 'hit';
+    if (hit === 0 && direction != null) return direction;
+    return 'untracked';
+  };
+
+  const handleDirectionalResultChange = (
+    area: 'fir' | 'gir',
+    result: DirectionalResult,
+  ) => {
+    const currentResult = area === 'fir'
+      ? resolveDirectionalResult(localFirHit, localFirDirection)
+      : resolveDirectionalResult(localGirHit, localGirDirection);
+    const next = currentResult === result ? 'untracked' : result;
+
+    if (area === 'fir') {
+      if (next === 'untracked') {
+        setLocalFirHit(null);
+        setLocalFirDirection(null);
+        return;
+      }
+      if (next === 'hit') {
+        setLocalFirHit(1);
+        setLocalFirDirection(null);
+        return;
+      }
+      setLocalFirHit(0);
+      setLocalFirDirection(next);
+      return;
     }
-  }, [isExpanded, score, fir_hit, gir_hit, putts, penalties, par]);
+
+    if (next === 'untracked') {
+      setLocalGirHit(null);
+      setLocalGirDirection(null);
+      return;
+    }
+    if (next === 'hit') {
+      setLocalGirHit(1);
+      setLocalGirDirection(null);
+      return;
+    }
+    setLocalGirHit(0);
+    setLocalGirDirection(next);
+  };
 
   // Commit all local changes to parent
   const handleCommit = () => {
     onChange(hole, 'score', localScore);
     onChange(hole, 'fir_hit', localFirHit);
+    onChange(hole, 'fir_direction', localFirHit === 0 && par !== 3 ? localFirDirection : null);
     onChange(hole, 'gir_hit', localGirHit);
+    onChange(hole, 'gir_direction', localGirHit === 0 ? localGirDirection : null);
     onChange(hole, 'putts', localPutts);
     onChange(hole, 'penalties', localPenalties);
     onNext?.();
@@ -131,6 +186,51 @@ const HoleCard = memo(({
     onToggleExpand?.(hole);
   };
 
+  const renderDirectionalResultControl = (args: {
+    area: 'fir' | 'gir';
+    hit: number | null;
+    direction: MissDirection | null;
+    disabled?: boolean;
+  }) => {
+    const selected = resolveDirectionalResult(args.hit, args.direction);
+    const prefix = args.area === 'fir' ? 'FIR' : 'GIR';
+
+    const buttons: Array<{
+      result: DirectionalResult;
+      label: string;
+      className: string;
+      icon: ReactNode;
+    }> = [
+      { result: 'miss_long', label: 'Long', className: 'pos-up', icon: <ChevronUp size={ACCORDION_ICON_SIZE} /> },
+      { result: 'miss_left', label: 'Left', className: 'pos-left', icon: <ChevronLeft size={ACCORDION_ICON_SIZE} /> },
+      { result: 'hit', label: 'Hit', className: 'pos-center', icon: <Check size={ACCORDION_ICON_SIZE} /> },
+      { result: 'miss_right', label: 'Right', className: 'pos-right', icon: <ChevronRight size={ACCORDION_ICON_SIZE} /> },
+      { result: 'miss_short', label: 'Short', className: 'pos-down', icon: <ChevronDown size={ACCORDION_ICON_SIZE} /> },
+    ];
+
+    return (
+      <div className="directional-result">
+        <div className="directional-result-grid" role="group" aria-label={`${prefix} result`}>
+          {buttons.map((button) => (
+            <button
+              key={`${prefix}-${button.result}`}
+              type="button"
+              aria-label={button.label}
+              className={`directional-result-btn ${button.className} ${selected === button.result ? 'active' : ''} ${selected === button.result ? (button.result === 'hit' ? 'active-hit' : 'active-miss') : ''}`}
+              onClick={() => handleDirectionalResultChange(args.area, button.result)}
+              disabled={args.disabled}
+            >
+              {button.icon}
+            </button>
+          ))}
+        </div>
+        {args.hit === 0 && args.direction == null && (
+          <span className="directional-result-miss-note">{prefix} miss logged (no direction)</span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className={`accordion-hole-card ${isExpanded ? 'expanded' : 'collapsed'} ${isCompleted ? 'completed' : ''}`}>
       {/* Header - always visible */}
@@ -186,20 +286,25 @@ const HoleCard = memo(({
           {/* FIR */}
           <div className="stepper-field">
             <label className="stepper-label">Fairway In Regulation</label>
-            <BinaryNullToggle
-              value={localFirHit}
-              onChange={setLocalFirHit}
-              disabled={par === 3}
-            />
+            {par === 3 ? (
+              <div className="directional-result-na">Not tracked on par 3s</div>
+            ) : (
+              renderDirectionalResultControl({
+                area: 'fir',
+                hit: localFirHit,
+                direction: localFirDirection,
+              })
+            )}
           </div>
 
           {/* GIR */}
           <div className="stepper-field">
             <label className="stepper-label">Green In Regulation</label>
-            <BinaryNullToggle
-              value={localGirHit}
-              onChange={setLocalGirHit}
-            />
+            {renderDirectionalResultControl({
+              area: 'gir',
+              hit: localGirHit,
+              direction: localGirDirection,
+            })}
           </div>
 
           {/* Putts */}

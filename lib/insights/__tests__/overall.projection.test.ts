@@ -23,6 +23,8 @@ function mkRound(index: number, partial: Partial<OverallRoundPoint>): OverallRou
     sgResidual: 0,
     sgConfidence: null,
     sgPartialAnalysis: null,
+    firDirections: [],
+    girDirections: [],
     ...partial,
   };
 }
@@ -304,4 +306,5 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection_ranges).toBeDefined();
   });
 });
+
 

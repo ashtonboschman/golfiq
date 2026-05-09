@@ -59,7 +59,9 @@ interface HoleScore {
   par: number | null;
   score: number | null;
   fir_hit: number | null;
+  fir_direction: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   gir_hit: number | null;
+  gir_direction: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   putts: number | null;
   penalties: number | null;
 }
@@ -124,6 +126,7 @@ function EditRoundContent() {
   const [expandedHole, setExpandedHole] = useState<number>(1);
   const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set());
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const holeScoresRef = useRef<HoleScore[]>([]);
 
   // Update segment options when a tee is selected
   const updateSegmentOptions = useCallback((teeObj: any, currentSegment?: TeeSegment) => {
@@ -179,6 +182,10 @@ function EditRoundContent() {
     }
   }, []);
 
+  useEffect(() => {
+    holeScoresRef.current = holeScores;
+  }, [holeScores]);
+
   const sanitizeNumeric = (val: string | number | null | undefined) => {
     if (val === null || val === undefined) return '';
     return String(val).replace(/\D/g, '');
@@ -208,7 +215,9 @@ function EditRoundContent() {
         pass: h.pass,
         score: h.score,
         fir_hit: h.fir_hit,
+        fir_direction: h.fir_direction,
         gir_hit: h.gir_hit,
+        gir_direction: h.gir_direction,
         putts: h.putts,
         penalties: h.penalties,
       }));
@@ -335,6 +344,7 @@ function EditRoundContent() {
 
       const holesArray = data.holes || [];
       setHoles(holesArray);
+      const sourceRoundHoles = existingRoundHoles.length > 0 ? existingRoundHoles : holeScoresRef.current;
 
       let initScores: HoleScore[];
 
@@ -342,7 +352,7 @@ function EditRoundContent() {
         // Use only real holes 1-9 (filter out any legacy synthetic holes 10+)
         const realHoles = holesArray.filter((h: any) => h.hole_number <= 9);
         const pass1 = realHoles.map((hole: any) => {
-          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 1);
+          const existing = sourceRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 1);
           return {
             hole_id: hole.id,
             hole_number: hole.hole_number,
@@ -350,13 +360,15 @@ function EditRoundContent() {
             par: hole.par,
             score: existing?.score ?? null,
             fir_hit: existing?.fir_hit ?? null,
+            fir_direction: existing?.fir_direction ?? null,
             gir_hit: existing?.gir_hit ?? null,
+            gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
           };
         });
         const pass2 = realHoles.map((hole: any) => {
-          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 2);
+          const existing = sourceRoundHoles.find((h: any) => h.hole_id === hole.id && h.pass === 2);
           return {
             hole_id: hole.id,
             hole_number: hole.hole_number + 9,
@@ -364,7 +376,9 @@ function EditRoundContent() {
             par: hole.par,
             score: existing?.score ?? null,
             fir_hit: existing?.fir_hit ?? null,
+            fir_direction: existing?.fir_direction ?? null,
             gir_hit: existing?.gir_hit ?? null,
+            gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
           };
@@ -372,7 +386,7 @@ function EditRoundContent() {
         initScores = [...pass1, ...pass2];
       } else {
         initScores = holesArray.map((hole: any) => {
-          const existing = existingRoundHoles.find((h: any) => h.hole_id === hole.id);
+          const existing = sourceRoundHoles.find((h: any) => h.hole_id === hole.id);
           return {
             hole_id: hole.id,
             hole_number: hole.hole_number,
@@ -380,7 +394,9 @@ function EditRoundContent() {
             par: hole.par,
             score: existing?.score ?? null,
             fir_hit: existing?.fir_hit ?? null,
+            fir_direction: existing?.fir_direction ?? null,
             gir_hit: existing?.gir_hit ?? null,
+            gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
           };
@@ -539,10 +555,25 @@ function EditRoundContent() {
       const updated = [...prev];
       const hole = updated[index];
 
-      updated[index] = {
+      const nextHole = {
         ...hole,
         [field]: value,
-      };
+      } as HoleScore;
+
+      if (field === 'fir_hit' && value !== 0) {
+        nextHole.fir_direction = null;
+      }
+      if (field === 'gir_hit' && value !== 0) {
+        nextHole.gir_direction = null;
+      }
+      if (field === 'fir_direction' && hole.fir_hit !== 0) {
+        nextHole.fir_direction = null;
+      }
+      if (field === 'gir_direction' && hole.gir_hit !== 0) {
+        nextHole.gir_direction = null;
+      }
+
+      updated[index] = nextHole;
 
       return updated;
     });
@@ -582,7 +613,9 @@ function EditRoundContent() {
               par: h.par,
               score: existing?.score ?? null,
               fir_hit: existing?.fir_hit ?? null,
+              fir_direction: existing?.fir_direction ?? null,
               gir_hit: existing?.gir_hit ?? null,
+              gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
             };
@@ -596,7 +629,9 @@ function EditRoundContent() {
               par: h.par,
               score: existing?.score ?? null,
               fir_hit: existing?.fir_hit ?? null,
+              fir_direction: existing?.fir_direction ?? null,
               gir_hit: existing?.gir_hit ?? null,
+              gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
             };
@@ -612,7 +647,9 @@ function EditRoundContent() {
               par: h.par,
               score: existing?.score ?? null,
               fir_hit: existing?.fir_hit ?? null,
+              fir_direction: existing?.fir_direction ?? null,
               gir_hit: existing?.gir_hit ?? null,
+              gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
             };
@@ -750,7 +787,9 @@ function EditRoundContent() {
                 par={h.par}
                 score={h.score}
                 fir_hit={h.fir_hit}
+                fir_direction={h.fir_direction}
                 gir_hit={h.gir_hit}
+                gir_direction={h.gir_direction}
                 putts={h.putts}
                 penalties={h.penalties}
                 isExpanded={isExpanded}
@@ -922,7 +961,7 @@ function EditRoundContent() {
                       }
                       // Re-fetch holes (double9 duplicates client-side)
                       if (round.tee_id) {
-                        await fetchHoles(Number(round.tee_id), [], newSegment);
+                        await fetchHoles(Number(round.tee_id), holeScoresRef.current, newSegment);
                       }
                     }
                   }}

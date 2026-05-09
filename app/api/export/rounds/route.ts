@@ -55,6 +55,19 @@ export async function GET(request: NextRequest) {
     const exportData = rounds.map((round: any) => {
       const teeSegment = (round.teeSegment ?? 'full') as TeeSegment;
       const ctx = resolveTeeContext(round.tee, teeSegment);
+      const holeDetailsForExport = Array.isArray(round.roundHoles)
+        ? round.roundHoles.map((rh: any) => ({
+            hole_id: rh.holeId != null ? Number(rh.holeId) : null,
+            pass: rh.pass ?? 1,
+            score: rh.score ?? null,
+            fir_hit: rh.firHit ?? null,
+            fir_direction: rh.firDirection ?? null,
+            gir_hit: rh.girHit ?? null,
+            gir_direction: rh.girDirection ?? null,
+            putts: rh.putts ?? null,
+            penalties: rh.penalties ?? null,
+          }))
+        : [];
       return {
         id: Number(round.id),
         date: round.date.toISOString().split('T')[0],
@@ -75,6 +88,7 @@ export async function GET(request: NextRequest) {
         gir_hit: round.girHit,
         putts: round.putts,
         penalties: round.penalties,
+        round_holes_json: holeDetailsForExport.length ? JSON.stringify(holeDetailsForExport) : '',
         notes: round.notes || '',
         created_at: round.createdAt.toISOString(),
       };

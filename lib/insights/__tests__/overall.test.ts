@@ -27,6 +27,8 @@ function mkRound(partial: Partial<OverallRoundPoint>): OverallRoundPoint {
     sgResidual: 0,
     sgConfidence: null,
     sgPartialAnalysis: null,
+    firDirections: [],
+    girDirections: [],
     ...partial,
   };
 }
@@ -112,4 +114,5 @@ describe('overall insights helpers', () => {
     expect(shouldAutoRefreshOverall(null, null, 'abc')).toBe(true);
   });
 });
+
 

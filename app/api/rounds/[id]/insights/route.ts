@@ -13,6 +13,7 @@ import {
 import { getMissingStats } from '@/lib/insights/postRound/missingStats';
 import { runMeasuredSgSelection } from '@/lib/insights/postRound/sgSelection';
 import { resolvePostRoundVariantOffset } from '@/lib/insights/postRound/variantOffset';
+import { pickDirectionalPattern, type DirectionalPatternSummary } from '@/lib/insights/directionalMiss';
 import {
   buildDeterministicPostRoundInsights,
   type InsightLevel,
@@ -120,6 +121,40 @@ function firstNSentences(text: string, count: number): string {
   const sentences = splitSentencesSimple(text);
   if (!sentences.length) return sanitizeWhitespace(text);
   return sanitizeWhitespace(sentences.slice(0, Math.max(1, count)).join(' '));
+}
+
+function resolveDirectionalPreferredArea(componentName: unknown): 'fir' | 'gir' | null {
+  if (componentName === 'off_tee') return 'fir';
+  if (componentName === 'approach') return 'gir';
+  return null;
+}
+
+function formatDirectionalAreaLabel(area: 'fir' | 'gir'): string {
+  return area === 'gir' ? 'GIR' : 'FIR';
+}
+
+function buildPostRoundDirectionalQualifier(input: {
+  pattern: DirectionalPatternSummary | null;
+  confidence: PostRoundConfidence;
+  isPremium: boolean;
+}): string | null {
+  const { pattern, confidence, isPremium } = input;
+  if (!pattern) return null;
+  if (confidence === 'LOW') return null;
+
+  const area = formatDirectionalAreaLabel(pattern.area);
+  const direction = pattern.dominantDirection;
+  if (confidence === 'HIGH') {
+    if (isPremium) {
+      return `Recorded ${area} misses clustered ${direction} this round (${pattern.count}/${pattern.totalDirectionalMisses} misses).`;
+    }
+    return `Recorded ${area} misses clustered ${direction} this round.`;
+  }
+
+  if (isPremium && pattern.confidence === 'high') {
+    return `Recorded ${area} misses trended ${direction} this round (${pattern.count}/${pattern.totalDirectionalMisses} misses).`;
+  }
+  return `Recorded ${area} misses trended ${direction} this round.`;
 }
 
 function hasNoBaselineHistory(insights: any): boolean {
@@ -549,6 +584,12 @@ async function generateInsightsInternal(
           holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } },
         },
       },
+      roundHoles: {
+        select: {
+          firDirection: true,
+          girDirection: true,
+        },
+      },
     },
   });
 
@@ -626,6 +667,15 @@ async function generateInsightsInternal(
     penalties: round.penalties,
   });
 
+  const confidence = resolvePostRoundConfidence({
+    roundNumber,
+    measuredComponentCount: measuredSelection.componentCount,
+    opportunityIsWeak: measuredSelection.opportunityIsWeak,
+    weakSeparation: measuredSelection.weakSeparation,
+    sgConfidence: sgComponents?.confidence ? String(sgComponents.confidence).toLowerCase() : null,
+    missingStats,
+  });
+
   const deterministicInsights = buildDeterministicPostRoundInsights({
     score: Number(round.score),
     toPar,
@@ -640,14 +690,7 @@ async function generateInsightsInternal(
     missing: missingStats,
     residualValue: sgComponents?.sgResidual != null ? Number(sgComponents.sgResidual) : null,
     holesPlayed: currentHolesPlayed,
-    confidence: resolvePostRoundConfidence({
-      roundNumber,
-      measuredComponentCount: measuredSelection.componentCount,
-      opportunityIsWeak: measuredSelection.opportunityIsWeak,
-      weakSeparation: measuredSelection.weakSeparation,
-      sgConfidence: sgComponents?.confidence ? String(sgComponents.confidence).toLowerCase() : null,
-      missingStats,
-    }),
+    confidence,
     roundEvidence: {
       fairwaysHit: round.firHit != null ? Number(round.firHit) : null,
       fairwaysPossible: currentContext.nonPar3Holes,
@@ -661,20 +704,37 @@ async function generateInsightsInternal(
     variantOffset,
   });
 
+  const preferredDirectionalArea = resolveDirectionalPreferredArea(measuredSelection.opportunity?.name);
+  const directionalPattern = pickDirectionalPattern({
+    firValues: Array.isArray((round as any).roundHoles)
+      ? (round as any).roundHoles.map((hole: any) => hole?.firDirection ?? null)
+      : [],
+    girValues: Array.isArray((round as any).roundHoles)
+      ? (round as any).roundHoles.map((hole: any) => hole?.girDirection ?? null)
+      : [],
+    preferredArea: preferredDirectionalArea,
+    options: {
+      minMisses: 4,
+      minDominanceRatio: 0.7,
+      minMargin: 2,
+      highConfidenceMisses: 6,
+      highConfidenceDominanceRatio: 0.78,
+    },
+  });
+  const directionalQualifier = buildPostRoundDirectionalQualifier({
+    pattern: directionalPattern,
+    confidence,
+    isPremium: entitlements.isPremium,
+  });
+  const message2WithDirectional = directionalQualifier
+    ? `${deterministicInsights.messages[1]} ${directionalQualifier}`
+    : deterministicInsights.messages[1];
+
   const finalMessages: [string, string, string] = [
     enforceMaxMessageChars(deterministicInsights.messages[0], POST_ROUND_MESSAGE_MAX_CHARS),
-    enforceMaxMessageChars(deterministicInsights.messages[1], POST_ROUND_MESSAGE_MAX_CHARS),
+    enforceMaxMessageChars(message2WithDirectional, POST_ROUND_MESSAGE_MAX_CHARS),
     enforceMaxMessageChars(deterministicInsights.messages[2], POST_ROUND_MESSAGE_MAX_CHARS),
   ];
-
-  const confidence = resolvePostRoundConfidence({
-    roundNumber,
-    measuredComponentCount: measuredSelection.componentCount,
-    opportunityIsWeak: measuredSelection.opportunityIsWeak,
-    weakSeparation: measuredSelection.weakSeparation,
-    sgConfidence: sgComponents?.confidence ? String(sgComponents.confidence).toLowerCase() : null,
-    missingStats,
-  });
 
   const insightsData = {
     messages: finalMessages,
@@ -707,6 +767,15 @@ async function generateInsightsInternal(
       },
       measured_selection: measuredSelection,
       missing_stats: missingStats,
+      directional: directionalPattern
+        ? {
+            area: directionalPattern.area,
+            dominant_direction: directionalPattern.dominantDirection,
+            dominant_count: directionalPattern.count,
+            total_directional_misses: directionalPattern.totalDirectionalMisses,
+            confidence: directionalPattern.confidence,
+          }
+        : null,
       onboarding: {
         active: false,
         round_number: roundNumber,

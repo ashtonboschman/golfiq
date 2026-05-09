@@ -90,7 +90,7 @@ const M1_A_VARIANTS = [
   "{scoreSentence} With no fairways, greens, putts, or penalties logged, this view focuses on score pattern only.",
   "{scoreSentence} The score is in, and this read focuses on likely scoring pattern.",
   "{scoreSentence} With score-only logging, the takeaways stay directional.",
-  "{scoreSentence} Because no supporting stats were logged, this round is read as an overall pattern.",
+  "{scoreSentence} Because no supporting stats were logged, this read stays score-pattern only.",
 ] as const;
 
 const M1_B_VARIANTS = [
@@ -155,48 +155,48 @@ const M1_NO_BASELINE_SUFFIX_VARIANTS = [
 ] as const;
 
 const M2_A_VARIANTS = [
-  "Rounds like this usually come from missed greens and a few costly holes.",
-  "Scores in this range often come from inconsistent approaches and a few big holes.",
-  "Rounds like this typically come from a mix of getting up and down and missed opportunities.",
-  "Scores in this range often come from approach misses and a handful of expensive swings.",
-  "Scores like this usually reflect uneven ball striking and a few score-damaging holes.",
-  "Rounds in this range often come from a mix of missed opportunities and one or two costly holes.",
+  "Rounds like this usually come from missed scoring chances and a few difficult recovery situations.",
+  "Scores in this range often come from uneven approach play and a few holes that require recovery.",
+  "Rounds like this typically come from lost scoring opportunities and extra pressure around the green.",
+  "Scores in this range often come from missed approach targets and a few swings that force recovery.",
+  "Scores like this usually reflect uneven ball striking and a few holes where recovery becomes difficult.",
+  "Rounds in this range often come from lost scoring opportunities and one or two holes that get away.",
 ] as const;
 
 const M2_A_NONE_BETTER_VARIANTS = [
-  "You beat your recent usual level. Rounds in this range usually come from cleaner approaches and fewer costly holes.",
-  "This round came in lower than your recent average. Scores like this often come from steadier iron play and better recovery control.",
+  "You beat your recent usual level. Rounds in this range usually come from cleaner approaches and fewer recovery situations.",
+  "This round came in lower than your recent average. Scores like this often come from steadier approach play and cleaner recovery decisions.",
   "Scoring improved versus your recent play. Rounds like this typically come from fewer big mistakes and more routine pars.",
   "This was a clear step forward versus recent rounds. Scores in this range often come from more consistent approach distance control.",
   "You finished below your recent average. Rounds like this usually come from fewer penalty moments and better position play.",
-  "This round beat your recent level. Results like this often come from tighter misses and fewer expensive holes.",
+  "This round beat your recent level. Results like this often come from tighter misses and fewer holes that get away.",
 ] as const;
 
 const M2_A_NONE_NEAR_VARIANTS = [
-  "You finished in line with your recent usual level. Rounds in this range usually come from a mix of small misses and a few solid saves.",
+  "You finished in line with your recent usual level. Rounds in this range usually come from routine misses balanced by a few solid saves.",
   "This result sits within your normal scores. Scores like this often come from inconsistent approaches and average conversion on chances.",
-  "Scoring held steady versus your recent average. Rounds like this typically come from ordinary ball striking plus one or two costly holes.",
+  "Scoring held steady versus your recent average. Rounds like this typically come from ordinary ball striking plus one or two difficult recovery situations.",
   "This round matched your recent play. Scores like this often come from mixed shots across approach and getting up and down.",
   "You landed within your usual scores. Scores like this often come from missed greens plus a handful of good scrambles.",
-  "This score matches your recent trend. Rounds in this range usually come from a blend of routine pars and a few expensive mistakes.",
+  "This score matches your recent trend. Rounds in this range usually come from routine pars mixed with a few avoidable setbacks.",
 ] as const;
 
 const M2_A_NONE_WORSE_VARIANTS = [
-  "You finished above your recent usual level. Rounds like this usually come from missed greens and a few costly holes.",
-  "This round came in higher than your recent average. Scores in this range often come from inconsistent approaches and a few big numbers.",
+  "You finished above your recent usual level. Rounds like this usually come from missed approach targets and recovery-heavy holes.",
+  "This round came in higher than your recent average. Scores in this range often come from inconsistent approaches and a few holes that get away.",
   "Scoring slipped relative to your recent play. Rounds like this typically come from getting up and down adding up over multiple holes.",
-  "This result came in higher than your usual scores. Scores like this often come from approach misses plus one or two expensive swings.",
-  "You lost ground versus your recent usual level. Rounds in this range usually come from a mix of missed opportunities and costly misses.",
+  "This result came in higher than your usual scores. Scores like this often come from missed approach targets plus one or two forced recoveries.",
+  "You lost ground versus your recent usual level. Rounds in this range usually come from missed scoring chances and recovery situations adding up.",
   "This score finished above your recent trend. Results like this often come from uneven approach control and a few high-cost holes.",
 ] as const;
 
 const M2_A_SINGLE_VARIANTS = [
-  "With one logged area, rounds like this often come from approach misses and a few expensive holes.",
-  "With one logged stat, scores like this usually come from uneven approach shots plus getting up and down.",
+  "With one logged area, rounds like this often come from missed scoring chances and a few difficult recovery situations.",
+  "With one logged stat, scores like this usually come from uneven approach play plus pressure around the green.",
   "With one logged area, rounds like this typically come from combined effects across multiple parts of the game.",
-  "With one logged stat, results like this often come from missed chances and a few costly swings.",
+  "With one logged stat, results like this often come from missed scoring opportunities and a few forced recoveries.",
   "With one measured area, rounds like this usually reflect mixed shot quality across ball striking and recovery.",
-  "With one logged area, scores like this often come from approach misses and costly holes.",
+  "With one logged area, scores like this often come from missed approach targets and a couple holes that get away.",
 ] as const;
 
 const M2_C_VARIANTS = [
@@ -208,6 +208,12 @@ const M2_C_VARIANTS = [
   "{WorstLabel} stayed steady at {worstSigned1} strokes.{residualSuffix}",
 ] as const;
 
+const M2_C_MED_VARIANTS = [
+  "{WorstLabel} was likely close to neutral at {worstSigned1} strokes, so no single measured area clearly drove the score.{residualSuffix}",
+  "{WorstLabel} looked mostly even at {worstSigned1} strokes, so the round was likely shaped by multiple small factors.{residualSuffix}",
+  "{WorstLabel} stayed near even at {worstSigned1} strokes, so no one measured area clearly explained the score.{residualSuffix}",
+] as const;
+
 const M2_D_VARIANTS = [
   "{WorstLabel} cost about {worstAbs1} strokes{evidence}.{residualSuffix}",
   "{WorstLabel} was the main source of lost strokes at {worstAbs1} strokes{evidence}.{residualSuffix}",
@@ -217,6 +223,12 @@ const M2_D_VARIANTS = [
   "{WorstLabel} accounted for the most strokes lost at {worstAbs1} strokes{evidence}.{residualSuffix}",
 ] as const;
 
+const M2_D_MED_VARIANTS = [
+  "{WorstLabel} likely cost the most strokes at about {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "{WorstLabel} was likely the main source of lost strokes at about {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "{WorstLabel} looked like the clearest scoring leak at about {worstAbs1} strokes{evidence}.{residualSuffix}",
+] as const;
+
 const M2_E_VARIANTS = [
   "{WorstLabel} still helped the score by about {worstAbs1} strokes. {followUp}{residualSuffix}",
   "{WorstLabel} remained a positive at about {worstAbs1} strokes. {followUp}{residualSuffix}",
@@ -224,6 +236,12 @@ const M2_E_VARIANTS = [
   "{WorstLabel} still worked in your favor at about {worstAbs1} strokes. {followUp}{residualSuffix}",
   "{WorstLabel} stayed positive at about {worstAbs1} strokes. {followUp}{residualSuffix}",
   "{WorstLabel} remained a scoring help at about {worstAbs1} strokes. {followUp}{residualSuffix}",
+] as const;
+
+const M2_E_MED_VARIANTS = [
+  "{WorstLabel} likely helped the score by about {worstAbs1} strokes. {followUp}{residualSuffix}",
+  "{WorstLabel} looked like a positive at about {worstAbs1} strokes. {followUp}{residualSuffix}",
+  "{WorstLabel} likely stayed in your favor at about {worstAbs1} strokes. {followUp}{residualSuffix}",
 ] as const;
 
 const M2_D_PENALTIES_VARIANTS = [
@@ -242,12 +260,36 @@ const M2_E_PENALTIES_VARIANTS = [
   "Penalties were still a scoring help at about {worstAbs1} strokes. Risk discipline paid off.{residualSuffix}",
 ] as const;
 
+const M2_D_PENALTIES_MED_VARIANTS = [
+  "Penalties likely cost the most strokes at about {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "Penalties were likely the main source of lost strokes at about {worstAbs1} strokes{evidence}.{residualSuffix}",
+  "Penalty shots looked like the clearest scoring leak at about {worstAbs1} strokes{evidence}.{residualSuffix}",
+] as const;
+
+const M2_E_PENALTIES_MED_VARIANTS = [
+  "Penalties likely helped the score by about {worstAbs1} strokes. Risk control held up.{residualSuffix}",
+  "Penalties looked like a positive at about {worstAbs1} strokes. That kept extra shots off the card.{residualSuffix}",
+  "Penalties likely stayed in your favor at about {worstAbs1} strokes. Risk control stayed steady.{residualSuffix}",
+] as const;
+
 const RESIDUAL_POSITIVE_VARIANTS = [
   "A big part of the score came from short game and getting up and down that is not shown in these stats.",
   "Some of the score came from parts of the round not shown in these stats, like getting up and down or short-game shots.",
   "Not every scoring swing is shown in these stats, especially around getting up and down and short game.",
   "The stats explain part of the round, but some scoring came from other parts of your game not shown in these stats.",
   "Short game, getting up and down, and other details not shown in these stats also played a role in the final score.",
+] as const;
+
+const M2_RESIDUAL_DOMINANT_MED_VARIANTS = [
+  "{WorstLabel} was one likely factor, but a large share of this round came from short game and getting up and down not shown in these stats.",
+  "{WorstLabel} likely contributed, but this round was also shaped by short game and getting up and down not shown in these stats.",
+  "{WorstLabel} looked like part of the story, but short game and getting up and down not shown in these stats also drove scoring.",
+] as const;
+
+const M2_RESIDUAL_DOMINANT_HIGH_VARIANTS = [
+  "{WorstLabel} was a clear factor at about {worstAbs1} strokes{evidence}, but this round was also heavily shaped by short game and getting up and down not shown in these stats.",
+  "{WorstLabel} clearly influenced scoring at about {worstAbs1} strokes{evidence}, and a large share also came from short game and getting up and down not shown in these stats.",
+  "{WorstLabel} was a strong measured factor at about {worstAbs1} strokes{evidence}, but short game and getting up and down not shown in these stats also drove the score.",
 ] as const;
 
 const RESIDUAL_NEGATIVE_VARIANTS = [
@@ -260,8 +302,8 @@ const RESIDUAL_NEGATIVE_VARIANTS = [
 
 const M2_GROUNDED_GIR_VARIANTS = [
   "With {girMade}/{girTotal} greens hit, several holes were played from recovery positions.",
-  "Missing that many greens usually puts pressure on approach targets and short-game recovery.",
-  "Low GIR rounds like this often come from missed approach targets and tougher first putts.",
+  "Missing that many greens usually puts pressure on recovery shots and first-putt distance.",
+  "Low GIR rounds like this often leave fewer simple looks and more recovery work.",
 ] as const;
 
 const M2_GROUNDED_PENALTIES_VARIANTS = [
@@ -272,7 +314,7 @@ const M2_GROUNDED_PENALTIES_VARIANTS = [
 
 const M2_GROUNDED_FIR_VARIANTS = [
   "With {firMade}/{firTotal} fairways hit, several holes likely started from tougher positions.",
-  "Missing fairways this often can make approaches harder and bring getting up and down into play.",
+  "Missing fairways this often can make approach shots harder and create tougher recovery situations.",
   "Tee-shot position likely added pressure before the approach shots.",
 ] as const;
 
@@ -836,10 +878,40 @@ function buildMessage2(
       : "If that holds, scoring stays steadier.",
     residualSuffix,
   };
+  const explicitConfidence = input.confidence ?? null;
+  const useMediumConfidenceTone = explicitConfidence === 'MED';
+  const useHighConfidenceTone = explicitConfidence === 'HIGH';
+  const strongLeakAbs = Math.abs(thresholds.measuredLeakStrong);
+  const residualDominantAmbiguity =
+    residualIncluded &&
+    input.residualDominant === true &&
+    Math.abs(worstMeasured.value) < strongLeakAbs &&
+    (useMediumConfidenceTone || useHighConfidenceTone);
+
+  if (residualDominantAmbiguity) {
+    const ambiguityVariants = useHighConfidenceTone
+      ? M2_RESIDUAL_DOMINANT_HIGH_VARIANTS
+      : M2_RESIDUAL_DOMINANT_MED_VARIANTS;
+    const outcome: 'M2-C' | 'M2-D' | 'M2-E' =
+      isNeutralMeasuredValue(worstMeasured.value, thresholds.neutralEps)
+        ? 'M2-C'
+        : worstMeasured.value < 0
+          ? 'M2-D'
+          : 'M2-E';
+    const text = pickTemplate('message2', `${outcome}-RESIDUAL-AMBIGUOUS`, ambiguityVariants, messageVariantOptions, replacements);
+    return {
+      text,
+      baseText: text,
+      residualIncluded,
+      level: levelForMessage2Outcome(outcome),
+      outcome,
+    };
+  }
 
   if (isNeutralMeasuredValue(worstMeasured.value, thresholds.neutralEps)) {
-    const text = pickTemplate('message2', 'M2-C', M2_C_VARIANTS, messageVariantOptions, replacements);
-    const baseText = pickTemplate('message2', 'M2-C', M2_C_VARIANTS, messageVariantOptions, {
+    const neutralVariants = useMediumConfidenceTone ? M2_C_MED_VARIANTS : M2_C_VARIANTS;
+    const text = pickTemplate('message2', 'M2-C', neutralVariants, messageVariantOptions, replacements);
+    const baseText = pickTemplate('message2', 'M2-C', neutralVariants, messageVariantOptions, {
       ...replacements,
       residualSuffix: '',
     });
@@ -853,7 +925,12 @@ function buildMessage2(
   }
 
   if (worstMeasured.value < 0) {
-    const leakVariants = worstMeasured.name === 'penalties' ? M2_D_PENALTIES_VARIANTS : M2_D_VARIANTS;
+    const leakVariants = (() => {
+      if (worstMeasured.name === 'penalties') {
+        return useMediumConfidenceTone ? M2_D_PENALTIES_MED_VARIANTS : M2_D_PENALTIES_VARIANTS;
+      }
+      return useMediumConfidenceTone ? M2_D_MED_VARIANTS : M2_D_VARIANTS;
+    })();
     const text = pickTemplate('message2', 'M2-D', leakVariants, messageVariantOptions, replacements);
     const baseText = pickTemplate('message2', 'M2-D', leakVariants, messageVariantOptions, {
       ...replacements,
@@ -869,8 +946,12 @@ function buildMessage2(
   }
 
   if (worstMeasured.value > 0) {
-    const positiveVariants =
-      worstMeasured.name === 'penalties' ? M2_E_PENALTIES_VARIANTS : M2_E_VARIANTS;
+    const positiveVariants = (() => {
+      if (worstMeasured.name === 'penalties') {
+        return useMediumConfidenceTone ? M2_E_PENALTIES_MED_VARIANTS : M2_E_PENALTIES_VARIANTS;
+      }
+      return useMediumConfidenceTone ? M2_E_MED_VARIANTS : M2_E_VARIANTS;
+    })();
     const text = pickTemplate('message2', 'M2-E', positiveVariants, messageVariantOptions, replacements);
     const baseText = pickTemplate('message2', 'M2-E', positiveVariants, messageVariantOptions, {
       ...replacements,
@@ -885,8 +966,9 @@ function buildMessage2(
     };
   }
 
-  const text = pickTemplate('message2', 'M2-C', M2_C_VARIANTS, messageVariantOptions, replacements);
-  const baseText = pickTemplate('message2', 'M2-C', M2_C_VARIANTS, messageVariantOptions, {
+  const neutralFallbackVariants = useMediumConfidenceTone ? M2_C_MED_VARIANTS : M2_C_VARIANTS;
+  const text = pickTemplate('message2', 'M2-C', neutralFallbackVariants, messageVariantOptions, replacements);
+  const baseText = pickTemplate('message2', 'M2-C', neutralFallbackVariants, messageVariantOptions, {
     ...replacements,
     residualSuffix: '',
   });

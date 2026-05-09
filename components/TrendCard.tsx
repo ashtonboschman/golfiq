@@ -169,7 +169,7 @@ export default function TrendCard({
         {label}
       </h3>
 
-      <div className="w-full h-full">
+      <div className="w-full h-full" style={{ minWidth: 0 }}>
         <Line data={trendData} options={options} />
       </div>
     </div>

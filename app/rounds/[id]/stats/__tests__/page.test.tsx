@@ -12,7 +12,9 @@ const mockPush = jest.fn();
 const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
 const mockShowConfirm = jest.fn();
-const mockRoundStatsPageSkeleton = jest.fn(() => <div data-testid="round-stats-skeleton" />);
+const mockRoundStatsPageSkeleton = jest.fn(
+  (_props: { showStrokesGained?: boolean }) => <div data-testid="round-stats-skeleton" />,
+);
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
@@ -154,7 +156,7 @@ describe('/rounds/[id]/stats page', () => {
     expect(allCalls.some((url) => url.includes('/api/users/profile'))).toBe(false);
   });
 
-  it('hides strokes gained placeholder while subscription is still loading', () => {
+  it('hides strokes gained placeholder while subscription is still loading', async () => {
     mockedUseSubscription.mockReturnValue({
       isPremium: false,
       loading: true,
@@ -166,5 +168,6 @@ describe('/rounds/[id]/stats page', () => {
     expect(mockRoundStatsPageSkeleton.mock.calls[0]?.[0]).toMatchObject({
       showStrokesGained: false,
     });
+    await screen.findByText('Pebble Beach');
   });
 });

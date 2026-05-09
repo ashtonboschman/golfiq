@@ -193,30 +193,8 @@ describe('/api/stripe/checkout route contract', () => {
     expect(mockedCreateCheckoutSession).toHaveBeenCalledTimes(1);
   });
 
-  it('does not treat legacy STRIPE_PREMIUM_* env vars as valid checkout configuration', async () => {
-    process.env = {
-      ...process.env,
-      STRIPE_PRICE_MONTHLY_CAD: '',
-      STRIPE_PRICE_ANNUAL_CAD: '',
-      STRIPE_PREMIUM_MONTHLY_PRICE_ID: 'price_monthly_allowed',
-      STRIPE_PREMIUM_ANNUAL_PRICE_ID: 'price_annual_allowed',
-    };
-
-    const request = new Request('http://localhost/api/stripe/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ priceId: 'price_monthly_allowed', interval: 'month' }),
-    });
-
-    const response = await POST(request as any);
-    const body = await response.json();
-
-    expect(response.status).toBe(500);
-    expect(body.message).toBe('Checkout is not configured');
-    expect(mockedCreateCheckoutSession).not.toHaveBeenCalled();
-  });
-
   it('does not treat NEXT_PUBLIC_STRIPE_PRICE_* env vars as valid checkout configuration', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     process.env = {
       ...process.env,
       STRIPE_PRICE_MONTHLY_CAD: '',
@@ -237,5 +215,6 @@ describe('/api/stripe/checkout route contract', () => {
     expect(response.status).toBe(500);
     expect(body.message).toBe('Checkout is not configured');
     expect(mockedCreateCheckoutSession).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 });

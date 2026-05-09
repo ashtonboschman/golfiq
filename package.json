@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "typecheck": "tsc --noEmit",
     "lifetime:grant": "tsx scripts/grant-lifetime.ts",
     "lifetime:revoke": "tsx scripts/revoke-lifetime.ts",
     "lifetime:list": "tsx scripts/list-lifetime.ts",

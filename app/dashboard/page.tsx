@@ -11,6 +11,7 @@ import { Plus, TriangleAlert, ToggleLeft, ToggleRight } from 'lucide-react';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import TrendCard from '@/components/TrendCard';
+import MissTendenciesChart from '@/components/MissTendenciesChart';
 import InfoTooltip from '@/components/InfoTooltip';
 import { formatDate, formatHandicap, formatNumber, formatToPar } from '@/lib/formatters';
 import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
@@ -54,6 +55,24 @@ interface DashboardStats {
       par?: number;
       bogey?: number;
       double_plus?: number;
+    };
+  } | null;
+  miss_tendencies?: {
+    labels: string[];
+    keys: ('miss_left' | 'miss_right' | 'miss_short' | 'miss_long')[];
+    fir: {
+      percentages: (number | null)[];
+      counts: number[];
+      tracked_misses: number;
+      total_misses: number;
+      untracked_misses: number;
+    };
+    gir: {
+      percentages: (number | null)[];
+      counts: number[];
+      tracked_misses: number;
+      total_misses: number;
+      untracked_misses: number;
     };
   } | null;
   isPremium?: boolean;
@@ -174,6 +193,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     avg_putts: null,
     avg_penalties: null,
     hbh_stats: null,
+    miss_tendencies: null,
     overallInsightsSummary: null,
     latestRoundUpdatedAt: null,
   });
@@ -302,6 +322,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               avg_putts: null,
               avg_penalties: null,
               hbh_stats: null,
+              miss_tendencies: null,
               overallInsightsSummary: null,
               latestRoundUpdatedAt: null,
             });
@@ -349,6 +370,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 avg_putts: null,
                 avg_penalties: null,
                 hbh_stats: null,
+                miss_tendencies: null,
                 overallInsightsSummary: null,
                 latestRoundUpdatedAt: null,
               });
@@ -448,9 +470,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     isOwnDashboard,
     loading,
     session?.user?.id,
+    stats.totalRoundsInDb,
     status,
     subscriptionLoading,
-    totalRoundsForModal,
   ]);
 
   useEffect(() => {
@@ -1070,6 +1092,14 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             yMax={100}    // end at 100%
             yStep={25}
             label='FIR & GIR Trend'
+          />
+          <MissTendenciesChart
+            data={stats.miss_tendencies ?? null}
+            accentColor={accentColor}
+            accentHighlight={accentHighlight}
+            surfaceColor={surfaceColor}
+            textColor={textColor}
+            gridColor={gridColor}
           />
 
           <div className="card last-five-rounds-card">
