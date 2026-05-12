@@ -86,6 +86,19 @@ const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'practice', label: 'Practice Round' },
 ];
 
+const ROUND_ADD_DRAFT_VERSION = 1;
+
+type AddRoundDraft = {
+  version: number;
+  savedAt: string;
+  round: Round;
+  holeScores: HoleScore[];
+  selectedCourse: CourseOption | null;
+  selectedTee: TeeOption | null;
+  completedHoles: number[];
+  expandedHole: number;
+};
+
 function AddRoundContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -143,8 +156,18 @@ function AddRoundContent() {
   const hasSubmittedRef = useRef(false);
   const hasInteractedRef = useRef(false);
   const startTrackedRef = useRef(false);
+  const restoredDraftRef = useRef(false);
+  const draftHydrationAttemptedRef = useRef(false);
+  const unauthDraftWarningShownRef = useRef(false);
   const latestModeRef = useRef<'live_round' | 'after_round'>('after_round');
   const latestStepRef = useRef<'initial' | 'course_selected' | 'tee_selected'>('initial');
+  const roundAddDraftKey = useMemo(
+    () =>
+      session?.user?.id
+        ? `golfiq:round:add:draft:v${ROUND_ADD_DRAFT_VERSION}:${session.user.id}`
+        : null,
+    [session?.user?.id],
+  );
 
   const trackEvent = useCallback((event: (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS], properties: Record<string, unknown> = {}) => {
     captureClientEvent(
@@ -163,7 +186,7 @@ function AddRoundContent() {
   }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   // Update segment options when a tee is selected
-  const updateSegmentOptions = useCallback((teeObj: any) => {
+  const updateSegmentOptions = useCallback((teeObj: any, preferredSegment?: TeeSegment) => {
     if (!teeObj) {
       setSegmentOptions([]);
       setRound(prev => ({ ...prev, tee_segment: 'full' }));
@@ -172,17 +195,64 @@ function AddRoundContent() {
     const resolver = apiTeeToResolver(teeObj);
     const segments = getValidTeeSegments(resolver);
     setSegmentOptions(segments);
-    // Default to 'full'
-    setRound(prev => ({ ...prev, tee_segment: 'full' }));
+    const nextSegment =
+      preferredSegment && segments.some((segment) => segment.value === preferredSegment)
+        ? preferredSegment
+        : 'full';
+    setRound(prev => ({ ...prev, tee_segment: nextSegment }));
   }, []);
 
   const isHBH = round.hole_by_hole === 1;
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (status !== 'unauthenticated') {
+      unauthDraftWarningShownRef.current = false;
+      return;
+    }
+
+    const hasInMemoryProgress = Boolean(
+      round.course_id ||
+      round.tee_id ||
+      round.score != null ||
+      round.fir_hit != null ||
+      round.gir_hit != null ||
+      round.putts != null ||
+      round.penalties != null ||
+      round.notes.trim().length > 0 ||
+      holeScores.some((hole) =>
+        hole.score != null ||
+        hole.fir_hit != null ||
+        hole.fir_direction != null ||
+        hole.gir_hit != null ||
+        hole.gir_direction != null ||
+        hole.putts != null ||
+        hole.penalties != null),
+    );
+
+    let hasPersistedDraft = false;
+    if (roundAddDraftKey) {
+      try {
+        hasPersistedDraft = Boolean(localStorage.getItem(roundAddDraftKey));
+      } catch {
+        hasPersistedDraft = false;
+      }
+    }
+
+    if (hasInMemoryProgress || hasPersistedDraft) {
+      if (!unauthDraftWarningShownRef.current) {
+        showMessage(
+          'Connection/session issue detected. Your in-progress round is kept on this screen. Reconnect and save, or use Cancel to exit.',
+          'error',
+        );
+        unauthDraftWarningShownRef.current = true;
+      }
+      return;
+    }
+
+    if (!hasInMemoryProgress && !hasPersistedDraft) {
       router.replace('/login');
     }
-  }, [status, router]);
+  }, [status, router, showMessage, roundAddDraftKey, round, holeScores]);
 
   useEffect(() => {
     if (status !== 'authenticated' || startTrackedRef.current) return;
@@ -206,8 +276,118 @@ function AddRoundContent() {
   }, [round.course_id, round.tee_id]);
 
   useEffect(() => {
+    if (status !== 'authenticated' || !roundAddDraftKey || draftHydrationAttemptedRef.current) return;
+    draftHydrationAttemptedRef.current = true;
+
+    try {
+      const rawDraft = localStorage.getItem(roundAddDraftKey);
+      if (!rawDraft) return;
+
+      const parsed = JSON.parse(rawDraft) as AddRoundDraft;
+      if (!parsed || parsed.version !== ROUND_ADD_DRAFT_VERSION || !parsed.round) {
+        localStorage.removeItem(roundAddDraftKey);
+        return;
+      }
+
+      restoredDraftRef.current = true;
+      hasInteractedRef.current = true;
+      setRound((prev) => ({ ...prev, ...parsed.round }));
+      setHoleScores(Array.isArray(parsed.holeScores) ? parsed.holeScores : []);
+      setSelectedCourse(parsed.selectedCourse ?? null);
+      setSelectedTee(parsed.selectedTee ?? null);
+      const completed = Array.isArray(parsed.completedHoles)
+        ? parsed.completedHoles.filter((value) => Number.isFinite(value))
+        : [];
+      setCompletedHoles(new Set(completed));
+      setExpandedHole(Number.isFinite(parsed.expandedHole) ? parsed.expandedHole : 1);
+
+      if (parsed.selectedTee?.teeObj) {
+        updateSegmentOptions(parsed.selectedTee.teeObj, parsed.round.tee_segment);
+      }
+
+      setInitialized(true);
+      showMessage('Recovered your in-progress round draft.', 'success');
+    } catch (error) {
+      console.error('Failed to restore add-round draft:', error);
+      try {
+        localStorage.removeItem(roundAddDraftKey);
+      } catch {
+        // noop
+      }
+    }
+  }, [roundAddDraftKey, showMessage, status, updateSegmentOptions]);
+
+  useEffect(() => {
     holeScoresRef.current = holeScores;
   }, [holeScores]);
+
+  const clearRoundDraft = useCallback(() => {
+    if (!roundAddDraftKey) return;
+    try {
+      localStorage.removeItem(roundAddDraftKey);
+    } catch {
+      // noop
+    }
+  }, [roundAddDraftKey]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !roundAddDraftKey) return;
+
+    const hasProgress = Boolean(
+      round.course_id ||
+      round.tee_id ||
+      round.score != null ||
+      round.fir_hit != null ||
+      round.gir_hit != null ||
+      round.putts != null ||
+      round.penalties != null ||
+      round.notes.trim().length > 0 ||
+      holeScores.some((hole) =>
+        hole.score != null ||
+        hole.fir_hit != null ||
+        hole.fir_direction != null ||
+        hole.gir_hit != null ||
+        hole.gir_direction != null ||
+        hole.putts != null ||
+        hole.penalties != null),
+    );
+
+    if (!hasProgress) {
+      clearRoundDraft();
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const draft: AddRoundDraft = {
+        version: ROUND_ADD_DRAFT_VERSION,
+        savedAt: new Date().toISOString(),
+        round,
+        holeScores,
+        selectedCourse,
+        selectedTee,
+        completedHoles: Array.from(completedHoles),
+        expandedHole,
+      };
+
+      try {
+        localStorage.setItem(roundAddDraftKey, JSON.stringify(draft));
+      } catch {
+        // noop
+      }
+    }, 150);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    clearRoundDraft,
+    completedHoles,
+    expandedHole,
+    holeScores,
+    round,
+    roundAddDraftKey,
+    selectedCourse,
+    selectedTee,
+    status,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -628,6 +808,10 @@ function AddRoundContent() {
   // Fetch holes when tee changes
   useEffect(() => {
     if (!round.tee_id || !initialized) return;
+    if (restoredDraftRef.current) {
+      restoredDraftRef.current = false;
+      return;
+    }
 
     const initHoles = async () => {
       await fetchHoles(Number(round.tee_id), holeScoresRef.current, round.tee_segment);
@@ -892,6 +1076,7 @@ function AddRoundContent() {
       }
 
       hasSubmittedRef.current = true;
+      clearRoundDraft();
 
       markInsightsNudgePending();
       markRoundInsightsRefreshPending(String(data.roundId));
@@ -1329,6 +1514,7 @@ function AddRoundContent() {
                 showConfirm({
                   message: 'Are you sure you want to cancel? Any unsaved changes will be lost.',
                   onConfirm: () => {
+                    clearRoundDraft();
                     router.replace(getBackUrl());
                   }
                 });

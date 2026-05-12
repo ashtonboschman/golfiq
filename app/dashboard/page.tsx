@@ -9,6 +9,13 @@ import RoundCard from '@/components/RoundCard';
 import UpgradeModal from '@/components/UpgradeModal';
 import { Plus, TriangleAlert, ToggleLeft, ToggleRight } from 'lucide-react';
 import Select from 'react-select';
+import { Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip as ChartTooltip,
+  Legend as ChartLegend,
+} from 'chart.js';
 import { selectStyles } from '@/lib/selectStyles';
 import TrendCard from '@/components/TrendCard';
 import MissTendenciesChart from '@/components/MissTendenciesChart';
@@ -26,6 +33,8 @@ import {
 type StatsMode = 'combined' | '9' | '18';
 const dashboardFocusViewedKeys = new Set<string>();
 const ROUND_FOCUS_UPDATING_WINDOW_MS = 90_000;
+
+ChartJS.register(ArcElement, ChartTooltip, ChartLegend);
 
 interface DashboardStats {
   handicap: number | null;
@@ -56,6 +65,29 @@ interface DashboardStats {
       bogey?: number;
       double_plus?: number;
     };
+  } | null;
+  scoring_profile?: {
+    normalized_counts: {
+      birdie_plus: number;
+      par: number;
+      bogey: number;
+      double_plus: number;
+    };
+    normalized_total_holes: number;
+    percentages: {
+      birdie_plus: number;
+      par: number;
+      bogey: number;
+      double_plus: number;
+    };
+    averages_per_round?: {
+      birdie_plus: number;
+      par: number;
+      bogey: number;
+      double_plus: number;
+    };
+    source_round_count: number;
+    normalization: 'combined_18_equivalent' | 'nine_hole' | 'eighteen_hole';
   } | null;
   miss_tendencies?: {
     labels: string[];
@@ -171,11 +203,16 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const { isPremium, loading: subscriptionLoading } = useSubscription();
   const [accentColor, setAccentColor] = useState('#2D6CFF');
   const [accentHighlight, setAccentHighlight] = useState('#36ad64');
+  const [warningColor, setWarningColor] = useState('#f59e0b');
+  const [dangerColor, setDangerColor] = useState('#e74c3c');
   const [textColor, setTextColor] = useState('#EDEFF2');
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
   const [showFocusConfidenceInfo, setShowFocusConfidenceInfo] = useState(false);
   const focusConfidenceTooltipRef = useRef<HTMLDivElement | null>(null);
+  const scoringProfileCardRef = useRef<HTMLDivElement | null>(null);
+  const [scoringProfileHoveredIndex, setScoringProfileHoveredIndex] = useState<number | null>(null);
+  const [scoringProfileSelectedIndex, setScoringProfileSelectedIndex] = useState<number | null>(null);
   const statsRequestIdRef = useRef(0);
   const [stats, setStats] = useState<DashboardStats>({
     handicap: null,
@@ -193,6 +230,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     avg_putts: null,
     avg_penalties: null,
     hbh_stats: null,
+    scoring_profile: null,
     miss_tendencies: null,
     overallInsightsSummary: null,
     latestRoundUpdatedAt: null,
@@ -247,12 +285,16 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       const rootStyles = getComputedStyle(document.documentElement);
       const accent = rootStyles.getPropertyValue('--color-accent').trim() || '#2D6CFF';
       const highlight = rootStyles.getPropertyValue('--color-accent-highlight').trim() || '#36ad64';
+      const warning = rootStyles.getPropertyValue('--color-warning').trim() || '#f59e0b';
+      const danger = rootStyles.getPropertyValue('--color-red').trim() || '#e74c3c';
       const text = rootStyles.getPropertyValue('--color-primary-text').trim() || '#EDEFF2';
       const grid = rootStyles.getPropertyValue('--color-border').trim() || '#2A313D';
       const surface = rootStyles.getPropertyValue('--color-primary-surface').trim() || '#171C26';
 
       setAccentColor(accent);
       setAccentHighlight(highlight);
+      setWarningColor(warning);
+      setDangerColor(danger);
       setTextColor(text);
       setGridColor(grid);
       setSurfaceColor(surface);
@@ -322,6 +364,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               avg_putts: null,
               avg_penalties: null,
               hbh_stats: null,
+              scoring_profile: null,
               miss_tendencies: null,
               overallInsightsSummary: null,
               latestRoundUpdatedAt: null,
@@ -370,6 +413,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 avg_putts: null,
                 avg_penalties: null,
                 hbh_stats: null,
+                scoring_profile: null,
                 miss_tendencies: null,
                 overallInsightsSummary: null,
                 latestRoundUpdatedAt: null,
@@ -547,16 +591,150 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const par4_avg = stats.hbh_stats?.par4_avg ?? null;
   const par5_avg = stats.hbh_stats?.par5_avg ?? null;
 
-  const hbhCount = stats.hbh_stats?.hbh_rounds_count ?? 0;
-  const sb = stats.hbh_stats?.scoring_breakdown;
-
-  const scoringPerRound =
-    sb && hbhCount
-      ? ((sb.ace ?? 0) + (sb.albatross ?? 0) + (sb.eagle ?? 0) + (sb.birdie ?? 0)) / hbhCount
-      : null;
-  const parPerRound = sb && hbhCount ? (sb.par ?? 0) / hbhCount : null;
-  const bogeyPerRound = sb && hbhCount ? (sb.bogey ?? 0) / hbhCount : null;
-  const blowUpPerRound = sb && hbhCount ? (sb.double_plus ?? 0) / hbhCount : null;
+  const scoringProfile = stats.scoring_profile ?? null;
+  const scoringProfileTotalHoles = scoringProfile?.normalized_total_holes ?? 0;
+  const scoringProfileSourceRounds = scoringProfile?.source_round_count ?? 0;
+  const fallbackAveragePerRound = (count: number): number => {
+    if (!Number.isFinite(scoringProfileSourceRounds) || scoringProfileSourceRounds <= 0) return 0;
+    return Number((count / scoringProfileSourceRounds).toFixed(2));
+  };
+  const hasScoringProfileData = scoringProfileTotalHoles > 0;
+  const scoringProfileItems = [
+    {
+      key: 'birdie_plus',
+      label: 'Birdie+',
+      count: scoringProfile?.normalized_counts.birdie_plus ?? 0,
+      percentage: scoringProfile?.percentages.birdie_plus ?? 0,
+      averagePerRound:
+        scoringProfile?.averages_per_round?.birdie_plus ??
+        fallbackAveragePerRound(scoringProfile?.normalized_counts.birdie_plus ?? 0),
+      color: accentHighlight,
+    },
+    {
+      key: 'par',
+      label: 'Par',
+      count: scoringProfile?.normalized_counts.par ?? 0,
+      percentage: scoringProfile?.percentages.par ?? 0,
+      averagePerRound:
+        scoringProfile?.averages_per_round?.par ??
+        fallbackAveragePerRound(scoringProfile?.normalized_counts.par ?? 0),
+      color: accentColor,
+    },
+    {
+      key: 'bogey',
+      label: 'Bogey',
+      count: scoringProfile?.normalized_counts.bogey ?? 0,
+      percentage: scoringProfile?.percentages.bogey ?? 0,
+      averagePerRound:
+        scoringProfile?.averages_per_round?.bogey ??
+        fallbackAveragePerRound(scoringProfile?.normalized_counts.bogey ?? 0),
+      color: warningColor,
+    },
+    {
+      key: 'double_plus',
+      label: 'Double+',
+      count: scoringProfile?.normalized_counts.double_plus ?? 0,
+      percentage: scoringProfile?.percentages.double_plus ?? 0,
+      averagePerRound:
+        scoringProfile?.averages_per_round?.double_plus ??
+        fallbackAveragePerRound(scoringProfile?.normalized_counts.double_plus ?? 0),
+      color: dangerColor,
+    },
+  ] as const;
+  const withAlpha = (color: string, alpha: number): string => {
+    const clamped = Math.max(0, Math.min(1, alpha));
+    const rgbMatch = color.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (rgbMatch) {
+      return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${clamped})`;
+    }
+    const rgbaMatch = color.match(
+      /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*[\d.]+\s*\)$/i,
+    );
+    if (rgbaMatch) {
+      return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${clamped})`;
+    }
+    const hex = color.replace('#', '').trim();
+    if (/^[0-9a-f]{3}$/i.test(hex)) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return `rgba(${r}, ${g}, ${b}, ${clamped})`;
+    }
+    if (/^[0-9a-f]{6}$/i.test(hex)) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${clamped})`;
+    }
+    return color;
+  };
+  const scoringProfileActiveIndex =
+    scoringProfileHoveredIndex != null ? scoringProfileHoveredIndex : scoringProfileSelectedIndex;
+  const scoringProfileActiveItem =
+    scoringProfileActiveIndex != null ? scoringProfileItems[scoringProfileActiveIndex] : null;
+  const scoringProfilePercentText = (value: number): string =>
+    Number.isFinite(value) ? `${Math.round(value)}%` : '-';
+  const scoringProfileAveragePerRoundText = (value: number): string => {
+    if (!Number.isFinite(value)) return '0.0 / round';
+    return `${value.toFixed(1)} / round`;
+  };
+  const scoringProfileAriaSummary = scoringProfileItems
+    .map((item) => `${item.label} ${scoringProfilePercentText(item.percentage)}`)
+    .join(', ');
+  const scoringProfileChartData = {
+    labels: scoringProfileItems.map((item) => item.label),
+    datasets: [
+      {
+        data: scoringProfileItems.map((item) =>
+          Number.isFinite(item.percentage) ? Math.max(0, item.percentage) : 0,
+        ),
+        backgroundColor: scoringProfileItems.map((item, index) =>
+          scoringProfileActiveIndex == null || scoringProfileActiveIndex === index
+            ? item.color
+            : withAlpha(item.color, 0.72),
+        ),
+        borderColor: scoringProfileItems.map((_, index) =>
+          scoringProfileActiveIndex === index
+            ? withAlpha(textColor, 0.62)
+            : withAlpha(textColor, 0.14),
+        ),
+        borderWidth: scoringProfileItems.map((_, index) =>
+          scoringProfileActiveIndex === index ? 2 : 1,
+        ),
+        hoverOffset: 4,
+        offset: scoringProfileItems.map((_, index) =>
+          scoringProfileActiveIndex === index ? 2 : 0,
+        ),
+        hoverBorderColor: withAlpha(textColor, 0.62),
+        hoverBorderWidth: 2,
+      },
+    ],
+  };
+  const scoringProfileChartOptions = {
+    responsive: true,
+    maintainAspectRatio: true,
+    cutout: '62%',
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        enabled: false,
+      },
+    },
+    onHover: (_event: unknown, elements: any[]) => {
+      if (elements.length > 0) {
+        setScoringProfileHoveredIndex(elements[0].index);
+      } else {
+        setScoringProfileHoveredIndex(null);
+      }
+    },
+    onClick: (_event: unknown, elements: any[]) => {
+      if (elements.length > 0) {
+        setScoringProfileSelectedIndex(elements[0].index);
+      }
+    },
+  };
 
   // Premium users get 20 rounds for trend charts, free users get 5
   const trendRoundsCount = isPremium ? 20 : 5;
@@ -729,6 +907,29 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
   }, [showFocusConfidenceInfo]);
+
+  useEffect(() => {
+    if (!hasScoringProfileData) {
+      setScoringProfileHoveredIndex(null);
+      setScoringProfileSelectedIndex(null);
+    }
+  }, [hasScoringProfileData]);
+
+  useEffect(() => {
+    if (scoringProfileSelectedIndex == null) return;
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      if (!scoringProfileCardRef.current) return;
+      if (!scoringProfileCardRef.current.contains(event.target as Node)) {
+        setScoringProfileSelectedIndex(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [scoringProfileSelectedIndex]);
 
   useEffect(() => {
     if (loading || status !== 'authenticated') return;
@@ -961,7 +1162,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               ['Average', 'Your typical score per round. Lower is better.', true],
               ['Best', 'Your lowest recorded round.', true],
               ['Worst', 'Your highest recorded round.', true],
-              ['Total', 'Total number of rounds tracked.', false],
+              ['Rounds', 'Total number of rounds tracked.', false],
               ['Par 3', 'Your average score on par 3 holes. Lower is better.', false],
               ['Par 4', 'Your average score on par 4 holes. Lower is better.', false],
               ['Par 5', 'Your average score on par 5 holes. Lower is better.', false],
@@ -1003,7 +1204,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               ['Average', showToPar ? stats.average_to_par : stats.average_score, 'Your typical score per round. Lower is better.', true],
               ['Best', showToPar ? stats.best_to_par : stats.best_score, 'Your lowest recorded round.', true],
               ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, 'Your highest recorded round.', true],
-              ['Total', totalRounds, 'Total number of rounds tracked.', false],
+              ['Rounds', totalRounds, 'Total number of rounds tracked.', false],
               ['Par 3', par3_avg, 'Your average score on par 3 holes. Lower is better.', false],
               ['Par 4', par4_avg, 'Your average score on par 4 holes. Lower is better.', false],
               ['Par 5', par5_avg, 'Your average score on par 5 holes. Lower is better.', false],
@@ -1064,8 +1265,65 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       {!loading && (
         <div className="section">
           <div className="card last-five-rounds-card">
-            <h3>Performance Metrics</h3>
+            <h3>Performance Overview</h3>
           </div>
+
+          <div className="card scoring-profile-card" ref={scoringProfileCardRef}>
+            <h3>Scoring Profile</h3>
+            {hasScoringProfileData ? (
+              <div className="scoring-profile-body" aria-label="Scoring profile chart and legend">
+                <div
+                  className="scoring-profile-donut"
+                  aria-label={`Scoring profile donut chart. ${scoringProfileAriaSummary}.`}
+                  tabIndex={0}
+                  onMouseLeave={() => setScoringProfileHoveredIndex(null)}
+                >
+                  <Doughnut data={scoringProfileChartData as any} options={scoringProfileChartOptions as any} />
+                  {scoringProfileActiveItem && (
+                    <div className="scoring-profile-center-details" aria-live="polite">
+                      <span className="scoring-profile-center-label">{scoringProfileActiveItem.label}</span>
+                      <span className="scoring-profile-center-percent">
+                        {scoringProfilePercentText(scoringProfileActiveItem.percentage)}
+                      </span>
+                      <span className="scoring-profile-center-average">
+                        {scoringProfileAveragePerRoundText(scoringProfileActiveItem.averagePerRound)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="scoring-profile-legend" role="list" aria-label="Scoring profile categories">
+                  {scoringProfileItems.map((item, index) => (
+                    <button
+                      type="button"
+                      key={item.key}
+                      className={`scoring-profile-legend-row ${
+                        scoringProfileActiveIndex === index ? 'is-active' : ''
+                      }`}
+                      onClick={() => setScoringProfileSelectedIndex(index)}
+                      onMouseEnter={() => setScoringProfileHoveredIndex(index)}
+                      onMouseLeave={() => setScoringProfileHoveredIndex(null)}
+                      onFocus={() => setScoringProfileSelectedIndex(index)}
+                      role="listitem"
+                      aria-label={`${item.label}: ${formatWholePercent(item.percentage)}`}
+                    >
+                      <div className="scoring-profile-legend-label-wrap">
+                        <span
+                          className="scoring-profile-legend-dot"
+                          style={{ backgroundColor: item.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{item.label}</span>
+                      </div>
+                      <span className="scoring-profile-legend-value">{formatWholePercent(item.percentage)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="secondary-text text-center">No hole-by-hole scoring data yet.</p>
+            )}
+          </div>
+
           <div className="grid grid-2">
             {[
               ['FIR', stats.fir_avg, '%', 'How often you hit the fairway off the tee. Higher is better.'],
@@ -1087,7 +1345,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             surfaceColor={surfaceColor}
             textColor={textColor}
             gridColor={gridColor}
-            height={250}
+            height={300}
             yMin={0}      // start at 0%
             yMax={100}    // end at 100%
             yStep={25}
@@ -1101,24 +1359,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             textColor={textColor}
             gridColor={gridColor}
           />
-
-          <div className="card last-five-rounds-card">
-            <h3>Scoring Distribution</h3>
-          </div>
-          <div className="grid grid-2">
-            {[
-              ['Scoring', scoringPerRound, null, 'How often you score birdie or better. Higher is better.'],
-              ['Par', parPerRound, null, 'How often you make par.'],
-              ['Bogey', bogeyPerRound, null, 'How often you make bogey. Lower is better.'],
-              ['Blow Up', blowUpPerRound, null, 'How often you make double bogey or worse. Lower is better.'],
-            ].map(([label, val, isPercent, tooltip]) => (
-              <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
-                {tooltip && <InfoTooltip text={tooltip as string} />}
-                <h3>{label}</h3>
-                <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number)}</p>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

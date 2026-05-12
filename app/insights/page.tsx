@@ -1556,7 +1556,7 @@ export default function InsightsPage() {
                         />
                       )}
                     </div>
-                    <span className="sg-delta-value">{row.delta == null ? 'Not shown' : formatSigned(row.delta)}</span>
+                    <span className="sg-delta-value">{row.delta == null ? 'N/A' : formatSigned(row.delta)}</span>
                   </div>
                 );
               })}

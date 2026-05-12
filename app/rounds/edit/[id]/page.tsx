@@ -86,6 +86,19 @@ const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'practice', label: 'Practice Round' },
 ];
 
+const ROUND_EDIT_DRAFT_VERSION = 1;
+
+type EditRoundDraft = {
+  version: number;
+  savedAt: string;
+  round: Round;
+  holeScores: HoleScore[];
+  selectedCourse: CourseOption | null;
+  selectedTee: TeeOption | null;
+  completedHoles: number[];
+  expandedHole: number;
+};
+
 function EditRoundContent() {
   const params = useParams();
   const id = params?.id as string;
@@ -127,6 +140,41 @@ function EditRoundContent() {
   const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set());
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const holeScoresRef = useRef<HoleScore[]>([]);
+  const restoredDraftRef = useRef(false);
+  const draftHydrationAttemptedRef = useRef(false);
+  const unauthDraftWarningShownRef = useRef(false);
+  const roundEditDraftKey = useMemo(
+    () =>
+      session?.user?.id && id
+        ? `golfiq:round:edit:draft:v${ROUND_EDIT_DRAFT_VERSION}:${session.user.id}:${id}`
+        : null,
+    [id, session?.user?.id],
+  );
+
+  const hasEditProgress = useCallback(() => {
+    if (
+      round.course_id ||
+      round.tee_id ||
+      round.score != null ||
+      round.fir_hit != null ||
+      round.gir_hit != null ||
+      round.putts != null ||
+      round.penalties != null ||
+      round.notes.trim().length > 0
+    ) {
+      return true;
+    }
+
+    return holeScores.some((hole) =>
+      hole.score != null ||
+      hole.fir_hit != null ||
+      hole.fir_direction != null ||
+      hole.gir_hit != null ||
+      hole.gir_direction != null ||
+      hole.putts != null ||
+      hole.penalties != null,
+    );
+  }, [holeScores, round]);
 
   // Update segment options when a tee is selected
   const updateSegmentOptions = useCallback((teeObj: any, currentSegment?: TeeSegment) => {
@@ -149,10 +197,33 @@ function EditRoundContent() {
   const isHBH = round.hole_by_hole === 1;
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.replace('/login');
+    if (status !== 'unauthenticated') {
+      unauthDraftWarningShownRef.current = false;
+      return;
     }
-  }, [status, router]);
+
+    let hasPersistedDraft = false;
+    if (roundEditDraftKey) {
+      try {
+        hasPersistedDraft = Boolean(localStorage.getItem(roundEditDraftKey));
+      } catch {
+        hasPersistedDraft = false;
+      }
+    }
+
+    if (hasEditProgress() || hasPersistedDraft) {
+      if (!unauthDraftWarningShownRef.current) {
+        showMessage(
+          'Connection/session issue detected. Your in-progress round edit is kept on this screen. Reconnect and save, or use Cancel to exit.',
+          'error',
+        );
+        unauthDraftWarningShownRef.current = true;
+      }
+      return;
+    }
+
+    router.replace('/login');
+  }, [hasEditProgress, roundEditDraftKey, router, showMessage, status]);
 
   // Warn user before navigating away with unsaved changes
   useEffect(() => {
@@ -185,6 +256,99 @@ function EditRoundContent() {
   useEffect(() => {
     holeScoresRef.current = holeScores;
   }, [holeScores]);
+
+  const clearRoundEditDraft = useCallback(() => {
+    if (!roundEditDraftKey) return;
+    try {
+      localStorage.removeItem(roundEditDraftKey);
+    } catch {
+      // noop
+    }
+  }, [roundEditDraftKey]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !roundEditDraftKey || draftHydrationAttemptedRef.current) return;
+    draftHydrationAttemptedRef.current = true;
+
+    try {
+      const rawDraft = localStorage.getItem(roundEditDraftKey);
+      if (!rawDraft) return;
+
+      const parsed = JSON.parse(rawDraft) as EditRoundDraft;
+      if (!parsed || parsed.version !== ROUND_EDIT_DRAFT_VERSION || !parsed.round) {
+        localStorage.removeItem(roundEditDraftKey);
+        return;
+      }
+
+      restoredDraftRef.current = true;
+      setRound((prev) => ({ ...prev, ...parsed.round }));
+      setHoleScores(Array.isArray(parsed.holeScores) ? parsed.holeScores : []);
+      setSelectedCourse(parsed.selectedCourse ?? null);
+      setSelectedTee(parsed.selectedTee ?? null);
+      const completed = Array.isArray(parsed.completedHoles)
+        ? parsed.completedHoles.filter((value) => Number.isFinite(value))
+        : [];
+      setCompletedHoles(new Set(completed));
+      setExpandedHole(Number.isFinite(parsed.expandedHole) ? parsed.expandedHole : 1);
+
+      if (parsed.selectedTee?.teeObj) {
+        updateSegmentOptions(parsed.selectedTee.teeObj, parsed.round.tee_segment);
+      }
+
+      setInitialized(true);
+      showMessage('Recovered your in-progress round edit draft.', 'success');
+    } catch (error) {
+      console.error('Failed to restore edit-round draft:', error);
+      try {
+        localStorage.removeItem(roundEditDraftKey);
+      } catch {
+        // noop
+      }
+    }
+  }, [roundEditDraftKey, showMessage, status, updateSegmentOptions]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !roundEditDraftKey || !initialized) return;
+
+    const hasProgress = hasEditProgress();
+    if (!hasProgress) {
+      clearRoundEditDraft();
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const draft: EditRoundDraft = {
+        version: ROUND_EDIT_DRAFT_VERSION,
+        savedAt: new Date().toISOString(),
+        round,
+        holeScores,
+        selectedCourse,
+        selectedTee,
+        completedHoles: Array.from(completedHoles),
+        expandedHole,
+      };
+
+      try {
+        localStorage.setItem(roundEditDraftKey, JSON.stringify(draft));
+      } catch {
+        // noop
+      }
+    }, 150);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    clearRoundEditDraft,
+    completedHoles,
+    expandedHole,
+    hasEditProgress,
+    holeScores,
+    initialized,
+    round,
+    roundEditDraftKey,
+    selectedCourse,
+    selectedTee,
+    status,
+  ]);
 
   const sanitizeNumeric = (val: string | number | null | undefined) => {
     if (val === null || val === undefined) return '';
@@ -415,6 +579,11 @@ function EditRoundContent() {
   // Fetch existing round for edit mode
   useEffect(() => {
     if (status !== 'authenticated' || !id) return;
+    if (restoredDraftRef.current) {
+      restoredDraftRef.current = false;
+      setInitialized(true);
+      return;
+    }
 
     const fetchRound = async () => {
       try {
@@ -723,6 +892,7 @@ function EditRoundContent() {
 
       markInsightsNudgePending();
       markRoundInsightsRefreshPending(String(id));
+      clearRoundEditDraft();
 
       // Keep loading state true during navigation to prevent flash
       // Replace history so back button doesn't return to edit page
@@ -833,8 +1003,16 @@ function EditRoundContent() {
 
   const showDataSkeleton = status === 'loading' || !initialized;
   const disableFormControls = showDataSkeleton || saving;
+  let hasPersistedDraftForRender = false;
+  if (status === 'unauthenticated' && roundEditDraftKey) {
+    try {
+      hasPersistedDraftForRender = Boolean(localStorage.getItem(roundEditDraftKey));
+    } catch {
+      hasPersistedDraftForRender = false;
+    }
+  }
 
-  if (status === 'unauthenticated') return null;
+  if (status === 'unauthenticated' && !hasEditProgress() && !hasPersistedDraftForRender) return null;
 
   return (
     <div className="page-stack">
@@ -1185,6 +1363,7 @@ function EditRoundContent() {
                 showConfirm({
                   message: 'Are you sure you want to cancel? Any unsaved changes will be lost.',
                   onConfirm: () => {
+                    clearRoundEditDraft();
                     if (from === 'rounds') {
                       router.replace('/rounds');
                     } else {

@@ -63,6 +63,11 @@ jest.mock('react-select', () => ({
   ),
 }));
 
+jest.mock('react-chartjs-2', () => ({
+  __esModule: true,
+  Doughnut: () => <div data-testid="scoring-profile-doughnut">scoring-profile-doughnut</div>,
+}));
+
 jest.mock('@/components/TrendCard', () => ({
   __esModule: true,
   default: ({ label }: { label: string }) => <div data-testid={`trend-${label}`}>{label}</div>,
@@ -147,6 +152,29 @@ function makeDashboardPayload(overrides: Partial<any> = {}) {
         bogey: 48,
         double_plus: 18,
       },
+    },
+    scoring_profile: {
+      normalized_counts: {
+        birdie_plus: 15,
+        par: 57,
+        bogey: 48,
+        double_plus: 18,
+      },
+      normalized_total_holes: 138,
+      percentages: {
+        birdie_plus: 10.87,
+        par: 41.3,
+        bogey: 34.78,
+        double_plus: 13.04,
+      },
+      averages_per_round: {
+        birdie_plus: 1.88,
+        par: 7.13,
+        bogey: 6,
+        double_plus: 2.25,
+      },
+      source_round_count: 8,
+      normalization: 'combined_18_equivalent',
     },
     isPremium: false,
     limitedToLast20: false,
@@ -234,14 +262,44 @@ describe('/dashboard Round Focus card', () => {
           'How often you reach the green in regulation. Higher is better.',
           'Average number of putts per round. Lower is better.',
           'Average penalty strokes per round. Lower is better.',
-          'How often you score birdie or better. Higher is better.',
-          'How often you make par.',
-          'How often you make bogey. Lower is better.',
-          'How often you make double bogey or worse. Lower is better.',
         ]),
       );
       expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
     });
+    expect(screen.getByText('Scoring Profile')).toBeInTheDocument();
+    expect(screen.getByText('Birdie+')).toBeInTheDocument();
+    expect(screen.getByText('Par')).toBeInTheDocument();
+    expect(screen.getByText('Bogey')).toBeInTheDocument();
+    expect(screen.getByText('Double+')).toBeInTheDocument();
+  });
+
+  it('renders scoring profile percentages without NaN and shows center details on hover/tap selection', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Scoring Profile');
+    expect(screen.getByText('11%')).toBeInTheDocument();
+    expect(screen.getByText('41%')).toBeInTheDocument();
+    expect(screen.getByText('35%')).toBeInTheDocument();
+    expect(screen.getByText('13%')).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
+
+    const doublePlusLegend = screen.getByRole('listitem', { name: 'Double+: 13%' });
+    fireEvent.mouseEnter(doublePlusLegend);
+    expect(doublePlusLegend.className).toContain('is-active');
+    expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Double+');
+    expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('13%');
+    expect(screen.getByText('2.3 / round')).toBeInTheDocument();
+
+    const parLegend = screen.getByRole('listitem', { name: 'Par: 41%' });
+    fireEvent.click(parLegend);
+    fireEvent.mouseLeave(parLegend);
+    expect(parLegend.className).toContain('is-active');
+    expect(doublePlusLegend.className).not.toContain('is-active');
+    expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Par');
+    expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('41%');
+    expect(screen.getByText('7.1 / round')).toBeInTheDocument();
   });
 
   it.each([
@@ -486,6 +544,39 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
     expect(screen.queryByText(/Based on last 5/i)).not.toBeInTheDocument();
+  });
+
+  it('shows scoring profile empty state when no normalized hole totals exist', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          scoring_profile: {
+            normalized_counts: {
+              birdie_plus: 0,
+              par: 0,
+              bogey: 0,
+              double_plus: 0,
+            },
+            normalized_total_holes: 0,
+            percentages: {
+              birdie_plus: 0,
+              par: 0,
+              bogey: 0,
+              double_plus: 0,
+            },
+            source_round_count: 0,
+            normalization: 'combined_18_equivalent',
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Scoring Profile');
+    expect(screen.getByText('No hole-by-hole scoring data yet.')).toBeInTheDocument();
   });
 
   it('uses always-ready fallback copy for missing score trend after enough rounds', async () => {

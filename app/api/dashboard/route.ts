@@ -50,6 +50,35 @@ export async function GET(request: NextRequest) {
       dateFilterParam === '365'
         ? dateFilterParam
         : 'all';
+    const scoringProfileNormalization =
+      statsMode === 'combined'
+        ? 'combined_18_equivalent'
+        : statsMode === '9'
+          ? 'nine_hole'
+          : 'eighteen_hole';
+    const emptyScoringProfile = {
+      normalized_counts: {
+        birdie_plus: 0,
+        par: 0,
+        bogey: 0,
+        double_plus: 0,
+      },
+      normalized_total_holes: 0,
+      percentages: {
+        birdie_plus: 0,
+        par: 0,
+        bogey: 0,
+        double_plus: 0,
+      },
+      averages_per_round: {
+        birdie_plus: 0,
+        par: 0,
+        bogey: 0,
+        double_plus: 0,
+      },
+      source_round_count: 0,
+      normalization: scoringProfileNormalization,
+    };
 
     // Check dashboard visibility and get user info
     const profile = await prisma.userProfile.findUnique({
@@ -169,6 +198,7 @@ export async function GET(request: NextRequest) {
         handicap: null,
         all_rounds: [],
         hbh_stats: null,
+        scoring_profile: emptyScoringProfile,
         miss_tendencies: null,
         overallInsightsSummary,
         latestRoundUpdatedAt: null,
@@ -222,6 +252,10 @@ export async function GET(request: NextRequest) {
 
     // Normalize rounds by mode
     const modeRoundsUncapped = normalizeRoundsByMode(allRoundsUncapped, statsMode);
+    const sourceRoundHolesByRoundId = allRoundsUncapped.reduce((acc, round: any) => {
+      acc.set(String(round.id), round.holes);
+      return acc;
+    }, new Map<string, number>());
     const totalRounds = modeRoundsUncapped.length;
     const latestRoundUpdatedAt =
       rounds.length > 0
@@ -276,6 +310,7 @@ export async function GET(request: NextRequest) {
           },
           hbh_rounds_count: 0,
         },
+        scoring_profile: emptyScoringProfile,
       });
     }
 
@@ -319,36 +354,106 @@ export async function GET(request: NextRequest) {
       bogey: 0,
       double_plus: 0,
     };
+    const normalizedScoringCounts = {
+      birdie_plus: 0,
+      par: 0,
+      bogey: 0,
+      double_plus: 0,
+    };
+    let normalizedTotalHoles = 0;
+    let scoringProfileRoundCount = 0;
 
     let hbhRoundCount = 0;
 
     roundsForStats.forEach((r: any) => {
       if (!r.hole_by_hole) return;
-      const weight = 1;
-      const holes = roundHolesByRoundId.get(String(r.id)) ?? [];
+      const roundKey = String(r.id);
+      const holes = roundHolesByRoundId.get(roundKey) ?? [];
       if (!holes.length) return;
 
-      hbhRoundCount += weight;
+      hbhRoundCount += 1;
+      scoringProfileRoundCount += 1;
+      const sourceHoles = sourceRoundHolesByRoundId.get(roundKey) ?? r.holes;
+      const normalizationMultiplier =
+        statsMode === 'combined' && sourceHoles === 9 ? 2 : 1;
+      const roundBucketCounts = {
+        birdie_plus: 0,
+        par: 0,
+        bogey: 0,
+        double_plus: 0,
+      };
 
       holes.forEach((rh: any) => {
         const score = rh.score;
         const par = rh.hole.par;
 
         if (parBuckets[par]) {
-          parBuckets[par].sum += score * weight;
-          parBuckets[par].count += weight;
+          parBuckets[par].sum += score;
+          parBuckets[par].count += 1;
         }
 
         const diff = score - par;
-        if (score === 1) scoring.ace += weight;
-        else if (diff <= -3) scoring.albatross += weight;
-        else if (diff === -2) scoring.eagle += weight;
-        else if (diff === -1) scoring.birdie += weight;
-        else if (diff === 0) scoring.par += weight;
-        else if (diff === 1) scoring.bogey += weight;
-        else scoring.double_plus += weight;
+        if (score === 1) {
+          scoring.ace += 1;
+          roundBucketCounts.birdie_plus += 1;
+        } else if (diff <= -3) {
+          scoring.albatross += 1;
+          roundBucketCounts.birdie_plus += 1;
+        } else if (diff === -2) {
+          scoring.eagle += 1;
+          roundBucketCounts.birdie_plus += 1;
+        } else if (diff === -1) {
+          scoring.birdie += 1;
+          roundBucketCounts.birdie_plus += 1;
+        } else if (diff === 0) {
+          scoring.par += 1;
+          roundBucketCounts.par += 1;
+        } else if (diff === 1) {
+          scoring.bogey += 1;
+          roundBucketCounts.bogey += 1;
+        } else {
+          scoring.double_plus += 1;
+          roundBucketCounts.double_plus += 1;
+        }
       });
+
+      normalizedScoringCounts.birdie_plus +=
+        roundBucketCounts.birdie_plus * normalizationMultiplier;
+      normalizedScoringCounts.par +=
+        roundBucketCounts.par * normalizationMultiplier;
+      normalizedScoringCounts.bogey +=
+        roundBucketCounts.bogey * normalizationMultiplier;
+      normalizedScoringCounts.double_plus +=
+        roundBucketCounts.double_plus * normalizationMultiplier;
+      normalizedTotalHoles += holes.length * normalizationMultiplier;
     });
+
+    const toPercent = (count: number, total: number): number => {
+      if (!Number.isFinite(total) || total <= 0) return 0;
+      return Number(((count / total) * 100).toFixed(2));
+    };
+    const toAveragePerRound = (count: number, rounds: number): number => {
+      if (!Number.isFinite(rounds) || rounds <= 0) return 0;
+      return Number((count / rounds).toFixed(2));
+    };
+    const scoring_profile = {
+      normalized_counts: normalizedScoringCounts,
+      normalized_total_holes: normalizedTotalHoles,
+      percentages: {
+        birdie_plus: toPercent(normalizedScoringCounts.birdie_plus, normalizedTotalHoles),
+        par: toPercent(normalizedScoringCounts.par, normalizedTotalHoles),
+        bogey: toPercent(normalizedScoringCounts.bogey, normalizedTotalHoles),
+        double_plus: toPercent(normalizedScoringCounts.double_plus, normalizedTotalHoles),
+      },
+      averages_per_round: {
+        birdie_plus: toAveragePerRound(normalizedScoringCounts.birdie_plus, scoringProfileRoundCount),
+        par: toAveragePerRound(normalizedScoringCounts.par, scoringProfileRoundCount),
+        bogey: toAveragePerRound(normalizedScoringCounts.bogey, scoringProfileRoundCount),
+        double_plus: toAveragePerRound(normalizedScoringCounts.double_plus, scoringProfileRoundCount),
+      },
+      source_round_count: scoringProfileRoundCount,
+      normalization: scoringProfileNormalization,
+    };
 
     const hbh_stats = {
       par3_avg: parBuckets[3].count ? parBuckets[3].sum / parBuckets[3].count : null,
@@ -461,6 +566,7 @@ export async function GET(request: NextRequest) {
       avg_putts,
       avg_penalties,
       hbh_stats,
+      scoring_profile,
       miss_tendencies,
       isPremium,
       limitedToLast20: !isPremium && rounds.length > 20,

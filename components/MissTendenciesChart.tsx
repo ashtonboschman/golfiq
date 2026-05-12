@@ -98,17 +98,10 @@ export default function MissTendenciesChart({
         bodyColor: textColor,
         callbacks: {
           label: (context: any) => {
-            const idx = context.dataIndex as number;
             const isFir = context.datasetIndex === 0;
             const pct = context.parsed.y as number | null;
-            const counts = isFir ? (data?.fir.counts ?? []) : (data?.gir.counts ?? []);
-            const trackedMisses = isFir ? (data?.fir.tracked_misses ?? 0) : (data?.gir.tracked_misses ?? 0);
-            const count = counts[idx] ?? 0;
             const prefix = isFir ? 'FIR' : 'GIR';
-            if (trackedMisses === 0) {
-              return `${prefix}: ${formatPercent(pct)}`;
-            }
-            return `${prefix}: ${formatPercent(pct)} (${count}/${trackedMisses})`;
+            return `${prefix}: ${formatPercent(pct)}`;
           },
         },
       },

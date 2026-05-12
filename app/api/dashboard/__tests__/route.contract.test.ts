@@ -268,4 +268,398 @@ describe('/api/dashboard route contract', () => {
     expect(body.miss_tendencies.gir.percentages[2]).toBeCloseTo(66.666, 2);
     expect(body.miss_tendencies.gir.percentages[3]).toBeCloseTo(33.333, 2);
   });
+
+  it('builds combined scoring_profile from round-grouped data and doubles only 9-hole rounds', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue([
+      {
+        id: BigInt(101),
+        userId: BigInt(1),
+        date: new Date('2026-02-10T12:00:00.000Z'),
+        updatedAt: new Date('2026-02-10T13:00:00.000Z'),
+        teeSegment: 'full',
+        score: 40,
+        toPar: 4,
+        firHit: null,
+        girHit: null,
+        putts: null,
+        penalties: null,
+        netScore: null,
+        holeByHole: true,
+        tee: {
+          teeName: 'Front',
+          __holes: 9,
+        },
+        course: {
+          clubName: 'Club',
+          courseName: 'Course',
+          location: { city: 'City', state: 'ST', address: 'Address' },
+        },
+      },
+      {
+        id: BigInt(102),
+        userId: BigInt(1),
+        date: new Date('2026-02-11T12:00:00.000Z'),
+        updatedAt: new Date('2026-02-11T13:00:00.000Z'),
+        teeSegment: 'full',
+        score: 84,
+        toPar: 12,
+        firHit: null,
+        girHit: null,
+        putts: null,
+        penalties: null,
+        netScore: null,
+        holeByHole: true,
+        tee: {
+          teeName: 'Blue',
+          __holes: 18,
+        },
+        course: {
+          clubName: 'Club',
+          courseName: 'Course',
+          location: { city: 'City', state: 'ST', address: 'Address' },
+        },
+      },
+    ]);
+    mockedResolveTeeContext.mockImplementation((tee: any) => ({
+      holes: tee.__holes,
+      courseRating: tee.__holes === 9 ? 36 : 72,
+      slopeRating: 120,
+      parTotal: tee.__holes === 9 ? 36 : 72,
+      nonPar3Holes: tee.__holes === 9 ? 7 : 14,
+    }));
+    mockedNormalizeRoundsByMode.mockImplementation((rounds: any[], mode: 'combined' | '9' | '18') => {
+      if (mode === '9') return rounds.filter((r) => r.holes === 9);
+      if (mode === '18') return rounds.filter((r) => r.holes === 18);
+      return rounds.map((r) => {
+        if (r.holes !== 9) return r;
+        return {
+          ...r,
+          holes: 18,
+          score: r.score * 2,
+          to_par: r.to_par != null ? r.to_par * 2 : null,
+          net_score: r.net_score != null ? r.net_score * 2 : null,
+          fir_hit: r.fir_hit != null ? r.fir_hit * 2 : null,
+          fir_total: r.fir_total * 2,
+          gir_hit: r.gir_hit != null ? r.gir_hit * 2 : null,
+          gir_total: r.gir_total * 2,
+          putts: r.putts != null ? r.putts * 2 : null,
+          penalties: r.penalties != null ? r.penalties * 2 : null,
+          rating: r.rating * 2,
+          par: r.par * 2,
+        };
+      });
+    });
+    mockedPrisma.roundHole.findMany.mockResolvedValue([
+      // Round 101 (9 holes): birdie+ 2, par 3, bogey 2, double+ 2
+      { roundId: BigInt(101), score: 3, hole: { par: 4 } }, // birdie
+      { roundId: BigInt(101), score: 2, hole: { par: 4 } }, // eagle
+      { roundId: BigInt(101), score: 4, hole: { par: 4 } }, // par
+      { roundId: BigInt(101), score: 4, hole: { par: 4 } }, // par
+      { roundId: BigInt(101), score: 3, hole: { par: 3 } }, // par
+      { roundId: BigInt(101), score: 5, hole: { par: 4 } }, // bogey
+      { roundId: BigInt(101), score: 6, hole: { par: 5 } }, // bogey
+      { roundId: BigInt(101), score: 6, hole: { par: 4 } }, // double+
+      { roundId: BigInt(101), score: 7, hole: { par: 5 } }, // double+
+
+      // Round 102 (18 holes): birdie+ 3, par 9, bogey 4, double+ 2
+      { roundId: BigInt(102), score: 3, hole: { par: 4 } }, // birdie
+      { roundId: BigInt(102), score: 3, hole: { par: 5 } }, // eagle
+      { roundId: BigInt(102), score: 1, hole: { par: 3 } }, // ace
+      { roundId: BigInt(102), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(102), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(102), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(102), score: 5, hole: { par: 5 } },
+      { roundId: BigInt(102), score: 3, hole: { par: 3 } },
+      { roundId: BigInt(102), score: 3, hole: { par: 3 } },
+      { roundId: BigInt(102), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(102), score: 5, hole: { par: 5 } },
+      { roundId: BigInt(102), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(102), score: 5, hole: { par: 4 } }, // bogey
+      { roundId: BigInt(102), score: 6, hole: { par: 5 } }, // bogey
+      { roundId: BigInt(102), score: 4, hole: { par: 3 } }, // bogey
+      { roundId: BigInt(102), score: 5, hole: { par: 4 } }, // bogey
+      { roundId: BigInt(102), score: 6, hole: { par: 4 } }, // double+
+      { roundId: BigInt(102), score: 7, hole: { par: 5 } }, // double+
+    ]);
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.type).toBe('success');
+    expect(body.scoring_profile.normalized_counts).toEqual({
+      birdie_plus: 7,
+      par: 15,
+      bogey: 8,
+      double_plus: 6,
+    });
+    expect(body.scoring_profile.normalized_total_holes).toBe(36);
+    expect(body.scoring_profile.percentages).toEqual({
+      birdie_plus: 19.44,
+      par: 41.67,
+      bogey: 22.22,
+      double_plus: 16.67,
+    });
+    expect(body.scoring_profile.averages_per_round).toEqual({
+      birdie_plus: 3.5,
+      par: 7.5,
+      bogey: 4,
+      double_plus: 3,
+    });
+    expect(body.scoring_profile.source_round_count).toBe(2);
+    expect(body.scoring_profile.normalization).toBe('combined_18_equivalent');
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          roundContext: 'real',
+        }),
+      }),
+    );
+  });
+
+  it('does not double in 9-hole mode and computes percentages from 9-hole totals', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue([
+      {
+        id: BigInt(201),
+        userId: BigInt(1),
+        date: new Date('2026-02-10T12:00:00.000Z'),
+        updatedAt: new Date('2026-02-10T13:00:00.000Z'),
+        teeSegment: 'full',
+        score: 40,
+        toPar: 4,
+        firHit: null,
+        girHit: null,
+        putts: null,
+        penalties: null,
+        netScore: null,
+        holeByHole: true,
+        tee: { teeName: 'Front', __holes: 9 },
+        course: { clubName: 'Club', courseName: 'Course', location: { city: 'City', state: 'ST', address: 'Address' } },
+      },
+      {
+        id: BigInt(202),
+        userId: BigInt(1),
+        date: new Date('2026-02-11T12:00:00.000Z'),
+        updatedAt: new Date('2026-02-11T13:00:00.000Z'),
+        teeSegment: 'full',
+        score: 84,
+        toPar: 12,
+        firHit: null,
+        girHit: null,
+        putts: null,
+        penalties: null,
+        netScore: null,
+        holeByHole: true,
+        tee: { teeName: 'Blue', __holes: 18 },
+        course: { clubName: 'Club', courseName: 'Course', location: { city: 'City', state: 'ST', address: 'Address' } },
+      },
+    ]);
+    mockedResolveTeeContext.mockImplementation((tee: any) => ({
+      holes: tee.__holes,
+      courseRating: tee.__holes === 9 ? 36 : 72,
+      slopeRating: 120,
+      parTotal: tee.__holes === 9 ? 36 : 72,
+      nonPar3Holes: tee.__holes === 9 ? 7 : 14,
+    }));
+    mockedNormalizeRoundsByMode.mockImplementation((rounds: any[], mode: 'combined' | '9' | '18') => {
+      if (mode === '9') return rounds.filter((r) => r.holes === 9);
+      if (mode === '18') return rounds.filter((r) => r.holes === 18);
+      return rounds;
+    });
+    mockedPrisma.roundHole.findMany.mockResolvedValue([
+      { roundId: BigInt(201), score: 3, hole: { par: 4 } },
+      { roundId: BigInt(201), score: 2, hole: { par: 4 } },
+      { roundId: BigInt(201), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(201), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(201), score: 3, hole: { par: 3 } },
+      { roundId: BigInt(201), score: 5, hole: { par: 4 } },
+      { roundId: BigInt(201), score: 6, hole: { par: 5 } },
+      { roundId: BigInt(201), score: 6, hole: { par: 4 } },
+      { roundId: BigInt(201), score: 7, hole: { par: 5 } },
+    ]);
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=9');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.scoring_profile.normalized_counts).toEqual({
+      birdie_plus: 2,
+      par: 3,
+      bogey: 2,
+      double_plus: 2,
+    });
+    expect(body.scoring_profile.normalized_total_holes).toBe(9);
+    expect(body.scoring_profile.percentages).toEqual({
+      birdie_plus: 22.22,
+      par: 33.33,
+      bogey: 22.22,
+      double_plus: 22.22,
+    });
+    expect(body.scoring_profile.averages_per_round).toEqual({
+      birdie_plus: 2,
+      par: 3,
+      bogey: 2,
+      double_plus: 2,
+    });
+    expect(body.scoring_profile.normalization).toBe('nine_hole');
+  });
+
+  it('does not double in 18-hole mode and computes percentages from 18-hole totals', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue([
+      {
+        id: BigInt(301),
+        userId: BigInt(1),
+        date: new Date('2026-02-11T12:00:00.000Z'),
+        updatedAt: new Date('2026-02-11T13:00:00.000Z'),
+        teeSegment: 'full',
+        score: 84,
+        toPar: 12,
+        firHit: null,
+        girHit: null,
+        putts: null,
+        penalties: null,
+        netScore: null,
+        holeByHole: true,
+        tee: { teeName: 'Blue', __holes: 18 },
+        course: { clubName: 'Club', courseName: 'Course', location: { city: 'City', state: 'ST', address: 'Address' } },
+      },
+      {
+        id: BigInt(302),
+        userId: BigInt(1),
+        date: new Date('2026-02-10T12:00:00.000Z'),
+        updatedAt: new Date('2026-02-10T13:00:00.000Z'),
+        teeSegment: 'full',
+        score: 40,
+        toPar: 4,
+        firHit: null,
+        girHit: null,
+        putts: null,
+        penalties: null,
+        netScore: null,
+        holeByHole: true,
+        tee: { teeName: 'Front', __holes: 9 },
+        course: { clubName: 'Club', courseName: 'Course', location: { city: 'City', state: 'ST', address: 'Address' } },
+      },
+    ]);
+    mockedResolveTeeContext.mockImplementation((tee: any) => ({
+      holes: tee.__holes,
+      courseRating: tee.__holes === 9 ? 36 : 72,
+      slopeRating: 120,
+      parTotal: tee.__holes === 9 ? 36 : 72,
+      nonPar3Holes: tee.__holes === 9 ? 7 : 14,
+    }));
+    mockedNormalizeRoundsByMode.mockImplementation((rounds: any[], mode: 'combined' | '9' | '18') => {
+      if (mode === '9') return rounds.filter((r) => r.holes === 9);
+      if (mode === '18') return rounds.filter((r) => r.holes === 18);
+      return rounds;
+    });
+    mockedPrisma.roundHole.findMany.mockResolvedValue([
+      { roundId: BigInt(301), score: 3, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 3, hole: { par: 5 } },
+      { roundId: BigInt(301), score: 1, hole: { par: 3 } },
+      { roundId: BigInt(301), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 5, hole: { par: 5 } },
+      { roundId: BigInt(301), score: 3, hole: { par: 3 } },
+      { roundId: BigInt(301), score: 3, hole: { par: 3 } },
+      { roundId: BigInt(301), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 5, hole: { par: 5 } },
+      { roundId: BigInt(301), score: 4, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 5, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 6, hole: { par: 5 } },
+      { roundId: BigInt(301), score: 4, hole: { par: 3 } },
+      { roundId: BigInt(301), score: 5, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 6, hole: { par: 4 } },
+      { roundId: BigInt(301), score: 7, hole: { par: 5 } },
+    ]);
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=18');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.scoring_profile.normalized_counts).toEqual({
+      birdie_plus: 3,
+      par: 9,
+      bogey: 4,
+      double_plus: 2,
+    });
+    expect(body.scoring_profile.normalized_total_holes).toBe(18);
+    expect(body.scoring_profile.percentages).toEqual({
+      birdie_plus: 16.67,
+      par: 50,
+      bogey: 22.22,
+      double_plus: 11.11,
+    });
+    expect(body.scoring_profile.averages_per_round).toEqual({
+      birdie_plus: 3,
+      par: 9,
+      bogey: 4,
+      double_plus: 2,
+    });
+    expect(body.scoring_profile.normalization).toBe('eighteen_hole');
+  });
+
+  it('returns safe zero scoring_profile percentages without NaN when no hole-by-hole data exists', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue([
+      {
+        id: BigInt(401),
+        userId: BigInt(1),
+        date: new Date('2026-02-11T12:00:00.000Z'),
+        updatedAt: new Date('2026-02-11T13:00:00.000Z'),
+        teeSegment: 'full',
+        score: 84,
+        toPar: 12,
+        firHit: null,
+        girHit: null,
+        putts: null,
+        penalties: null,
+        netScore: null,
+        holeByHole: true,
+        tee: { teeName: 'Blue', __holes: 18 },
+        course: { clubName: 'Club', courseName: 'Course', location: { city: 'City', state: 'ST', address: 'Address' } },
+      },
+    ]);
+    mockedResolveTeeContext.mockImplementation((tee: any) => ({
+      holes: tee.__holes,
+      courseRating: 72,
+      slopeRating: 120,
+      parTotal: 72,
+      nonPar3Holes: 14,
+    }));
+    mockedNormalizeRoundsByMode.mockImplementation((rounds: any[]) => rounds);
+    mockedPrisma.roundHole.findMany.mockResolvedValue([]);
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.scoring_profile.normalized_total_holes).toBe(0);
+    expect(body.scoring_profile.normalized_counts).toEqual({
+      birdie_plus: 0,
+      par: 0,
+      bogey: 0,
+      double_plus: 0,
+    });
+    expect(body.scoring_profile.percentages).toEqual({
+      birdie_plus: 0,
+      par: 0,
+      bogey: 0,
+      double_plus: 0,
+    });
+    expect(body.scoring_profile.averages_per_round).toEqual({
+      birdie_plus: 0,
+      par: 0,
+      bogey: 0,
+      double_plus: 0,
+    });
+    expect(Number.isFinite(body.scoring_profile.percentages.birdie_plus)).toBe(true);
+    expect(Number.isFinite(body.scoring_profile.percentages.par)).toBe(true);
+    expect(Number.isFinite(body.scoring_profile.percentages.bogey)).toBe(true);
+    expect(Number.isFinite(body.scoring_profile.percentages.double_plus)).toBe(true);
+  });
 });
