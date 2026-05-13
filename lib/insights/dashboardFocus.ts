@@ -628,6 +628,18 @@ function buildEarlyGuidanceFocus(confidence: DashboardFocusConfidence): RoundFoc
   };
 }
 
+function buildNoDataFocus(confidence: DashboardFocusConfidence): RoundFocusPayload {
+  return {
+    outcome: 'early_guidance',
+    focusType: 'score',
+    headline: 'Start with solid decisions.',
+    body: 'Log your first round to begin building your scoring baseline.',
+    nextRound: 'Play to the widest target.',
+    component: null,
+    confidence,
+  };
+}
+
 function buildScoreOnlyFocus(
   summary: DashboardOverallInsightsSummary,
   isPremium: boolean,
@@ -957,8 +969,8 @@ export function buildRoundFocusState(
   isPremium: boolean,
   isLimited: boolean,
 ): RoundFocusState {
-  if (!summary) {
-    const fallbackFocus = buildEarlyGuidanceFocus('low');
+  if (!summary || summary.roundsRecent <= 0) {
+    const fallbackFocus = buildNoDataFocus('low');
     if (!isPremium) {
       return {
         kind: 'READY_FREE',

@@ -11,6 +11,7 @@ import { Confidence } from '@prisma/client';
 import RoundInsights from '@/components/RoundInsights';
 import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
 import InfoTooltip from '@/components/InfoTooltip';
+import ParBreakdownChart, { type ParBreakdownChartRow } from '@/components/ParBreakdownChart';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 
@@ -256,22 +257,19 @@ export default function RoundStatsPage() {
   const sgTooltipText =
     'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Putting, and Penalties use the stats you logged. Residual is scoring not explained by tracked stats.';
 
-  const PAR_DELTA_PER_HOLE_LIMIT = 1.5;
-  const PAR_DELTA_EPSILON = 0.001;
-  const parBreakdownRows = [...stats.scoring_by_par]
+  const parBreakdownRows: ParBreakdownChartRow[] = [...stats.scoring_by_par]
     .map((item) => {
       const parsedAverage = Number(item.average_score);
       const averageValue = Number.isFinite(parsedAverage) ? parsedAverage : item.par;
-      const deltaPerHole = averageValue - item.par;
-      const clampedDeltaPerHole = Math.max(
-        -PAR_DELTA_PER_HOLE_LIMIT,
-        Math.min(PAR_DELTA_PER_HOLE_LIMIT, deltaPerHole)
-      );
       return {
-        ...item,
-        averageValue,
-        deltaPerHole,
-        clampedDeltaPerHole,
+        id: item.par,
+        par: item.par,
+        average: averageValue,
+        delta: averageValue - item.par,
+        averageLabel: item.average_score,
+        deltaLabel: formatScoreToPar(item.score_to_par),
+        holesLabel: `${item.holes} holes`,
+        vsClassName: item.score_to_par > 0 ? 'over-par' : item.score_to_par < 0 ? 'under-par' : '',
       };
     })
     .sort((a, b) => a.par - b.par);
@@ -482,60 +480,7 @@ export default function RoundStatsPage() {
             <h3 className="stats-section-title stats-section-title-centered">
               Par Breakdown
             </h3>
-            <div className="stats-par-chart">
-              {parBreakdownRows.map((item) => {
-                const isEvenDelta = Math.abs(item.deltaPerHole) < PAR_DELTA_EPSILON;
-                const normalizedWidth =
-                  (Math.abs(item.clampedDeltaPerHole) / PAR_DELTA_PER_HOLE_LIMIT) * 50;
-                const deltaWidth = isEvenDelta ? 0 : Math.max(normalizedWidth, 1.5);
-                const deltaLeft = item.deltaPerHole < 0 ? 50 - deltaWidth : 50;
-                const pointLeft =
-                  item.deltaPerHole < 0 ? 50 - deltaWidth : item.deltaPerHole > 0 ? 50 + deltaWidth : 50;
-                const trendClass =
-                  item.deltaPerHole < -PAR_DELTA_EPSILON
-                    ? 'is-better'
-                    : item.deltaPerHole > PAR_DELTA_EPSILON
-                      ? 'is-worse'
-                      : 'is-even';
-
-                return (
-                  <div key={item.par} className="stats-par-chart-row">
-                    <div className="stats-par-chart-meta">
-                      <div className="stats-par-chart-par">Par {item.par}</div>
-                      <div className="stats-par-chart-holes">{item.holes} holes</div>
-                    </div>
-
-                    <div className="stats-par-chart-track-wrap">
-                      <div className="stats-par-chart-track">
-                        {!isEvenDelta && (
-                          <div
-                            className={`stats-par-chart-delta ${trendClass}`}
-                            style={{
-                              left: `${deltaLeft}%`,
-                              width: `${deltaWidth}%`,
-                            }}
-                          />
-                        )}
-                        <div className="stats-par-chart-center" />
-                        <div
-                          className={`stats-par-chart-point ${trendClass}`}
-                          style={{ left: `${pointLeft}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="stats-par-chart-values">
-                      <div className="stats-par-chart-average">Avg {item.average_score}</div>
-                      <div
-                        className={`stats-par-chart-vs ${item.score_to_par > 0 ? 'over-par' : item.score_to_par < 0 ? 'under-par' : ''}`}
-                      >
-                        vs par {formatScoreToPar(item.score_to_par)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <ParBreakdownChart rows={parBreakdownRows} showHoles />
           </div>
         )}
 

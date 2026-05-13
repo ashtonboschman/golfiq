@@ -239,7 +239,7 @@ describe('/dashboard Round Focus card', () => {
     });
   });
 
-  it('uses updated dashboard tooltip copy and omits Round Focus info icon tooltip', async () => {
+  it('uses updated dashboard tooltip copy and renders unified scoring summary module', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
 
     render(<DashboardPage />);
@@ -254,10 +254,7 @@ describe('/dashboard Round Focus card', () => {
           'Your typical score per round. Lower is better.',
           'Your lowest recorded round.',
           'Your highest recorded round.',
-          'Total number of rounds tracked.',
-          'Your average score on par 3 holes. Lower is better.',
-          'Your average score on par 4 holes. Lower is better.',
-          'Your average score on par 5 holes. Lower is better.',
+          'Rounds included in the current filters.',
           'How often you hit the fairway off the tee. Higher is better.',
           'How often you reach the green in regulation. Higher is better.',
           'Average number of putts per round. Lower is better.',
@@ -266,6 +263,10 @@ describe('/dashboard Round Focus card', () => {
       );
       expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
     });
+    expect(screen.getByText('Scoring Summary')).toBeInTheDocument();
+    expect(screen.getByText('Par 3')).toBeInTheDocument();
+    expect(screen.getByText('Par 4')).toBeInTheDocument();
+    expect(screen.getByText('Par 5')).toBeInTheDocument();
     expect(screen.getByText('Scoring Profile')).toBeInTheDocument();
     expect(screen.getByText('Birdie+')).toBeInTheDocument();
     expect(screen.getByText('Par')).toBeInTheDocument();
@@ -302,10 +303,63 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('7.1 / round')).toBeInTheDocument();
   });
 
+  it('renders safe hole type fallback state when par averages are missing', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          hbh_stats: {
+            ...makeDashboardPayload().hbh_stats,
+            par3_avg: null,
+            par4_avg: null,
+            par5_avg: null,
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Scoring Summary');
+    expect(
+      screen.getByText(
+        'Use Live Round to unlock Par 3, Par 4, and Par 5 scoring.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
+  });
+
+  it('formats hole type averages with one decimal and uses simplified delta labels', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          hbh_stats: {
+            ...makeDashboardPayload().hbh_stats,
+            par3_avg: 8,
+            par4_avg: 4.5,
+            par5_avg: 5,
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Scoring Summary');
+    expect(screen.getByText('Avg 8.0')).toBeInTheDocument();
+    expect(screen.getByText('Avg 4.5')).toBeInTheDocument();
+    expect(screen.getByText('Avg 5.0')).toBeInTheDocument();
+    expect(screen.getByText('+5.0')).toBeInTheDocument();
+    expect(screen.queryByText(/vs par/i)).not.toBeInTheDocument();
+  });
+
   it.each([
-    ['low', 'Low', 'is-low'],
-    ['medium', 'Medium', 'is-medium'],
-    ['high', 'High', 'is-high'],
+    ['low', 'Building', 'is-low'],
+    ['medium', 'Moderate', 'is-medium'],
+    ['high', 'Strong', 'is-high'],
   ] as const)('renders Round Focus confidence pill for %s confidence', async (confidence, label, toneClass) => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -332,13 +386,13 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    const pill = await screen.findByRole('button', { name: /Focus confidence: Medium/i });
+    const pill = await screen.findByRole('button', { name: /Focus confidence: Moderate/i });
     fireEvent.click(pill);
     expect(await screen.findByText('Focus Confidence')).toBeInTheDocument();
-    expect(screen.getByText(/Shows how reliable your Round Focus is\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Low means general guidance\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Medium means some trends are available\./i)).toBeInTheDocument();
-    expect(screen.getByText(/High means stronger data and clearer patterns\./i)).toBeInTheDocument();
+    expect(screen.getByText(/How reliable your Round Focus is based on available scoring patterns\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Building: early guidance while GolfIQ learns your game\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Moderate: trends are forming\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Strong: clear patterns are available\./i)).toBeInTheDocument();
   });
 
   it('renders Round Focus header with title and confidence pill only (no old info icon tooltip)', async () => {
@@ -348,7 +402,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByTestId('dashboard-focus-card');
     expect(screen.getByText('Round Focus')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /Focus confidence: Medium/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Focus confidence: Moderate/i })).toBeInTheDocument();
     const tooltipTexts = mockInfoTooltip.mock.calls.map(([props]) => props?.text);
     expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
   });
@@ -576,7 +630,97 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Scoring Profile');
-    expect(screen.getByText('No hole-by-hole scoring data yet.')).toBeInTheDocument();
+    expect(screen.getByText('Use Live Round to unlock your scoring profile.')).toBeInTheDocument();
+  });
+
+  it('shows Score Trend first-round empty state when there are no trend points', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 0,
+          totalRoundsInDb: 0,
+          all_rounds: [],
+          hbh_stats: {
+            ...makeDashboardPayload().hbh_stats,
+            par3_avg: null,
+            par4_avg: null,
+            par5_avg: null,
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Score Trend');
+    expect(
+      screen.getByText('Add your first round to start building your score trend.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('trend-Score Trend')).not.toBeInTheDocument();
+    expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
+  });
+
+  it('shows Score Trend add-another-round empty state when there is one trend point', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Score Trend');
+    expect(
+      screen.getByText('Add another round to start seeing your score trend.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('trend-Score Trend')).not.toBeInTheDocument();
+  });
+
+  it('shows FIR/GIR trend empty state copy when no usable accuracy trend data exists', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          all_rounds: [
+            {
+              id: 201,
+              date: '2026-02-22T00:00:00.000Z',
+              score: 80,
+              to_par: 8,
+              fir_hit: null,
+              gir_hit: null,
+              putts: 34,
+              penalties: 1,
+              fir_total: null,
+              gir_total: null,
+              course: { course_name: 'Course A', club_name: 'Club A', city: 'A', state: 'AA' },
+              tee: { tee_id: 1, tee_name: 'Blue' },
+            },
+            {
+              id: 202,
+              date: '2026-02-23T00:00:00.000Z',
+              score: 81,
+              to_par: 9,
+              fir_hit: null,
+              gir_hit: null,
+              putts: 33,
+              penalties: 1,
+              fir_total: null,
+              gir_total: null,
+              course: { course_name: 'Course B', club_name: 'Club B', city: 'B', state: 'BB' },
+              tee: { tee_id: 2, tee_name: 'White' },
+            },
+          ],
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('FIR & GIR Trend');
+    expect(
+      screen.getByText('Track fairways and greens to see accuracy trends over time.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('trend-FIR & GIR Trend')).not.toBeInTheDocument();
   });
 
   it('uses always-ready fallback copy for missing score trend after enough rounds', async () => {
@@ -796,7 +940,10 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('No rounds logged.');
+    await screen.findByText('Add your first round to start tracking progress.');
+    expect(screen.getByText('Start with solid decisions.')).toBeInTheDocument();
+    expect(screen.getByText('Log your first round to begin building your scoring baseline.')).toBeInTheDocument();
+    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
     expect(mockShowMessage).not.toHaveBeenCalled();
     expect(screen.queryByText('Failed to load dashboard.')).not.toBeInTheDocument();
   });

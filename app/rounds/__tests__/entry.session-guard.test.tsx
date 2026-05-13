@@ -43,12 +43,25 @@ jest.mock('@/app/providers', () => ({
 }));
 
 jest.mock('react-select-async-paginate', () => ({
-  AsyncPaginate: () => <div data-testid="async-paginate" />,
+  AsyncPaginate: Object.assign(
+    () => <div data-testid="async-paginate" />,
+    { displayName: 'MockAsyncPaginate' },
+  ),
 }));
 
-jest.mock('react-select', () => () => <div data-testid="react-select" />);
+jest.mock('react-select', () =>
+  Object.assign(
+    () => <div data-testid="react-select" />,
+    { displayName: 'MockReactSelect' },
+  ),
+);
 
-jest.mock('@/components/HoleCard', () => () => <div data-testid="hole-card" />);
+jest.mock('@/components/HoleCard', () =>
+  Object.assign(
+    () => <div data-testid="hole-card" />,
+    { displayName: 'MockHoleCard' },
+  ),
+);
 
 const mockedUseSession = useSession as unknown as jest.Mock;
 
@@ -129,4 +142,3 @@ describe('round entry session guard', () => {
     );
   });
 });
-

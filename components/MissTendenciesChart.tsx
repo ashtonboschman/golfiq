@@ -52,7 +52,7 @@ export default function MissTendenciesChart({
   gridColor,
 }: MissTendenciesChartProps) {
   const defaultLabels = ['Left', 'Right', 'Short', 'Long'];
-  const hasData = !!data && (data.fir.tracked_misses > 0 || data.gir.tracked_misses > 0);
+  const hasDirectionalData = !!data && (data.fir.tracked_misses > 0 || data.gir.tracked_misses > 0);
   const labels = data?.labels?.length ? data.labels : defaultLabels;
   const firPercentages = data?.fir.percentages?.length === labels.length
     ? data.fir.percentages
@@ -131,6 +131,19 @@ export default function MissTendenciesChart({
       },
     },
   };
+
+  if (!hasDirectionalData) {
+    return (
+      <div className="trend-card trend-card-empty trend-card-empty-score">
+        <h3 className="insights-centered-title">FIR & GIR Miss Tendencies</h3>
+        <div className="trend-card-empty-body">
+          <p className="secondary-text text-center">
+            Track miss directions to reveal patterns over time.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="trend-card" style={{ height: 320, justifyContent: 'flex-start' }}>

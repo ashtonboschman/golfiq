@@ -170,4 +170,45 @@ describe('/rounds/[id]/stats page', () => {
     });
     await screen.findByText('Pebble Beach');
   });
+
+  it('renders Par Breakdown rows when scoring-by-par data is available', async () => {
+    mockedUseSubscription.mockReturnValue({
+      isPremium: true,
+      loading: false,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stats: {
+          ...statsPayload,
+          scoring_by_par: [
+            {
+              par: 3,
+              holes: 4,
+              total_score: 14,
+              total_par: 12,
+              average_score: '3.5',
+              score_to_par: 2,
+            },
+            {
+              par: 4,
+              holes: 10,
+              total_score: 44,
+              total_par: 40,
+              average_score: '4.4',
+              score_to_par: 4,
+            },
+          ],
+        },
+      }),
+    });
+
+    render(<RoundStatsPage />);
+
+    await screen.findByText('Par Breakdown');
+    expect(screen.getByText('Par 3')).toBeInTheDocument();
+    expect(screen.getByText('Par 4')).toBeInTheDocument();
+    expect(screen.getByText('Avg 3.5')).toBeInTheDocument();
+    expect(screen.getByText('vs par +2')).toBeInTheDocument();
+  });
 });

@@ -20,6 +20,7 @@ import { selectStyles } from '@/lib/selectStyles';
 import TrendCard from '@/components/TrendCard';
 import MissTendenciesChart from '@/components/MissTendenciesChart';
 import InfoTooltip from '@/components/InfoTooltip';
+import ParBreakdownChart, { type ParBreakdownChartRow } from '@/components/ParBreakdownChart';
 import { formatDate, formatHandicap, formatNumber, formatToPar } from '@/lib/formatters';
 import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
@@ -157,15 +158,42 @@ function DashboardFallback() {
         <RoundFocusSkeletonBody />
       </div>
 
-      <div className="grid grid-2">
-        {Array.from({ length: 8 }).map((_, idx) => (
-          <div
-            className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card"
-            key={`dashboard-fallback-stat-${idx}`}
-          >
-            <div className="skeleton skeleton-dashboard-stat-value dashboard-live-label-skeleton-value" />
+      <div className="dashboard-top-stats-stack">
+        <div className="card dashboard-summary-card skeleton-dashboard-summary-card dashboard-live-label-skeleton-card">
+          <h3>Scoring Summary</h3>
+          <div className="dashboard-summary-primary-row">
+            <div className="dashboard-summary-stat is-primary">
+              <h4>Handicap</h4>
+              <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-primary" />
+            </div>
+            <div className="dashboard-summary-stat is-primary">
+              <h4>Average</h4>
+              <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-primary" />
+            </div>
           </div>
-        ))}
+          <div className="dashboard-summary-secondary-row">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div className="dashboard-summary-stat is-secondary" key={`dashboard-summary-secondary-skeleton-${idx}`}>
+                <h4>{idx === 0 ? 'Best' : idx === 1 ? 'Worst' : 'Rounds'}</h4>
+                <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-secondary" />
+              </div>
+            ))}
+          </div>
+          <div className="dashboard-summary-hole-type-block">
+            <div className="dashboard-hole-type-skeleton-list">
+              {['Par 3', 'Par 4', 'Par 5'].map((label) => (
+                <div key={`dashboard-fallback-hole-type-${label}`} className="dashboard-hole-type-skeleton-row">
+                  <span className="dashboard-hole-type-skeleton-label">{label}</span>
+                  <div className="skeleton dashboard-hole-type-skeleton-track" />
+                  <div className="dashboard-hole-type-skeleton-values">
+                    <div className="skeleton dashboard-hole-type-skeleton-value-line dashboard-hole-type-skeleton-value-line-top" />
+                    <div className="skeleton dashboard-hole-type-skeleton-value-line dashboard-hole-type-skeleton-value-line-bottom" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="trend-card" style={{ height: 300 }}>
@@ -590,6 +618,34 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const par3_avg = stats.hbh_stats?.par3_avg ?? null;
   const par4_avg = stats.hbh_stats?.par4_avg ?? null;
   const par5_avg = stats.hbh_stats?.par5_avg ?? null;
+  const formatOneDecimal = (value: number | null): string =>
+    value == null || !Number.isFinite(value) ? '-' : value.toFixed(1);
+  const formatHoleTypeDelta = (value: number | null): string => {
+    if (value == null || !Number.isFinite(value)) return '-';
+    if (Math.abs(value) < 0.0001) return 'E';
+    const rounded = Math.round(value * 10) / 10;
+    const magnitude = Math.abs(rounded).toFixed(1);
+    return rounded > 0 ? `+${magnitude}` : `-${magnitude}`;
+  };
+  const getHoleTypeSeverityClass = (delta: number | null): string => {
+    if (delta == null || !Number.isFinite(delta)) return 'is-unavailable';
+    if (delta <= 0) return 'is-under';
+    if (delta <= 0.5) return 'is-near';
+    if (delta <= 1.25) return 'is-moderate';
+    return 'is-severe';
+  };
+  const holeTypeRows: ParBreakdownChartRow[] = [
+    { id: 'par-3', par: 3, average: par3_avg, delta: par3_avg == null ? null : par3_avg - 3 },
+    { id: 'par-4', par: 4, average: par4_avg, delta: par4_avg == null ? null : par4_avg - 4 },
+    { id: 'par-5', par: 5, average: par5_avg, delta: par5_avg == null ? null : par5_avg - 5 },
+  ].map((row) => ({
+    ...row,
+    averageLabel: formatOneDecimal(row.average),
+    deltaLabel: formatHoleTypeDelta(row.delta),
+    vsClassName: getHoleTypeSeverityClass(row.delta),
+    trendClassName: getHoleTypeSeverityClass(row.delta),
+  }));
+  const hasHoleTypeData = holeTypeRows.some((row) => row.average != null && Number.isFinite(row.average));
 
   const scoringProfile = stats.scoring_profile ?? null;
   const scoringProfileTotalHoles = scoringProfile?.normalized_total_holes ?? 0;
@@ -754,6 +810,18 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       gir_pct:
         r.gir_hit != null && r.gir_total != null ? (r.gir_hit / r.gir_total) * 100 : null,
     }));
+  const scoreTrendPointCount = trendData.length;
+  const scoreTrendEmptyMessage =
+    scoreTrendPointCount === 0
+      ? 'Add your first round to start building your score trend.'
+      : scoreTrendPointCount === 1
+        ? 'Add another round to start seeing your score trend.'
+        : null;
+  const hasFirGirTrendData = trendData.some(
+    (point) =>
+      (point.fir_pct != null && Number.isFinite(point.fir_pct)) ||
+      (point.gir_pct != null && Number.isFinite(point.gir_pct)),
+  );
 
     const scoreChartData = {
       labels: trendData.map(d => d.dateLabel),
@@ -826,9 +894,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   };
 
   const formatFocusConfidenceLabel = (value: 'high' | 'medium' | 'low' | null | undefined): string => {
-    if (value === 'high') return 'High';
-    if (value === 'medium') return 'Medium';
-    return 'Low';
+    if (value === 'high') return 'Strong';
+    if (value === 'medium') return 'Moderate';
+    return 'Building';
   };
 
   const getFocusConfidenceTone = (value: 'high' | 'medium' | 'low' | null | undefined): 'high' | 'medium' | 'low' => {
@@ -1087,7 +1155,14 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 <div className="info-tooltip-content center below ready dashboard-focus-confidence-popover">
                   <h4>Focus Confidence</h4>
                   <p>
-                    Shows how reliable your Round Focus is. Low means general guidance. Medium means some trends are available. High means stronger data and clearer patterns.
+                    How reliable your Round Focus is based on available scoring patterns.
+                    <br />
+                    <br />
+                    Building: early guidance while GolfIQ learns your game.
+                    <br />
+                    Moderate: trends are forming.
+                    <br />
+                    Strong: clear patterns are available.
                   </p>
                   <div className="info-tooltip-arrow center below" />
                 </div>
@@ -1152,40 +1227,48 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
       {loading ? (
         <>
-          <div className="grid grid-2">
-            <div className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card" style={{ position: 'relative' }}>
-              <InfoTooltip text="Your estimated playing ability based on recent rounds. Lower is better." />
-              <h3>Handicap</h3>
-              <div className="skeleton skeleton-dashboard-stat-value dashboard-live-label-skeleton-value" />
-            </div>
-            {[
-              ['Average', 'Your typical score per round. Lower is better.', true],
-              ['Best', 'Your lowest recorded round.', true],
-              ['Worst', 'Your highest recorded round.', true],
-              ['Rounds', 'Total number of rounds tracked.', false],
-              ['Par 3', 'Your average score on par 3 holes. Lower is better.', false],
-              ['Par 4', 'Your average score on par 4 holes. Lower is better.', false],
-              ['Par 5', 'Your average score on par 5 holes. Lower is better.', false],
-            ].map(([label, tooltip, isToggleable]) => (
-              <div
-                className="card dashboard-stat-card skeleton-dashboard-stat-card dashboard-live-label-skeleton-card"
-                key={`dash-stat-skeleton-${label as string}`}
-                style={{
-                  position: 'relative',
-                  cursor: isToggleable ? 'pointer' : 'default',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {isToggleable && (
-                  <span className="toggle-icon icon-edge">
-                    {showToPar ? <ToggleRight /> : <ToggleLeft />}
-                  </span>
-                )}
-                {tooltip && <InfoTooltip text={tooltip as string} />}
-                <h3>{label}</h3>
-                <div className="skeleton skeleton-dashboard-stat-value dashboard-live-label-skeleton-value" />
+          <div className="dashboard-top-stats-stack">
+            <div className="card dashboard-summary-card skeleton-dashboard-summary-card dashboard-live-label-skeleton-card">
+              <h3>Scoring Summary</h3>
+              <div className="dashboard-summary-primary-row">
+                <div className="dashboard-summary-stat is-primary">
+                  <h4>Handicap</h4>
+                  <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-primary" />
+                </div>
+                <div className="dashboard-summary-stat is-primary">
+                  <h4>Average</h4>
+                  <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-primary" />
+                </div>
               </div>
-            ))}
+              <div className="dashboard-summary-secondary-row">
+                <div className="dashboard-summary-stat is-secondary">
+                  <h4>Best</h4>
+                  <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-secondary" />
+                </div>
+                <div className="dashboard-summary-stat is-secondary">
+                  <h4>Worst</h4>
+                  <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-secondary" />
+                </div>
+                <div className="dashboard-summary-stat is-secondary">
+                  <h4>Rounds</h4>
+                  <div className="skeleton dashboard-summary-skeleton-value dashboard-summary-skeleton-value-secondary" />
+                </div>
+              </div>
+              <div className="dashboard-summary-hole-type-block">
+                <div className="dashboard-hole-type-skeleton-list">
+                  {['Par 3', 'Par 4', 'Par 5'].map((label) => (
+                    <div key={`dash-hole-type-skeleton-${label}`} className="dashboard-hole-type-skeleton-row">
+                      <span className="dashboard-hole-type-skeleton-label">{label}</span>
+                      <div className="skeleton dashboard-hole-type-skeleton-track" />
+                      <div className="dashboard-hole-type-skeleton-values">
+                        <div className="skeleton dashboard-hole-type-skeleton-value-line dashboard-hole-type-skeleton-value-line-top" />
+                        <div className="skeleton dashboard-hole-type-skeleton-value-line dashboard-hole-type-skeleton-value-line-bottom" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
           <div className="trend-card" style={{ height: 300 }}>
             <h3 className="insights-centered-title">Score Trend</h3>
@@ -1194,43 +1277,82 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         </>
       ) : (
         <>
-          <div className="grid grid-2">
-            <div className="card dashboard-stat-card" style={{ position: 'relative' }}>
-              <InfoTooltip text="Your estimated playing ability based on recent rounds. Lower is better." />
-              <h3>Handicap</h3>
-              <p>{formatHandicap(stats.handicap)}</p>
-            </div>
-            {[
-              ['Average', showToPar ? stats.average_to_par : stats.average_score, 'Your typical score per round. Lower is better.', true],
-              ['Best', showToPar ? stats.best_to_par : stats.best_score, 'Your lowest recorded round.', true],
-              ['Worst', showToPar ? stats.worst_to_par : stats.worst_score, 'Your highest recorded round.', true],
-              ['Rounds', totalRounds, 'Total number of rounds tracked.', false],
-              ['Par 3', par3_avg, 'Your average score on par 3 holes. Lower is better.', false],
-              ['Par 4', par4_avg, 'Your average score on par 4 holes. Lower is better.', false],
-              ['Par 5', par5_avg, 'Your average score on par 5 holes. Lower is better.', false],
-            ].map(([label, val, tooltip, isToggleable]) => (
-              <div
-                className="card dashboard-stat-card"
-                key={label as string}
-                style={{
-                  position: 'relative',
-                  cursor: isToggleable ? 'pointer' : 'default',
-                  transition: 'all 0.2s ease',
-                }}
-                onClick={() => isToggleable && setShowToPar((p) => !p)}
-              >
-                {isToggleable && (
-                <span className="toggle-icon icon-edge">
-                  {showToPar ? <ToggleRight /> : <ToggleLeft />}
-                </span>
-                )}
-                {tooltip && <InfoTooltip text={tooltip as string} />}
-                <h3>{label}</h3>
-                <p>{(isToggleable && showToPar) ? formatToPar(val as number) : formatNumber(val as number)}</p>
+          <div className="dashboard-top-stats-stack">
+            <div className="card dashboard-summary-card">
+              <h3>Scoring Summary</h3>
+              <div className="dashboard-summary-primary-row">
+                <div className="dashboard-summary-stat is-primary">
+                  <InfoTooltip text="Your estimated playing ability based on recent rounds. Lower is better." />
+                  <h4>Handicap</h4>
+                  <p>{formatHandicap(stats.handicap)}</p>
+                </div>
+                <button
+                  type="button"
+                  className="dashboard-summary-stat is-primary is-toggleable"
+                  onClick={() => setShowToPar((p) => !p)}
+                >
+                  <span className="toggle-icon dashboard-summary-stat-toggle">
+                    {showToPar ? <ToggleRight /> : <ToggleLeft />}
+                  </span>
+                  <InfoTooltip text="Your typical score per round. Lower is better." />
+                  <h4>Average</h4>
+                  <p>{showToPar ? formatToPar(stats.average_to_par) : formatNumber(stats.average_score)}</p>
+                </button>
               </div>
-            ))}
+              <div className="dashboard-summary-secondary-row">
+                <button
+                  type="button"
+                  className="dashboard-summary-stat is-secondary is-toggleable"
+                  onClick={() => setShowToPar((p) => !p)}
+                >
+                  <span className="toggle-icon dashboard-summary-stat-toggle">
+                    {showToPar ? <ToggleRight /> : <ToggleLeft />}
+                  </span>
+                  <InfoTooltip text="Your lowest recorded round." />
+                  <h4>Best</h4>
+                  <p>{showToPar ? formatToPar(stats.best_to_par) : formatNumber(stats.best_score)}</p>
+                </button>
+                <button
+                  type="button"
+                  className="dashboard-summary-stat is-secondary is-toggleable"
+                  onClick={() => setShowToPar((p) => !p)}
+                >
+                  <span className="toggle-icon dashboard-summary-stat-toggle">
+                    {showToPar ? <ToggleRight /> : <ToggleLeft />}
+                  </span>
+                  <InfoTooltip text="Your highest recorded round." />
+                  <h4>Worst</h4>
+                  <p>{showToPar ? formatToPar(stats.worst_to_par) : formatNumber(stats.worst_score)}</p>
+                </button>
+                <div className="dashboard-summary-stat is-secondary">
+                  <InfoTooltip text="Rounds included in the current filters." />
+                  <h4>Rounds</h4>
+                  <p>{formatNumber(totalRounds)}</p>
+                </div>
+              </div>
+              <div className="dashboard-summary-hole-type-block">
+                {hasHoleTypeData ? (
+                  <ParBreakdownChart
+                    rows={holeTypeRows}
+                    showHoles={false}
+                    className="dashboard-hole-type-chart"
+                    deltaPrefix=""
+                  />
+                ) : (
+                  <p className="secondary-text text-center">Use Live Round to unlock Par 3, Par 4, and Par 5 scoring.</p>
+                )}
+              </div>
+            </div>
           </div>
-          <TrendCard
+          {scoreTrendEmptyMessage ? (
+            <div className="trend-card trend-card-empty trend-card-empty-score">
+              <h3 className="insights-centered-title">Score Trend</h3>
+              <div className="trend-card-empty-body">
+                <p className="secondary-text text-center">{scoreTrendEmptyMessage}</p>
+              </div>
+            </div>
+          ) : (
+            <TrendCard
               trendData={scoreChartData}
               accentColor={accentColor}
               surfaceColor={surfaceColor}
@@ -1239,6 +1361,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               height={300}
               label='Score Trend'
             />
+          )}
         </>
       )}
       <div className="section">
@@ -1248,7 +1371,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         {loading ? (
           <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
         ) : lastRounds.length === 0 ? (
-          <p className='secondary-text text-center'>No rounds logged.</p>
+          <p className='secondary-text text-center'>Add your first round to start tracking progress.</p>
         ) : (
           <div className="rounds-list">
             {lastRounds.map((round) => (
@@ -1320,7 +1443,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 </div>
               </div>
             ) : (
-              <p className="secondary-text text-center">No hole-by-hole scoring data yet.</p>
+              <p className="secondary-text text-center">Use Live Round to unlock your scoring profile.</p>
             )}
           </div>
 
@@ -1339,18 +1462,27 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             ))}
           </div>
 
-          <TrendCard
-            trendData={firGirData}
-            accentColor={accentColor}
-            surfaceColor={surfaceColor}
-            textColor={textColor}
-            gridColor={gridColor}
-            height={300}
-            yMin={0}      // start at 0%
-            yMax={100}    // end at 100%
-            yStep={25}
-            label='FIR & GIR Trend'
-          />
+          {hasFirGirTrendData ? (
+            <TrendCard
+              trendData={firGirData}
+              accentColor={accentColor}
+              surfaceColor={surfaceColor}
+              textColor={textColor}
+              gridColor={gridColor}
+              height={300}
+              yMin={0}      // start at 0%
+              yMax={100}    // end at 100%
+              yStep={25}
+              label='FIR & GIR Trend'
+            />
+          ) : (
+            <div className="trend-card trend-card-empty trend-card-empty-score">
+              <h3 className="insights-centered-title">FIR & GIR Trend</h3>
+              <div className="trend-card-empty-body">
+                <p className="secondary-text text-center">Track fairways and greens to see accuracy trends over time.</p>
+              </div>
+            </div>
+          )}
           <MissTendenciesChart
             data={stats.miss_tendencies ?? null}
             accentColor={accentColor}
