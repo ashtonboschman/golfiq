@@ -63,16 +63,16 @@ describe('RoundInsights confidence pill UI', () => {
     );
 
     await screen.findByText('Performance Insights');
-    expect(screen.getByRole('button', { name: /Insight confidence: Low/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Insight confidence: Building/i })).toBeInTheDocument();
     expect(screen.queryByText(/^Free$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Premium$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Confidence:/i)).not.toBeInTheDocument();
   });
 
   it.each([
-    ['LOW', 'Low', 'is-low'],
-    ['MED', 'Medium', 'is-medium'],
-    ['HIGH', 'High', 'is-high'],
+    ['LOW', 'Building', 'is-low'],
+    ['MED', 'Moderate', 'is-medium'],
+    ['HIGH', 'Strong', 'is-high'],
   ] as const)('renders confidence pill label/color for %s', async (confidence, label, cssClass) => {
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -106,7 +106,7 @@ describe('RoundInsights confidence pill UI', () => {
       />,
     );
 
-    const pill = await screen.findByRole('button', { name: /Insight confidence: Medium/i });
+    const pill = await screen.findByRole('button', { name: /Insight confidence: Moderate/i });
     expect(pill).not.toBeDisabled();
     fireEvent.click(pill);
   });

@@ -18,6 +18,7 @@ describe('authOptions callbacks', () => {
           email: 'test@example.com',
           name: 'Test User',
           theme: 'twilight',
+          timezone: 'America/Winnipeg',
           subscription_tier: 'premium',
         } as any,
       } as any,
@@ -27,6 +28,7 @@ describe('authOptions callbacks', () => {
     expect(token.email).toBe('test@example.com');
     expect(token.name).toBe('Test User');
     expect(token.theme).toBe('twilight');
+    expect(token.timezone).toBe('America/Winnipeg');
     expect(token.subscription_tier).toBe('premium');
   });
 
@@ -49,6 +51,7 @@ describe('authOptions callbacks', () => {
           email: 'golfer@example.com',
           name: 'Golfer',
           theme: 'oceanic',
+          timezone: 'America/Chicago',
           subscription_tier: 'lifetime',
         },
       } as any,
@@ -59,6 +62,7 @@ describe('authOptions callbacks', () => {
       email?: string | null;
       name?: string | null;
       theme?: string;
+      timezone?: string | null;
       subscription_tier?: string;
     };
 
@@ -66,6 +70,7 @@ describe('authOptions callbacks', () => {
     expect(user.email).toBe('golfer@example.com');
     expect(user.name).toBe('Golfer');
     expect(user.theme).toBe('oceanic');
+    expect(user.timezone).toBe('America/Chicago');
     expect(user.subscription_tier).toBe('lifetime');
   });
 

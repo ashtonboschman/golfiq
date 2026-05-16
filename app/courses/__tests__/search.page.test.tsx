@@ -64,7 +64,7 @@ describe('/courses/search page fallback flow', () => {
 
     render(<CourseSearchPage />);
 
-    fireEvent.change(screen.getByPlaceholderText(/enter course name or city/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
       target: { value: 'Hidden Valley' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -81,13 +81,16 @@ describe('/courses/search page fallback flow', () => {
     render(<CourseSearchPage />);
     expect(screen.getByText('Search Tips:')).toBeInTheDocument();
     expect(screen.getByText('Try the full course name')).toBeInTheDocument();
-    expect(screen.getByText('You can also search by city')).toBeInTheDocument();
+    expect(screen.getByText('Global search works best by course or club name.')).toBeInTheDocument();
     expect(screen.getByText("Can't find it? Request it below")).toBeInTheDocument();
     expect(screen.queryByText('How It Works')).not.toBeInTheDocument();
     expect(
       screen.queryByText(/All users share a limit of 200 course searches per day/i),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Still can't find it?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Send us the course name and city. We'll review it and add it if scorecard data is available."),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Request Course' })).toBeInTheDocument();
   });
 
@@ -106,7 +109,7 @@ describe('/courses/search page fallback flow', () => {
 
   it('enforces search input maxLength at 250 characters', () => {
     render(<CourseSearchPage />);
-    const searchInput = screen.getByPlaceholderText(/enter course name or city/i) as HTMLInputElement;
+    const searchInput = screen.getByPlaceholderText(/search course or club name/i) as HTMLInputElement;
     expect(searchInput.maxLength).toBe(250);
   });
 
@@ -117,7 +120,7 @@ describe('/courses/search page fallback flow', () => {
     });
 
     render(<CourseSearchPage />);
-    const searchInput = screen.getByPlaceholderText(/enter course name or city/i);
+    const searchInput = screen.getByPlaceholderText(/search course or club name/i);
 
     fireEvent.change(searchInput, {
       target: { value: 'Enter Trigger Course' },
@@ -139,7 +142,7 @@ describe('/courses/search page fallback flow', () => {
 
     render(<CourseSearchPage />);
 
-    fireEvent.change(screen.getByPlaceholderText(/enter course name or city/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
       target: { value: 'Cedar Ridge' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -162,7 +165,7 @@ describe('/courses/search page fallback flow', () => {
 
     render(<CourseSearchPage />);
 
-    fireEvent.change(screen.getByPlaceholderText(/enter course name or city/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
       target: { value: 'Maple Hills' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -172,6 +175,9 @@ describe('/courses/search page fallback flow', () => {
     fireEvent.change(screen.getByPlaceholderText('City'), {
       target: { value: 'Winnipeg' },
     });
+    fireEvent.change(screen.getByPlaceholderText('Province / State'), {
+      target: { value: 'MB' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Request Course' }));
 
     await waitFor(() => {
@@ -180,6 +186,8 @@ describe('/courses/search page fallback flow', () => {
     const [, requestOptions] = (global.fetch as jest.Mock).mock.calls[1];
     const requestBody = JSON.parse(requestOptions.body);
     expect(requestBody.courseName).toBe('Maple Hills');
+    expect(requestBody.city).toBe('Winnipeg');
+    expect(requestBody.province).toBe('MB');
     expect(requestBody.query).toBe('Maple Hills');
     expect(requestBody.source).toBe('global_api_no_result');
 
@@ -199,6 +207,12 @@ describe('/courses/search page fallback flow', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Course name'), {
       target: { value: 'Manual Only Course' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('City'), {
+      target: { value: 'Brandon' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Province / State'), {
+      target: { value: 'MB' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Request Course' }));
 
@@ -236,7 +250,7 @@ describe('/courses/search page fallback flow', () => {
 
     render(<CourseSearchPage />);
 
-    fireEvent.change(screen.getByPlaceholderText(/enter course name or city/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
       target: { value: 'Results Course' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -245,6 +259,12 @@ describe('/courses/search page fallback flow', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Course name'), {
       target: { value: 'Different Course Actually Needed' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('City'), {
+      target: { value: 'Winnipeg' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Province / State'), {
+      target: { value: 'MB' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Request Course' }));
 
@@ -270,7 +290,7 @@ describe('/courses/search page fallback flow', () => {
 
     render(<CourseSearchPage />);
 
-    fireEvent.change(screen.getByPlaceholderText(/enter course name or city/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
       target: { value: 'Broken Search Query' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -282,6 +302,12 @@ describe('/courses/search page fallback flow', () => {
     fireEvent.change(screen.getByPlaceholderText('Course name'), {
       target: { value: 'Broken Search Course Request' },
     });
+    fireEvent.change(screen.getByPlaceholderText('City'), {
+      target: { value: 'Winnipeg' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Province / State'), {
+      target: { value: 'MB' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Request Course' }));
 
     await waitFor(() => {
@@ -292,7 +318,7 @@ describe('/courses/search page fallback flow', () => {
     expect(requestBody.source).toBe('manual');
   });
 
-  it('shows inline fallback error when request submission fails', async () => {
+  it('shows popup error when request submission fails', async () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({
@@ -306,16 +332,63 @@ describe('/courses/search page fallback flow', () => {
 
     render(<CourseSearchPage />);
 
-    fireEvent.change(screen.getByPlaceholderText(/enter course name or city/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
       target: { value: 'River Bend' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
 
     await screen.findByText("Still can't find it?");
+    fireEvent.change(screen.getByPlaceholderText('City'), {
+      target: { value: 'Winnipeg' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Province / State'), {
+      target: { value: 'MB' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Request Course' }));
 
-    expect(await screen.findByText("We couldn't send the request. Please try again.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockShowMessage).toHaveBeenCalledWith("We couldn't send the request. Please try again.", 'error');
+    });
     consoleErrorSpy.mockRestore();
+  });
+
+  it('shows popup validation error when required request fields are missing', () => {
+    render(<CourseSearchPage />);
+
+    const submitButton = screen.getByRole('button', { name: 'Request Course' });
+    expect(submitButton).toBeEnabled();
+
+    fireEvent.click(submitButton);
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      'Course name, city, and province/state are required.',
+      'error',
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByPlaceholderText('Course name'), {
+      target: { value: 'Validation Course' },
+    });
+    fireEvent.click(submitButton);
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      'Course name, city, and province/state are required.',
+      'error',
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByPlaceholderText('City'), {
+      target: { value: 'Winnipeg' },
+    });
+    fireEvent.click(submitButton);
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      'Course name, city, and province/state are required.',
+      'error',
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByPlaceholderText('Province / State'), {
+      target: { value: 'MB' },
+    });
+    expect(submitButton).toBeEnabled();
   });
 
   it('shows import results and keeps fallback visible when API search returns valid courses', async () => {
@@ -343,7 +416,7 @@ describe('/courses/search page fallback flow', () => {
 
     render(<CourseSearchPage />);
 
-    fireEvent.change(screen.getByPlaceholderText(/enter course name or city/i), {
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
       target: { value: 'Pebble' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -351,5 +424,45 @@ describe('/courses/search page fallback flow', () => {
     expect(await screen.findByText('Pebble Beach Golf Links')).toBeInTheDocument();
     expect(screen.getByText("Still can't find it?")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Course' })).toBeInTheDocument();
+  });
+
+  it('renders request-course card after search results', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        courses: [
+          {
+            id: 77,
+            course_name: 'Assiniboine Park GC',
+            club_name: 'Assiniboine Club',
+            location: {
+              city: 'Winnipeg',
+              state: 'MB',
+              country: 'Canada',
+            },
+            tees: {
+              male: [{ tee_name: 'Blue' }],
+              female: [],
+            },
+          },
+        ],
+      }),
+    });
+
+    render(<CourseSearchPage />);
+
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
+      target: { value: 'Winnipeg' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+    const resultsHeader = await screen.findByText('Search Results');
+    const fallbackHeader = screen.getByText("Still can't find it?");
+
+    const resultsSection = resultsHeader.parentElement as HTMLElement;
+    const fallbackSection = fallbackHeader.closest('.course-request-fallback-card') as HTMLElement;
+    expect(
+      Boolean(resultsSection.compareDocumentPosition(fallbackSection) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
   });
 });

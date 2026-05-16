@@ -35,7 +35,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedLevels: ['success', 'warning', 'info'],
     m1Includes: ['You shot 75 (+3)', 'Off The Tee', '+0.2 strokes'],
     m2Includes: ['Putting', '2.1 strokes'],
-    m3Includes: ['Next round:', 'lag speed'],
+    m3Includes: ['Next round:', 'leaving shorter second putts from long range'],
   },
   {
     name: 'great_round_optimization_tone',
@@ -61,7 +61,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedLevels: ['great', 'warning', 'info'],
     m1Includes: ['You shot 68 (-4)', 'Off The Tee', '1.3 strokes'],
     m2Includes: ['Putting', '0.6 strokes'],
-    m3Includes: ['Next round:', 'lag speed'],
+    m3Includes: ['Next round:', 'leaving shorter second putts from long range'],
   },
   {
     name: 'limited_tracking_three_missing',
@@ -82,7 +82,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedLevels: ['success', 'warning', 'info'],
     m1Includes: ['You shot 82 (+10)', 'Only Putting was logged', '1.4 strokes'],
     m2Includes: ['With one logged area'],
-    m3Includes: ['Next round:', 'lag speed'],
+    m3Includes: ['Next round:', 'leaving shorter second putts from long range'],
   },
   {
     name: 'residual_dominant_ambiguous',
@@ -107,7 +107,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedLevels: ['success', 'warning', 'info'],
     m1Includes: ['You shot 74 (+2)', 'Off The Tee', '+0.1 strokes'],
     m2Includes: ['Approach', '0.4 strokes'],
-    m3Includes: ['Next round:', 'center of the green'],
+    m3Includes: ['Next round:', 'remove the short-sided miss'],
   },
   {
     name: 'score_only_no_advanced_stats',

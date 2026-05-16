@@ -245,7 +245,7 @@ describe('/insights page', () => {
     const { container } = render(<InsightsPage />);
 
     await screen.findByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.');
-    expect(screen.getByRole('button', { name: 'Overall insights confidence: High' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Overall insights confidence: Strong' })).toBeInTheDocument();
     expect(container.querySelector('.insights-badge')).toBeNull();
     expect(screen.queryByRole('button', { name: /Regenerate/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Overall Insights compares your recent rounds (up to 5) against your overall average to detect form trends.')).not.toBeInTheDocument();
@@ -299,7 +299,7 @@ describe('/insights page', () => {
     render(<InsightsPage />);
 
     await screen.findByText('Your scoring has some movement. Your scores are moving around, but not wildly from round to round.');
-    expect(screen.getByRole('button', { name: 'Overall insights confidence: High' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Overall insights confidence: Strong' })).toBeInTheDocument();
     expect(screen.getByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.')).toBeInTheDocument();
     expect(screen.getByText("Approach is costing you strokes. You're losing about 0.8 strokes per round compared to your usual level.")).toBeInTheDocument();
     expect(screen.queryByText(/The full breakdown shows exactly how much\./i)).not.toBeInTheDocument();
@@ -316,17 +316,17 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    const confidencePill = await screen.findByRole('button', { name: 'Overall insights confidence: High' });
+    const confidencePill = await screen.findByRole('button', { name: 'Overall insights confidence: Strong' });
     fireEvent.click(confidencePill);
     expect(screen.getByText('Insight Confidence')).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This shows how much data GolfIQ has behind your Overall Insights. Low means early trends. Medium means some patterns are available. High means stronger data and clearer patterns.",
+        "This shows how much data GolfIQ has behind your Overall Insights. Building means early trend guidance. Moderate means useful patterns are emerging. Strong means clearer patterns are available.",
       ),
     ).toBeInTheDocument();
   });
 
-  it('derives Low/Medium/High confidence pill labels and tone classes', async () => {
+  it('derives Building/Moderate/Strong confidence pill labels and tone classes', async () => {
     const lowInsights = makeInsights(false, {
       combined: {
         kpis: { roundsRecent: 1, avgScoreRecent: null, avgScoreBaseline: null, avgToParRecent: null, avgSgTotalRecent: null, bestScoreRecent: null, deltaVsBaseline: null },
@@ -351,7 +351,7 @@ describe('/insights page', () => {
       json: async () => ({ insights: lowInsights }),
     });
     const lowRender = render(<InsightsPage />);
-    const lowPill = await screen.findByRole('button', { name: 'Overall insights confidence: Low' });
+    const lowPill = await screen.findByRole('button', { name: 'Overall insights confidence: Building' });
     expect(lowPill).toHaveClass('is-low');
     expect(lowRender.container.querySelector('.consistency-badge')).toHaveTextContent('Needs more rounds');
     expect(screen.queryByText('Not enough data')).not.toBeInTheDocument();
@@ -362,7 +362,7 @@ describe('/insights page', () => {
       json: async () => ({ insights: mediumInsights }),
     });
     const mediumRender = render(<InsightsPage />);
-    const mediumPill = await screen.findByRole('button', { name: 'Overall insights confidence: Medium' });
+    const mediumPill = await screen.findByRole('button', { name: 'Overall insights confidence: Moderate' });
     expect(mediumPill).toHaveClass('is-medium');
     mediumRender.unmount();
 
@@ -371,7 +371,7 @@ describe('/insights page', () => {
       json: async () => ({ insights: highInsights }),
     });
     render(<InsightsPage />);
-    const highPill = await screen.findByRole('button', { name: 'Overall insights confidence: High' });
+    const highPill = await screen.findByRole('button', { name: 'Overall insights confidence: Strong' });
     expect(highPill).toHaveClass('is-high');
   });
 
@@ -388,7 +388,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    const pill = await screen.findByRole('button', { name: 'Overall insights confidence: Low' });
+    const pill = await screen.findByRole('button', { name: 'Overall insights confidence: Building' });
     expect(pill).toHaveClass('is-low');
   });
 

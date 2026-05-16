@@ -127,9 +127,9 @@ function normalizeInsightsPayload(rawInsights: any): RoundInsightsResponse {
 
 function formatConfidenceLabel(value: InsightConfidence | undefined): string | null {
   if (!value) return null;
-  if (value === 'LOW') return 'Low';
-  if (value === 'MED') return 'Medium';
-  return 'High';
+  if (value === 'LOW') return 'Building';
+  if (value === 'MED') return 'Moderate';
+  return 'Strong';
 }
 
 function getConfidenceTone(value: InsightConfidence | undefined): 'low' | 'medium' | 'high' {
@@ -317,10 +317,10 @@ export default function RoundInsights({
             <button
               type="button"
               className={`insights-confidence-pill is-${confidenceTone}`}
-              aria-label={`Insight confidence: ${confidenceLabel ?? 'Medium'}`}
+              aria-label={`Insight confidence: ${confidenceLabel ?? 'Moderate'}`}
               onClick={() => setShowConfidenceInfo((prev) => !prev)}
             >
-              {confidenceLabel ?? 'Medium'}
+              {confidenceLabel ?? 'Moderate'}
             </button>
             {showConfidenceInfo && (
               <div
@@ -329,7 +329,7 @@ export default function RoundInsights({
               >
                 <h4>Insight Confidence</h4>
                 <p>
-                  This shows how much data GolfIQ has behind this round&apos;s insights. Low means limited detail. Medium means some stats and trends are available. High means stronger data and clearer trends.
+                  This shows how much data GolfIQ has behind this round&apos;s insights. Building means early guidance with limited detail. Moderate means useful stats and trends are available. Strong means clearer patterns are available.
                 </p>
                 <div className={`info-tooltip-arrow ${confidenceTooltipPosition} ${confidenceTooltipVertical}`} />
               </div>

@@ -6,7 +6,7 @@ import { usePathname, useRouter, useParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import Link from 'next/link';
-import { Check, Edit, X, Trash2, Crown } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Crown, Edit, Trash2, X } from 'lucide-react';
 import { Confidence } from '@prisma/client';
 import RoundInsights from '@/components/RoundInsights';
 import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
@@ -27,7 +27,9 @@ interface HoleDetail {
   score_to_par: number;
   score_to_par_formatted: string;
   gir_hit: number | null;
+  gir_direction?: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   fir_hit: number | null;
+  fir_direction?: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   putts: number | null;
   penalties: number | null;
 }
@@ -246,6 +248,70 @@ export default function RoundStatsPage() {
     return value > 0 ? `+${value}` : `${value}`;
   };
 
+  const renderFgResult = (hit: number | null, direction: HoleDetail['fir_direction']) => {
+    if (hit == null) {
+      return (
+        <span className="fg-indicator fg-neutral" data-fg-result="na" aria-label="Not applicable" title="Not applicable">
+          -
+        </span>
+      );
+    }
+
+    if (hit === 1) {
+      return (
+        <span className="fg-indicator fg-hit" data-fg-result="hit" aria-label="Hit" title="Hit">
+          <Check size={14} strokeWidth={2.5} />
+        </span>
+      );
+    }
+
+    if (direction === 'miss_left') {
+      return (
+        <span className="fg-indicator fg-miss" data-fg-result="miss_left" aria-label="Miss left" title="Miss left">
+          <ChevronLeft size={14} strokeWidth={2.5} />
+        </span>
+      );
+    }
+
+    if (direction === 'miss_right') {
+      return (
+        <span className="fg-indicator fg-miss" data-fg-result="miss_right" aria-label="Miss right" title="Miss right">
+          <ChevronRight size={14} strokeWidth={2.5} />
+        </span>
+      );
+    }
+
+    if (direction === 'miss_short') {
+      return (
+        <span className="fg-indicator fg-miss" data-fg-result="miss_short" aria-label="Miss short" title="Miss short">
+          <ChevronDown size={14} strokeWidth={2.5} />
+        </span>
+      );
+    }
+
+    if (direction === 'miss_long') {
+      return (
+        <span className="fg-indicator fg-miss" data-fg-result="miss_long" aria-label="Miss long" title="Miss long">
+          <ChevronUp size={14} strokeWidth={2.5} />
+        </span>
+      );
+    }
+
+    return (
+      <span className="fg-indicator fg-miss" data-fg-result="miss_unknown" aria-label="Miss" title="Miss">
+        <X size={14} strokeWidth={2.5} />
+      </span>
+    );
+  };
+
+  const scoreResultClass = (scoreToPar: number): string => {
+    if (scoreToPar <= -2) return 'score-result--eagle-plus';
+    if (scoreToPar === -1) return 'score-result--birdie';
+    if (scoreToPar === 1) return 'score-result--bogey';
+    if (scoreToPar >= 2) return 'score-result--double-plus';
+    return 'score-result--par';
+  };
+
   const roundContext = stats.round_context ?? 'real';
   const roundContextLabel =
     roundContext === 'simulator'
@@ -273,6 +339,10 @@ export default function RoundStatsPage() {
       };
     })
     .sort((a, b) => a.par - b.par);
+
+  const totalYardage = stats.hole_details.reduce((sum, hole) => sum + (Number.isFinite(hole.yardage) ? hole.yardage : 0), 0);
+  const totalFirLabel = stats.fairways_hit != null ? `${stats.fairways_hit}` : '-';
+  const totalGirLabel = stats.greens_in_regulation != null ? `${stats.greens_in_regulation}` : '-';
 
   return (
     <div className="page-stack">
@@ -480,7 +550,7 @@ export default function RoundStatsPage() {
             <h3 className="stats-section-title stats-section-title-centered">
               Par Breakdown
             </h3>
-            <ParBreakdownChart rows={parBreakdownRows} showHoles />
+            <ParBreakdownChart rows={parBreakdownRows} showHoles deltaPrefix="total " />
           </div>
         )}
 
@@ -492,14 +562,35 @@ export default function RoundStatsPage() {
             </h3>
             <div className="stats-table-wrapper">
               <table className="stats-table">
+                <colgroup>
+                  <col className="scorecard-col-1" />
+                  <col className="scorecard-col-2" />
+                  <col className="scorecard-col-3" />
+                  <col className="scorecard-col-4" />
+                  <col className="scorecard-col-5" />
+                  <col className="scorecard-col-6" />
+                  <col className="scorecard-col-7" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Par | Yrd</th>
+                    <th>
+                      <span className="scorecard-header-pair scorecard-header-pair--par-yrd">
+                        <span className="scorecard-par-value">Par</span>
+                        <span className="scorecard-pipe" aria-hidden="true">|</span>
+                        <span className="scorecard-yardage-value">Yrd</span>
+                      </span>
+                    </th>
                     <th>Score</th>
                     <th>+/-</th>
                     <>
-                      <th>F | G</th>
+                      <th>
+                        <span className="scorecard-fg scorecard-header-fg">
+                          <span className="fg-left">F</span>
+                          <span className="fg-separator" aria-hidden="true">|</span>
+                          <span className="fg-right">G</span>
+                        </span>
+                      </th>
                       <th>Putts</th>
                       <th>Pen</th>
                     </>
@@ -511,31 +602,33 @@ export default function RoundStatsPage() {
                       <td className="hole-number">
                         {hole.hole_number}
                       </td>
-                      <td>{hole.par} | {hole.yardage}</td>
+                      <td>
+                        <span className="scorecard-par-yrd">
+                          <span className="scorecard-par-value">{hole.par}</span>
+                          <span className="scorecard-pipe" aria-hidden="true">|</span>
+                          <span className="scorecard-yardage-value">{hole.yardage}</span>
+                        </span>
+                      </td>
                       <td className="score">
-                        {hole.score}
+                        <span className={`score-result ${scoreResultClass(hole.score_to_par)}`}>
+                          <span className="score-result-value">{hole.score}</span>
+                        </span>
                       </td>
                       <td className={`score-to-par ${hole.score_to_par > 0 ? 'over-par' : hole.score_to_par < 0 ? 'under-par' : ''}`}>
                         {hole.score_to_par_formatted}
                       </td>
                       <>
                         <td className="fg-cell">
-                          <span className="fg-left">
-                            {hole.fir_hit !== null
-                              ? hole.fir_hit === 1
-                                ? <Check size={16} color="#28a065" />
-                                : <X size={16} color="#e74c3c" />
-                              : '-'}
-                          </span>
+                          <span className="scorecard-fg">
+                            <span className="fg-left">
+                              {renderFgResult(hole.fir_hit, hole.fir_direction ?? null)}
+                            </span>
 
-                          <span className="fg-separator">|</span>
+                            <span className="fg-separator">|</span>
 
-                          <span className="fg-right">
-                            {hole.gir_hit !== null
-                              ? hole.gir_hit === 1
-                                ? <Check size={16} color="#28a065" />
-                                : <X size={16} color="#e74c3c" />
-                              : '-'}
+                            <span className="fg-right">
+                              {renderFgResult(hole.gir_hit, hole.gir_direction ?? null)}
+                            </span>
                           </span>
                         </td>
                         <td>
@@ -548,6 +641,35 @@ export default function RoundStatsPage() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="scorecard-total-row">
+                    <td className="scorecard-total-label">Total</td>
+                    <td>
+                      <span className="scorecard-par-yrd scorecard-par-yrd-total">
+                        <span className="scorecard-par-value">{stats.total_par}</span>
+                        <span className="scorecard-pipe" aria-hidden="true">|</span>
+                        <span className="scorecard-yardage-value">{totalYardage}</span>
+                      </span>
+                    </td>
+                    <td className="scorecard-total-score">{stats.total_score}</td>
+                    <td
+                      className={`scorecard-total-to-par ${
+                        stats.score_to_par > 0 ? 'over-par' : stats.score_to_par < 0 ? 'under-par' : ''
+                      }`}
+                    >
+                      {stats.score_to_par_formatted}
+                    </td>
+                    <td className="fg-cell scorecard-total-fg">
+                      <span className="scorecard-fg">
+                        <span className="fg-left">{totalFirLabel}</span>
+                        <span className="fg-separator">|</span>
+                        <span className="fg-right">{totalGirLabel}</span>
+                      </span>
+                    </td>
+                    <td>{stats.total_putts ?? '-'}</td>
+                    <td>{stats.total_penalties ?? '-'}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>

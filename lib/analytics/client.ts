@@ -14,8 +14,14 @@ type ClientAnalyticsContext = {
   pathname?: string;
   user?: {
     id?: string | null;
+    email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
     subscription_tier?: string | null;
+    subscription_status?: string | null;
     auth_provider?: string | null;
+    city?: string | null;
+    timezone?: string | null;
   } | null;
   isLoggedIn?: boolean;
 };
@@ -49,6 +55,15 @@ function buildCommonProps(
 
   return {
     source_page: sourcePage,
+    ...(context.user?.id ? { user_id: String(context.user.id) } : {}),
+    ...(context.user?.email ? { user_email: String(context.user.email) } : {}),
+    ...(context.user?.first_name ? { user_first_name: String(context.user.first_name) } : {}),
+    ...(context.user?.last_name ? { user_last_name: String(context.user.last_name) } : {}),
+    ...(context.user?.subscription_status
+      ? { subscription_status: String(context.user.subscription_status) }
+      : {}),
+    ...(context.user?.city ? { user_city: String(context.user.city) } : {}),
+    ...(context.user?.timezone ? { user_timezone: String(context.user.timezone) } : {}),
     plan_tier: planTier,
     auth_provider: authProvider,
     is_logged_in: isLoggedIn,
@@ -77,8 +92,14 @@ export function captureClientEvent(
 export function identifyClientUser(
   user: {
     id?: string | null;
+    email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
     subscription_tier?: string | null;
+    subscription_status?: string | null;
     auth_provider?: string | null;
+    city?: string | null;
+    timezone?: string | null;
     email_verified?: boolean | null;
   } | null | undefined,
   additionalPersonProps: Record<string, unknown> = {},
@@ -88,8 +109,14 @@ export function identifyClientUser(
 
   try {
     posthog.identify(user.id, {
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.first_name ? { first_name: user.first_name } : {}),
+      ...(user.last_name ? { last_name: user.last_name } : {}),
       plan_tier: normalizePlanTier(user.subscription_tier),
+      ...(user.subscription_status ? { subscription_status: user.subscription_status } : {}),
       auth_provider: normalizeAuthProvider(user.auth_provider),
+      ...(user.city ? { city: user.city } : {}),
+      ...(user.timezone ? { timezone: user.timezone } : {}),
       ...(user.email_verified != null
         ? { email_verified: Boolean(user.email_verified) }
         : {}),
@@ -113,4 +140,3 @@ export function registerClientContext(
     // Best-effort only.
   }
 }
-

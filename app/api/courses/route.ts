@@ -242,7 +242,12 @@ export async function GET(request: NextRequest) {
           LEFT JOIN locations l ON c.id = l.course_id
           WHERE l.latitude IS NOT NULL
             AND l.longitude IS NOT NULL
-            AND (c.club_name ILIKE ${searchPattern} OR c.course_name ILIKE ${searchPattern} OR l.city ILIKE ${searchPattern})
+            AND (
+              c.club_name ILIKE ${searchPattern}
+              OR c.course_name ILIKE ${searchPattern}
+              OR l.city ILIKE ${searchPattern}
+              OR l.state ILIKE ${searchPattern}
+            )
           ORDER BY distance ASC, c.club_name ASC
           LIMIT ${limit}
           OFFSET ${skip}
@@ -308,6 +313,12 @@ export async function GET(request: NextRequest) {
       ? {
           OR: [
             {
+              clubName: {
+                contains: search,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
               courseName: {
                 contains: search,
                 mode: 'insensitive' as const,
@@ -316,6 +327,14 @@ export async function GET(request: NextRequest) {
             {
               location: {
                 city: {
+                  contains: search,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+            {
+              location: {
+                state: {
                   contains: search,
                   mode: 'insensitive' as const,
                 },

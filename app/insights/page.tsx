@@ -794,10 +794,10 @@ export default function InsightsPage() {
   });
   const overallConfidence = normalizeOverallConfidence(insights?.confidence) ?? fallbackConfidence;
   const overallConfidenceLabel = overallConfidence === 'high'
-    ? 'High'
+    ? 'Strong'
     : overallConfidence === 'medium'
-      ? 'Medium'
-      : 'Low';
+      ? 'Moderate'
+      : 'Building';
   const efficiency = modePayload?.efficiency ?? insights?.efficiency ?? {
     fir: DEFAULT_EFFICIENCY_METRIC,
     gir: DEFAULT_EFFICIENCY_METRIC,
@@ -1258,7 +1258,7 @@ export default function InsightsPage() {
                   >
                     <h4>Insight Confidence</h4>
                     <p>
-                      This shows how much data GolfIQ has behind your Overall Insights. Low means early trends. Medium means some patterns are available. High means stronger data and clearer patterns.
+                      This shows how much data GolfIQ has behind your Overall Insights. Building means early trend guidance. Moderate means useful patterns are emerging. Strong means clearer patterns are available.
                     </p>
                     <div className={`info-tooltip-arrow ${overallConfidenceTooltipPosition} ${overallConfidenceTooltipVertical}`} />
                   </div>

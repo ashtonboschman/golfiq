@@ -204,7 +204,7 @@ describe('post-round message 3 rules', () => {
 
     expect(m3bBroad.outcomes[2]).toBe('M3-B');
     expect(m3bBroad.messages[2].toLowerCase()).not.toContain('track ');
-    expect(m3bBroad.messages[2]).toContain('Play to the center of the green');
+    expect(m3bBroad.messages[2]).toContain('Favor approach targets that remove the short-sided miss');
   });
 
   test('missing-stats gate stays M3-A even when measured weakness is extreme', () => {
@@ -219,7 +219,7 @@ describe('post-round message 3 rules', () => {
     );
 
     expect(missingGateFirst.outcomes[2]).toBe('M3-A');
-    expect(missingGateFirst.messages[2]).toContain('Play to the center of the green');
+    expect(missingGateFirst.messages[2]).toContain('Favor approach targets that remove the short-sided miss');
     expect(missingGateFirst.messages[2].toLowerCase()).not.toContain('track ');
   });
 
@@ -236,7 +236,87 @@ describe('post-round message 3 rules', () => {
 
     expect(m3bApproach.outcomes[2]).toBe('M3-B');
     expect(m3bApproach.messages[2].toLowerCase()).not.toContain('track ');
-    expect(m3bApproach.messages[2]).toContain('Play to the center of the green');
+    expect(m3bApproach.messages[2]).toContain('Favor approach targets that remove the short-sided miss');
     expect(m3bApproach.messages[2]).not.toContain('When penalty is in play');
+  });
+
+  test('M3 uses penalty-heavy contextual action when penalties spike', () => {
+    const penaltyHeavy = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        toPar: 11,
+        roundEvidence: {
+          fairwaysHit: 6,
+          fairwaysPossible: 14,
+          greensHit: 7,
+          greensPossible: 18,
+          puttsTotal: 33,
+          penaltiesTotal: 3,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(penaltyHeavy.messages[2]).toContain('Around hazards, play for the miss you can recover from');
+  });
+
+  test('M3 uses blowup-safe contextual action when score runs high without penalty spike', () => {
+    const blowupHeavy = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        toPar: 12,
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 8,
+          greensPossible: 18,
+          puttsTotal: 32,
+          penaltiesTotal: 0,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(blowupHeavy.messages[2]).toContain('After mistakes, prioritize targets that keep doubles out of play');
+  });
+
+  test('M3 uses putting-heavy contextual action when putting volume is high', () => {
+    const puttingHeavy = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        worstMeasured: { name: 'putting', label: 'Putting', value: -1.5 },
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+          { name: 'approach', label: 'Approach', value: -0.6 },
+          { name: 'putting', label: 'Putting', value: -1.5 },
+        ],
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 8,
+          greensPossible: 18,
+          puttsTotal: 36,
+          penaltiesTotal: 0,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(puttingHeavy.messages[2]).toContain('Prioritize pace that leaves stress-free second putts');
+  });
+
+  test('M3 avoids over-selling off-tee when it is least-bad but not truly good', () => {
+    const offTeeLeastBad = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        opportunityIsWeak: false,
+        weakSeparation: true,
+        worstMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(offTeeLeastBad.outcomes[2]).toBe('M3-E');
+    expect(offTeeLeastBad.messages[2]).toContain('Keep leaning on the tee strategy that kept misses playable');
   });
 });

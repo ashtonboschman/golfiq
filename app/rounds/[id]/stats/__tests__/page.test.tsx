@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RoundStatsPage from '@/app/rounds/[id]/stats/page';
 import { useSession } from 'next-auth/react';
@@ -209,6 +209,134 @@ describe('/rounds/[id]/stats page', () => {
     expect(screen.getByText('Par 3')).toBeInTheDocument();
     expect(screen.getByText('Par 4')).toBeInTheDocument();
     expect(screen.getByText('Avg 3.5')).toBeInTheDocument();
-    expect(screen.getByText('vs par +2')).toBeInTheDocument();
+    expect(screen.getByText('total +2')).toBeInTheDocument();
+  });
+  it('renders directional indicators and golf-native score shapes in scorecard', async () => {
+    mockedUseSubscription.mockReturnValue({
+      isPremium: false,
+      loading: false,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stats: {
+          ...statsPayload,
+          hole_by_hole: true,
+          hole_details: [
+            {
+              hole_number: 1,
+              par: 4,
+              yardage: 410,
+              handicap: 5,
+              score: 3,
+              score_to_par: -1,
+              score_to_par_formatted: '-1',
+              fir_hit: 0,
+              fir_direction: 'miss_left',
+              gir_hit: 1,
+              gir_direction: null,
+              putts: 1,
+              penalties: 0,
+            },
+            {
+              hole_number: 2,
+              par: 4,
+              yardage: 398,
+              handicap: 7,
+              score: 5,
+              score_to_par: 1,
+              score_to_par_formatted: '+1',
+              fir_hit: 0,
+              fir_direction: null,
+              gir_hit: 0,
+              gir_direction: 'miss_right',
+              putts: 2,
+              penalties: 0,
+            },
+            {
+              hole_number: 3,
+              par: 4,
+              yardage: 432,
+              handicap: 1,
+              score: 6,
+              score_to_par: 2,
+              score_to_par_formatted: '+2',
+              fir_hit: 0,
+              fir_direction: 'miss_short',
+              gir_hit: 0,
+              gir_direction: 'miss_long',
+              putts: 2,
+              penalties: 1,
+            },
+            {
+              hole_number: 4,
+              par: 3,
+              yardage: 186,
+              handicap: 13,
+              score: 3,
+              score_to_par: 0,
+              score_to_par_formatted: 'E',
+              fir_hit: null,
+              fir_direction: null,
+              gir_hit: 0,
+              gir_direction: null,
+              putts: 2,
+              penalties: 0,
+            },
+            {
+              hole_number: 5,
+              par: 5,
+              yardage: 530,
+              handicap: 3,
+              score: 3,
+              score_to_par: -2,
+              score_to_par_formatted: '-2',
+              fir_hit: 1,
+              fir_direction: null,
+              gir_hit: 1,
+              gir_direction: null,
+              putts: 1,
+              penalties: 0,
+            },
+          ],
+        },
+      }),
+    });
+
+    const { container } = render(<RoundStatsPage />);
+
+    await screen.findByText('Scorecard');
+    expect(container.querySelectorAll('[data-fg-result="miss_left"]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('[data-fg-result="miss_right"]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('[data-fg-result="miss_short"]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('[data-fg-result="miss_long"]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('[data-fg-result="miss_unknown"]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('[data-fg-result="na"]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('[data-fg-result="hit"]').length).toBeGreaterThanOrEqual(1);
+
+    const rows = container.querySelectorAll<HTMLElement>('tbody tr');
+    const firstRowScore = within(rows[0]).getByText('3', { selector: '.score-result-value' }).closest('.score-result');
+    const secondRowScore = within(rows[1]).getByText('5', { selector: '.score-result-value' }).closest('.score-result');
+    const thirdRowScore = within(rows[2]).getByText('6', { selector: '.score-result-value' }).closest('.score-result');
+    const fourthRowScore = within(rows[3]).getByText('3', { selector: '.score-result-value' }).closest('.score-result');
+    const fifthRowScore = within(rows[4]).getByText('3', { selector: '.score-result-value' }).closest('.score-result');
+
+    expect(firstRowScore).toHaveClass('score-result', 'score-result--birdie');
+    expect(secondRowScore).toHaveClass('score-result', 'score-result--bogey');
+    expect(thirdRowScore).toHaveClass('score-result', 'score-result--double-plus');
+    expect(fourthRowScore).toHaveClass('score-result', 'score-result--par');
+    expect(fifthRowScore).toHaveClass('score-result', 'score-result--eagle-plus');
+
+    const totalRow = container.querySelector<HTMLElement>('tfoot tr.scorecard-total-row');
+    expect(totalRow).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('Total')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('72')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('1956')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('78')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('+6')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('7')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('8')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('33')).toBeInTheDocument();
+    expect(within(totalRow as HTMLElement).getByText('1')).toBeInTheDocument();
   });
 });

@@ -24,7 +24,9 @@ declare module "next-auth" {
       first_name?: string | null;
       last_name?: string | null;
       theme?: string;
+      timezone?: string | null;
       subscription_tier?: string;
+      subscription_status?: string;
       auth_provider?: string;
       profile?: UserProfile | null;
     } & DefaultSession["user"]
@@ -36,7 +38,9 @@ declare module "next-auth" {
     first_name?: string | null;
     last_name?: string | null;
     theme?: string;
+    timezone?: string | null;
     subscription_tier?: string;
+    subscription_status?: string;
     auth_provider?: string;
     profile?: UserProfile | null;
   }
@@ -49,7 +53,9 @@ declare module "next-auth/jwt" {
     first_name?: string | null;
     last_name?: string | null;
     theme?: string;
+    timezone?: string | null;
     subscription_tier?: string;
+    subscription_status?: string;
     auth_provider?: string;
     profile?: UserProfile | null;
   }

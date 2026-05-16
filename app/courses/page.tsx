@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { useMessage } from '../providers';
 import CourseCard from '@/components/CourseCard';
 import { CourseListSkeleton } from '@/components/skeleton/PageSkeletons';
@@ -211,6 +212,14 @@ export default function CoursesPage() {
 
   return (
     <div className="page-stack">
+      <button
+        type="button"
+        onClick={() => router.push('/courses/search')}
+        className="btn btn-add"
+      >
+        <Plus/> Add Course
+      </button>
+
       <input
         type="text"
         placeholder="Search Courses"
@@ -238,16 +247,6 @@ export default function CoursesPage() {
           <p className='secondary-text'>
             No courses found{search ? ' matching your search' : ''}.
           </p>
-          <p style={{ fontSize: '0.9rem' }} className='secondary-text'>
-            Can't find the course you're looking for?
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push('/courses/search')}
-            className="btn btn-save"
-          >
-            Search & Add Course from Global Database
-          </button>
         </div>
       ) : (
         <div className="grid grid-1">

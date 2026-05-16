@@ -997,6 +997,12 @@ function buildMessage3(
     seed: variantOptions.seed,
     offset: variantOptions.offset,
     fixedIndex: variantOptions.fixedIndex,
+    context: {
+      holesPlayed: input.holesPlayed ?? null,
+      scoreToPar: input.toPar,
+      penaltiesTotal: input.roundEvidence?.penaltiesTotal ?? null,
+      puttsTotal: input.roundEvidence?.puttsTotal ?? null,
+    },
   });
 
   return {

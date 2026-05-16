@@ -20,7 +20,6 @@ export default function CourseSearchPage() {
   const [lastSearchOutcome, setLastSearchOutcome] = useState<'idle' | 'success_with_results' | 'success_no_results' | 'error'>('idle');
   const [importingCourseId, setImportingCourseId] = useState<number | null>(null);
   const [requestSubmitting, setRequestSubmitting] = useState(false);
-  const [requestError, setRequestError] = useState('');
   const [requestForm, setRequestForm] = useState({
     courseName: '',
     city: '',
@@ -95,7 +94,6 @@ export default function CourseSearchPage() {
     setSearchLoading(true);
     setSearchResults([]);
     setLastSearchOutcome('idle');
-    setRequestError('');
     setRequestForm((prev) => ({
       ...prev,
       courseName: queryText,
@@ -157,13 +155,19 @@ export default function CourseSearchPage() {
   };
 
   const handleRequestCourse = async () => {
-    if (!requestForm.courseName.trim()) {
-      setRequestError('Course name is required.');
+    const courseName = requestForm.courseName.trim();
+    const city = requestForm.city.trim();
+    const province = requestForm.province.trim();
+    const query = searchQuery.trim();
+    const country = requestForm.country.trim();
+    const notes = requestForm.notes.trim();
+
+    if (!courseName || !city || !province) {
+      showMessage('Course name, city, and province/state are required.', 'error');
       return;
     }
 
     setRequestSubmitting(true);
-    setRequestError('');
 
     try {
       const res = await fetch('/api/courses/requests', {
@@ -172,12 +176,12 @@ export default function CourseSearchPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: searchQuery.trim() || undefined,
-          courseName: requestForm.courseName.trim(),
-          city: requestForm.city.trim() || undefined,
-          province: requestForm.province.trim() || undefined,
-          country: requestForm.country.trim() || undefined,
-          notes: requestForm.notes.trim() || undefined,
+          query: query || undefined,
+          courseName,
+          city,
+          province,
+          country: country || undefined,
+          notes: notes || undefined,
           source: lastSearchOutcome === 'success_no_results' ? 'global_api_no_result' : 'manual',
         }),
       });
@@ -195,10 +199,9 @@ export default function CourseSearchPage() {
         country: '',
         notes: '',
       });
-      setRequestError('');
     } catch (error: any) {
       console.error('Course request submit error:', error);
-      setRequestError("We couldn't send the request. Please try again.");
+      showMessage("We couldn't send the request. Please try again.", 'error');
     } finally {
       setRequestSubmitting(false);
     }
@@ -257,11 +260,11 @@ export default function CourseSearchPage() {
   return (
     <div className="page-stack">
       <div className="card">
-        <div style={{ padding: '10px', background: '#e3f2fd', borderRadius: '8px', border: '2px solid #2196f3' }}>
-          <strong style={{ color: '#1976d2' }}>Search Tips:</strong>
-          <ul style={{ marginLeft: '0', marginTop: '8px', marginBottom: '0', paddingLeft: 20, fontSize: '0.9rem', color: '#555' }}>
+        <div className="course-search-tips">
+          <strong className="course-search-tips-title">Search Tips:</strong>
+          <ul className="course-search-tips-list">
             <li>Try the full course name</li>
-            <li>You can also search by city</li>
+            <li>Global search works best by course or club name.</li>
             <li>Can&apos;t find it? Request it below</li>
           </ul>
         </div>
@@ -281,7 +284,7 @@ export default function CourseSearchPage() {
                 e.currentTarget.blur();
               }
             }}
-            placeholder="Enter course name or city (e.g., 'Pebble Beach' or 'Augusta')"
+            placeholder="Search course or club name"
             className="form-input"
             disabled={searchLoading}
             enterKeyHint="search"
@@ -290,85 +293,13 @@ export default function CourseSearchPage() {
           <button
             type="button"
             onClick={handleSearch}
-            className="btn btn-save"
+            className="btn btn-add"
             disabled={searchLoading || !searchQuery.trim()}
             style={{ minWidth: '120px' }}
           >
             {searchLoading ? 'Searching...' : 'Search'}
           </button>
         </div>
-
-        {!searchLoading && (
-          <div className="card border-color course-request-fallback-card">
-            <h3>Still can't find it?</h3>
-            <p className="secondary-text course-request-fallback-copy">
-              Send us the course name and city. We&apos;ll review it and add it if scorecard data is available.
-            </p>
-
-            <div className="course-request-fallback-fields">
-              <input
-                type="text"
-                className="form-input"
-                value={requestForm.courseName}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, courseName: e.target.value }))}
-                placeholder="Course name"
-                maxLength={255}
-                disabled={requestSubmitting}
-              />
-              <input
-                type="text"
-                className="form-input"
-                value={requestForm.city}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, city: e.target.value }))}
-                placeholder="City"
-                maxLength={100}
-                disabled={requestSubmitting}
-              />
-              <input
-                type="text"
-                className="form-input"
-                value={requestForm.province}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, province: e.target.value }))}
-                placeholder="Province"
-                maxLength={100}
-                disabled={requestSubmitting}
-              />
-              <input
-                type="text"
-                className="form-input"
-                value={requestForm.country}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, country: e.target.value }))}
-                placeholder="Country (optional)"
-                maxLength={100}
-                disabled={requestSubmitting}
-              />
-              <textarea
-                className="form-input"
-                value={requestForm.notes}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="Notes (optional)"
-                maxLength={2000}
-                rows={3}
-                disabled={requestSubmitting}
-              />
-
-              {requestError && (
-                <p className="secondary-text" style={{ color: '#b54747', margin: 0 }}>
-                  {requestError}
-                </p>
-              )}
-
-              <button
-                type="button"
-                className="btn btn-save"
-                onClick={handleRequestCourse}
-                disabled={requestSubmitting || !requestForm.courseName.trim()}
-              >
-                {requestSubmitting ? 'Submitting...' : 'Request Course'}
-              </button>
-            </div>
-          </div>
-        )}
 
         {searchResults.length > 0 && (
           <div style={{ marginTop: '16px' }}>
@@ -426,6 +357,74 @@ export default function CourseSearchPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {!searchLoading && (
+          <div className="card border-color course-request-fallback-card">
+            <h3>Still can&apos;t find it?</h3>
+            <p className="secondary-text course-request-fallback-copy">
+              {lastSearchOutcome === 'success_no_results'
+                ? 'No matches found yet. Send the course details and we will review it for import.'
+                : "Send us the course name and city. We'll review it and add it if scorecard data is available."}
+            </p>
+
+            <div className="course-request-fallback-fields">
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.courseName}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, courseName: e.target.value }))}
+                placeholder="Course name"
+                maxLength={255}
+                disabled={requestSubmitting}
+              />
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.city}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, city: e.target.value }))}
+                placeholder="City"
+                maxLength={100}
+                disabled={requestSubmitting}
+              />
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.province}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, province: e.target.value }))}
+                placeholder="Province / State"
+                maxLength={100}
+                disabled={requestSubmitting}
+              />
+              <input
+                type="text"
+                className="form-input"
+                value={requestForm.country}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, country: e.target.value }))}
+                placeholder="Country (optional)"
+                maxLength={100}
+                disabled={requestSubmitting}
+              />
+              <textarea
+                className="form-input"
+                value={requestForm.notes}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Notes (optional)"
+                maxLength={2000}
+                rows={3}
+                disabled={requestSubmitting}
+              />
+
+              <button
+                type="button"
+                className="btn btn-add"
+                onClick={handleRequestCourse}
+                disabled={requestSubmitting}
+              >
+                {requestSubmitting ? 'Submitting...' : 'Request Course'}
+              </button>
             </div>
           </div>
         )}

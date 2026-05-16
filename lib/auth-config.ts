@@ -139,11 +139,13 @@ function mapDbUserToAuthUser(dbUser: {
   email: string;
   username: string;
   subscriptionTier: string;
+  subscriptionStatus?: string | null;
   profile: {
     avatarUrl: string;
     firstName: string | null;
     lastName: string | null;
     theme: string;
+    timezone: string | null;
   } | null;
 }) {
   return {
@@ -154,7 +156,9 @@ function mapDbUserToAuthUser(dbUser: {
     first_name: dbUser.profile?.firstName ?? null,
     last_name: dbUser.profile?.lastName ?? null,
     theme: dbUser.profile?.theme ?? 'dark',
+    timezone: dbUser.profile?.timezone ?? null,
     subscription_tier: dbUser.subscriptionTier ?? 'free',
+    subscription_status: dbUser.subscriptionStatus ?? 'active',
     auth_provider: 'unknown',
   };
 }
@@ -196,11 +200,13 @@ function assignDbUserToAuthUser(
     email: string;
     username: string;
     subscriptionTier: string;
+    subscriptionStatus?: string | null;
     profile: {
       avatarUrl: string;
       firstName: string | null;
       lastName: string | null;
       theme: string;
+      timezone: string | null;
     } | null;
   },
 ) {
@@ -593,7 +599,9 @@ export const authOptions: NextAuthOptions = {
         token.first_name = (user as any).first_name ?? null;
         token.last_name = (user as any).last_name ?? null;
         token.theme = (user as any).theme ?? 'dark';
+        token.timezone = (user as any).timezone ?? null;
         token.subscription_tier = (user as any).subscription_tier ?? 'free';
+        token.subscription_status = (user as any).subscription_status ?? 'active';
         const provider = account?.provider;
         token.auth_provider =
           provider === 'credentials'
@@ -613,7 +621,9 @@ export const authOptions: NextAuthOptions = {
         session.user.first_name = (token.first_name as string | null | undefined) ?? null;
         session.user.last_name = (token.last_name as string | null | undefined) ?? null;
         session.user.theme = (token.theme as string | undefined) ?? 'dark';
+        session.user.timezone = (token.timezone as string | null | undefined) ?? null;
         session.user.subscription_tier = (token.subscription_tier as string | undefined) ?? 'free';
+        session.user.subscription_status = (token.subscription_status as string | undefined) ?? 'active';
         session.user.auth_provider = (token.auth_provider as string | undefined) ?? 'unknown';
       }
       return session;
