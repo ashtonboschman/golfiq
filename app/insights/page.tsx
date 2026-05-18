@@ -45,6 +45,7 @@ type ModePayload = {
   efficiency?: {
     fir: EfficiencyMetric;
     gir: EfficiencyMetric;
+    shortGameShots?: EfficiencyMetric;
     puttsTotal?: EfficiencyMetric;
     penaltiesPerRound?: EfficiencyMetric;
     puttsPerHole?: EfficiencyMetric;
@@ -55,6 +56,7 @@ type ModePayload = {
       total: number | null;
       offTee: number | null;
       approach: number | null;
+      shortGame?: number | null;
       putting: number | null;
       penalties: number | null;
       residual: number | null;
@@ -63,6 +65,7 @@ type ModePayload = {
       total: number | null;
       offTee: number | null;
       approach: number | null;
+      shortGame?: number | null;
       putting: number | null;
       penalties: number | null;
       residual: number | null;
@@ -78,7 +81,7 @@ type EfficiencyMetric = {
   coverageRecent: string;
 };
 
-type SGComponentKey = 'offTee' | 'approach' | 'putting' | 'penalties' | 'residual';
+type SGComponentKey = 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties' | 'residual';
 type DeltaTone = 'up' | 'down' | 'flat' | 'none';
 type OverallConfidence = 'low' | 'medium' | 'high';
 
@@ -119,6 +122,7 @@ type OverallInsightsPayload = {
   efficiency: {
     fir: EfficiencyMetric;
     gir: EfficiencyMetric;
+    shortGameShots?: EfficiencyMetric;
     puttsTotal?: EfficiencyMetric;
     penaltiesPerRound?: EfficiencyMetric;
     // legacy keys for older cached payloads
@@ -136,6 +140,7 @@ type OverallInsightsPayload = {
         total: number | null;
         offTee: number | null;
         approach: number | null;
+        shortGame?: number | null;
         putting: number | null;
         penalties: number | null;
         residual: number | null;
@@ -146,6 +151,7 @@ type OverallInsightsPayload = {
         total: number | null;
         offTee: number | null;
         approach: number | null;
+        shortGame?: number | null;
         putting: number | null;
         penalties: number | null;
         residual: number | null;
@@ -154,13 +160,14 @@ type OverallInsightsPayload = {
         total: number | null;
         offTee: number | null;
         approach: number | null;
+        shortGame?: number | null;
         putting: number | null;
         penalties: number | null;
         residual: number | null;
       };
-      mostCostlyComponent: 'offTee' | 'approach' | 'putting' | 'penalties' | 'residual' | null;
+      mostCostlyComponent: 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties' | 'residual' | null;
       worstComponentFrequencyRecent: {
-        component: 'offTee' | 'approach' | 'putting' | 'penalties' | 'residual' | null;
+        component: 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties' | 'residual' | null;
         count: number;
         window: number;
       };
@@ -220,6 +227,7 @@ function getRoundedOneDecimalDelta(recent: number, typical: number): number {
 function sgComponentLabel(component: SGComponentKey): string {
   if (component === 'offTee') return 'Off The Tee';
   if (component === 'approach') return 'Approach';
+  if (component === 'shortGame') return 'Short Game';
   if (component === 'putting') return 'Putting';
   if (component === 'penalties') return 'Penalties';
   return 'Residual';
@@ -322,6 +330,16 @@ function getLowerBetterRateDeltaSummary(recent: number | null, typical: number |
   if (delta === 0) return { text: '\u2192 0.0 Putts', tone: 'flat' };
   if (delta < 0) return { text: `\u25BC ${delta.toFixed(1)} Putts`, tone: 'up' };
   return { text: `\u25B2 +${delta.toFixed(1)} Putts`, tone: 'down' };
+}
+function getShortGameDeltaSummary(recent: number | null, typical: number | null): { text: string; tone: DeltaTone } {
+  if (recent == null || typical == null || !Number.isFinite(recent) || !Number.isFinite(typical)) {
+    return { text: 'Needs more rounds', tone: 'none' };
+  }
+
+  const delta = getRoundedOneDecimalDelta(recent, typical);
+  if (delta === 0) return { text: '\u2192 0.0 Short Game Shots', tone: 'flat' };
+  if (delta < 0) return { text: `\u25BC ${delta.toFixed(1)} Short Game Shots`, tone: 'up' };
+  return { text: `\u25B2 +${delta.toFixed(1)} Short Game Shots`, tone: 'down' };
 }
 function getPenaltyRateDeltaSummary(recent: number | null, typical: number | null): { text: string; tone: DeltaTone } {
   if (recent == null || typical == null || !Number.isFinite(recent) || !Number.isFinite(typical)) {
@@ -801,9 +819,11 @@ export default function InsightsPage() {
   const efficiency = modePayload?.efficiency ?? insights?.efficiency ?? {
     fir: DEFAULT_EFFICIENCY_METRIC,
     gir: DEFAULT_EFFICIENCY_METRIC,
+    shortGameShots: DEFAULT_EFFICIENCY_METRIC,
     puttsTotal: DEFAULT_EFFICIENCY_METRIC,
     penaltiesPerRound: DEFAULT_EFFICIENCY_METRIC,
   };
+  const shortGameMetric = efficiency.shortGameShots ?? DEFAULT_EFFICIENCY_METRIC;
   const puttsMetric = efficiency.puttsTotal ?? efficiency.puttsPerHole ?? DEFAULT_EFFICIENCY_METRIC;
   const penaltiesMetric = efficiency.penaltiesPerRound ?? efficiency.penaltiesPerHole ?? DEFAULT_EFFICIENCY_METRIC;
   const projection = insights?.projection;
@@ -916,6 +936,10 @@ export default function InsightsPage() {
     () => getMagnitudeWidths(puttsMetric.recent, puttsMetric.baseline, 5),
     [puttsMetric.recent, puttsMetric.baseline],
   );
+  const shortGameWidths = useMemo(
+    () => getMagnitudeWidths(shortGameMetric.recent, shortGameMetric.baseline, 5),
+    [shortGameMetric.recent, shortGameMetric.baseline],
+  );
   const penaltiesWidths = useMemo(
     () => getMagnitudeWidths(penaltiesMetric.recent, penaltiesMetric.baseline),
     [penaltiesMetric.recent, penaltiesMetric.baseline],
@@ -932,6 +956,10 @@ export default function InsightsPage() {
   const puttsDelta = useMemo(
     () => getLowerBetterRateDeltaSummary(puttsMetric.recent, puttsMetric.baseline),
     [puttsMetric.recent, puttsMetric.baseline],
+  );
+  const shortGameDelta = useMemo(
+    () => getShortGameDeltaSummary(shortGameMetric.recent, shortGameMetric.baseline),
+    [shortGameMetric.recent, shortGameMetric.baseline],
   );
   const penaltiesDelta = useMemo(
     () => getPenaltyRateDeltaSummary(penaltiesMetric.recent, penaltiesMetric.baseline),
@@ -964,7 +992,7 @@ export default function InsightsPage() {
     if (!sgHasComponentData || !sgComponents) return [];
     const recent = sgComponents.recentAvg;
     const baseline = sgComponents.baselineAvg;
-    const keys: SGComponentKey[] = ['offTee', 'approach', 'putting', 'penalties', 'residual'];
+    const keys: SGComponentKey[] = ['offTee', 'approach', 'shortGame', 'putting', 'penalties', 'residual'];
     return keys.map((key) => {
       const recentVal = recent[key];
       const baselineVal = baseline[key];
@@ -998,7 +1026,7 @@ export default function InsightsPage() {
   );
   const sgDisplayRows = useMemo(() => {
     if (sgHasAnyDelta) return sgDeltaRows;
-    const keys: SGComponentKey[] = ['offTee', 'approach', 'putting', 'penalties', 'residual'];
+    const keys: SGComponentKey[] = ['offTee', 'approach', 'shortGame', 'putting', 'penalties', 'residual'];
     return keys.map((key) => ({
       key,
       label: sgComponentLabel(key),
@@ -1006,10 +1034,8 @@ export default function InsightsPage() {
     }));
   }, [sgHasAnyDelta, sgDeltaRows]);
   const sgComponentDeltaTooltip = useMemo(
-    () => sgUseRecentAbsolute
-      ? `Showing recent strokes gained component values from your ${formatRoundCountLabel(sgRecentWindowRounds)} in this mode. Usual-level comparisons unlock once you have more than ${sgRecentWindowRounds} rounds.`
-      : `Shows each strokes gained component change comparing your recent ${formatRoundCountLabel(sgRecentWindowRounds)} versus your usual-level window of ${formatRoundCountLabel(sgBaselineWindowRounds)} in this mode. Positive means better than your usual level, negative means worse.`,
-    [sgRecentWindowRounds, sgBaselineWindowRounds, sgUseRecentAbsolute],
+    () => 'Shows recent strokes gained component performance from your last 5 rounds. More rounds improve long-term trend accuracy.',
+    [],
   );
   const sgTrendData = useMemo(() => {
     if (!insights) return null;
@@ -1159,7 +1185,7 @@ export default function InsightsPage() {
         <div className="card dashboard-stat-card trajectory-card">
           <div className="trajectory-header">
             <h3>Performance Trajectory</h3>
-            <InfoTooltip text="Uses your recent scoring vs your average to estimate direction over your next 10 rounds if current form continues." />
+            <InfoTooltip text="Projects your scoring trend using recent rounds. More rounds improve projection confidence." />
           </div>
           <div className="trajectory-status-row">
             <span
@@ -1344,7 +1370,7 @@ export default function InsightsPage() {
                 <h3 className="insights-centered-title">SG Component Delta</h3>
               </div>
               <div className="sg-delta-list">
-                {Array.from({ length: 5 }).map((_, idx) => {
+                {Array.from({ length: 6 }).map((_, idx) => {
                   const isNeutral = idx === 2;
                   const isNegative = idx % 2 === 1;
                   const barWidth = isNeutral ? '2px' : idx === 4 ? '20%' : '28%';
@@ -1385,7 +1411,7 @@ export default function InsightsPage() {
           </section>
 
           <div className="grid grid-2 insights-performance-grid">
-            {['Driving Accuracy', 'Approach Accuracy', 'Putting', 'Penalties'].map((title) => (
+            {['Driving Accuracy', 'Approach Accuracy', 'Short Game', 'Putting', 'Penalties'].map((title) => (
               <div key={`performance-skeleton-${title}`} className="card dashboard-stat-card comparison-bar-card">
                 <div className="comparison-bar-header">
                   <h3>{title}</h3>
@@ -1422,7 +1448,7 @@ export default function InsightsPage() {
         <div className="insights-top-grid">
           <ComparisonBarCard
             title="Scoring"
-            tooltipText="Average score per round. Recent = average of your last 5 rounds. Lower is better."
+            tooltipText="Average score per round. Recent reflects your last 5 rounds. Lower is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={modePayload.kpis.avgScoreRecent}
@@ -1499,7 +1525,7 @@ export default function InsightsPage() {
         <LockedSection
           locked={!isPremiumContext}
           title="SG Component Breakdown (Premium)"
-          subtitle="Compare Off The Tee, Approach, Putting, Penalties, and Residual deltas vs your average to find your biggest leak."
+          subtitle="Compare Off The Tee, Approach, Short Game, Putting, Penalties, and Residual deltas vs your average to find your biggest leak."
         >
           <div
             className="card dashboard-stat-card sg-delta-card"
@@ -1556,7 +1582,7 @@ export default function InsightsPage() {
                         />
                       )}
                     </div>
-                    <span className="sg-delta-value">{row.delta == null ? 'N/A' : formatSigned(row.delta)}</span>
+                    <span className="sg-delta-value">{row.delta == null ? '-' : formatSigned(row.delta)}</span>
                   </div>
                 );
               })}
@@ -1569,7 +1595,7 @@ export default function InsightsPage() {
         <div className="grid grid-2 insights-performance-grid">
           <ComparisonBarCard
             title="Driving Accuracy"
-            tooltipText="Fairways in regulation. Recent = average of your last 5 rounds. Higher is better."
+            tooltipText="Fairways in regulation. Recent reflects your last 5 rounds. Average reflects all selected rounds. Higher is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={efficiency.fir.recent}
@@ -1589,7 +1615,7 @@ export default function InsightsPage() {
           />
           <ComparisonBarCard
             title="Approach Accuracy"
-            tooltipText="Greens in regulation. Recent = average of your last 5 rounds. Higher is better."
+            tooltipText="Greens in regulation. Recent reflects your last 5 rounds. Average reflects all selected rounds. Higher is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={efficiency.gir.recent}
@@ -1608,8 +1634,28 @@ export default function InsightsPage() {
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
           />
           <ComparisonBarCard
+            title="Short Game"
+            tooltipText="Chips and greenside bunker shots per round. Recent reflects your last 5 rounds. Average reflects all selected rounds. Lower is better."
+            recentLabel="Recent"
+            typicalLabel="Average"
+            recentRawValue={shortGameMetric.recent}
+            typicalRawValue={shortGameMetric.baseline}
+            betterWhenHigher={false}
+            recentValueText={formatEffValue(shortGameMetric.recent, 'rate')}
+            typicalValueText={formatEffValue(shortGameMetric.baseline, 'rate')}
+            recentBarWidth={shortGameWidths.recent}
+            typicalBarWidth={shortGameWidths.typical}
+            hasData={shortGameWidths.hasData}
+            deltaText={shortGameDelta.text}
+            deltaTone={shortGameDelta.tone}
+            coverageText={formatCoverageText(shortGameMetric.coverageRecent)}
+            accentColor={accentColor}
+            accentHighlight={INSIGHTS_POSITIVE_COLOR}
+            dangerColor={INSIGHTS_NEGATIVE_COLOR}
+          />
+          <ComparisonBarCard
             title="Putting"
-            tooltipText="Putts per round. Recent = average of your last 5 rounds. Lower is better."
+            tooltipText="Putts per round. Recent reflects your last 5 rounds. Average reflects all selected rounds. Lower is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={puttsMetric.recent}
@@ -1629,7 +1675,7 @@ export default function InsightsPage() {
           />
           <ComparisonBarCard
             title="Penalties"
-            tooltipText="Penalties per round. Recent = average of your last 5 rounds. Lower is better."
+            tooltipText="Penalties per round. Recent reflects your last 5 rounds. Average reflects all selected rounds. Lower is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={penaltiesMetric.recent}

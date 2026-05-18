@@ -7,6 +7,11 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
+function deriveShortGameShots(chips: number | null | undefined, greensideBunkerShots: number | null | undefined): number | null {
+  if (chips == null && greensideBunkerShots == null) return null;
+  return (chips ?? 0) + (greensideBunkerShots ?? 0);
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const userId = await requireAuth(request);
@@ -71,6 +76,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const totalFIR = round.firHit ?? null;
     const totalPutts = round.putts ?? null;
     const totalPenalties = round.penalties ?? null;
+    const totalChips = round.chips ?? null;
+    const totalGreensideBunkerShots = round.greensideBunkerShots ?? null;
+    const totalShortGameShots = round.shortGameShots ?? deriveShortGameShots(totalChips, totalGreensideBunkerShots);
 
     // Scoring breakdown by par
     const scoringByPar: Record<number, { holes: number; totalScore: number; totalPar: number }> = {
@@ -109,6 +117,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         fir_direction: rh.firDirection ?? null,
         putts: rh.putts,
         penalties: rh.penalties,
+        chips: rh.chips,
+        greenside_bunker_shots: rh.greensideBunkerShots,
       };
     });
 
@@ -155,6 +165,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const sgTotal = roundOneDecimal(round.roundStrokesGained?.sgTotal);
     const sgOffTee = roundOneDecimal(round.roundStrokesGained?.sgOffTee);
     const sgApproach = roundOneDecimal(round.roundStrokesGained?.sgApproach);
+    const sgShortGame = roundOneDecimal((round.roundStrokesGained as any)?.sgShortGame);
     const sgPutting = roundOneDecimal(round.roundStrokesGained?.sgPutting);
     const sgPenalties = roundOneDecimal(round.roundStrokesGained?.sgPenalties);
     const sgResidual = roundOneDecimal(round.roundStrokesGained?.sgResidual);
@@ -188,6 +199,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       total_putts: totalPutts,
       putts_per_hole: puttsPerHole,
       total_penalties: totalPenalties,
+      total_chips: totalChips,
+      total_greenside_bunker_shots: totalGreensideBunkerShots,
+      total_short_game_shots: totalShortGameShots,
 
       // Breakdown
       scoring_by_par: scoringBreakdown,
@@ -201,6 +215,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       sg_total: sgTotal,
       sg_off_tee: sgOffTee,
       sg_approach: sgApproach,
+      sg_short_game: sgShortGame,
       sg_putting: sgPutting,
       sg_penalties: sgPenalties,
       sg_residual: sgResidual,

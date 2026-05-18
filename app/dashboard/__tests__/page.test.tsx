@@ -138,6 +138,10 @@ function makeDashboardPayload(overrides: Partial<any> = {}) {
     gir_avg: 49,
     avg_putts: 32.1,
     avg_penalties: 1.4,
+    scramblingPct: 40,
+    shortGameShotsAvg: 4.8,
+    upAndDownPct: 25,
+    sandSavePct: 50,
     hbh_stats: {
       par3_avg: 3.4,
       par4_avg: 4.7,
@@ -259,6 +263,10 @@ describe('/dashboard Round Focus card', () => {
           'How often you reach the green in regulation. Higher is better.',
           'Average number of putts per round. Lower is better.',
           'Average penalty strokes per round. Lower is better.',
+          'How often you make par or better after missing the green. Higher is better.',
+          'Average chips and greenside bunker shots per round. Lower is better.',
+          'How often you save par or better after one short-game shot and one putt or fewer. Higher is better.',
+          'How often you make par or better after a greenside bunker shot. Higher is better.',
         ]),
       );
       expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
@@ -272,6 +280,46 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('Par')).toBeInTheDocument();
     expect(screen.getByText('Bogey')).toBeInTheDocument();
     expect(screen.getByText('Double+')).toBeInTheDocument();
+  });
+
+  it('renders short-game metric cards in Performance Overview', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Performance Overview');
+    expect(screen.getByText('Scrambling')).toBeInTheDocument();
+    expect(screen.getByText('Short Game Shots')).toBeInTheDocument();
+    expect(screen.getByText('Up & Down')).toBeInTheDocument();
+    expect(screen.getByText('Sand Saves')).toBeInTheDocument();
+
+    expect(screen.getByText('40%')).toBeInTheDocument();
+    expect(screen.getByText('4.8')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+  });
+
+  it('shows dash for short-game metric cards when tracked data is unavailable', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          scramblingPct: null,
+          shortGameShotsAvg: null,
+          upAndDownPct: null,
+          sandSavePct: null,
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Performance Overview');
+    expect(screen.getByText('Scrambling').closest('.dashboard-stat-card')).toHaveTextContent('-');
+    expect(screen.getByText('Short Game Shots').closest('.dashboard-stat-card')).toHaveTextContent('-');
+    expect(screen.getByText('Up & Down').closest('.dashboard-stat-card')).toHaveTextContent('-');
+    expect(screen.getByText('Sand Saves').closest('.dashboard-stat-card')).toHaveTextContent('-');
   });
 
   it('renders scoring profile percentages without NaN and shows center details on hover/tap selection', async () => {

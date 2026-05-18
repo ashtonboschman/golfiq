@@ -6846,6 +6846,63 @@ input[type='date'].form-input {
 .btn-accordion-next {
   margin-top: var(--gap);
 }
+
+@media (max-width: 640px) {
+  .accordion-hole-content {
+    gap: 8px;
+  }
+
+  .stepper-field {
+    gap: 4px;
+  }
+
+  .stepper-label {
+    font-size: 0.9rem;
+    line-height: 1.2;
+  }
+
+  .directional-result {
+    gap: 4px;
+  }
+
+  .directional-result-grid {
+    grid-template-rows: repeat(3, minmax(38px, auto));
+    gap: 4px;
+  }
+
+  .directional-result-btn {
+    min-height: 38px;
+    border-radius: 9px;
+  }
+
+  .stepper-controls {
+    gap: 6px;
+  }
+
+  .stepper-btn,
+  .stepper-value {
+    height: 42px;
+  }
+
+  .stepper-btn {
+    min-height: 42px;
+    font-size: 1.3rem;
+  }
+
+  .stepper-value {
+    min-width: 84px;
+    font-size: 1.6rem;
+  }
+
+  .btn-accordion-next {
+    margin-top: 8px;
+  }
+
+  .accordion-hole-card,
+  .btn-accordion-next {
+    scroll-margin-bottom: 96px;
+  }
+}
 /* ========================================
    Insights Component
    ======================================== */

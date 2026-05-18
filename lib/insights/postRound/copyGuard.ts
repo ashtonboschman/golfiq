@@ -15,7 +15,6 @@ export const BANNED_TOKENS: readonly string[] = [
   'track ',
   'tracking',
   'captured',
-  'recovery shots',
   'stock swing',
   'stock flight',
   'dispersion',

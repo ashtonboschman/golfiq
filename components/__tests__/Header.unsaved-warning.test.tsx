@@ -44,6 +44,7 @@ const mockedUseSession = useSession as unknown as jest.Mock;
 describe('Header unsaved navigation warning', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: {
@@ -67,5 +68,22 @@ describe('Header unsaved navigation warning', () => {
     );
     expect(mockPush).not.toHaveBeenCalled();
   });
-});
 
+  it('clears add-round draft only after confirmed navigation', () => {
+    const draftKey = 'golfiq:round:add:draft:v1:1';
+    localStorage.setItem(draftKey, JSON.stringify({ savedAt: 'now' }));
+
+    render(<Header />);
+
+    fireEvent.click(screen.getByTitle('Dashboard'));
+    expect(mockShowConfirm).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(draftKey)).not.toBeNull();
+    expect(mockPush).not.toHaveBeenCalled();
+
+    const confirmArgs = mockShowConfirm.mock.calls[0][0] as { onConfirm: () => void };
+    confirmArgs.onConfirm();
+
+    expect(localStorage.getItem(draftKey)).toBeNull();
+    expect(mockPush).toHaveBeenCalledWith('/dashboard');
+  });
+});

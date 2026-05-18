@@ -15,6 +15,8 @@ interface HoleCardProps {
   gir_direction?: MissDirection | null;
   putts: number | null;
   penalties: number | null;
+  chips?: number | null;
+  greenside_bunker_shots?: number | null;
   isExpanded?: boolean;
   isCompleted?: boolean;
   onChange: (hole: number, field: string, value: any) => void;
@@ -32,6 +34,8 @@ const HoleCard = memo(({
   gir_direction = null,
   putts,
   penalties,
+  chips = null,
+  greenside_bunker_shots = null,
   isExpanded = true,
   isCompleted = false,
   onChange,
@@ -46,6 +50,8 @@ const HoleCard = memo(({
   const [localGirDirection, setLocalGirDirection] = useState<MissDirection | null>(gir_direction);
   const [localPutts, setLocalPutts] = useState<number | null>(putts);
   const [localPenalties, setLocalPenalties] = useState<number | null>(penalties);
+  const [localChips, setLocalChips] = useState<number | null>(chips);
+  const [localGreensideBunkerShots, setLocalGreensideBunkerShots] = useState<number | null>(greenside_bunker_shots);
 
   const syncLocalStateFromProps = () => {
     setLocalScore(score ?? par);
@@ -55,6 +61,8 @@ const HoleCard = memo(({
     setLocalGirDirection(gir_direction);
     setLocalPutts(putts);
     setLocalPenalties(penalties);
+    setLocalChips(chips);
+    setLocalGreensideBunkerShots(greenside_bunker_shots);
   };
 
   const resolveDirectionalResult = (
@@ -114,6 +122,8 @@ const HoleCard = memo(({
     onChange(hole, 'gir_direction', localGirHit === 0 ? localGirDirection : null);
     onChange(hole, 'putts', localPutts);
     onChange(hole, 'penalties', localPenalties);
+    onChange(hole, 'chips', localChips);
+    onChange(hole, 'greenside_bunker_shots', localGreensideBunkerShots);
     onNext?.();
   };
 
@@ -134,6 +144,14 @@ const HoleCard = memo(({
       case 'penalties':
         currentValue = localPenalties;
         setValue = setLocalPenalties;
+        break;
+      case 'chips':
+        currentValue = localChips;
+        setValue = setLocalChips;
+        break;
+      case 'greenside_bunker_shots':
+        currentValue = localGreensideBunkerShots;
+        setValue = setLocalGreensideBunkerShots;
         break;
       default:
         break;
@@ -158,6 +176,13 @@ const HoleCard = memo(({
       // Allow minus at 0 to return to null
       setValue(null);
       return;
+    } else if ((field === 'chips' || field === 'greenside_bunker_shots') && currentValue === null) {
+      // Wake-up logic for short-game optional counters
+      newValue = Math.max(0, delta);
+    } else if ((field === 'chips' || field === 'greenside_bunker_shots') && currentValue === 0 && delta < 0) {
+      // Allow minus at 0 to return to null
+      setValue(null);
+      return;
     } else if (currentValue === null) {
       newValue = Math.max(0, delta);
     } else {
@@ -169,6 +194,8 @@ const HoleCard = memo(({
       score: { min: 1, max: 15 },
       putts: { min: 0, max: 6 },
       penalties: { min: 0, max: 4 },
+      chips: { min: 0, max: 6 },
+      greenside_bunker_shots: { min: 0, max: 6 },
     };
 
     const { min, max } = bounds[field] || { min: 0, max: 99 };
@@ -305,6 +332,52 @@ const HoleCard = memo(({
               hit: localGirHit,
               direction: localGirDirection,
             })}
+          </div>
+
+          {/* Chips */}
+          <div className="stepper-field">
+            <label className="stepper-label">Chips</label>
+            <div className="stepper-controls">
+              <button
+                type="button"
+                className="stepper-btn stepper-minus"
+                onClick={() => handleStepperChange('chips', -1)}
+              >
+                -
+              </button>
+              <div className="stepper-value">{displayValue(localChips)}</div>
+              <button
+                type="button"
+                className="stepper-btn stepper-plus"
+                onClick={() => handleStepperChange('chips', 1)}
+                disabled={localChips !== null && localChips >= 6}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Greenside Bunker Shots */}
+          <div className="stepper-field">
+            <label className="stepper-label">Greenside Bunker Shots</label>
+            <div className="stepper-controls">
+              <button
+                type="button"
+                className="stepper-btn stepper-minus"
+                onClick={() => handleStepperChange('greenside_bunker_shots', -1)}
+              >
+                -
+              </button>
+              <div className="stepper-value">{displayValue(localGreensideBunkerShots)}</div>
+              <button
+                type="button"
+                className="stepper-btn stepper-plus"
+                onClick={() => handleStepperChange('greenside_bunker_shots', 1)}
+                disabled={localGreensideBunkerShots !== null && localGreensideBunkerShots >= 6}
+              >
+                +
+              </button>
+            </div>
           </div>
 
           {/* Putts */}

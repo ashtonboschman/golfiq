@@ -16,6 +16,9 @@ const ROUND_MISS_DIRECTION_VALUES = ['hit', 'miss_left', 'miss_right', 'miss_sho
 type RoundContext = (typeof ROUND_CONTEXT_VALUES)[number];
 type RoundMissDirection = (typeof ROUND_MISS_DIRECTION_VALUES)[number];
 const roundMissDirectionSchema = z.enum(ROUND_MISS_DIRECTION_VALUES);
+const optionalRoundShortGameStatSchema = z.number().int().min(0).max(99).nullable().optional();
+const optionalRoundShortGameAggregateSchema = z.number().int().min(0).max(198).nullable().optional();
+const optionalHoleShortGameStatSchema = z.number().int().min(0).max(6).nullable().optional();
 
 function normalizeHoleDirection(
   hitValue: number | null | undefined,
@@ -33,6 +36,11 @@ function normalizeHoleDirection(
   }
 
   return null;
+}
+
+function deriveShortGameShots(chips: number | null | undefined, greensideBunkerShots: number | null | undefined): number | null {
+  if (chips == null && greensideBunkerShots == null) return null;
+  return (chips ?? 0) + (greensideBunkerShots ?? 0);
 }
 
 // Helper to format round data
@@ -53,6 +61,9 @@ type RoundWithRelations = {
   girHit: number | null;
   putts: number | null;
   penalties: number | null;
+  chips: number | null;
+  greensideBunkerShots: number | null;
+  shortGameShots: number | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +99,9 @@ function formatRoundRow(round: RoundWithRelations) {
     gir_hit: round.girHit === null ? null : Number(round.girHit),
     putts: round.putts === null ? null : Number(round.putts),
     penalties: round.penalties === null ? null : Number(round.penalties),
+    chips: round.chips === null ? null : Number(round.chips),
+    greenside_bunker_shots: round.greensideBunkerShots === null ? null : Number(round.greensideBunkerShots),
+    short_game_shots: round.shortGameShots === null ? null : Number(round.shortGameShots),
     notes: round.notes,
     created_at: round.createdAt,
     updated_at: round.updatedAt,
@@ -196,6 +210,9 @@ const createRoundSchema = z.object({
   gir_hit: z.number().nullable().optional(),
   putts: z.number().nullable().optional(),
   penalties: z.number().nullable().optional(),
+  chips: optionalRoundShortGameStatSchema,
+  greenside_bunker_shots: optionalRoundShortGameStatSchema,
+  short_game_shots: optionalRoundShortGameAggregateSchema,
   notes: z.string().optional().default(''),
   tee_segment: z.enum(['full', 'front9', 'back9', 'double9']).optional().default('full'),
   round_context: z.enum(ROUND_CONTEXT_VALUES).optional().default('real'),
@@ -210,6 +227,8 @@ const createRoundSchema = z.object({
     gir_direction: roundMissDirectionSchema.nullable().optional(),
     putts: z.number().nullable().optional(),
     penalties: z.number().nullable().optional(),
+    chips: optionalHoleShortGameStatSchema,
+    greenside_bunker_shots: optionalHoleShortGameStatSchema,
   })).optional().default([]),
 });
 
@@ -271,6 +290,11 @@ export async function POST(request: NextRequest) {
     const insertGir = !data.hole_by_hole ? data.gir_hit ?? null : null;
     const insertPutts = !data.hole_by_hole ? data.putts ?? null : null;
     const insertPenalties = !data.hole_by_hole ? data.penalties ?? null : null;
+    const insertChips = !data.hole_by_hole ? data.chips ?? null : null;
+    const insertGreensideBunkerShots = !data.hole_by_hole ? data.greenside_bunker_shots ?? null : null;
+    const insertShortGameShots = !data.hole_by_hole
+      ? deriveShortGameShots(insertChips, insertGreensideBunkerShots)
+      : null;
 
     // Parse date from user input (YYYY-MM-DD format)
     // Use current UTC time to ensure proper ordering for rounds on the same day
@@ -344,6 +368,9 @@ export async function POST(request: NextRequest) {
         girHit: insertGir,
         putts: insertPutts,
         penalties: insertPenalties,
+        chips: insertChips,
+        greensideBunkerShots: insertGreensideBunkerShots,
+        shortGameShots: insertShortGameShots,
         notes: data.notes ?? null,
         handicapAtRound: userStats?.handicap ?? null,
       },
@@ -365,6 +392,8 @@ export async function POST(request: NextRequest) {
           girDirection: normalizeHoleDirection(h.gir_hit ?? null, h.gir_direction ?? null),
           putts: h.putts ?? null,
           penalties: h.penalties ?? null,
+          chips: h.chips ?? null,
+          greensideBunkerShots: h.greenside_bunker_shots ?? null,
         })),
       });
 
@@ -381,6 +410,7 @@ export async function POST(request: NextRequest) {
         sgTotal: sg.sgTotal,
         sgOffTee: sg.sgOffTee,
         sgApproach: sg.sgApproach,
+        sgShortGame: sg.sgShortGame,
         sgPutting: sg.sgPutting,
         sgPenalties: sg.sgPenalties,
         sgResidual: sg.sgResidual,
@@ -410,6 +440,9 @@ export async function POST(request: NextRequest) {
         girHit: true,
         putts: true,
         penalties: true,
+        chips: true,
+        greensideBunkerShots: true,
+        shortGameShots: true,
       },
     });
     const officialRoundsLifetime = await prisma.round.count({
@@ -430,7 +463,12 @@ export async function POST(request: NextRequest) {
           girHit: storedRound?.girHit ?? null,
           putts: storedRound?.putts ?? null,
           penalties: storedRound?.penalties ?? null,
+          chips: storedRound?.chips ?? null,
+          greensideBunkerShots: storedRound?.greensideBunkerShots ?? null,
         }),
+        has_chips_tracked: storedRound?.chips != null,
+        has_greenside_bunker_tracked: storedRound?.greensideBunkerShots != null,
+        short_game_shots_tracked: storedRound?.shortGameShots != null,
         course_id_present: true,
         rounds_lifetime: officialRoundsLifetime,
         round_context: data.round_context,
@@ -531,7 +569,15 @@ async function recalcRoundTotals(roundId: bigint): Promise<void> {
 
   const holes = await prisma.roundHole.findMany({
     where: { roundId },
-    select: { score: true, firHit: true, girHit: true, putts: true, penalties: true },
+    select: {
+      score: true,
+      firHit: true,
+      girHit: true,
+      putts: true,
+      penalties: true,
+      chips: true,
+      greensideBunkerShots: true,
+    },
   });
   if (!holes.length) return;
 
@@ -564,6 +610,9 @@ async function recalcRoundTotals(roundId: bigint): Promise<void> {
     girHit: number | null;
     putts: number | null;
     penalties: number | null;
+    chips: number | null;
+    greensideBunkerShots: number | null;
+    shortGameShots: number | null;
   } = {
     score: totalScore,
     toPar,
@@ -573,6 +622,9 @@ async function recalcRoundTotals(roundId: bigint): Promise<void> {
     girHit: null,
     putts: null,
     penalties: null,
+    chips: null,
+    greensideBunkerShots: null,
+    shortGameShots: null,
   };
 
   const sumField = (field: keyof typeof holes[0]) => {
@@ -583,6 +635,9 @@ async function recalcRoundTotals(roundId: bigint): Promise<void> {
   totals.girHit = sumField('girHit');
   totals.putts = sumField('putts');
   totals.penalties = sumField('penalties');
+  totals.chips = sumField('chips');
+  totals.greensideBunkerShots = sumField('greensideBunkerShots');
+  totals.shortGameShots = deriveShortGameShots(totals.chips, totals.greensideBunkerShots);
 
   await prisma.round.update({ where: { id: roundId }, data: totals });
 }
@@ -592,11 +647,15 @@ function countTrackedStats(input: {
   girHit: number | null;
   putts: number | null;
   penalties: number | null;
+  chips: number | null;
+  greensideBunkerShots: number | null;
 }): number {
   let tracked = 0;
   if (input.firHit != null) tracked += 1;
   if (input.girHit != null) tracked += 1;
   if (input.putts != null) tracked += 1;
   if (input.penalties != null) tracked += 1;
+  if (input.chips != null) tracked += 1;
+  if (input.greensideBunkerShots != null) tracked += 1;
   return tracked;
 }

@@ -4,6 +4,7 @@ import type { SgMeasuredComponentName } from '@/lib/insights/types';
 export type MeasuredSgInputs = {
   offTee: number | null;
   approach: number | null;
+  shortGame?: number | null;
   putting: number | null;
   penalties: number | null;
   residual: number | null;
@@ -35,6 +36,7 @@ export type MeasuredSgSelectionThresholds = {
 const COMPONENT_LABELS: Record<SgMeasuredComponentName, string> = {
   off_tee: 'Off The Tee',
   approach: 'Approach',
+  short_game: 'Short Game',
   putting: 'Putting',
   penalties: 'Penalties',
 };
@@ -50,6 +52,9 @@ export function buildMeasuredComponents(inputs: MeasuredSgInputs): MeasuredSgCom
   }
   if (isFiniteNumber(inputs.approach)) {
     components.push({ name: 'approach', label: COMPONENT_LABELS.approach, value: inputs.approach });
+  }
+  if (isFiniteNumber(inputs.shortGame)) {
+    components.push({ name: 'short_game', label: COMPONENT_LABELS.short_game, value: inputs.shortGame });
   }
   if (isFiniteNumber(inputs.putting)) {
     components.push({ name: 'putting', label: COMPONENT_LABELS.putting, value: inputs.putting });

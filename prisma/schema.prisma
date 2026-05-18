@@ -224,6 +224,9 @@ model Round {
   girHit                Int?                   @map("gir_hit")
   putts                 Int?
   penalties             Int?
+  chips                 Int?
+  greensideBunkerShots  Int?                   @map("greenside_bunker_shots")
+  shortGameShots        Int?                   @map("short_game_shots")
   notes                 String?
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -260,6 +263,8 @@ model RoundHole {
   girDirection RoundMissDirection? @map("gir_direction")
   putts     Int?
   penalties Int?
+  chips     Int?
+  greensideBunkerShots Int? @map("greenside_bunker_shots")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   hole      Hole     @relation(fields: [holeId], references: [id], onDelete: Cascade)
@@ -413,6 +418,7 @@ model RoundStrokesGained {
   sgTotal         Decimal?    @map("sg_total") @db.Decimal(5, 1)
   sgOffTee        Decimal?    @map("sg_off_tee") @db.Decimal(5, 1)
   sgApproach      Decimal?    @map("sg_approach") @db.Decimal(5, 1)
+  sgShortGame     Decimal?    @map("sg_short_game") @db.Decimal(5, 1)
   sgResidual      Decimal?    @map("sg_residual") @db.Decimal(5, 1)
   sgPutting       Decimal?    @map("sg_putting") @db.Decimal(5, 1)
   sgPenalties     Decimal?    @map("sg_penalties") @db.Decimal(5, 1)
@@ -436,6 +442,7 @@ model HandicapTierBaseline {
   baselineFIRPct    Decimal  @map("baseline_fir_pct") @db.Decimal(5, 1)
   baselinePutts     Decimal  @map("baseline_putts") @db.Decimal(5, 1)
   baselinePenalties Decimal  @map("baseline_penalties") @db.Decimal(5, 1)
+  baselineShortGameShots Decimal @map("baseline_short_game_shots") @db.Decimal(5, 1)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 

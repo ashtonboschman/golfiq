@@ -15,6 +15,7 @@ import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSe
 import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { clearRoundAddDraft, getRoundAddDraftKey } from '@/lib/rounds/addDraft';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -48,6 +49,9 @@ interface Round {
   gir_hit: number | null;
   putts: number | null;
   penalties: number | null;
+  chips: number | null;
+  greenside_bunker_shots: number | null;
+  short_game_shots: number | null;
   round_holes: any[];
   par_total?: number | null;
 }
@@ -64,6 +68,8 @@ interface HoleScore {
   gir_direction: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   putts: number | null;
   penalties: number | null;
+  chips: number | null;
+  greenside_bunker_shots: number | null;
 }
 
 interface CourseOption {
@@ -86,10 +92,8 @@ const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'practice', label: 'Practice Round' },
 ];
 
-const ROUND_ADD_DRAFT_VERSION = 1;
-
 type AddRoundDraft = {
-  version: number;
+  version: 1;
   savedAt: string;
   round: Round;
   holeScores: HoleScore[];
@@ -135,6 +139,9 @@ function AddRoundContent() {
     gir_hit: null,
     putts: null,
     penalties: null,
+    chips: null,
+    greenside_bunker_shots: null,
+    short_game_shots: null,
     round_holes: [],
   });
 
@@ -162,10 +169,7 @@ function AddRoundContent() {
   const latestModeRef = useRef<'live_round' | 'after_round'>('after_round');
   const latestStepRef = useRef<'initial' | 'course_selected' | 'tee_selected'>('initial');
   const roundAddDraftKey = useMemo(
-    () =>
-      session?.user?.id
-        ? `golfiq:round:add:draft:v${ROUND_ADD_DRAFT_VERSION}:${session.user.id}`
-        : null,
+    () => getRoundAddDraftKey(session?.user?.id),
     [session?.user?.id],
   );
 
@@ -218,6 +222,8 @@ function AddRoundContent() {
       round.gir_hit != null ||
       round.putts != null ||
       round.penalties != null ||
+      round.chips != null ||
+      round.greenside_bunker_shots != null ||
       round.notes.trim().length > 0 ||
       holeScores.some((hole) =>
         hole.score != null ||
@@ -226,7 +232,9 @@ function AddRoundContent() {
         hole.gir_hit != null ||
         hole.gir_direction != null ||
         hole.putts != null ||
-        hole.penalties != null),
+        hole.penalties != null ||
+        hole.chips != null ||
+        hole.greenside_bunker_shots != null),
     );
 
     let hasPersistedDraft = false;
@@ -284,7 +292,7 @@ function AddRoundContent() {
       if (!rawDraft) return;
 
       const parsed = JSON.parse(rawDraft) as AddRoundDraft;
-      if (!parsed || parsed.version !== ROUND_ADD_DRAFT_VERSION || !parsed.round) {
+      if (!parsed || parsed.version !== 1 || !parsed.round) {
         localStorage.removeItem(roundAddDraftKey);
         return;
       }
@@ -322,13 +330,8 @@ function AddRoundContent() {
   }, [holeScores]);
 
   const clearRoundDraft = useCallback(() => {
-    if (!roundAddDraftKey) return;
-    try {
-      localStorage.removeItem(roundAddDraftKey);
-    } catch {
-      // noop
-    }
-  }, [roundAddDraftKey]);
+    clearRoundAddDraft(session?.user?.id);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (status !== 'authenticated' || !roundAddDraftKey) return;
@@ -341,6 +344,8 @@ function AddRoundContent() {
       round.gir_hit != null ||
       round.putts != null ||
       round.penalties != null ||
+      round.chips != null ||
+      round.greenside_bunker_shots != null ||
       round.notes.trim().length > 0 ||
       holeScores.some((hole) =>
         hole.score != null ||
@@ -349,7 +354,9 @@ function AddRoundContent() {
         hole.gir_hit != null ||
         hole.gir_direction != null ||
         hole.putts != null ||
-        hole.penalties != null),
+        hole.penalties != null ||
+        hole.chips != null ||
+        hole.greenside_bunker_shots != null),
     );
 
     if (!hasProgress) {
@@ -359,7 +366,7 @@ function AddRoundContent() {
 
     const timeout = window.setTimeout(() => {
       const draft: AddRoundDraft = {
-        version: ROUND_ADD_DRAFT_VERSION,
+        version: 1,
         savedAt: new Date().toISOString(),
         round,
         holeScores,
@@ -413,6 +420,15 @@ function AddRoundContent() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      clearRoundDraft();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, [clearRoundDraft]);
 
   // Get user's geolocation for course sorting
   useEffect(() => {
@@ -468,6 +484,11 @@ function AddRoundContent() {
   const getTotalScore = (holes: HoleScore[]) =>
     holes.reduce((sum, h) => sum + (h.score ?? 0), 0);
 
+  const deriveShortGameShots = (chips: number | null | undefined, greensideBunkerShots: number | null | undefined) => {
+    if (chips == null && greensideBunkerShots == null) return null;
+    return (chips ?? 0) + (greensideBunkerShots ?? 0);
+  };
+
   const buildPayload = () => {
     const payload: any = {
       ...round,
@@ -487,13 +508,23 @@ function AddRoundContent() {
         gir_direction: h.gir_direction,
         putts: h.putts,
         penalties: h.penalties,
+        chips: h.chips,
+        greenside_bunker_shots: h.greenside_bunker_shots,
       }));
       payload.score = getTotalScore(filteredHoleScores);
-      ['fir_hit', 'gir_hit', 'putts', 'penalties'].forEach(
+      ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(
         (f) => (payload[f] = filteredHoleScores.reduce((s, h) => s + (h[f as keyof HoleScore] as number ?? 0), 0))
       );
+      const chipsTracked = filteredHoleScores.some((h) => h.chips != null);
+      const bunkerTracked = filteredHoleScores.some((h) => h.greenside_bunker_shots != null);
+      payload.chips = chipsTracked ? payload.chips : null;
+      payload.greenside_bunker_shots = bunkerTracked ? payload.greenside_bunker_shots : null;
+      payload.short_game_shots = deriveShortGameShots(payload.chips, payload.greenside_bunker_shots);
     } else {
-      ['fir_hit', 'gir_hit', 'putts', 'penalties'].forEach((f) => (payload[f] = round[f as keyof Round]));
+      ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(
+        (f) => (payload[f] = round[f as keyof Round]),
+      );
+      payload.short_game_shots = deriveShortGameShots(round.chips, round.greenside_bunker_shots);
     }
     return payload;
   };
@@ -716,6 +747,8 @@ function AddRoundContent() {
             gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
+            chips: existing?.chips ?? null,
+            greenside_bunker_shots: existing?.greenside_bunker_shots ?? null,
           };
         });
         const pass2 = realHoles.map((hole: any) => {
@@ -732,6 +765,8 @@ function AddRoundContent() {
             gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
+            chips: existing?.chips ?? null,
+            greenside_bunker_shots: existing?.greenside_bunker_shots ?? null,
           };
         });
         initScores = [...pass1, ...pass2];
@@ -750,6 +785,8 @@ function AddRoundContent() {
             gir_direction: existing?.gir_direction ?? null,
             putts: existing?.putts ?? null,
             penalties: existing?.penalties ?? null,
+            chips: existing?.chips ?? null,
+            greenside_bunker_shots: existing?.greenside_bunker_shots ?? null,
           };
         });
       }
@@ -862,7 +899,7 @@ function AddRoundContent() {
     hasInteractedRef.current = true;
     const { name, value } = e.target;
 
-    if (['score', 'fir_hit', 'gir_hit', 'putts', 'penalties'].includes(name)) {
+    if (['score', 'fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].includes(name)) {
       const numericValue = sanitizeNumeric(value);
 
       const maxMap: Record<string, number> = {
@@ -871,6 +908,8 @@ function AddRoundContent() {
         score: 150,
         putts: 99,
         penalties: 30,
+        chips: 99,
+        greenside_bunker_shots: 99,
       };
 
       let clampedValue =
@@ -982,6 +1021,8 @@ function AddRoundContent() {
               gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
+              chips: existing?.chips ?? null,
+              greenside_bunker_shots: existing?.greenside_bunker_shots ?? null,
             };
           });
           const pass2 = realHoles.map((h: any) => {
@@ -998,6 +1039,8 @@ function AddRoundContent() {
               gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
+              chips: existing?.chips ?? null,
+              greenside_bunker_shots: existing?.greenside_bunker_shots ?? null,
             };
           });
           fresh = [...pass1, ...pass2];
@@ -1016,6 +1059,8 @@ function AddRoundContent() {
               gir_direction: existing?.gir_direction ?? null,
               putts: existing?.putts ?? null,
               penalties: existing?.penalties ?? null,
+              chips: existing?.chips ?? null,
+              greenside_bunker_shots: existing?.greenside_bunker_shots ?? null,
             };
           });
         }
@@ -1094,9 +1139,18 @@ function AddRoundContent() {
   const formatValue = (val: number | null | undefined) => (val === null || val === undefined ? '' : val);
 
   const calculateTotals = () => {
-    const totals = { score: 0, par: 0, fir_hit: 0, gir_hit: 0, putts: 0, penalties: 0 };
+    const totals = {
+      score: 0,
+      par: 0,
+      fir_hit: 0,
+      gir_hit: 0,
+      putts: 0,
+      penalties: 0,
+      chips: 0,
+      greenside_bunker_shots: 0,
+    };
     let hasScore = false;
-    let hasFir = false, hasGir = false, hasPutts = false, hasPenalties = false;
+    let hasFir = false, hasGir = false, hasPutts = false, hasPenalties = false, hasChips = false, hasBunker = false;
 
     filteredHoleScores.forEach((h) => {
       if (h.score !== null) {
@@ -1120,7 +1174,22 @@ function AddRoundContent() {
         totals.penalties += h.penalties;
         hasPenalties = true;
       }
+      if (h.chips !== null) {
+        totals.chips += h.chips;
+        hasChips = true;
+      }
+      if (h.greenside_bunker_shots !== null) {
+        totals.greenside_bunker_shots += h.greenside_bunker_shots;
+        hasBunker = true;
+      }
     });
+
+    const totalChips = hasChips ? totals.chips : null;
+    const totalGreensideBunkerShots = hasBunker ? totals.greenside_bunker_shots : null;
+    const totalShortGameShots =
+      totalChips == null && totalGreensideBunkerShots == null
+        ? null
+        : (totalChips ?? 0) + (totalGreensideBunkerShots ?? 0);
 
     return {
       score: hasScore ? totals.score : null,
@@ -1129,6 +1198,9 @@ function AddRoundContent() {
       gir_hit: hasGir ? totals.gir_hit : null,
       putts: hasPutts ? totals.putts : null,
       penalties: hasPenalties ? totals.penalties : null,
+      chips: totalChips,
+      greenside_bunker_shots: totalGreensideBunkerShots,
+      short_game_shots: totalShortGameShots,
     };
   };
 
@@ -1166,6 +1238,8 @@ function AddRoundContent() {
                 gir_direction={h.gir_direction}
                 putts={h.putts}
                 penalties={h.penalties}
+                chips={h.chips}
+                greenside_bunker_shots={h.greenside_bunker_shots}
                 isExpanded={isExpanded}
                 isCompleted={isCompleted}
                 onChange={(_, field, value) => handleHoleScoreChange(actualIdx, field, value)}
@@ -1190,13 +1264,22 @@ function AddRoundContent() {
                 <strong>FIR</strong> {show(totals.fir_hit)}
               </div>
               <div className="hole-field">
-                <strong>Putts</strong> {show(totals.putts)}
+                <strong>Chips</strong> {show(totals.chips)}
               </div>
               <div className="hole-field">
                 <strong>GIR</strong> {show(totals.gir_hit)}
               </div>
               <div className="hole-field">
+                <strong>Bunker</strong> {show(totals.greenside_bunker_shots)}
+              </div>
+              <div className="hole-field">
+                <strong>Putts</strong> {show(totals.putts)}
+              </div>
+              <div className="hole-field">
                 <strong>Penalties</strong> {show(totals.penalties)}
+              </div>
+              <div className="hole-field">
+                <strong>Short Game</strong> {show(totals.short_game_shots)}
               </div>
             </div>
           </div>
@@ -1392,10 +1475,12 @@ function AddRoundContent() {
           )}
 
           {!isHBH &&
-            ['fir_hit', 'gir_hit', 'putts', 'penalties'].map((field) => {
+            ['fir_hit', 'gir_hit', 'chips', 'greenside_bunker_shots', 'putts', 'penalties'].map((field) => {
               const labelMap: Record<string, string> = {
                 fir_hit: 'Fairways In Regulation',
                 gir_hit: 'Greens In Regulation',
+                chips: 'Chips',
+                greenside_bunker_shots: 'Greenside Bunker Shots',
                 putts: 'Putts',
                 penalties: 'Penalties',
               };
@@ -1540,3 +1625,4 @@ export default function AddRoundPage() {
     </Suspense>
   );
 }
+

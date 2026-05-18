@@ -124,6 +124,7 @@ describe('/api/rounds/[id] route contract', () => {
       sgTotal: 0.4,
       sgOffTee: 0.2,
       sgApproach: 0.1,
+      sgShortGame: -0.2,
       sgPutting: 0.1,
       sgPenalties: -0.1,
       sgResidual: 0.1,
@@ -134,7 +135,14 @@ describe('/api/rounds/[id] route contract', () => {
 
     mockedPrisma.tee.findUnique.mockResolvedValue({ id: BigInt(12), holes: [] });
     mockedPrisma.round.update.mockResolvedValue({});
-    mockedPrisma.round.findUnique.mockResolvedValue({ score: 78, teeId: BigInt(12), handicapAtRound: 2.1 });
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      score: 78,
+      teeId: BigInt(12),
+      handicapAtRound: 2.1,
+      chips: null,
+      greensideBunkerShots: null,
+      shortGameShots: null,
+    });
     mockedPrisma.roundStrokesGained.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.roundInsight.deleteMany.mockResolvedValue({ count: 1 });
     mockedRecalcLeaderboard.mockResolvedValue(undefined);
@@ -160,6 +168,9 @@ describe('/api/rounds/[id] route contract', () => {
       girHit: 9,
       putts: 31,
       penalties: 1,
+      chips: 4,
+      greensideBunkerShots: 1,
+      shortGameShots: 5,
       notes: null,
       createdAt: new Date('2026-04-20T12:00:00.000Z'),
       updatedAt: new Date('2026-04-20T12:00:00.000Z'),
@@ -198,6 +209,9 @@ describe('/api/rounds/[id] route contract', () => {
       girHit: 9,
       putts: 31,
       penalties: 1,
+      chips: null,
+      greensideBunkerShots: null,
+      shortGameShots: null,
       notes: null,
     });
 
@@ -239,6 +253,9 @@ describe('/api/rounds/[id] route contract', () => {
       girHit: 9,
       putts: 31,
       penalties: 1,
+      chips: null,
+      greensideBunkerShots: null,
+      shortGameShots: null,
       notes: null,
     });
 
@@ -283,6 +300,9 @@ describe('/api/rounds/[id] route contract', () => {
       girHit: 9,
       putts: 31,
       penalties: 1,
+      chips: 3,
+      greensideBunkerShots: 2,
+      shortGameShots: 5,
       notes: null,
       createdAt: new Date('2026-04-20T12:00:00.000Z'),
       updatedAt: new Date('2026-04-20T12:00:00.000Z'),
@@ -338,6 +358,9 @@ describe('/api/rounds/[id] route contract', () => {
       girHit: 9,
       putts: 31,
       penalties: 1,
+      chips: null,
+      greensideBunkerShots: null,
+      shortGameShots: null,
       notes: null,
     });
     mockedPrisma.roundHole.findMany.mockResolvedValueOnce([]);
@@ -398,5 +421,149 @@ describe('/api/rounds/[id] route contract', () => {
         ],
       }),
     );
+  });
+
+  it('PUT derives short_game_shots from after-round chips and greenside_bunker_shots', async () => {
+    mockedPrisma.round.findFirst.mockResolvedValue({
+      date: new Date('2026-04-20T12:00:00.000Z'),
+      courseId: BigInt(11),
+      teeId: BigInt(12),
+      teeSegment: 'full',
+      roundContext: 'real',
+      holeByHole: false,
+      score: 78,
+      firHit: 8,
+      girHit: 9,
+      putts: 31,
+      penalties: 1,
+      chips: null,
+      greensideBunkerShots: null,
+      shortGameShots: null,
+      notes: null,
+    });
+
+    const request = new Request('http://localhost/api/rounds/9', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 79,
+        chips: 0,
+        greenside_bunker_shots: 2,
+        hole_by_hole: 0,
+      }),
+    });
+
+    const response = await PUT(request as any, params('9'));
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.round.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          chips: 0,
+          greensideBunkerShots: 2,
+          shortGameShots: 2,
+        }),
+      }),
+    );
+  });
+
+  it('PUT persists SG partialAnalysis and sg_short_game in the normal updateMany path', async () => {
+    mockedPrisma.round.findFirst.mockResolvedValue({
+      date: new Date('2026-04-20T12:00:00.000Z'),
+      courseId: BigInt(11),
+      teeId: BigInt(12),
+      teeSegment: 'full',
+      roundContext: 'real',
+      holeByHole: false,
+      score: 78,
+      firHit: 8,
+      girHit: 9,
+      putts: 31,
+      penalties: 1,
+      chips: 3,
+      greensideBunkerShots: 1,
+      shortGameShots: 4,
+      notes: null,
+    });
+    mockedCalculateStrokesGained.mockResolvedValue({
+      sgTotal: 0.1,
+      sgOffTee: 0.0,
+      sgApproach: -0.2,
+      sgShortGame: 0.3,
+      sgPutting: 0.1,
+      sgPenalties: 0.0,
+      sgResidual: -0.1,
+      confidence: 'low',
+      messages: ['partial'],
+      partialAnalysis: true,
+    });
+
+    const request = new Request('http://localhost/api/rounds/9', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 79,
+        hole_by_hole: 0,
+      }),
+    });
+
+    const response = await PUT(request as any, params('9'));
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.roundStrokesGained.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { roundId: BigInt(9) },
+        data: expect.objectContaining({
+          sgShortGame: 0.3,
+          partialAnalysis: true,
+        }),
+      }),
+    );
+  });
+
+  it('PUT rejects round-level greenside_bunker_shots greater than 99', async () => {
+    const request = new Request('http://localhost/api/rounds/9', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 79,
+        greenside_bunker_shots: 120,
+        hole_by_hole: 0,
+      }),
+    });
+
+    const response = await PUT(request as any, params('9'));
+    expect(response.status).toBe(400);
+  });
+
+  it('PUT rejects hole-level chips greater than 6', async () => {
+    const request = new Request('http://localhost/api/rounds/9', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        hole_by_hole: 1,
+        round_holes: [
+          {
+            hole_id: 101,
+            pass: 1,
+            score: 4,
+            chips: 7,
+          },
+        ],
+      }),
+    });
+
+    const response = await PUT(request as any, params('9'));
+    expect(response.status).toBe(400);
   });
 });

@@ -79,12 +79,13 @@ function makeModePayload(overrides?: Partial<any>) {
     efficiency: {
       fir: { recent: 0.5, baseline: 0.492, coverageRecent: '5/5' },
       gir: { recent: 0.481, baseline: 0.468, coverageRecent: '5/5' },
+      shortGameShots: { recent: 17.2, baseline: 18.6, coverageRecent: '5/5' },
       puttsTotal: { recent: 33.0, baseline: 30.6, coverageRecent: '5/5' },
       penaltiesPerRound: { recent: 1.3, baseline: 1.5, coverageRecent: '5/5' },
     },
     sgComponents: {
-      recentAvg: { total: -0.5, offTee: 0.2, approach: -0.8, putting: -0.6, penalties: 0.1, residual: 0.1 },
-      baselineAvg: { total: 0, offTee: 0, approach: 0, putting: 0, penalties: 0, residual: 0 },
+      recentAvg: { total: -0.5, offTee: 0.2, approach: -0.8, shortGame: -0.2, putting: -0.6, penalties: 0.1, residual: 0.1 },
+      baselineAvg: { total: 0, offTee: 0, approach: 0, shortGame: 0, putting: 0, penalties: 0, residual: 0 },
       hasData: true,
     },
     trend: {
@@ -159,6 +160,7 @@ function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMo
     efficiency: {
       fir: { recent: 0.5, baseline: 0.492, coverageRecent: '5/5' },
       gir: { recent: 0.481, baseline: 0.468, coverageRecent: '5/5' },
+      shortGameShots: { recent: 17.2, baseline: 18.6, coverageRecent: '5/5' },
       puttsTotal: { recent: 33.0, baseline: 30.6, coverageRecent: '5/5' },
       penaltiesPerRound: { recent: 1.3, baseline: 1.5, coverageRecent: '5/5' },
     },
@@ -173,14 +175,15 @@ function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMo
           total: -0.5,
           offTee: 0.2,
           approach: -0.8,
+          shortGame: -0.2,
           putting: -0.6,
           penalties: 0.1,
           residual: 0.1,
           confidence: 'medium',
           partialAnalysis: false,
         },
-        recentAvg: { total: -0.5, offTee: 0.2, approach: -0.8, putting: -0.6, penalties: 0.1, residual: 0.1 },
-        baselineAvg: { total: 0, offTee: 0, approach: 0, putting: 0, penalties: 0, residual: 0 },
+        recentAvg: { total: -0.5, offTee: 0.2, approach: -0.8, shortGame: -0.2, putting: -0.6, penalties: 0.1, residual: 0.1 },
+        baselineAvg: { total: 0, offTee: 0, approach: 0, shortGame: 0, putting: 0, penalties: 0, residual: 0 },
         mostCostlyComponent: 'approach',
         worstComponentFrequencyRecent: {
           component: 'approach',
@@ -302,10 +305,34 @@ describe('/insights page', () => {
     expect(screen.getByRole('button', { name: 'Overall insights confidence: Strong' })).toBeInTheDocument();
     expect(screen.getByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.')).toBeInTheDocument();
     expect(screen.getByText("Approach is costing you strokes. You're losing about 0.8 strokes per round compared to your usual level.")).toBeInTheDocument();
+    expect(screen.getByText('\u25BC -1.4 Short Game Shots')).toBeInTheDocument();
     expect(screen.queryByText(/The full breakdown shows exactly how much\./i)).not.toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Premium Insights' })).not.toBeInTheDocument();
+
+    const sgLabels = Array.from(document.querySelectorAll('.sg-delta-row .sg-delta-label')).map((node) =>
+      node.textContent?.trim() ?? '',
+    );
+    expect(sgLabels).toEqual([
+      'Off The Tee',
+      'Approach',
+      'Short Game',
+      'Putting',
+      'Penalties',
+      'Residual',
+    ]);
+
+    const perfTitles = Array.from(document.querySelectorAll('.insights-performance-grid .comparison-bar-header h3')).map(
+      (node) => node.textContent?.trim() ?? '',
+    );
+    expect(perfTitles).toEqual([
+      'Driving Accuracy',
+      'Approach Accuracy',
+      'Short Game',
+      'Putting',
+      'Penalties',
+    ]);
   });
 
   it('shows Overall Insights confidence tooltip copy', async () => {

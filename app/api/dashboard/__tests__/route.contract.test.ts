@@ -269,6 +269,197 @@ describe('/api/dashboard route contract', () => {
     expect(body.miss_tendencies.gir.percentages[3]).toBeCloseTo(33.333, 2);
   });
 
+  it('returns derived short-game metrics with null-safe opportunity handling', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue([
+      {
+        ...makeDbRound(1),
+        holeByHole: true,
+        shortGameShots: 0,
+      },
+      {
+        ...makeDbRound(2),
+        holeByHole: true,
+        shortGameShots: 6,
+      },
+    ]);
+
+    mockedPrisma.roundHole.findMany.mockResolvedValue([
+      // Scrambling + up-and-down + sand save success
+      {
+        roundId: BigInt(1),
+        firHit: null,
+        firDirection: null,
+        girHit: 0,
+        girDirection: null,
+        score: 4,
+        putts: 1,
+        chips: 0,
+        greensideBunkerShots: 1,
+        hole: { par: 4 },
+      },
+      // Scrambling opportunity only (no up-and-down success: 2 short-game shots)
+      {
+        roundId: BigInt(2),
+        firHit: null,
+        firDirection: null,
+        girHit: 0,
+        girDirection: null,
+        score: 4,
+        putts: 1,
+        chips: 2,
+        greensideBunkerShots: 0,
+        hole: { par: 4 },
+      },
+      // Up-and-down should be excluded (missing putts)
+      {
+        roundId: BigInt(2),
+        firHit: null,
+        firDirection: null,
+        girHit: 0,
+        girDirection: null,
+        score: 5,
+        putts: null,
+        chips: 1,
+        greensideBunkerShots: 0,
+        hole: { par: 4 },
+      },
+      // Sand save opportunity + failure
+      {
+        roundId: BigInt(2),
+        firHit: null,
+        firDirection: null,
+        girHit: 1,
+        girDirection: null,
+        score: 5,
+        putts: 2,
+        chips: 0,
+        greensideBunkerShots: 2,
+        hole: { par: 4 },
+      },
+      // Excluded from scrambling (missing par)
+      {
+        roundId: BigInt(2),
+        firHit: null,
+        firDirection: null,
+        girHit: 0,
+        girDirection: null,
+        score: 4,
+        putts: 1,
+        chips: 1,
+        greensideBunkerShots: 0,
+        hole: { par: null },
+      },
+    ]);
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.shortGameShotsAvg).toBe(3);
+    expect(body.scramblingPct).toBeCloseTo(66.67, 2);
+    expect(body.upAndDownPct).toBe(50);
+    expect(body.sandSavePct).toBe(50);
+  });
+
+  it('returns null short-game metrics when there is no tracked denominator data', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue([
+      {
+        ...makeDbRound(1),
+        holeByHole: true,
+        shortGameShots: null,
+      },
+    ]);
+
+    mockedPrisma.roundHole.findMany.mockResolvedValue([
+      {
+        roundId: BigInt(1),
+        firHit: null,
+        firDirection: null,
+        girHit: 0,
+        girDirection: null,
+        score: null,
+        putts: null,
+        chips: null,
+        greensideBunkerShots: null,
+        hole: { par: 4 },
+      },
+    ]);
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.shortGameShotsAvg).toBeNull();
+    expect(body.scramblingPct).toBeNull();
+    expect(body.upAndDownPct).toBeNull();
+    expect(body.sandSavePct).toBeNull();
+  });
+
+  it('normalizes shortGameShotsAvg by stats mode (combined vs 9 vs 18)', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue([
+      {
+        ...makeDbRound(1),
+        shortGameShots: 3,
+        tee: { teeName: 'Front', __holes: 9 },
+      },
+      {
+        ...makeDbRound(2),
+        shortGameShots: 6,
+        tee: { teeName: 'Blue', __holes: 18 },
+      },
+    ]);
+
+    mockedResolveTeeContext.mockImplementation((tee: any) => ({
+      holes: tee.__holes ?? 18,
+      courseRating: (tee.__holes ?? 18) === 9 ? 36 : 72,
+      slopeRating: 120,
+      parTotal: (tee.__holes ?? 18) === 9 ? 36 : 72,
+      nonPar3Holes: (tee.__holes ?? 18) === 9 ? 7 : 14,
+    }));
+
+    mockedNormalizeRoundsByMode.mockImplementation((rounds: any[], mode: 'combined' | '9' | '18') => {
+      if (mode === '9') return rounds.filter((r) => r.holes === 9);
+      if (mode === '18') return rounds.filter((r) => r.holes === 18);
+      return rounds.map((r) => {
+        if (r.holes !== 9) return r;
+        return {
+          ...r,
+          holes: 18,
+          score: r.score * 2,
+          to_par: r.to_par != null ? r.to_par * 2 : null,
+          net_score: r.net_score != null ? r.net_score * 2 : null,
+          fir_hit: r.fir_hit != null ? r.fir_hit * 2 : null,
+          fir_total: r.fir_total * 2,
+          gir_hit: r.gir_hit != null ? r.gir_hit * 2 : null,
+          gir_total: r.gir_total * 2,
+          putts: r.putts != null ? r.putts * 2 : null,
+          penalties: r.penalties != null ? r.penalties * 2 : null,
+          short_game_shots: r.short_game_shots != null ? r.short_game_shots * 2 : null,
+          rating: r.rating * 2,
+          par: r.par * 2,
+        };
+      });
+    });
+    mockedPrisma.roundHole.findMany.mockResolvedValue([]);
+
+    const combinedResponse = await GET(new Request('http://localhost/api/dashboard?statsMode=combined') as any);
+    const combinedBody = await combinedResponse.json();
+    expect(combinedResponse.status).toBe(200);
+    expect(combinedBody.shortGameShotsAvg).toBe(6);
+
+    const nineResponse = await GET(new Request('http://localhost/api/dashboard?statsMode=9') as any);
+    const nineBody = await nineResponse.json();
+    expect(nineResponse.status).toBe(200);
+    expect(nineBody.shortGameShotsAvg).toBe(3);
+
+    const eighteenResponse = await GET(new Request('http://localhost/api/dashboard?statsMode=18') as any);
+    const eighteenBody = await eighteenResponse.json();
+    expect(eighteenResponse.status).toBe(200);
+    expect(eighteenBody.shortGameShotsAvg).toBe(6);
+  });
+
   it('builds combined scoring_profile from round-grouped data and doubles only 9-hole rounds', async () => {
     mockedPrisma.round.findMany.mockResolvedValue([
       {

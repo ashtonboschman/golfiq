@@ -38,6 +38,7 @@ describe("calculateStrokesGained (new SG model)", () => {
 
     expect(result.partialAnalysis).toBe(false);
     expect(result.sgTotal).toBeDefined();
+    expect(result.sgShortGame).toBeNull();
     expect(result.sgResidual).toBeDefined();
     expect(result.confidence).toMatch(/high|medium|low/);
   });
@@ -182,6 +183,70 @@ describe("calculateStrokesGained (new SG model)", () => {
     expect(Math.abs(result.sgTotal!)).toBeLessThan(10);
   });
 
+  it("computes sgShortGame as expected minus actual when short_game_shots is tracked", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue(
+      makeRound({
+        score: 88,
+        firHit: 7,
+        girHit: 8,
+        putts: 34,
+        penalties: 2,
+        shortGameShots: 10,
+        handicapAtRound: 10,
+      })
+    );
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(6), roundId: BigInt(700) },
+      mockPrisma as any
+    );
+
+    expect(result.sgShortGame).toBeCloseTo(3.1, 1);
+  });
+
+  it("returns null sgShortGame when short_game_shots is untracked", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue(
+      makeRound({
+        score: 88,
+        firHit: 7,
+        girHit: 8,
+        putts: 34,
+        penalties: 2,
+        shortGameShots: null,
+        handicapAtRound: 10,
+      })
+    );
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(6), roundId: BigInt(701) },
+      mockPrisma as any
+    );
+
+    expect(result.sgShortGame).toBeNull();
+  });
+
+  it("scales expected short game for 9-hole contexts through adjusted missed GIR", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue(
+      makeRound({
+        score: 44,
+        firHit: 4,
+        girHit: 3,
+        putts: 17,
+        penalties: 1,
+        shortGameShots: 6,
+        handicapAtRound: 10,
+        tee: baseTee9,
+      })
+    );
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(6), roundId: BigInt(702) },
+      mockPrisma as any
+    );
+
+    expect(result.sgShortGame).toBeCloseTo(0.5, 1);
+  });
+
   // --------------------------------------------------
   // 7. Putting cap enforcement
   // --------------------------------------------------
@@ -255,6 +320,7 @@ describe("calculateStrokesGained (new SG model)", () => {
     const sum =
       (r.sgOffTee ?? 0) +
       (r.sgApproach ?? 0) +
+      (r.sgShortGame ?? 0) +
       (r.sgPutting ?? 0) +
       (r.sgPenalties ?? 0) +
       (r.sgResidual ?? 0);

@@ -140,7 +140,7 @@ export default function PrivacyPage() {
           </p>
 
           <p>
-            <strong>Email:</strong> <a href="mailto:support@golfiq.ca">support@golfiq.ca</a>
+            <strong>Email:</strong> <a href="mailto:golfiqapp@gmail.com">golfiqapp@gmail.com</a>
           </p>
         </section>
       </div>

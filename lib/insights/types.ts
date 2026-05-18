@@ -1,4 +1,4 @@
-export type SgMeasuredComponentName = 'off_tee' | 'approach' | 'putting' | 'penalties';
+export type SgMeasuredComponentName = 'off_tee' | 'approach' | 'short_game' | 'putting' | 'penalties';
 
 export type AdvancedStatKey = 'fir' | 'gir' | 'putts' | 'penalties';
 

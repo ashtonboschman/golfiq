@@ -15,7 +15,7 @@ export type InsightLevel = 'great' | 'success' | 'warning' | 'info';
 export type PerformanceBand = 'tough' | 'below' | 'expected' | 'above' | 'great' | 'unknown';
 
 export type PolicyMeasuredComponent = {
-  name: 'off_tee' | 'approach' | 'putting' | 'penalties';
+  name: 'off_tee' | 'approach' | 'short_game' | 'putting' | 'penalties';
   label: string;
   value: number;
 };

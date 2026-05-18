@@ -7,6 +7,7 @@ import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useMessage } from '@/app/providers';
+import { clearRoundAddDraft } from '@/lib/rounds/addDraft';
 
 const LOGO_BY_THEME: Record<string, string> = {
   dark: '/logos/wordmark/golfiq-wordmark.png',
@@ -54,6 +55,9 @@ export default function Header() {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
           }
+          if (pathname === '/rounds/add') {
+            clearRoundAddDraft(user?.id);
+          }
           router.push(path);
         }
       });
@@ -87,6 +91,9 @@ export default function Header() {
         onConfirm: async () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
+          }
+          if (pathname === '/rounds/add') {
+            clearRoundAddDraft(user?.id);
           }
           setDropdownOpen(false);
           clearThemeAuthMarker();
@@ -131,6 +138,7 @@ export default function Header() {
       showConfirm({
         message: 'Are you sure you want to leave? Any unsaved changes will be lost.',
         onConfirm: () => {
+          clearRoundAddDraft(user?.id);
           if (from.startsWith('/')) {
             router.replace(from);
           } else if (from === 'dashboard') {

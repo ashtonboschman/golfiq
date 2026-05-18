@@ -8,6 +8,7 @@ export type SGComponents = {
   sgTotal: number | null;
   sgOffTee: number | null;
   sgApproach: number | null;
+  sgShortGame: number | null;
   sgPutting: number | null;
   sgPenalties: number | null;
   sgResidual: number | null;
@@ -40,6 +41,7 @@ export async function calculateStrokesGained(
       sgTotal: null,
       sgOffTee: null,
       sgApproach: null,
+      sgShortGame: null,
       sgPutting: null,
       sgPenalties: null,
       sgResidual: null,
@@ -100,6 +102,7 @@ export async function calculateStrokesGained(
   const baselineGIR = interpolateBaseline((t) => Number(t.baselineGIRPct));
   const baselinePutts18 = interpolateBaseline((t) => Number(t.baselinePutts));
   const baselinePenalties18 = interpolateBaseline((t) => Number(t.baselinePenalties));
+  const baselineShortGameShots18 = interpolateBaseline((t) => Number(t.baselineShortGameShots));
 
   // Resolve tee context using canonical resolver
   const teeSegment = (round.teeSegment ?? 'full') as TeeSegment;
@@ -112,6 +115,7 @@ export async function calculateStrokesGained(
       sgTotal: null,
       sgOffTee: null,
       sgApproach: null,
+      sgShortGame: null,
       sgPutting: null,
       sgPenalties: null,
       sgResidual: null,
@@ -147,6 +151,14 @@ export async function calculateStrokesGained(
   // Convert percentages to hole counts
   const adjFIR = (adjFIRPct / 100) * nonPar3Holes;
   const adjGIR = (adjGIRPct / 100) * totalHoles;
+  const baselineMissedGir18 = 18 * (1 - baselineGIR / 100);
+  const shortGamePerMissedGir =
+    baselineMissedGir18 > 0 ? baselineShortGameShots18 / baselineMissedGir18 : null;
+  const expectedMissedGirContext = Math.max(0, totalHoles - adjGIR);
+  const expectedShortGameShots =
+    shortGamePerMissedGir != null && Number.isFinite(shortGamePerMissedGir)
+      ? shortGamePerMissedGir * expectedMissedGirContext
+      : null;
 
   // Adjusted putts and penalties (scale adjustment by holeScaling since baselines are already scaled)
   const adjPutts = baselinePutts + courseDiffAdj * C.COURSE_DIFF_TO_PUTTS * holeScaling;
@@ -158,11 +170,15 @@ export async function calculateStrokesGained(
   const actualGIR = round.girHit ?? null;
   const actualPutts = round.putts ?? null;
   const actualPenalties = round.penalties ?? null;
+  const actualShortGameShots = round.shortGameShots ?? null;
 
   const sgTotal = adjScore - actualScore;
   const messages: string[] = [];
   const partialAnalysis =
-    actualFIR === null || actualGIR === null || actualPutts === null || actualPenalties === null;
+    actualFIR === null ||
+    actualGIR === null ||
+    actualPutts === null ||
+    actualPenalties === null;
 
   const puttingCap = (totalHoles / 18) * C.PUTTING_CAP;
   const girStrokeValue = C.STROKES_PER_GIR * Math.max(0.70, 1 - handicap / 80);
@@ -171,6 +187,10 @@ export async function calculateStrokesGained(
   const sgComponentsMap: Record<string, number | null> = {
     offTee: actualFIR !== null ? (actualFIR - adjFIR) * C.STROKES_PER_FIR : null,
     approach: actualGIR !== null ? (actualGIR - adjGIR) * girStrokeValue : null,
+    shortGame:
+      actualShortGameShots !== null && expectedShortGameShots !== null
+        ? expectedShortGameShots - actualShortGameShots
+        : null,
     putting:
       actualPutts !== null
         ? (() => {
@@ -264,12 +284,14 @@ export async function calculateStrokesGained(
   const sgTotalRounded = round1(sgTotal);
   const sgOffTeeRounded = sgComponentsMap.offTee !== null ? round1(sgComponentsMap.offTee) : null;
   const sgApproachRounded = sgComponentsMap.approach !== null ? round1(sgComponentsMap.approach) : null;
+  const sgShortGameRounded = sgComponentsMap.shortGame !== null ? round1(sgComponentsMap.shortGame) : null;
   const sgPuttingRounded = sgComponentsMap.putting !== null ? round1(sgComponentsMap.putting) : null;
   const sgPenaltiesRounded = sgComponentsMap.penalties !== null ? round1(sgComponentsMap.penalties) : null;
 
   const knownRoundedSum =
     (sgOffTeeRounded ?? 0) +
     (sgApproachRounded ?? 0) +
+    (sgShortGameRounded ?? 0) +
     (sgPuttingRounded ?? 0) +
     (sgPenaltiesRounded ?? 0);
   const sgResidualRounded = round1(sgTotalRounded - knownRoundedSum);
@@ -278,6 +300,7 @@ export async function calculateStrokesGained(
     sgTotal: sgTotalRounded,
     sgOffTee: sgOffTeeRounded,
     sgApproach: sgApproachRounded,
+    sgShortGame: sgShortGameRounded,
     sgPutting: sgPuttingRounded,
     sgPenalties: sgPenaltiesRounded,
     sgResidual: sgResidualRounded,

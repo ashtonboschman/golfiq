@@ -15,7 +15,7 @@ import {
 export type StatsMode = 'combined' | '9' | '18';
 export type PerformanceBand = 'tough' | 'below' | 'expected' | 'above' | 'great' | 'unknown';
 export type SGComponentName = 'off_tee' | 'approach' | 'putting' | 'penalties' | 'short_game';
-export type SGCostlyComponent = 'offTee' | 'approach' | 'putting' | 'penalties' | 'residual';
+export type SGCostlyComponent = 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties' | 'residual';
 export const OVERALL_SG_MIN_RECENT_COVERAGE = 3;
 export const OVERALL_SG_MIN_RECENT_COVERAGE_FOR_SELECTION = 1;
 export const OVERALL_RECENT_WINDOW = 5;
@@ -33,10 +33,12 @@ export type OverallRoundPoint = {
   girHit: number | null;
   putts: number | null;
   penalties: number | null;
+  shortGameShots?: number | null;
   handicapAtRound: number | null;
   sgTotal: number | null;
   sgOffTee: number | null;
   sgApproach: number | null;
+  sgShortGame?: number | null;
   sgPutting: number | null;
   sgPenalties: number | null;
   sgResidual: number | null;
@@ -90,6 +92,7 @@ export type ModePayload = {
   efficiency: {
     fir: EfficiencyMetric;
     gir: EfficiencyMetric;
+    shortGameShots: EfficiencyMetric;
     puttsTotal: EfficiencyMetric;
     penaltiesPerRound: EfficiencyMetric;
   };
@@ -98,6 +101,7 @@ export type ModePayload = {
       total: number | null;
       offTee: number | null;
       approach: number | null;
+      shortGame?: number | null;
       putting: number | null;
       penalties: number | null;
       residual: number | null;
@@ -106,6 +110,7 @@ export type ModePayload = {
       total: number | null;
       offTee: number | null;
       approach: number | null;
+      shortGame?: number | null;
       putting: number | null;
       penalties: number | null;
       residual: number | null;
@@ -192,6 +197,7 @@ export type OverallInsightsPayload = {
   efficiency: {
     fir: EfficiencyMetric;
     gir: EfficiencyMetric;
+    shortGameShots: EfficiencyMetric;
     puttsTotal: EfficiencyMetric;
     penaltiesPerRound: EfficiencyMetric;
   };
@@ -206,6 +212,7 @@ export type OverallInsightsPayload = {
         total: number | null;
         offTee: number | null;
         approach: number | null;
+        shortGame?: number | null;
         putting: number | null;
         penalties: number | null;
         residual: number | null;
@@ -216,6 +223,7 @@ export type OverallInsightsPayload = {
         total: number | null;
         offTee: number | null;
         approach: number | null;
+        shortGame?: number | null;
         putting: number | null;
         penalties: number | null;
         residual: number | null;
@@ -224,6 +232,7 @@ export type OverallInsightsPayload = {
         total: number | null;
         offTee: number | null;
         approach: number | null;
+        shortGame?: number | null;
         putting: number | null;
         penalties: number | null;
         residual: number | null;
@@ -441,9 +450,11 @@ export function normalizeByMode(points: OverallRoundPoint[], mode: StatsMode): O
       girHit: p.girHit != null ? p.girHit * mul : null,
       putts: p.putts != null ? p.putts * mul : null,
       penalties: p.penalties != null ? p.penalties * mul : null,
+      shortGameShots: p.shortGameShots != null ? p.shortGameShots * mul : null,
       sgTotal: p.sgTotal != null ? p.sgTotal * mul : null,
       sgOffTee: p.sgOffTee != null ? p.sgOffTee * mul : null,
       sgApproach: p.sgApproach != null ? p.sgApproach * mul : null,
+      sgShortGame: p.sgShortGame != null ? p.sgShortGame * mul : null,
       sgPutting: p.sgPutting != null ? p.sgPutting * mul : null,
       sgPenalties: p.sgPenalties != null ? p.sgPenalties * mul : null,
       sgResidual: p.sgResidual != null ? p.sgResidual * mul : null,
@@ -608,6 +619,7 @@ function componentAverages(recentCombined: OverallRoundPoint[], baselineCombined
   }> = [
     { name: 'off_tee', get: (p) => p.sgOffTee },
     { name: 'approach', get: (p) => p.sgApproach },
+    { name: 'short_game', get: (p) => p.sgShortGame ?? null },
     { name: 'putting', get: (p) => p.sgPutting },
     { name: 'penalties', get: (p) => p.sgPenalties },
   ];
@@ -937,10 +949,12 @@ function buildDataHash(args: {
       gir: r.girHit,
       p: r.putts,
       pen: r.penalties,
+      sgs: r.shortGameShots ?? null,
       hcp: r.handicapAtRound,
       sg: r.sgTotal,
       ot: r.sgOffTee,
       ap: r.sgApproach,
+      sh: r.sgShortGame,
       pu: r.sgPutting,
       pe: r.sgPenalties,
       rs: r.sgResidual,
@@ -990,6 +1004,7 @@ function computeEfficiency(
   return {
     fir: metric((p) => (p.firHit != null && p.nonPar3Holes > 0 ? p.firHit / p.nonPar3Holes : null)),
     gir: metric((p) => (p.girHit != null && p.holes > 0 ? p.girHit / p.holes : null)),
+    shortGameShots: metric((p) => (p.shortGameShots != null ? p.shortGameShots : null)),
     puttsTotal: metric((p) => (p.putts != null ? p.putts : null)),
     penaltiesPerRound: metric((p) => (p.penalties != null ? p.penalties : null)),
   };
@@ -999,6 +1014,7 @@ function pickWorstComponentForRound(row: OverallRoundPoint): { component: SGCost
   const items: Array<{ component: SGCostlyComponent; value: number | null }> = [
     { component: 'offTee', value: row.sgOffTee },
     { component: 'approach', value: row.sgApproach },
+    { component: 'shortGame', value: row.sgShortGame ?? null },
     { component: 'putting', value: row.sgPutting },
     { component: 'penalties', value: row.sgPenalties },
     { component: 'residual', value: row.sgResidual },
@@ -1014,17 +1030,17 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
   const trendRows = pointsCombined.slice(0, 20).reverse();
 
   const latestWithSg = pointsCombined.find((r) =>
-    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
+    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
   ) ?? null;
 
   const recentWindow = pointsCombined.slice(0, sgFrequencyWindow);
 
   const componentRows = pointsCombined.filter((r) =>
-    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
+    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
   );
 
   const recentRows = recentWindow.filter((r) =>
-    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
+    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
   );
   const recentRowsForAvg = recentRows.length
     ? recentRows
@@ -1066,6 +1082,7 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
         total: round1(latestWithSg?.sgTotal ?? null),
         offTee: round1(latestWithSg?.sgOffTee ?? null),
         approach: round1(latestWithSg?.sgApproach ?? null),
+        shortGame: round1(latestWithSg?.sgShortGame ?? null),
         putting: round1(latestWithSg?.sgPutting ?? null),
         penalties: round1(latestWithSg?.sgPenalties ?? null),
         residual: round1(latestWithSg?.sgResidual ?? null),
@@ -1078,6 +1095,7 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
         total: averageBy(recentRowsForAvg, (r) => r.sgTotal),
         offTee: averageBy(recentRowsForAvg, (r) => r.sgOffTee),
         approach: averageBy(recentRowsForAvg, (r) => r.sgApproach),
+        shortGame: averageBy(recentRowsForAvg, (r) => r.sgShortGame ?? null),
         putting: averageBy(recentRowsForAvg, (r) => r.sgPutting),
         penalties: averageBy(recentRowsForAvg, (r) => r.sgPenalties),
         residual: averageBy(recentRowsForAvg, (r) => r.sgResidual),
@@ -1086,6 +1104,7 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
         total: averageBy(componentRows, (r) => r.sgTotal),
         offTee: averageBy(componentRows, (r) => r.sgOffTee),
         approach: averageBy(componentRows, (r) => r.sgApproach),
+        shortGame: averageBy(componentRows, (r) => r.sgShortGame ?? null),
         putting: averageBy(componentRows, (r) => r.sgPutting),
         penalties: averageBy(componentRows, (r) => r.sgPenalties),
         residual: averageBy(componentRows, (r) => r.sgResidual),
@@ -1325,6 +1344,9 @@ export function buildDeterministicOverallCards(args: {
         : null,
       sgComponents.recentAvg?.approach != null && sgComponents.baselineAvg?.approach != null
         ? sgComponents.recentAvg.approach - sgComponents.baselineAvg.approach
+        : null,
+      sgComponents.recentAvg?.shortGame != null && sgComponents.baselineAvg?.shortGame != null
+        ? sgComponents.recentAvg.shortGame - sgComponents.baselineAvg.shortGame
         : null,
       sgComponents.recentAvg?.putting != null && sgComponents.baselineAvg?.putting != null
         ? sgComponents.recentAvg.putting - sgComponents.baselineAvg.putting

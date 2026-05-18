@@ -63,6 +63,7 @@ function makeRound(index: number) {
     girHit: 9,
     putts: 33 + (index % 2),
     penalties: 1 + (index % 2),
+    shortGameShots: 18 + (index % 3),
     handicapAtRound: 3.4 - index * 0.05,
     tee: makeTee(),
     roundHoles: [{ penalties: 1 }],
@@ -70,6 +71,7 @@ function makeRound(index: number) {
       sgTotal: 0.4 - index * 0.1,
       sgOffTee: 0.2 - index * 0.1,
       sgApproach: 0.1 - index * 0.1,
+      sgShortGame: 0.05 - index * 0.05,
       sgPutting: 0.1 - index * 0.1,
       sgPenalties: -0.1 + index * 0.1,
       sgResidual: 0.1 - index * 0.1,
@@ -116,6 +118,7 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.cards_by_mode).toHaveProperty('18');
     expect(body.insights.cards).toEqual(body.insights.cards_by_mode['9']);
     expect(body.insights.mode_payload.combined.kpis.avgSgTotalRecent).toBeNull();
+    expect(body.insights.mode_payload.combined.efficiency.shortGameShots).toBeDefined();
     expect(body.insights.projection.projectedScoreIn10).toBeNull();
     expect(body.insights.projection.projectedHandicapIn10).toBeNull();
     expect(body.insights.projection_by_mode.combined.projectedScoreIn10).toBeNull();
@@ -155,6 +158,7 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.sg_locked).toBe(false);
     expect(body.insights.confidence).toBeDefined();
     expect(body.insights.sg).toBeTruthy();
+    expect(body.insights.sg.components.recentAvg.shortGame).toBeDefined();
     expect(body.insights.cards).toHaveLength(3);
     expect(body.insights.cards_locked_count).toBe(0);
     expect(body.insights.cards_by_mode).toBeTruthy();
@@ -162,6 +166,7 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.mode_payload).toHaveProperty('combined');
     expect(body.insights.mode_payload).toHaveProperty('9');
     expect(body.insights.mode_payload).toHaveProperty('18');
+    expect(body.insights.mode_payload.combined.efficiency.shortGameShots).toBeDefined();
     expect(body.insights.projection_by_mode).toHaveProperty('combined');
     expect(body.insights.projection_by_mode).toHaveProperty('9');
     expect(body.insights.projection_by_mode).toHaveProperty('18');
@@ -174,6 +179,31 @@ describe('/api/insights/overall contract', () => {
     expect(premiumCardsText).not.toContain('projection:');
     expect(premiumCardsText).toContain('recent baseline');
     expect(premiumCardsText).not.toContain('not enough data');
+  });
+
+  it('computes short-game efficiency with null excluded and zero included', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      subscriptionTier: 'premium',
+      subscriptionStatus: 'active',
+    });
+
+    const rounds = [
+      { ...makeRound(0), shortGameShots: 0 },
+      { ...makeRound(1), shortGameShots: null },
+      { ...makeRound(2), shortGameShots: 6 },
+      { ...makeRound(3), shortGameShots: 4 },
+      { ...makeRound(4), shortGameShots: 2 },
+    ];
+    mockedPrisma.round.findMany.mockResolvedValue(rounds as any);
+
+    const request = new Request('http://localhost/api/insights/overall?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    const shortGameMetric = body.insights.mode_payload.combined.efficiency.shortGameShots;
+    expect(shortGameMetric.coverageRecent).toBe('4/5');
+    expect(shortGameMetric.recent).toBe(3);
   });
 
   it('stores auto-generated payload without manual refresh fields', async () => {

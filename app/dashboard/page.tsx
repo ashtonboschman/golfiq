@@ -52,6 +52,10 @@ interface DashboardStats {
   gir_avg: number | null;
   avg_putts: number | null;
   avg_penalties: number | null;
+  scramblingPct: number | null;
+  shortGameShotsAvg: number | null;
+  upAndDownPct: number | null;
+  sandSavePct: number | null;
   hbh_stats: {
     par3_avg: number | null;
     par4_avg: number | null;
@@ -257,6 +261,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     gir_avg: null,
     avg_putts: null,
     avg_penalties: null,
+    scramblingPct: null,
+    shortGameShotsAvg: null,
+    upAndDownPct: null,
+    sandSavePct: null,
     hbh_stats: null,
     scoring_profile: null,
     miss_tendencies: null,
@@ -391,6 +399,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               gir_avg: null,
               avg_putts: null,
               avg_penalties: null,
+              scramblingPct: null,
+              shortGameShotsAvg: null,
+              upAndDownPct: null,
+              sandSavePct: null,
               hbh_stats: null,
               scoring_profile: null,
               miss_tendencies: null,
@@ -440,6 +452,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 gir_avg: null,
                 avg_putts: null,
                 avg_penalties: null,
+                scramblingPct: null,
+                shortGameShotsAvg: null,
+                upAndDownPct: null,
+                sandSavePct: null,
                 hbh_stats: null,
                 scoring_profile: null,
                 miss_tendencies: null,
@@ -1453,11 +1469,15 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               ['GIR', stats.gir_avg, '%', 'How often you reach the green in regulation. Higher is better.'],
               ['Putts', stats.avg_putts, null, 'Average number of putts per round. Lower is better.'],
               ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round. Lower is better.'],
+              ['Scrambling', stats.scramblingPct, '%', 'How often you make par or better after missing the green. Higher is better.'],
+              ['Short Game Shots', stats.shortGameShotsAvg, null, 'Average chips and greenside bunker shots per round. Lower is better.'],
+              ['Up & Down', stats.upAndDownPct, '%', 'How often you save par or better after one short-game shot and one putt or fewer. Higher is better.'],
+              ['Sand Saves', stats.sandSavePct, '%', 'How often you make par or better after a greenside bunker shot. Higher is better.'],
             ].map(([label, val, isPercent, tooltip]) => (
               <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
                 {tooltip && <InfoTooltip text={tooltip as string} />}
                 <h3>{label}</h3>
-                <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number)}</p>
+                <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number | null)}</p>
               </div>
             ))}
           </div>

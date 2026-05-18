@@ -59,6 +59,9 @@ describe('/api/rounds/[id]/stats route contract', () => {
       girHit: 9,
       putts: 31,
       penalties: 1,
+      chips: 4,
+      greensideBunkerShots: 2,
+      shortGameShots: 6,
       handicapAtRound: 8.5,
       roundContext: 'real',
       holeByHole: true,
@@ -87,6 +90,8 @@ describe('/api/rounds/[id]/stats route contract', () => {
           girDirection: 'hit',
           putts: 2,
           penalties: 1,
+          chips: 1,
+          greensideBunkerShots: 0,
           hole: {
             holeNumber: 1,
             par: 4,
@@ -99,6 +104,7 @@ describe('/api/rounds/[id]/stats route contract', () => {
         sgTotal: -0.4,
         sgOffTee: -0.2,
         sgApproach: -0.1,
+        sgShortGame: 0.3,
         sgPutting: 0.1,
         sgPenalties: -0.2,
         sgResidual: 0,
@@ -128,6 +134,10 @@ describe('/api/rounds/[id]/stats route contract', () => {
         greens_in_regulation: 9,
         total_putts: 31,
         total_penalties: 1,
+        total_chips: 4,
+        total_greenside_bunker_shots: 2,
+        total_short_game_shots: 6,
+        sg_short_game: 0.3,
       }),
     );
   });

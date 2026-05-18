@@ -175,10 +175,12 @@ async function loadRoundsForOverall(
       girHit: r.girHit != null ? Number(r.girHit) : null,
       putts: r.putts != null ? Number(r.putts) : null,
       penalties: r.penalties != null ? Number(r.penalties) : derivedPenalties,
+      shortGameShots: r.shortGameShots != null ? Number(r.shortGameShots) : null,
       handicapAtRound: r.handicapAtRound != null ? Number(r.handicapAtRound) : null,
       sgTotal: r.roundStrokesGained?.sgTotal != null ? Number(r.roundStrokesGained.sgTotal) : null,
       sgOffTee: r.roundStrokesGained?.sgOffTee != null ? Number(r.roundStrokesGained.sgOffTee) : null,
       sgApproach: r.roundStrokesGained?.sgApproach != null ? Number(r.roundStrokesGained.sgApproach) : null,
+      sgShortGame: (r.roundStrokesGained as any)?.sgShortGame != null ? Number((r.roundStrokesGained as any).sgShortGame) : null,
       sgPutting: r.roundStrokesGained?.sgPutting != null ? Number(r.roundStrokesGained.sgPutting) : null,
       sgPenalties: r.roundStrokesGained?.sgPenalties != null ? Number(r.roundStrokesGained.sgPenalties) : null,
       sgResidual: r.roundStrokesGained?.sgResidual != null ? Number(r.roundStrokesGained.sgResidual) : null,
@@ -245,6 +247,7 @@ export async function generateAndStoreOverallInsights(
     const persistedHasNewEfficiencyShape = Boolean(
       persistedEfficiency &&
       typeof persistedEfficiency === 'object' &&
+      Object.prototype.hasOwnProperty.call(persistedEfficiency, 'shortGameShots') &&
       Object.prototype.hasOwnProperty.call(persistedEfficiency, 'puttsTotal') &&
       Object.prototype.hasOwnProperty.call(persistedEfficiency, 'penaltiesPerRound'),
     );

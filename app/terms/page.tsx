@@ -133,7 +133,7 @@ export default function TermsPage() {
           </p>
 
           <p>
-            <strong>Email:</strong> <a href="mailto:support@golfiq.ca">support@golfiq.ca</a>
+            <strong>Email:</strong> <a href="mailto:golfiqapp@gmail.com">golfiqapp@gmail.com</a>
           </p>
         </section>
       </div>

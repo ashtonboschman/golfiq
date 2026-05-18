@@ -87,6 +87,9 @@ const statsPayload = {
   total_putts: 33,
   putts_per_hole: '1.8',
   total_penalties: 1,
+  total_chips: 5,
+  total_greenside_bunker_shots: 2,
+  total_short_game_shots: 7,
   scoring_by_par: [],
   hole_details: [],
   notes: null,
@@ -94,6 +97,7 @@ const statsPayload = {
   sg_total: 0.8,
   sg_off_tee: 0.2,
   sg_approach: 0.3,
+  sg_short_game: -0.1,
   sg_putting: 0.1,
   sg_penalties: 0.0,
   sg_residual: 0.2,
@@ -125,6 +129,7 @@ describe('/rounds/[id]/stats page', () => {
     await screen.findByText('Pebble Beach');
     expect(screen.getByText('Total')).toBeInTheDocument();
     expect(screen.getByText('Off Tee')).toBeInTheDocument();
+    expect(screen.getByText('Short Game')).toBeInTheDocument();
     expect(screen.getByText('Residual')).toBeInTheDocument();
   });
 
@@ -237,6 +242,8 @@ describe('/rounds/[id]/stats page', () => {
               gir_direction: null,
               putts: 1,
               penalties: 0,
+              chips: 1,
+              greenside_bunker_shots: 0,
             },
             {
               hole_number: 2,
@@ -252,6 +259,8 @@ describe('/rounds/[id]/stats page', () => {
               gir_direction: 'miss_right',
               putts: 2,
               penalties: 0,
+              chips: 0,
+              greenside_bunker_shots: 0,
             },
             {
               hole_number: 3,
@@ -267,6 +276,8 @@ describe('/rounds/[id]/stats page', () => {
               gir_direction: 'miss_long',
               putts: 2,
               penalties: 1,
+              chips: 1,
+              greenside_bunker_shots: 1,
             },
             {
               hole_number: 4,
@@ -282,6 +293,8 @@ describe('/rounds/[id]/stats page', () => {
               gir_direction: null,
               putts: 2,
               penalties: 0,
+              chips: 0,
+              greenside_bunker_shots: 0,
             },
             {
               hole_number: 5,
@@ -297,6 +310,8 @@ describe('/rounds/[id]/stats page', () => {
               gir_direction: null,
               putts: 1,
               penalties: 0,
+              chips: 0,
+              greenside_bunker_shots: 0,
             },
           ],
         },

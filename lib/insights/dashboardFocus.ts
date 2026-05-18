@@ -12,6 +12,7 @@ import {
 export type DashboardFocusComponent =
   | 'offTee'
   | 'approach'
+  | 'shortGame'
   | 'putting'
   | 'penalties'
   | 'residual';
@@ -46,6 +47,7 @@ export type DashboardOverallInsightsSummary = {
   sgComponentDelta: {
     offTee: number | null;
     approach: number | null;
+    shortGame?: number | null;
     putting: number | null;
     penalties: number | null;
     residual: number | null;
@@ -104,6 +106,7 @@ const MIN_ROUNDS_FOR_TRENDS = 5;
 
 const SG_TIE_BREAK_ORDER: DashboardFocusComponent[] = [
   'penalties',
+  'shortGame',
   'putting',
   'approach',
   'offTee',
@@ -136,6 +139,7 @@ const MANY_ROUND_SCORE_ONLY_MIN_ROUNDS = 5;
 function mapPersistedComponent(raw: unknown): Exclude<DashboardFocusComponent, 'residual'> | null {
   if (raw === 'offTee') return 'offTee';
   if (raw === 'approach') return 'approach';
+  if (raw === 'shortGame') return 'shortGame';
   if (raw === 'putting') return 'putting';
   if (raw === 'penalties') return 'penalties';
   return null;
@@ -315,7 +319,7 @@ function isResidualDominant(
   const residualAbs = Math.abs(deltas.residual);
   if (residualAbs < RESIDUAL_DOMINANT_THRESHOLD) return false;
 
-  const others = [deltas.offTee, deltas.approach, deltas.putting, deltas.penalties]
+  const others = [deltas.offTee, deltas.approach, deltas.shortGame, deltas.putting, deltas.penalties]
     .filter((value): value is number => value != null && Number.isFinite(value))
     .map((value) => Math.abs(value));
   if (others.length === 0) return true;
@@ -324,7 +328,7 @@ function isResidualDominant(
 
 function hasAnyMeasuredComponentData(deltas: DashboardOverallInsightsSummary['sgComponentDelta']): boolean {
   if (!deltas) return false;
-  return [deltas.offTee, deltas.approach, deltas.putting, deltas.penalties].some(
+  return [deltas.offTee, deltas.approach, deltas.shortGame, deltas.putting, deltas.penalties].some(
     (value) => value != null && Number.isFinite(value),
   );
 }
@@ -332,6 +336,7 @@ function hasAnyMeasuredComponentData(deltas: DashboardOverallInsightsSummary['sg
 function componentDisplayName(component: DashboardFocusComponent): string {
   if (component === 'offTee') return 'Off the Tee';
   if (component === 'approach') return 'Approach';
+  if (component === 'shortGame') return 'Short Game';
   if (component === 'putting') return 'Putting';
   if (component === 'penalties') return 'Penalties';
   return 'Residual';
@@ -353,6 +358,7 @@ function fallbackNextRoundNudge(
   if (mode === 'opportunity') {
     if (component === 'putting') return 'Focus on lag speed.';
     if (component === 'approach') return 'Play to the center of the green.';
+    if (component === 'shortGame') return 'Choose the simplest up-and-down play.';
     if (component === 'offTee') return 'Choose a target that keeps your common miss in play.';
     if (component === 'penalties') return 'Choose the safe line.';
     return 'Make simple decisions.';
@@ -360,6 +366,7 @@ function fallbackNextRoundNudge(
 
   if (component === 'putting') return 'Keep trusting your speed.';
   if (component === 'approach') return 'Keep trusting your approach shots.';
+  if (component === 'shortGame') return 'Keep trusting your short-game choices.';
   if (component === 'offTee') return 'Keep trusting your tee shots.';
   if (component === 'penalties') return 'Keep choosing safe lines.';
   return 'Make simple decisions.';
@@ -367,9 +374,10 @@ function fallbackNextRoundNudge(
 
 function componentCoverageKey(
   component: Exclude<DashboardFocusComponent, 'residual'>,
-): keyof NonNullable<DashboardOverallInsightsSummary['statCoverage']> {
+): keyof NonNullable<DashboardOverallInsightsSummary['statCoverage']> | null {
   if (component === 'offTee') return 'fir';
   if (component === 'approach') return 'gir';
+  if (component === 'shortGame') return null;
   if (component === 'putting') return 'putts';
   return 'penalties';
 }
@@ -380,13 +388,14 @@ function hasEnoughCoverageForComponent(
 ): boolean {
   if (!summary.statCoverage) return true;
   const key = componentCoverageKey(component);
+  if (key == null) return true;
   return summary.statCoverage[key].tracked >= MIN_RECENT_STAT_COVERAGE_FOR_COMPONENT_FOCUS;
 }
 
 function measuredComponentCount(summary: DashboardOverallInsightsSummary): number {
   const sg = summary.sgComponentDelta;
   if (!sg) return 0;
-  return [sg.offTee, sg.approach, sg.putting, sg.penalties].filter(
+  return [sg.offTee, sg.approach, sg.shortGame, sg.putting, sg.penalties].filter(
     (value) => value != null && Number.isFinite(value),
   ).length;
 }
@@ -442,6 +451,9 @@ function selectSgFocus(summary: DashboardOverallInsightsSummary): SelectedSgFocu
   }
   if (sg.approach != null && Number.isFinite(sg.approach)) {
     components.push({ component: 'approach', delta: sg.approach });
+  }
+  if (sg.shortGame != null && Number.isFinite(sg.shortGame)) {
+    components.push({ component: 'shortGame', delta: sg.shortGame });
   }
   if (sg.putting != null && Number.isFinite(sg.putting)) {
     components.push({ component: 'putting', delta: sg.putting });
@@ -848,6 +860,10 @@ export function buildDashboardOverallInsightsSummary(
         approach: deltaOrNull(
           sgComponents.recentAvg?.approach,
           sgComponents.baselineAvg?.approach,
+        ),
+        shortGame: deltaOrNull(
+          sgComponents.recentAvg?.shortGame,
+          sgComponents.baselineAvg?.shortGame,
         ),
         putting: deltaOrNull(
           sgComponents.recentAvg?.putting,

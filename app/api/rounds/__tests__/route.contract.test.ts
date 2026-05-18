@@ -127,6 +127,9 @@ function makeListRound(roundContext: 'real' | 'simulator' | null) {
     girHit: 9,
     putts: 31,
     penalties: 1,
+    chips: 4,
+    greensideBunkerShots: 2,
+    shortGameShots: 6,
     notes: null,
     createdAt: new Date('2026-04-20T12:00:00.000Z'),
     updatedAt: new Date('2026-04-20T12:00:00.000Z'),
@@ -165,6 +168,7 @@ describe('/api/rounds route contract', () => {
       sgTotal: 0.4,
       sgOffTee: 0.2,
       sgApproach: 0.1,
+      sgShortGame: -0.2,
       sgPutting: 0.1,
       sgPenalties: -0.1,
       sgResidual: 0.1,
@@ -182,6 +186,9 @@ describe('/api/rounds route contract', () => {
       girHit: 9,
       putts: 31,
       penalties: 1,
+      chips: null,
+      greensideBunkerShots: null,
+      shortGameShots: null,
     });
     mockedPrisma.round.count.mockResolvedValue(1);
     mockedPrisma.roundStrokesGained.create.mockResolvedValue({});
@@ -368,5 +375,78 @@ describe('/api/rounds route contract', () => {
         ],
       }),
     );
+  });
+
+  it('POST derives short_game_shots from chips and greenside_bunker_shots for after-round payloads', async () => {
+    const request = new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 79,
+        chips: 5,
+        greenside_bunker_shots: null,
+        hole_by_hole: 0,
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(201);
+    expect(mockedPrisma.round.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          chips: 5,
+          greensideBunkerShots: null,
+          shortGameShots: 5,
+        }),
+      }),
+    );
+  });
+
+  it('POST rejects round-level chips greater than 99', async () => {
+    const request = new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 79,
+        chips: 100,
+        hole_by_hole: 0,
+      }),
+    });
+
+    const response = await POST(request as any);
+    expect(response.status).toBe(400);
+    expect(mockedPrisma.round.create).not.toHaveBeenCalled();
+  });
+
+  it('POST rejects hole-level greenside_bunker_shots greater than 6', async () => {
+    const request = new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        hole_by_hole: 1,
+        round_holes: [
+          {
+            hole_id: 101,
+            pass: 1,
+            score: 4,
+            greenside_bunker_shots: 7,
+          },
+        ],
+      }),
+    });
+
+    const response = await POST(request as any);
+    expect(response.status).toBe(400);
+    expect(mockedPrisma.roundHole.createMany).not.toHaveBeenCalled();
   });
 });

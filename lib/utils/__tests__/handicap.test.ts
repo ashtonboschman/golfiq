@@ -3,6 +3,7 @@ import { calculateHandicap, calculateNetScore, calculateNetScoreLegacy, normaliz
 import { createRound, mock18HoleRound, mock9HoleRound, type RoundFixture } from "../__fixtures__/handicapFixtures";
 
 type Round = RoundFixture;
+type RoundWithShortGame = RoundFixture & { short_game_shots?: number | null };
 type NetScoreContext = Parameters<typeof calculateNetScore>[2];
 
 function makeNetScoreCtx(overrides: Partial<NetScoreContext> = {}): NetScoreContext {
@@ -70,13 +71,14 @@ describe("normalizeRoundsByMode", () => {
     });
 
     it("handles null stat values correctly", () => {
-      const roundWithNulls: Round = {
+      const roundWithNulls: RoundWithShortGame = {
         ...mock9HoleRound,
         to_par: null,
         fir_hit: null,
         gir_hit: null,
         putts: null,
         penalties: null,
+        short_game_shots: null,
       };
 
       const result = normalizeRoundsByMode([roundWithNulls], "combined");
@@ -86,6 +88,27 @@ describe("normalizeRoundsByMode", () => {
       expect(result[0].gir_hit).toBeNull();
       expect(result[0].putts).toBeNull();
       expect(result[0].penalties).toBeNull();
+      expect(result[0].short_game_shots).toBeNull();
+    });
+
+    it("doubles short_game_shots for 9-hole rounds in combined mode", () => {
+      const nineHoleRound: RoundWithShortGame = {
+        ...mock9HoleRound,
+        short_game_shots: 4,
+      };
+
+      const result = normalizeRoundsByMode([nineHoleRound], "combined");
+      expect(result[0].short_game_shots).toBe(8);
+    });
+
+    it("keeps short_game_shots unchanged for 18-hole rounds", () => {
+      const eighteenHoleRound: RoundWithShortGame = {
+        ...mock18HoleRound,
+        short_game_shots: 7,
+      };
+
+      const result = normalizeRoundsByMode([eighteenHoleRound], "combined");
+      expect(result[0].short_game_shots).toBe(7);
     });
   });
 

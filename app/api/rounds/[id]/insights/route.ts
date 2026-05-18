@@ -647,6 +647,7 @@ async function generateInsightsInternal(
     {
       offTee: sgComponents?.sgOffTee != null ? Number(sgComponents.sgOffTee) : null,
       approach: sgComponents?.sgApproach != null ? Number(sgComponents.sgApproach) : null,
+      shortGame: (sgComponents as any)?.sgShortGame != null ? Number((sgComponents as any).sgShortGame) : null,
       putting: sgComponents?.sgPutting != null ? Number(sgComponents.sgPutting) : null,
       penalties: sgComponents?.sgPenalties != null ? Number(sgComponents.sgPenalties) : null,
       residual: sgComponents?.sgResidual != null ? Number(sgComponents.sgResidual) : null,
@@ -761,6 +762,7 @@ async function generateInsightsInternal(
         total: totalSg,
         off_tee: sgComponents?.sgOffTee != null ? Number(sgComponents.sgOffTee) : null,
         approach: sgComponents?.sgApproach != null ? Number(sgComponents.sgApproach) : null,
+        short_game: (sgComponents as any)?.sgShortGame != null ? Number((sgComponents as any).sgShortGame) : null,
         putting: sgComponents?.sgPutting != null ? Number(sgComponents.sgPutting) : null,
         penalties: sgComponents?.sgPenalties != null ? Number(sgComponents.sgPenalties) : null,
         residual: sgComponents?.sgResidual != null ? Number(sgComponents.sgResidual) : null,

@@ -14,6 +14,7 @@ type Round = {
   gir_total: number;
   putts?: number | null;
   penalties?: number | null;
+  short_game_shots?: number | null;
   par: number;
 };
 
@@ -63,6 +64,7 @@ export function normalizeRoundsByMode<T extends Round>(
         gir_total: r.gir_total * 2,
         putts: r.putts != null ? r.putts * 2 : null,
         penalties: r.penalties != null ? r.penalties * 2 : null,
+        short_game_shots: r.short_game_shots != null ? r.short_game_shots * 2 : null,
         rating: r.rating * 2,
         par: r.par * 2,
       };

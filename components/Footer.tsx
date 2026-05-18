@@ -10,6 +10,7 @@ import {
   clearInsightsNudgePending,
   hasInsightsNudgePending,
 } from '@/lib/insights/insightsNudge';
+import { clearRoundAddDraft } from '@/lib/rounds/addDraft';
 
 export default function Footer() {
   const { data: session, status } = useSession();
@@ -64,6 +65,9 @@ export default function Footer() {
         onConfirm: () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
+          }
+          if (pathname === '/rounds/add') {
+            clearRoundAddDraft(user?.id);
           }
           router.push(path);
         }

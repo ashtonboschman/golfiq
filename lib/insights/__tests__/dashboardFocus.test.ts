@@ -148,6 +148,7 @@ function makeInsightsPayload(mutator?: (payload: any) => void): any {
         efficiency: {
           fir: { recent: 0.52, baseline: 0.5, coverageRecent: '5/5' },
           gir: { recent: 0.44, baseline: 0.45, coverageRecent: '5/5' },
+          shortGameShots: { recent: 17.4, baseline: 18.1, coverageRecent: '5/5' },
           puttsTotal: { recent: 31.8, baseline: 32.0, coverageRecent: '5/5' },
           penaltiesPerRound: { recent: 1.3, baseline: 1.0, coverageRecent: '5/5' },
         },
@@ -518,6 +519,7 @@ describe('dashboardFocus summary mapping', () => {
     expect(summary?.sgComponentDelta).toEqual({
       offTee: null,
       approach: null,
+      shortGame: null,
       putting: null,
       penalties: null,
       residual: null,
@@ -632,7 +634,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('early_guidance');
     expect(state.focus.confidence).toBe('low');
     expect(state.focus.headline).toBe('Start with solid decisions.');
-    expect(state.focus.body).toBe('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.');
+    expect(state.focus.body).toBe('Log your first round to begin building your scoring baseline.');
     expect(state.focus.nextRound).toBe('Play to the widest target.');
   });
 

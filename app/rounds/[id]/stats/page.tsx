@@ -32,6 +32,8 @@ interface HoleDetail {
   fir_direction?: 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long' | null;
   putts: number | null;
   penalties: number | null;
+  chips: number | null;
+  greenside_bunker_shots: number | null;
 }
 
 interface ScoringByPar {
@@ -67,6 +69,9 @@ interface RoundStats {
   total_putts: number | null;
   putts_per_hole: string | null;
   total_penalties: number | null;
+  total_chips: number | null;
+  total_greenside_bunker_shots: number | null;
+  total_short_game_shots: number | null;
   scoring_by_par: ScoringByPar[];
   hole_details: HoleDetail[];
   notes: string | null;
@@ -74,6 +79,7 @@ interface RoundStats {
   sg_total: number | null;
   sg_off_tee: number | null;
   sg_approach: number | null;
+  sg_short_game: number | null;
   sg_putting: number | null;
   sg_penalties: number | null;
   sg_residual: number | null;
@@ -321,7 +327,7 @@ export default function RoundStatsPage() {
         : null;
 
   const sgTooltipText =
-    'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Putting, and Penalties use the stats you logged. Residual is scoring not explained by tracked stats.';
+    'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Short Game, Putting, and Penalties use the stats you logged. Short Game compares your tracked chips and greenside bunker shots to expected short-game workload for your handicap and round context. Residual is scoring not explained by tracked stats.';
 
   const parBreakdownRows: ParBreakdownChartRow[] = [...stats.scoring_by_par]
     .map((item) => {
@@ -456,6 +462,30 @@ export default function RoundStatsPage() {
                 Penalties
               </div>
             </div>
+            <div>
+              <div className="stats-score-value">
+                {stats.total_chips ?? '-'}
+              </div>
+              <div className="stats-score-label">
+                Chips
+              </div>
+            </div>
+            <div>
+              <div className="stats-score-value">
+                {stats.total_greenside_bunker_shots ?? '-'}
+              </div>
+              <div className="stats-score-label">
+                Greenside Bunker
+              </div>
+            </div>
+            <div>
+              <div className="stats-score-value">
+                {stats.total_short_game_shots ?? '-'}
+              </div>
+              <div className="stats-score-label">
+                Short-Game Shots
+              </div>
+            </div>
           </div>
         </div>
 
@@ -498,6 +528,14 @@ export default function RoundStatsPage() {
                       </div>
                       <div className="stats-score-label">
                         Approach
+                      </div>
+                    </div>
+                    <div>
+                      <div className={`stats-score-value ${stats.sg_short_game != null ? stats.sg_short_game > 1 ? 'green' : stats.sg_short_game < -1 ? 'red' : 'primary' : 'primary'}`}>
+                        {formatSignedSg(stats.sg_short_game)}
+                      </div>
+                      <div className="stats-score-label">
+                        Short Game
                       </div>
                     </div>
                     <div>

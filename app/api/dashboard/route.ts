@@ -5,6 +5,7 @@ import { normalizeRoundsByMode, calculateHandicap } from '@/lib/utils/handicap';
 import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { buildDashboardOverallInsightsSummary } from '@/lib/insights/dashboardFocus';
+import { deriveShortGameMetrics } from '@/lib/utils/shortGameMetrics';
 
 const MISS_DIRECTION_KEYS = ['miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
 type MissDirectionKey = (typeof MISS_DIRECTION_KEYS)[number];
@@ -193,6 +194,10 @@ export async function GET(request: NextRequest) {
         average_to_par: null,
         avg_putts: null,
         avg_penalties: null,
+        scramblingPct: null,
+        shortGameShotsAvg: null,
+        upAndDownPct: null,
+        sandSavePct: null,
         fir_avg: null,
         gir_avg: null,
         handicap: null,
@@ -230,6 +235,9 @@ export async function GET(request: NextRequest) {
         gir_hit: r.girHit,
         putts: r.putts,
         penalties: r.penalties,
+        chips: r.chips,
+        greenside_bunker_shots: r.greensideBunkerShots,
+        short_game_shots: r.shortGameShots,
         fir_total: ctx.nonPar3Holes,
         gir_total: ctx.holes,
         rating: ctx.courseRating,
@@ -294,6 +302,10 @@ export async function GET(request: NextRequest) {
         gir_avg: null,
         avg_putts: null,
         avg_penalties: null,
+        scramblingPct: null,
+        shortGameShotsAvg: null,
+        upAndDownPct: null,
+        sandSavePct: null,
         miss_tendencies: null,
         hbh_stats: {
           par3_avg: null,
@@ -550,6 +562,20 @@ export async function GET(request: NextRequest) {
       ? penaltiesRounds.reduce((sum: any, r: any) => sum + (r.penalties || 0), 0) / penaltiesRounds.length
       : null;
 
+    const shortGameMetrics = deriveShortGameMetrics({
+      rounds: roundsForStats.map((r: any) => ({
+        shortGameShots: r.short_game_shots ?? null,
+      })),
+      holes: roundHoles.map((rh: any) => ({
+        par: rh?.hole?.par ?? null,
+        score: rh?.score ?? null,
+        girHit: rh?.girHit ?? null,
+        putts: rh?.putts ?? null,
+        chips: rh?.chips ?? null,
+        greensideBunkerShots: rh?.greensideBunkerShots ?? null,
+      })),
+    });
+
     return successResponse({
       message: '',
       total_rounds: totalRounds,
@@ -565,6 +591,10 @@ export async function GET(request: NextRequest) {
       gir_avg,
       avg_putts,
       avg_penalties,
+      scramblingPct: shortGameMetrics.scrambling.percentage,
+      shortGameShotsAvg: shortGameMetrics.shortGameShotsAverage,
+      upAndDownPct: shortGameMetrics.upAndDown.percentage,
+      sandSavePct: shortGameMetrics.sandSave.percentage,
       hbh_stats,
       scoring_profile,
       miss_tendencies,
