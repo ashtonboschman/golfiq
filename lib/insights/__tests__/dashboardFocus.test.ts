@@ -5,6 +5,82 @@ import {
   type DashboardOverallInsightsSummary,
 } from '@/lib/insights/dashboardFocus';
 
+function expectOneOf(received: string, variants: readonly string[]): void {
+  expect(variants).toContain(received);
+}
+
+const EARLY_GUIDANCE_HEADLINES = [
+  'Start with solid decisions.',
+  'Build the round around simple choices.',
+  'Start by keeping the ball in play.',
+] as const;
+
+const EARLY_GUIDANCE_BODIES = [
+  'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
+  'Early patterns usually show up through missed chances and harder recovery holes.',
+  'At this stage, steady targets matter more than chasing one perfect stat.',
+] as const;
+
+const EARLY_GUIDANCE_NUDGES = [
+  'Play to the widest target.',
+  'Choose the safest target first.',
+  'Keep the difficult miss out of play.',
+] as const;
+
+const BALANCED_STABLE_NUDGES = [
+  'Play to center-green targets.',
+  'Choose targets with room to miss.',
+  'Keep the next shot simple.',
+] as const;
+
+const SCORE_ONLY_STABLE_HEADLINES = [
+  'Your scoring is stable.',
+  'Your scoring pattern is steady.',
+  'Your recent scores are holding steady.',
+] as const;
+
+const SCORE_ONLY_STABLE_BODIES_FREE_MED = [
+  'Your scoring trend is established, but detail stats are still limited.',
+  'Your score trend is forming, but the stat detail is still light.',
+  'Your recent scoring has a pattern, but the details are still building.',
+] as const;
+
+const SCORE_ONLY_STABLE_NUDGES = [
+  'Commit to one focus.',
+  'Pick one scoring habit to protect.',
+  'Choose one simple target pattern.',
+] as const;
+
+const SCORE_ONLY_WORSENING_HEADLINES = [
+  'Your scores are slipping.',
+  'Your recent scores are trending higher.',
+  'Scoring has moved the wrong way lately.',
+] as const;
+
+const SCORE_ONLY_WORSENING_BODIES_FREE_MED = [
+  'Scores are trending higher than usual. Safer choices can steady the pattern.',
+  'Recent scores are moving higher. Safer targets can help settle the round.',
+  'Scoring has slipped lately. Keeping trouble out of play is the first fix.',
+] as const;
+
+const OPPORTUNITY_APPROACH_NUDGES = [
+  'Play to the center of the green.',
+  'Favor the safe side of the green.',
+  'Take the short-sided miss out of play.',
+] as const;
+
+const STRENGTH_APPROACH_NUDGES = [
+  'Keep trusting your approach shots.',
+  'Keep choosing smart approach targets.',
+  'Stay with the safe green sections.',
+] as const;
+
+const VOLATILITY_PENALTY_NUDGES = [
+  'Choose the safest line on risk holes.',
+  'Keep penalty trouble out of the miss.',
+  'Play for the miss that stays in play.',
+] as const;
+
 function makeSummary(
   overrides: Partial<DashboardOverallInsightsSummary> = {},
 ): DashboardOverallInsightsSummary {
@@ -633,9 +709,9 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('early_guidance');
     expect(state.focus.confidence).toBe('low');
-    expect(state.focus.headline).toBe('Start with solid decisions.');
+    expectOneOf(state.focus.headline, EARLY_GUIDANCE_HEADLINES);
     expect(state.focus.body).toBe('Log your first round to begin building your scoring baseline.');
-    expect(state.focus.nextRound).toBe('Play to the widest target.');
+    expectOneOf(state.focus.nextRound, EARLY_GUIDANCE_NUDGES);
   });
 
   it('no longer returns locked state for historical data gating flags', () => {
@@ -685,8 +761,8 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('component_opportunity');
     expect(state.focus.headline).toBe('Approach is the biggest opportunity right now.');
-    expect(state.focus.body).toBe('This area is costing you the most strokes.');
-    expect(state.focus.nextRound).toBe('Play to the center of the green.');
+    expect(state.focus.body).toBe('Approach is costing you the most strokes.');
+    expectOneOf(state.focus.nextRound, OPPORTUNITY_APPROACH_NUDGES);
     expect(state.focus.component).toBe('approach');
   });
 
@@ -709,8 +785,8 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_strength');
     expect(state.focus.headline).toBe('Approach is driving your improvement.');
-    expect(state.focus.body).toBe('This area is gaining about 0.2 strokes per round.');
-    expect(state.focus.nextRound).toBe('Keep trusting your approach shots.');
+    expect(state.focus.body).toBe('Approach is gaining about 0.2 strokes per round.');
+    expectOneOf(state.focus.nextRound, STRENGTH_APPROACH_NUDGES);
     expect(state.focus.component).toBe('approach');
   });
 
@@ -734,7 +810,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('component_balanced');
     expect(state.focus.headline).toBe('No single area clearly dominates right now.');
     expect(state.focus.body).toBe('Round-management choices now matter more than chasing one stat fix.');
-    expect(state.focus.nextRound).toBe('Play to center-green targets.');
+    expectOneOf(state.focus.nextRound, BALANCED_STABLE_NUDGES);
   });
 
   it('uses balanced mode when all SG components are between -0.15 and +0.15', () => {
@@ -757,7 +833,7 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.outcome).toBe('component_balanced');
     expect(state.focus.headline).toBe('No single area clearly dominates right now.');
     expect(state.focus.body).toBe('Round-management choices now matter more than chasing one stat fix.');
-    expect(state.focus.nextRound).toBe('Play to center-green targets.');
+    expectOneOf(state.focus.nextRound, BALANCED_STABLE_NUDGES);
     expect(state.focus.component).toBeNull();
   });
 
@@ -786,7 +862,7 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('component_opportunity');
     expect(state.focus.headline).toBe('Putting is the biggest opportunity right now.');
-    expect(state.focus.body).toBe('This area is costing you the most strokes.');
+    expect(state.focus.body).toBe('Putting is costing you the most strokes.');
     expect(state.focus.nextRound).toBe('Focus on lag speed.');
     expect(state.focus.component).toBe('putting');
   });
@@ -848,7 +924,7 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_strength');
     expect(state.focus.headline).toBe('Approach is your strongest area.');
-    expect(state.focus.body).toBe('This area is gaining about 0.2 strokes per round.');
+    expect(state.focus.body).toBe('Approach is gaining about 0.2 strokes per round.');
   });
 
   it('uses penalty avoidance grammar for penalties component headlines', () => {
@@ -885,9 +961,9 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('score_only_stable');
-    expect(state.focus.headline).toBe('Your scoring is stable.');
-    expect(state.focus.body).toBe('Your scoring trend is established, but detail stats are still limited.');
-    expect(state.focus.nextRound).toBe('Commit to one focus.');
+    expectOneOf(state.focus.headline, SCORE_ONLY_STABLE_HEADLINES);
+    expectOneOf(state.focus.body, SCORE_ONLY_STABLE_BODIES_FREE_MED);
+    expectOneOf(state.focus.nextRound, SCORE_ONLY_STABLE_NUDGES);
     expect(state.focus.component).toBeNull();
   });
 
@@ -920,8 +996,8 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('score_only_stable');
-    expect(state.focus.headline).toBe('Your scoring is stable.');
-    expect(state.focus.nextRound).toBe('Commit to one focus.');
+    expectOneOf(state.focus.headline, SCORE_ONLY_STABLE_HEADLINES);
+    expectOneOf(state.focus.nextRound, SCORE_ONLY_STABLE_NUDGES);
     expect(state.focus.component).toBeNull();
   });
 
@@ -950,9 +1026,9 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('early_guidance');
-    expect(state.focus.headline).toBe('Start with solid decisions.');
-    expect(state.focus.body).toBe('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.');
-    expect(state.focus.nextRound).toBe('Play to the widest target.');
+    expectOneOf(state.focus.headline, EARLY_GUIDANCE_HEADLINES);
+    expectOneOf(state.focus.body, EARLY_GUIDANCE_BODIES);
+    expectOneOf(state.focus.nextRound, EARLY_GUIDANCE_NUDGES);
     expect(state.focus.component).toBeNull();
   });
 
@@ -974,9 +1050,9 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('early_guidance');
-    expect(state.focus.headline).toBe('Start with solid decisions.');
-    expect(state.focus.body).toBe('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.');
-    expect(state.focus.nextRound).toBe('Play to the widest target.');
+    expectOneOf(state.focus.headline, EARLY_GUIDANCE_HEADLINES);
+    expectOneOf(state.focus.body, EARLY_GUIDANCE_BODIES);
+    expectOneOf(state.focus.nextRound, EARLY_GUIDANCE_NUDGES);
   });
 
   it('does not name a component when residual is dominant', () => {
@@ -1001,7 +1077,7 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('score_only_stable');
-    expect(state.focus.headline).toBe('Your scoring is stable.');
+    expectOneOf(state.focus.headline, SCORE_ONLY_STABLE_HEADLINES);
     expect(state.focus.component).toBeNull();
   });
 
@@ -1019,7 +1095,7 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('early_guidance');
     expect(state.focus.confidence).toBe('low');
-    expect(state.focus.headline).toBe('Start with solid decisions.');
+    expectOneOf(state.focus.headline, EARLY_GUIDANCE_HEADLINES);
   });
 
   it('uses mature score-only wording for low-confidence many-round score-only states', () => {
@@ -1042,8 +1118,8 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('score_only_worsening');
     expect(state.focus.confidence).toBe('medium');
-    expect(state.focus.headline).toBe('Your scores are slipping.');
-    expect(state.focus.body).toBe('Scores are trending higher than usual. Safer choices can steady the pattern.');
+    expectOneOf(state.focus.headline, SCORE_ONLY_WORSENING_HEADLINES);
+    expectOneOf(state.focus.body, SCORE_ONLY_WORSENING_BODIES_FREE_MED);
   });
 
   it('uses a concise recommendation as next-round nudge when safe to render', () => {
@@ -1084,7 +1160,7 @@ describe('dashboardFocus state output', () => {
     );
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
-    expect(state.focus.nextRound).toBe('Play to the center of the green.');
+    expectOneOf(state.focus.nextRound, OPPORTUNITY_APPROACH_NUDGES);
   });
 
   it('never uses generic momentum headline copy', () => {
@@ -1237,7 +1313,7 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_opportunity');
     expect(state.focus.component).toBe('approach');
-    expect(state.focus.body).toBe('This area has quietly limited scoring consistency.');
+    expect(state.focus.body).toBe('Approach has quietly limited scoring consistency.');
     expect(state.focus.body).not.toContain('costing about');
   });
 
@@ -1354,8 +1430,8 @@ describe('dashboardFocus state output', () => {
     expect(premiumState.focus.outcome).toBe('volatility_priority');
     expect(freeState.focus.body.length).toBeGreaterThan(20);
     expect(premiumState.focus.body.length).toBeGreaterThan(20);
-    expect(freeState.focus.nextRound).toBe('Choose the safest line on risk holes.');
-    expect(premiumState.focus.nextRound).toBe('Choose the safest line on risk holes.');
+    expectOneOf(freeState.focus.nextRound, VOLATILITY_PENALTY_NUDGES);
+    expectOneOf(premiumState.focus.nextRound, VOLATILITY_PENALTY_NUDGES);
   });
 
   it('still returns exactly one priority focus payload', () => {

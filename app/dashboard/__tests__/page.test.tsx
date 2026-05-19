@@ -107,6 +107,92 @@ const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedUseSubscription = useSubscription as unknown as jest.Mock;
 const mockedCaptureClientEvent = captureClientEvent as jest.Mock;
 
+function expectOneText(variants: readonly string[]): void {
+  const found = variants.some((variant) => screen.queryByText(variant) != null);
+  expect(found).toBe(true);
+}
+
+const OPPORTUNITY_PUTTING_NUDGES_UI = [
+  'Next Round: Focus on lag speed.',
+  'Next Round: Prioritize pace over perfect reads.',
+  'Next Round: Leave shorter second putts.',
+] as const;
+
+const OPPORTUNITY_APPROACH_NUDGES_UI = [
+  'Next Round: Play to the center of the green.',
+  'Next Round: Favor the safe side of the green.',
+  'Next Round: Take the short-sided miss out of play.',
+] as const;
+
+const VOLATILITY_NUDGES_UI = [
+  'Next Round: Choose the safest line on risk holes.',
+  'Next Round: Keep penalty trouble out of the miss.',
+  'Next Round: Play for the miss that stays in play.',
+  'Next Round: Play to center-green targets.',
+  'Next Round: Favor the safe side of the green.',
+  'Next Round: Take the short-sided miss out of play.',
+  'Next Round: Prioritize in-play misses on every hole.',
+  'Next Round: Keep the big miss out of play.',
+  'Next Round: Choose the line that protects bogey.',
+] as const;
+
+const BALANCED_NUDGES_UI = [
+  'Next Round: Play to center-green targets.',
+  'Next Round: Choose targets with room to miss.',
+  'Next Round: Keep the next shot simple.',
+  'Next Round: Choose conservative targets after misses.',
+  'Next Round: Reset the hole after trouble.',
+  'Next Round: Protect bogey when the hole gets messy.',
+] as const;
+
+const EARLY_GUIDANCE_HEADLINES = [
+  'Start with solid decisions.',
+  'Build the round around simple choices.',
+  'Start by keeping the ball in play.',
+] as const;
+
+const EARLY_GUIDANCE_BODIES = [
+  'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
+  'Early patterns usually show up through missed chances and harder recovery holes.',
+  'At this stage, steady targets matter more than chasing one perfect stat.',
+] as const;
+
+const EARLY_GUIDANCE_NUDGES_UI = [
+  'Next Round: Play to the widest target.',
+  'Next Round: Choose the safest target first.',
+  'Next Round: Keep the difficult miss out of play.',
+] as const;
+
+const SCORE_ONLY_WORSENING_HEADLINES = [
+  'Your scores are slipping.',
+  'Your recent scores are trending higher.',
+  'Scoring has moved the wrong way lately.',
+] as const;
+
+const SCORE_ONLY_WORSENING_BODIES_FREE_MED = [
+  'Scores are trending higher than usual. Safer choices can steady the pattern.',
+  'Recent scores are moving higher. Safer targets can help settle the round.',
+  'Scoring has slipped lately. Keeping trouble out of play is the first fix.',
+] as const;
+
+const SCORE_ONLY_WORSENING_NUDGES_UI = [
+  'Next Round: Prioritize conservative targets.',
+  'Next Round: Keep the ball in play first.',
+  'Next Round: Avoid the miss that brings double into play.',
+] as const;
+
+const VOLATILITY_HEADLINES_HIGH = [
+  'Scoring volatility is your top priority.',
+  'Large score swings are the main scoring issue.',
+  'Costly swings are the clearest focus right now.',
+] as const;
+
+const BALANCED_HEADLINES_MED = [
+  'No single area clearly dominates right now.',
+  'No single area stands out clearly yet.',
+  'The scoring pattern is spread across a few areas.',
+] as const;
+
 function makeDashboardPayload(overrides: Partial<any> = {}) {
   return {
     handicap: 8.1,
@@ -462,8 +548,8 @@ describe('/dashboard Round Focus card', () => {
 
     const focusCard = await screen.findByTestId('dashboard-focus-card');
     await screen.findByText('Round Focus');
-    expect(screen.getByText('This area is costing you the most strokes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Focus on lag speed.')).toBeInTheDocument();
+    expect(screen.getByText('Putting is costing you the most strokes.')).toBeInTheDocument();
+    expectOneText(OPPORTUNITY_PUTTING_NUDGES_UI);
     expect(screen.queryByText(/strokes per round/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/compared to baseline/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Build on momentum.')).not.toBeInTheDocument();
@@ -510,7 +596,7 @@ describe('/dashboard Round Focus card', () => {
     const focusCard = await screen.findByTestId('dashboard-focus-card');
     await screen.findByText('Approach is the biggest opportunity right now.');
     expect(screen.getByText("You're losing about 0.7 strokes per round.")).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the center of the green.')).toBeInTheDocument();
+    expectOneText(OPPORTUNITY_APPROACH_NUDGES_UI);
     expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'See Full Breakdown' }));
@@ -549,7 +635,7 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Approach is the clearest scoring focus right now.');
-    expect(screen.getByText('Next Round: Play to the center of the green.')).toBeInTheDocument();
+    expectOneText(OPPORTUNITY_APPROACH_NUDGES_UI);
   });
 
   it('shows volatility-priority focus on dashboard when volatility outweighs mild component leaks', async () => {
@@ -580,8 +666,9 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Scoring volatility is your top priority.');
-    expect(screen.getByText('Next Round: Play to center-green targets.')).toBeInTheDocument();
+    await screen.findByTestId('dashboard-focus-card');
+    expectOneText(VOLATILITY_HEADLINES_HIGH);
+    expectOneText(VOLATILITY_NUDGES_UI);
     expect(screen.queryByText(/is the biggest opportunity right now/i)).not.toBeInTheDocument();
   });
 
@@ -608,8 +695,9 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('No single area clearly dominates right now.');
-    expect(screen.getByText('Next Round: Play to center-green targets.')).toBeInTheDocument();
+    await screen.findByTestId('dashboard-focus-card');
+    expectOneText(BALANCED_HEADLINES_MED);
+    expectOneText(BALANCED_NUDGES_UI);
     expect(screen.queryByText('No area clearly stands out as a weakness.')).not.toBeInTheDocument();
     expect(screen.getAllByText(/^Next Round:/i)).toHaveLength(1);
   });
@@ -636,9 +724,10 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Start with solid decisions.');
-    expect(screen.getByText('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
+    await screen.findByTestId('dashboard-focus-card');
+    expectOneText(EARLY_GUIDANCE_HEADLINES);
+    expectOneText(EARLY_GUIDANCE_BODIES);
+    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();
@@ -793,9 +882,10 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Start with solid decisions.');
-    expect(screen.getByText('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
+    await screen.findByTestId('dashboard-focus-card');
+    expectOneText(EARLY_GUIDANCE_HEADLINES);
+    expectOneText(EARLY_GUIDANCE_BODIES);
+    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
     expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
     expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
@@ -825,13 +915,10 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Your scores are slipping.');
-    expect(
-      screen.getByText('Scores are trending higher than usual. Safer choices can steady the pattern.'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Next Round: Prioritize conservative targets.'),
-    ).toBeInTheDocument();
+    await screen.findByTestId('dashboard-focus-card');
+    expectOneText(SCORE_ONLY_WORSENING_HEADLINES);
+    expectOneText(SCORE_ONLY_WORSENING_BODIES_FREE_MED);
+    expectOneText(SCORE_ONLY_WORSENING_NUDGES_UI);
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
   });
 
@@ -857,9 +944,10 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Start with solid decisions.');
-    expect(screen.getByText('Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
+    await screen.findByTestId('dashboard-focus-card');
+    expectOneText(EARLY_GUIDANCE_HEADLINES);
+    expectOneText(EARLY_GUIDANCE_BODIES);
+    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();
@@ -989,9 +1077,9 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Add your first round to start tracking progress.');
-    expect(screen.getByText('Start with solid decisions.')).toBeInTheDocument();
+    expectOneText(EARLY_GUIDANCE_HEADLINES);
     expect(screen.getByText('Log your first round to begin building your scoring baseline.')).toBeInTheDocument();
-    expect(screen.getByText('Next Round: Play to the widest target.')).toBeInTheDocument();
+    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
     expect(mockShowMessage).not.toHaveBeenCalled();
     expect(screen.queryByText('Failed to load dashboard.')).not.toBeInTheDocument();
   });

@@ -136,6 +136,267 @@ const VOLATILITY_OVERRIDE_MAX_COMPONENT_ABS = 0.35;
 const TINY_DELTA_ABS_SUPPRESS_THRESHOLD = 0.15;
 const MANY_ROUND_SCORE_ONLY_MIN_ROUNDS = 5;
 
+const EARLY_GUIDANCE_NUDGES = [
+  'Play to the widest target.',
+  'Choose the safest target first.',
+  'Keep the difficult miss out of play.',
+] as const;
+
+const SCORE_ONLY_STABLE_NUDGES = [
+  'Commit to one focus.',
+  'Pick one scoring habit to protect.',
+  'Choose one simple target pattern.',
+] as const;
+
+const SCORE_ONLY_IMPROVING_NUDGES = [
+  "Keep doing what's working.",
+  'Keep avoiding big numbers.',
+  'Stay with the safer choices.',
+] as const;
+
+const SCORE_ONLY_WORSENING_NUDGES = [
+  'Prioritize conservative targets.',
+  'Keep the ball in play first.',
+  'Avoid the miss that brings double into play.',
+] as const;
+
+const BALANCED_VOLATILE_NUDGES = [
+  'Choose conservative targets after misses.',
+  'Reset the hole after trouble.',
+  'Protect bogey when the hole gets messy.',
+] as const;
+
+const BALANCED_STABLE_NUDGES = [
+  'Play to center-green targets.',
+  'Choose targets with room to miss.',
+  'Keep the next shot simple.',
+] as const;
+
+const VOLATILITY_PENALTY_NUDGES = [
+  'Choose the safest line on risk holes.',
+  'Keep penalty trouble out of the miss.',
+  'Play for the miss that stays in play.',
+] as const;
+
+const VOLATILITY_APPROACH_NUDGES = [
+  'Play to center-green targets.',
+  'Favor the safe side of the green.',
+  'Take the short-sided miss out of play.',
+] as const;
+
+const VOLATILITY_GENERAL_NUDGES = [
+  'Prioritize in-play misses on every hole.',
+  'Keep the big miss out of play.',
+  'Choose the line that protects bogey.',
+] as const;
+
+const OPPORTUNITY_NUDGES = {
+  putting: [
+    'Focus on lag speed.',
+    'Prioritize pace over perfect reads.',
+    'Leave shorter second putts.',
+  ],
+  approach: [
+    'Play to the center of the green.',
+    'Favor the safe side of the green.',
+    'Take the short-sided miss out of play.',
+  ],
+  shortGame: [
+    'Choose the simplest up-and-down play.',
+    'Leave the easiest next putt.',
+    'Keep recovery shots simple.',
+  ],
+  offTee: [
+    'Choose a target that keeps your common miss in play.',
+    'Pick the tee target with room to miss.',
+    'Keep trouble out of your normal miss.',
+  ],
+  penalties: [
+    'Choose the safe line.',
+    'Keep penalty trouble out of play.',
+    'Favor position over distance.',
+  ],
+} as const;
+
+const STRENGTH_NUDGES = {
+  putting: [
+    'Keep prioritizing pace control.',
+    'Stay committed to pace control.',
+    'Keep first putts stress-free.',
+  ],
+  approach: [
+    'Keep choosing smart approach targets.',
+    'Keep choosing smart approach targets.',
+    'Stay with the safe green sections.',
+  ],
+  shortGame: [
+    'Keep choosing simple recovery shots.',
+    'Keep choosing simple recovery shots.',
+    'Stay with the recovery shot you can control.',
+  ],
+  offTee: [
+    'Keep choosing playable tee targets.',
+    'Keep choosing playable tee targets.',
+    'Stay with the tee plan that avoids trouble.',
+  ],
+  penalties: [
+    'Keep choosing safe lines.',
+    'Keep penalty trouble out of play.',
+    'Stay committed to safer targets.',
+  ],
+} as const;
+
+const EARLY_GUIDANCE_HEADLINES = [
+  'Start with solid decisions.',
+  'Build the round around simple choices.',
+  'Start by keeping the ball in play.',
+] as const;
+
+const EARLY_GUIDANCE_BODIES = [
+  'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
+  'Early patterns usually show up through missed chances and harder recovery holes.',
+  'At this stage, steady targets matter more than chasing one perfect stat.',
+] as const;
+
+const SCORE_ONLY_STABLE_HEADLINES = [
+  'Your scoring is stable.',
+  'Your scoring pattern is steady.',
+  'Your recent scores are holding steady.',
+] as const;
+
+const SCORE_ONLY_STABLE_BODIES_PREMIUM = [
+  'Your scoring is in line with your usual level.',
+  'Your recent scoring is staying close to your usual range.',
+  'Your scores are holding near your current baseline.',
+] as const;
+
+const SCORE_ONLY_STABLE_BODIES_FREE_MED = [
+  'Your scoring trend is established, but detail stats are still limited.',
+  'Your score trend is forming, but the stat detail is still light.',
+  'Your recent scoring has a pattern, but the details are still building.',
+] as const;
+
+const SCORE_ONLY_STABLE_BODIES_FREE_LOW = [
+  'Pick one area next round.',
+  'Keep the focus simple next round.',
+  'Choose one scoring habit to protect.',
+] as const;
+
+const SCORE_ONLY_IMPROVING_HEADLINES = [
+  'Your scores are improving.',
+  'Your scoring is trending better.',
+  'Your recent scores are moving the right way.',
+] as const;
+
+const SCORE_ONLY_IMPROVING_BODIES_FREE = [
+  'Keep avoiding big numbers.',
+  'Keep protecting the scorecard from doubles.',
+  'Stay with the choices that limit damage.',
+] as const;
+
+const SCORE_ONLY_WORSENING_HEADLINES = [
+  'Your scores are slipping.',
+  'Your recent scores are trending higher.',
+  'Scoring has moved the wrong way lately.',
+] as const;
+
+const SCORE_ONLY_WORSENING_BODIES_FREE_MED = [
+  'Scores are trending higher than usual. Safer choices can steady the pattern.',
+  'Recent scores are moving higher. Safer targets can help settle the round.',
+  'Scoring has slipped lately. Keeping trouble out of play is the first fix.',
+] as const;
+
+const SCORE_ONLY_WORSENING_BODIES_FREE_LOW = [
+  'Play to safer targets.',
+  'Keep the ball in play first.',
+  'Choose the miss that stays playable.',
+] as const;
+
+const BALANCED_HEADLINES_HIGH = [
+  'No single stat is your main scoring limiter.',
+  'No single area is driving the scoring pattern.',
+  'Your scoring is not coming from one obvious leak.',
+] as const;
+
+const BALANCED_HEADLINES_MED = [
+  'No single area clearly dominates right now.',
+  'No single area stands out clearly yet.',
+  'The scoring pattern is spread across a few areas.',
+] as const;
+
+const BALANCED_BODIES_PREMIUM_VOLATILE = [
+  'Your scoring ceiling now depends on reducing costly swings from hole to hole.',
+  'Bigger score swings are doing more damage than one small stat gap.',
+  'Stabilizing the costly holes matters more than chasing one category.',
+] as const;
+
+const BALANCED_BODIES_PREMIUM_STABLE = [
+  'Round-management choices now matter more than chasing one stat fix.',
+  'Small decisions across the round are likely worth more than one stat fix.',
+  'Keeping misses playable matters more than forcing one category right now.',
+] as const;
+
+const BALANCED_BODIES_FREE_VOLATILE = [
+  'Small misses across holes are adding up more than one obvious leak.',
+  'Costly stretches are adding more pressure than one clear stat issue.',
+  'A few messy holes are doing more damage than one single area.',
+] as const;
+
+const BALANCED_BODIES_FREE_STABLE = [
+  'Round-management choices are likely worth more than forcing one stat fix.',
+  'Keeping the round simple is worth more than chasing one stat right now.',
+  'Safer targets across the round are the best focus for now.',
+] as const;
+
+const VOLATILITY_HEADLINES_HIGH = [
+  'Scoring volatility is your top priority.',
+  'Large score swings are the main scoring issue.',
+  'Costly swings are the clearest focus right now.',
+] as const;
+
+const VOLATILITY_HEADLINES_MED = [
+  'Scoring volatility is likely holding scores back.',
+  'Large score swings are likely limiting progress.',
+  'Costly swings are likely the main scoring issue.',
+] as const;
+
+const VOLATILITY_BODIES_PREMIUM_HIGH = [
+  'Round-to-round swings are costing more than any mild single-area leak right now.',
+  'Large score swings are doing more damage than one modest stat gap.',
+  'Stabilizing the costly holes matters more than chasing one mild leak.',
+] as const;
+
+const VOLATILITY_BODIES_PREMIUM_MED = [
+  'Large score swings are limiting improvement more than one small stat gap.',
+  'Costly swings are likely holding back progress more than one small leak.',
+  'The round-to-round swings matter more than one mild category gap right now.',
+] as const;
+
+const VOLATILITY_BODIES_FREE = [
+  'Large score swings are adding strokes faster than one mild stat leak.',
+  'Costly stretches are doing more damage than one small stat gap.',
+  'A few big-number stretches are adding strokes quickly.',
+] as const;
+
+function stableIndex(seed: string, count: number): number {
+  if (count <= 0) return 0;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return hash % count;
+}
+
+function pickDashboardVariant<T extends readonly string[]>(
+  variants: T,
+  seedParts: Array<string | number | null | undefined>,
+): T[number] {
+  const seed = seedParts
+    .filter((part) => part !== null && part !== undefined && part !== '')
+    .join('|');
+  return variants[stableIndex(seed, variants.length)];
+}
+
 function mapPersistedComponent(raw: unknown): Exclude<DashboardFocusComponent, 'residual'> | null {
   if (raw === 'offTee') return 'offTee';
   if (raw === 'approach') return 'approach';
@@ -350,26 +611,39 @@ function componentHeadlineName(component: Exclude<DashboardFocusComponent, 'resi
 function fallbackNextRoundNudge(
   component: Exclude<DashboardFocusComponent, 'residual'> | null,
   mode: SgFocusMode | 'no_data' | 'volatility',
+  seedParts: Array<string | number | null | undefined> = [],
 ): string {
-  if (mode === 'no_data') return 'Play to the widest target.';
-  if (mode === 'volatility') return 'Play to center-green targets.';
-  if (mode === 'balanced') return 'Make simple decisions.';
-
-  if (mode === 'opportunity') {
-    if (component === 'putting') return 'Focus on lag speed.';
-    if (component === 'approach') return 'Play to the center of the green.';
-    if (component === 'shortGame') return 'Choose the simplest up-and-down play.';
-    if (component === 'offTee') return 'Choose a target that keeps your common miss in play.';
-    if (component === 'penalties') return 'Choose the safe line.';
-    return 'Make simple decisions.';
+  if (mode === 'no_data') {
+    return pickDashboardVariant(EARLY_GUIDANCE_NUDGES, ['nudge', 'no_data', ...seedParts]);
+  }
+  if (mode === 'volatility') {
+    return pickDashboardVariant(VOLATILITY_GENERAL_NUDGES, ['nudge', 'volatility', ...seedParts]);
+  }
+  if (mode === 'balanced') {
+    return pickDashboardVariant(BALANCED_STABLE_NUDGES, ['nudge', 'balanced', ...seedParts]);
   }
 
-  if (component === 'putting') return 'Keep trusting your speed.';
-  if (component === 'approach') return 'Keep trusting your approach shots.';
-  if (component === 'shortGame') return 'Keep trusting your short-game choices.';
-  if (component === 'offTee') return 'Keep trusting your tee shots.';
-  if (component === 'penalties') return 'Keep choosing safe lines.';
-  return 'Make simple decisions.';
+  if (mode === 'opportunity') {
+    if (component) {
+      return pickDashboardVariant(OPPORTUNITY_NUDGES[component], [
+        'nudge',
+        mode,
+        component,
+        ...seedParts,
+      ]);
+    }
+    return pickDashboardVariant(BALANCED_STABLE_NUDGES, ['nudge', 'opportunity', 'none', ...seedParts]);
+  }
+
+  if (component) {
+    return pickDashboardVariant(STRENGTH_NUDGES[component], [
+      'nudge',
+      mode,
+      component,
+      ...seedParts,
+    ]);
+  }
+  return pickDashboardVariant(BALANCED_STABLE_NUDGES, ['nudge', 'strength', 'none', ...seedParts]);
 }
 
 function componentCoverageKey(
@@ -410,8 +684,9 @@ function compactNextRoundNudge(
   recommendationText: string | null,
   component: Exclude<DashboardFocusComponent, 'residual'> | null,
   mode: SgFocusMode,
+  seedParts: Array<string | number | null | undefined> = [],
 ): string {
-  const fallback = fallbackNextRoundNudge(component, mode);
+  const fallback = fallbackNextRoundNudge(component, mode, seedParts);
   if (!recommendationText) return fallback;
 
   const normalized = recommendationText.replace(/\s+/g, ' ').trim();
@@ -565,24 +840,33 @@ function buildVolatilityFocus(
 ): RoundFocusPayload {
   const penaltiesLeak = summary.sgComponentDelta?.penalties;
   const approachLeak = summary.sgComponentDelta?.approach;
+  const seedBase = [
+    'volatility',
+    summary.mode,
+    summary.roundsRecent,
+    summary.recentWindow,
+    confidence,
+    roundOne(penaltiesLeak ?? null),
+    roundOne(approachLeak ?? null),
+  ];
   const nextRound = penaltiesLeak != null && penaltiesLeak < -0.2
-    ? 'Choose the safest line on risk holes.'
+    ? pickDashboardVariant(VOLATILITY_PENALTY_NUDGES, [...seedBase, 'penalties'])
     : approachLeak != null && approachLeak < -0.2
-      ? 'Play to center-green targets.'
-      : 'Prioritize in-play misses on every hole.';
+      ? pickDashboardVariant(VOLATILITY_APPROACH_NUDGES, [...seedBase, 'approach'])
+      : pickDashboardVariant(VOLATILITY_GENERAL_NUDGES, [...seedBase, 'general']);
   const decisive = confidence === 'high';
 
   return {
     outcome: 'volatility_priority',
     focusType: 'score',
     headline: decisive
-      ? 'Scoring volatility is your top priority.'
-      : 'Scoring volatility is likely holding scores back.',
+      ? pickDashboardVariant(VOLATILITY_HEADLINES_HIGH, [...seedBase, 'headline', 'high'])
+      : pickDashboardVariant(VOLATILITY_HEADLINES_MED, [...seedBase, 'headline', 'medium']),
     body: isPremium
       ? decisive
-        ? 'Round-to-round swings are costing more than any mild single-area leak right now.'
-        : 'Large score swings are limiting improvement more than one small stat gap.'
-      : 'Large score swings are adding strokes faster than one mild stat leak.',
+        ? pickDashboardVariant(VOLATILITY_BODIES_PREMIUM_HIGH, [...seedBase, 'body', 'premium', 'high'])
+        : pickDashboardVariant(VOLATILITY_BODIES_PREMIUM_MED, [...seedBase, 'body', 'premium', 'medium'])
+      : pickDashboardVariant(VOLATILITY_BODIES_FREE, [...seedBase, 'body', 'free']),
     nextRound,
     component: null,
     confidence,
@@ -596,20 +880,30 @@ function buildBalancedFocus(
 ): RoundFocusPayload {
   const decisive = confidence === 'high';
   const stabilityLean = summary.dataQualityFlags.volatileScoring;
+  const seedBase = [
+    'balanced',
+    summary.mode,
+    summary.roundsRecent,
+    summary.recentWindow,
+    confidence,
+    stabilityLean ? 'volatile' : 'stable',
+  ];
   return {
     outcome: 'component_balanced',
     focusType: 'score',
     headline: decisive
-      ? 'No single stat is your main scoring limiter.'
-      : 'No single area clearly dominates right now.',
+      ? pickDashboardVariant(BALANCED_HEADLINES_HIGH, [...seedBase, 'headline', 'high'])
+      : pickDashboardVariant(BALANCED_HEADLINES_MED, [...seedBase, 'headline', 'medium']),
     body: isPremium
       ? stabilityLean
-        ? 'Your scoring ceiling now depends on reducing costly swings from hole to hole.'
-        : 'Round-management choices now matter more than chasing one stat fix.'
+        ? pickDashboardVariant(BALANCED_BODIES_PREMIUM_VOLATILE, [...seedBase, 'body', 'premium', 'volatile'])
+        : pickDashboardVariant(BALANCED_BODIES_PREMIUM_STABLE, [...seedBase, 'body', 'premium', 'stable'])
       : stabilityLean
-        ? 'Small misses across holes are adding up more than one obvious leak.'
-        : 'Round-management choices are likely worth more than forcing one stat fix.',
-    nextRound: stabilityLean ? 'Choose conservative targets after misses.' : 'Play to center-green targets.',
+        ? pickDashboardVariant(BALANCED_BODIES_FREE_VOLATILE, [...seedBase, 'body', 'free', 'volatile'])
+        : pickDashboardVariant(BALANCED_BODIES_FREE_STABLE, [...seedBase, 'body', 'free', 'stable']),
+    nextRound: stabilityLean
+      ? pickDashboardVariant(BALANCED_VOLATILE_NUDGES, [...seedBase, 'nudge', 'volatile'])
+      : pickDashboardVariant(BALANCED_STABLE_NUDGES, [...seedBase, 'nudge', 'stable']),
     component: null,
     confidence,
   };
@@ -628,25 +922,33 @@ function scoreFocusOutcome(
   return 'score_only_stable';
 }
 
-function buildEarlyGuidanceFocus(confidence: DashboardFocusConfidence): RoundFocusPayload {
+function buildEarlyGuidanceFocus(
+  confidence: DashboardFocusConfidence,
+  seedParts: Array<string | number | null | undefined> = [],
+): RoundFocusPayload {
+  const seedBase = ['early_guidance', confidence, ...seedParts];
   return {
     outcome: 'early_guidance',
     focusType: 'score',
-    headline: 'Start with solid decisions.',
-    body: 'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
-    nextRound: 'Play to the widest target.',
+    headline: pickDashboardVariant(EARLY_GUIDANCE_HEADLINES, [...seedBase, 'headline']),
+    body: pickDashboardVariant(EARLY_GUIDANCE_BODIES, [...seedBase, 'body']),
+    nextRound: pickDashboardVariant(EARLY_GUIDANCE_NUDGES, [...seedBase, 'nudge']),
     component: null,
     confidence,
   };
 }
 
-function buildNoDataFocus(confidence: DashboardFocusConfidence): RoundFocusPayload {
+function buildNoDataFocus(
+  confidence: DashboardFocusConfidence,
+  seedParts: Array<string | number | null | undefined> = [],
+): RoundFocusPayload {
+  const seedBase = ['no_data', confidence, ...seedParts];
   return {
     outcome: 'early_guidance',
     focusType: 'score',
-    headline: 'Start with solid decisions.',
+    headline: pickDashboardVariant(EARLY_GUIDANCE_HEADLINES, [...seedBase, 'headline']),
     body: 'Log your first round to begin building your scoring baseline.',
-    nextRound: 'Play to the widest target.',
+    nextRound: pickDashboardVariant(EARLY_GUIDANCE_NUDGES, [...seedBase, 'nudge']),
     component: null,
     confidence,
   };
@@ -658,33 +960,48 @@ function buildScoreOnlyFocus(
   confidence: DashboardFocusConfidence,
 ): RoundFocusPayload {
   if (summary.roundsRecent <= 1 || summary.scoreTrendDelta == null) {
-    return buildEarlyGuidanceFocus(confidence);
+    return buildEarlyGuidanceFocus(confidence, [
+      'score_only',
+      summary.mode,
+      summary.roundsRecent,
+      summary.recentWindow,
+      roundOne(summary.scoreTrendDelta),
+    ]);
   }
 
   const delta = summary.scoreTrendDelta ?? 0;
   const outcome = scoreFocusOutcome(summary);
-  let headline = 'Your scoring is stable.';
-  let body = isPremium
-    ? 'Your scoring is in line with your usual level.'
+  const seedBase = [
+    'score_only',
+    summary.mode,
+    summary.roundsRecent,
+    summary.recentWindow,
+    confidence,
+    roundOne(summary.scoreTrendDelta),
+    outcome,
+  ];
+  let headline: string = pickDashboardVariant(SCORE_ONLY_STABLE_HEADLINES, [...seedBase, 'stable', 'headline']);
+  let body: string = isPremium
+    ? pickDashboardVariant(SCORE_ONLY_STABLE_BODIES_PREMIUM, [...seedBase, 'stable', 'body', 'premium'])
     : confidence === 'medium'
-      ? 'Your scoring trend is established, but detail stats are still limited.'
-      : 'Pick one area next round.';
-  let nextRound = 'Commit to one focus.';
+      ? pickDashboardVariant(SCORE_ONLY_STABLE_BODIES_FREE_MED, [...seedBase, 'stable', 'body', 'free', 'medium'])
+      : pickDashboardVariant(SCORE_ONLY_STABLE_BODIES_FREE_LOW, [...seedBase, 'stable', 'body', 'free', 'low']);
+  let nextRound: string = pickDashboardVariant(SCORE_ONLY_STABLE_NUDGES, [...seedBase, 'stable', 'nudge']);
 
   if (outcome === 'score_only_improving') {
-    headline = 'Your scores are improving.';
+    headline = pickDashboardVariant(SCORE_ONLY_IMPROVING_HEADLINES, [...seedBase, 'improving', 'headline']);
     body = isPremium
       ? `Your scoring is about ${formatOneDecimal(Math.abs(delta))} strokes better than usual.`
-      : 'Keep avoiding big numbers.';
-    nextRound = "Keep doing what's working.";
+      : pickDashboardVariant(SCORE_ONLY_IMPROVING_BODIES_FREE, [...seedBase, 'improving', 'body', 'free']);
+    nextRound = pickDashboardVariant(SCORE_ONLY_IMPROVING_NUDGES, [...seedBase, 'improving', 'nudge']);
   } else if (outcome === 'score_only_worsening') {
-    headline = 'Your scores are slipping.';
+    headline = pickDashboardVariant(SCORE_ONLY_WORSENING_HEADLINES, [...seedBase, 'worsening', 'headline']);
     body = isPremium
       ? `Your scoring is about ${formatOneDecimal(Math.abs(delta))} strokes worse than usual.`
       : confidence === 'medium'
-        ? 'Scores are trending higher than usual. Safer choices can steady the pattern.'
-        : 'Play to safer targets.';
-    nextRound = 'Prioritize conservative targets.';
+        ? pickDashboardVariant(SCORE_ONLY_WORSENING_BODIES_FREE_MED, [...seedBase, 'worsening', 'body', 'free', 'medium'])
+        : pickDashboardVariant(SCORE_ONLY_WORSENING_BODIES_FREE_LOW, [...seedBase, 'worsening', 'body', 'free', 'low']);
+    nextRound = pickDashboardVariant(SCORE_ONLY_WORSENING_NUDGES, [...seedBase, 'worsening', 'nudge']);
   }
 
   return {
@@ -744,13 +1061,13 @@ function buildSgDrivenFocus(
             return 'Avoiding one high-cost mistake per round could lower scoring variance.';
           }
           return isRecurring
-            ? 'This area has been a small but recurring scoring leak.'
-            : 'This area has quietly limited scoring consistency.';
+            ? `${componentLabel} has been a small but recurring scoring leak.`
+            : `${componentLabel} has quietly limited scoring consistency.`;
         }
         if (decisive) {
           return isRecurring
-            ? `This area is repeatedly costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`
-            : `This area is costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
+            ? `${componentLabel} is repeatedly costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`
+            : `${componentLabel} is costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
         }
         return `You're losing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
       }
@@ -758,17 +1075,17 @@ function buildSgDrivenFocus(
         return 'One avoidable mistake is still adding strokes.';
       }
       return decisive && isRecurring
-        ? 'This area is repeatedly costing strokes.'
-        : 'This area is costing you the most strokes.';
+        ? `${componentLabel} is repeatedly costing strokes.`
+        : `${componentLabel} is costing you the most strokes.`;
     }
 
     if (isPremium) {
-      if (tinyDelta) return 'This area is a modest scoring strength right now.';
+      if (tinyDelta) return `${componentLabel} is a modest scoring strength right now.`;
       return decisive
-        ? `This area is reliably gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`
-        : `This area is gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
+        ? `${componentLabel} is reliably gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`
+        : `${componentLabel} is gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
     }
-    return 'This area is helping your score.';
+    return `${componentLabel} is helping your score.`;
   })();
 
   return {
@@ -776,7 +1093,18 @@ function buildSgDrivenFocus(
     focusType: 'component',
     headline,
     body,
-    nextRound: compactNextRoundNudge(summary.recommendationText, selected.component, selected.mode),
+    nextRound: compactNextRoundNudge(summary.recommendationText, selected.component, selected.mode, [
+      'component',
+      selected.mode,
+      summary.mode,
+      summary.roundsRecent,
+      summary.recentWindow,
+      summary.confidence,
+      selected.component,
+      roundOne(selected.sgDelta),
+      selected.persistenceTier,
+      scoreOutcome,
+    ]),
     component: selected.component,
     confidence,
   };
@@ -986,7 +1314,13 @@ export function buildRoundFocusState(
   isLimited: boolean,
 ): RoundFocusState {
   if (!summary || summary.roundsRecent <= 0) {
-    const fallbackFocus = buildNoDataFocus('low');
+    const fallbackFocus = buildNoDataFocus('low', [
+      'fallback',
+      summary?.mode ?? 'combined',
+      summary?.roundsRecent ?? 0,
+      summary?.recentWindow ?? 0,
+      summary?.lastUpdatedAt ?? 'none',
+    ]);
     if (!isPremium) {
       return {
         kind: 'READY_FREE',
@@ -1016,7 +1350,14 @@ export function buildRoundFocusState(
         focus: scoreOnlyFocus,
       };
     }
-    const fallbackFocus = buildEarlyGuidanceFocus('low');
+    const fallbackFocus = buildEarlyGuidanceFocus('low', [
+      'low_confidence',
+      summary.mode,
+      summary.roundsRecent,
+      summary.recentWindow,
+      roundOne(summary.scoreTrendDelta),
+      summary.lastUpdatedAt,
+    ]);
     if (!isPremium) {
       return {
         kind: 'READY_FREE',
