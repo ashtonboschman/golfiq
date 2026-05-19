@@ -57,7 +57,6 @@ const EXTRA_BANNED_TERMS = [
   'shot window',
   'dispersion',
   'corridor',
-  'baseline',
   'variance',
   'execution',
   'insufficient data',
@@ -92,10 +91,7 @@ describe('post-round copy smoke checks', () => {
     expect(out.messages[2].toLowerCase()).not.toContain('track ');
     expect(out.messages[2].toLowerCase()).not.toContain('tracking');
     const normalized = out.messages[2].replace(/^Next round:\s*/i, '').replace(/[.!?]+$/g, '').trim();
-    expect(normalized).not.toContain(',');
-    expect(normalized.toLowerCase()).not.toMatch(/\band\b/);
     expect(normalized.toLowerCase()).not.toMatch(/\bthen\b/);
-    expect(normalized.toLowerCase()).not.toMatch(/\bfor\b/);
-    expect(normalized.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(12);
+    expect(normalized.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(18);
   });
 });

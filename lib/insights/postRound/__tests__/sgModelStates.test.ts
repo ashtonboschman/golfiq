@@ -206,6 +206,42 @@ describe('runMeasuredSgSelection opportunity selection', () => {
 
     expect(selection.residualDominant).toBe(false);
   });
+
+  test('short_game null is ignored safely and does not increase measured component count', () => {
+    const selection = runMeasuredSgSelection(
+      {
+        offTee: -0.2,
+        approach: -0.5,
+        shortGame: null,
+        putting: -0.4,
+        penalties: null,
+        residual: 0.1,
+        total: -1.0,
+      },
+      -1.0,
+    );
+
+    expect(selection.componentCount).toBe(3);
+    expect(selection.components.some((component) => component.name === 'short_game')).toBe(false);
+  });
+
+  test('short_game 0 is treated as measured and valid', () => {
+    const selection = runMeasuredSgSelection(
+      {
+        offTee: -0.2,
+        approach: -0.5,
+        shortGame: 0,
+        putting: -0.4,
+        penalties: null,
+        residual: 0.1,
+        total: -1.0,
+      },
+      -1.0,
+    );
+
+    expect(selection.componentCount).toBe(4);
+    expect(selection.components.some((component) => component.name === 'short_game')).toBe(true);
+  });
 });
 
 describe('M3 threshold semantics', () => {

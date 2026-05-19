@@ -155,7 +155,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[0]).toBe('M1-B');
-    expect(out.messages[0]).toContain('Only Putting was logged');
+    expect(out.messages[0]).toContain('With only Putting logged');
     expect(out.messages[0]).toContain('(38 total putts)');
     expect(out.messages[0].toLowerCase()).not.toContain('best measured');
   });
@@ -244,8 +244,64 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.outcomes[1]).toBe('M2-D');
     expect(out.messages[1].toLowerCase()).toMatch(
-      /short game and getting up and down|not shown in these stats|other parts of your game not shown in these stats/,
+      /part of the round slipped away through mistakes that added up across several holes|a few scoring leaks came from in-between situations across the round|several costly holes came from mistakes that built on each other|some strokes slipped away through connected mistakes rather than one clear area/,
     );
+  });
+
+  test('uses short-game-specific negative M2 copy when short game is the worst measured area', () => {
+    const comps = [
+      { name: 'approach' as const, label: 'Approach', value: -0.2 },
+      { name: 'short_game' as const, label: 'Short Game', value: -1.1 },
+      { name: 'putting' as const, label: 'Putting', value: -0.3 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: true,
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 7,
+          greensPossible: 18,
+          puttsTotal: 32,
+          penaltiesTotal: 1,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-D');
+    expect(out.messages[1]).toContain('Short Game added pressure after missed greens');
+  });
+
+  test('uses short-game-specific positive M2 copy when short game is measured as positive', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.7 },
+      { name: 'short_game' as const, label: 'Short Game', value: 0.4 },
+      { name: 'putting' as const, label: 'Putting', value: 0.2 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[1],
+        opportunityIsWeak: false,
+        roundEvidence: {
+          fairwaysHit: 10,
+          fairwaysPossible: 14,
+          greensHit: 11,
+          greensPossible: 18,
+          puttsTotal: 30,
+          penaltiesTotal: 0,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-E');
+    expect(out.messages[1]).toContain('Short Game protected scoring after missed greens');
   });
 
   test('uses penalties-safe positive copy for M2-E', () => {
@@ -590,7 +646,9 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[1]).toBe('M2-D');
-    expect(out.messages[1].toLowerCase()).toContain('not shown in these stats');
+    expect(out.messages[1].toLowerCase()).toMatch(
+      /likely contributed about|likely mattered at|was probably part of the story|round likely included both/,
+    );
     expect(out.messages[1].toLowerCase()).toContain('likely');
     expect(out.messages[1].toLowerCase()).not.toContain('main source of lost strokes');
   });

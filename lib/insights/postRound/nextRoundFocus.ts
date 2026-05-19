@@ -25,6 +25,9 @@ export type BuildNextRoundFocusInput = {
     scoreToPar?: number | null;
     penaltiesTotal?: number | null;
     puttsTotal?: number | null;
+    sgTotal?: number | null;
+    sgPenalties?: number | null;
+    sgPutting?: number | null;
   };
 } & VariantOptions;
 
@@ -37,12 +40,10 @@ const GENERIC_ACTION_VARIANTS = [
   "Next round: Favor targets that leave room for a playable miss.",
   "Next round: Choose the side of the hole with the safest recovery.",
   "Next round: When trouble appears, play to the wider side first.",
-  "Next round: Prioritize targets that keep the next shot manageable.",
-  "Next round: Let the safest miss shape the target selection.",
+  "Next round: Favor targets that leave the simplest next shot after a miss.",
   "Next round: On tighter holes, favor the target with the easiest recovery.",
   "Next round: Build targets around keeping the difficult miss out of play.",
   "Next round: Choose lines that leave simpler next shots after a miss.",
-  "Next round: Favor misses that still leave a simple next shot.",
   "Next round: When unsure, choose the target with the most room.",
 ] as const;
 
@@ -52,10 +53,7 @@ const PENALTIES_ACTION_VARIANTS = [
   "Next round: On tighter holes, aim where a miss still stays in play.",
   "Next round: When hazards narrow the hole, take the simpler target.",
   "Next round: Prioritize keeping recovery shots simple around trouble.",
-  "Next round: Let the safest landing area guide decisions near hazards.",
   "Next round: Favor targets that remove penalty trouble from the miss.",
-  "Next round: Around hazards, choose the line with the easiest recovery.",
-  "Next round: On risky holes, prioritize keeping the ball in playable areas.",
   "Next round: Around trouble, choose targets that keep doubles out of play.",
 ] as const;
 
@@ -64,11 +62,9 @@ const PUTTING_ACTION_VARIANTS = [
   "Next round: Prioritize speed control over perfect reads on long putts.",
   "Next round: On long putts, aim to remove three-putt pressure first.",
   "Next round: Keep the first putt inside a comfortable cleanup range.",
-  "Next round: Let pace control guide the putting strategy on longer putts.",
   "Next round: Build lag putting around leaving stress-free second putts.",
   "Next round: On long greens, focus on pace before chasing the perfect line.",
   "Next round: Prioritize first-putt speed that keeps the next putt simple.",
-  "Next round: On long putts, focus on leaving easier second putts.",
   "Next round: On lag putts, focus on removing difficult comeback putts.",
 ] as const;
 
@@ -85,6 +81,19 @@ const APPROACH_ACTION_VARIANTS = [
   "Next round: Prioritize greenside misses that still leave simple up-and-downs.",
 ] as const;
 
+const SHORT_GAME_ACTION_VARIANTS = [
+  "Next round: Favor approach targets that leave easier short-game misses.",
+  "Next round: Around missed greens, prioritize the recovery shot that leaves a simple putt.",
+  "Next round: Choose recovery shots that leave an easier next putt.",
+  "Next round: On missed greens, play the short-game shot with the safest leave.",
+  "Next round: Avoid short-sided misses that force difficult recovery shots.",
+  "Next round: Keep recovery shots simple when the green is missed.",
+  "Next round: Prioritize the short-game shot that leaves the simplest next putt.",
+  "Next round: When recovery is needed, choose the shot with the widest margin.",
+  "Next round: Aim for the safest landing area on recovery shots.",
+  "Next round: Let the easiest next putt guide the short-game target.",
+] as const;
+
 const OFF_TEE_ACTION_VARIANTS = [
   "Next round: Choose tee targets that keep the widest landing area in play.",
   "Next round: Prioritize the side of the fairway with the safest miss.",
@@ -93,7 +102,7 @@ const OFF_TEE_ACTION_VARIANTS = [
   "Next round: Use the club that keeps trouble out of your common miss.",
   "Next round: Favor tee lines that leave the easiest next shot after a miss.",
   "Next round: On tighter driving holes, prioritize playable misses first.",
-  "Next round: Let safer tee targets control the difficult holes.",
+  "Next round: On difficult driving holes, favor the target that keeps the ball playable.",
   "Next round: Choose tee clubs that remove penalty trouble from the miss.",
   "Next round: Build tee strategy around keeping the ball in playable areas.",
 ] as const;
@@ -106,53 +115,41 @@ const PENALTY_HEAVY_ACTION_VARIANTS = [
   "Next round: On dangerous holes, choose the target with the easiest recovery.",
   "Next round: Around hazards, favor the side that keeps doubles out of play.",
   "Next round: Let the safest recovery shape decisions near penalty trouble.",
-  "Next round: On hazard-heavy holes, prioritize staying in playable areas.",
   "Next round: Choose targets that remove the difficult miss around trouble.",
-  "Next round: When hazards come into play, prioritize the safest target.",
 ] as const;
 
 const BLOWUP_HEAVY_ACTION_VARIANTS = [
   "Next round: After mistakes, prioritize targets that keep doubles out of play.",
-  "Next round: Prioritize keeping doubles off the card over chasing difficult shots.",
-  "Next round: After mistakes, choose targets that stabilize the hole quickly.",
+  "Next round: When momentum slips, choose the target that keeps bogey in play.",
+  "Next round: Favor decisions that reset the hole instead of forcing a hero shot.",
   "Next round: When pressure builds, simplify the target and protect the scorecard.",
-  "Next round: Focus on limiting costly misses once momentum starts shifting.",
-  "Next round: After big holes, simplify targets and avoid forcing recovery shots.",
-  "Next round: Let safer decisions settle the round after mistakes appear.",
-  "Next round: When doubles start appearing, favor recovery-friendly targets.",
-  "Next round: After mistakes, focus on keeping the next hole simple.",
-  "Next round: Prioritize keeping the next hole simple after costly mistakes.",
+  "Next round: Use a conservative line first, then rebuild momentum from position.",
+  "Next round: On the next tee, pick the target that removes the big miss first.",
 ] as const;
 
 const PUTTING_HEAVY_ACTION_VARIANTS = [
   "Next round: Prioritize pace that leaves stress-free second putts.",
   "Next round: On long putts, focus on speed before reading break.",
-  "Next round: Let comfortable leave distance guide the lag putting strategy.",
+  "Next round: Let leave distance guide the lag putting strategy.",
   "Next round: Aim to remove difficult comeback putts on long greens.",
-  "Next round: Prioritize first-putt pace that keeps the next putt simple.",
   "Next round: Build lag putting around leaving easy cleanup putts.",
   "Next round: On longer putts, prioritize speed that keeps pressure off the second putt.",
-  "Next round: Let pace control shape decisions on difficult greens.",
-  "Next round: Focus on removing stressful second putts from long range.",
-  "Next round: Prioritize comfortable leave distance over aggressive lag putts.",
+  "Next round: Prioritize easier second putts over aggressive lag putts.",
 ] as const;
 
 const OFF_TEE_LEAST_BAD_ACTION_VARIANTS = [
   "Next round: Keep leaning on the tee strategy that kept misses playable.",
-  "Next round: Continue favoring tee targets that avoid the difficult miss.",
+  "Next round: Favor tee targets that avoid the difficult miss.",
   "Next round: Off the tee, favor the side with the safest miss.",
-  "Next round: Stick with the tee clubs that kept the round manageable.",
-  "Next round: Build tee targets around keeping the next shot comfortable.",
-  "Next round: Keep using tee lines that leave room for recovery after misses.",
-  "Next round: Favor the tee strategy that kept trouble out of play most often.",
-  "Next round: Let the safer landing areas continue shaping tee decisions.",
-  "Next round: Keep prioritizing playable misses off the tee.",
-  "Next round: Continue building tee decisions around manageable next shots.",
+  "Next round: Use the tee club that keeps the hole manageable when you miss.",
+  "Next round: Lean toward the tee plan that kept trouble out most often.",
+  "Next round: Let safer landing areas shape tee decisions on tighter holes.",
 ] as const;
 
 function getAreaActionVariants(area: SgMeasuredComponentName | null): readonly string[] {
   if (area === 'off_tee') return OFF_TEE_ACTION_VARIANTS;
   if (area === 'approach') return APPROACH_ACTION_VARIANTS;
+  if (area === 'short_game') return SHORT_GAME_ACTION_VARIANTS;
   if (area === 'putting') return PUTTING_ACTION_VARIANTS;
   if (area === 'penalties') return PENALTIES_ACTION_VARIANTS;
   return GENERIC_ACTION_VARIANTS;
@@ -161,6 +158,10 @@ function getAreaActionVariants(area: SgMeasuredComponentName | null): readonly s
 function resolveHoleCount(raw: number | null | undefined): number {
   if (raw != null && Number.isFinite(raw) && raw > 0) return Math.round(raw);
   return 18;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function selectContextualVariants(
@@ -172,32 +173,56 @@ function selectContextualVariants(
   const penaltiesTotal = input.context?.penaltiesTotal;
   const scoreToPar = input.context?.scoreToPar;
   const puttsTotal = input.context?.puttsTotal;
-  const penaltyHeavyThreshold = holesPlayed <= 9 ? 2 : 3;
-  const blowupThreshold = holesPlayed <= 9 ? 6 : 10;
-  const highPuttsThreshold = holesPlayed <= 9 ? 18 : 34;
+  const sgTotal = input.context?.sgTotal;
+  const sgPenalties = input.context?.sgPenalties;
+  const sgPutting = input.context?.sgPutting;
+  const isNineHole = holesPlayed <= 9;
+  const strokeScale = isNineHole ? 0.5 : 1;
+
+  const penaltySgSevereThreshold = -2.0 * strokeScale;
+  const penaltyRawSevereThreshold = isNineHole ? 2 : 4;
+  const strongMeasuredWeaknessThreshold = isNineHole ? -0.9 : -1.75;
+  const blowupSgTotalThreshold = -8.0 * strokeScale;
+  const blowupRawScoreThreshold = isNineHole ? 8 : 14;
+  const puttingSgSevereThreshold = -2.0 * strokeScale;
+  const puttingRawSevereThreshold = isNineHole ? 18 : 35;
+
+  const elevatedPenaltiesRaw =
+    isFiniteNumber(penaltiesTotal) && penaltiesTotal >= penaltyRawSevereThreshold;
+  const elevatedPuttsRaw =
+    isFiniteNumber(puttsTotal) && puttsTotal >= puttingRawSevereThreshold;
+  const instabilityContext = elevatedPenaltiesRaw || elevatedPuttsRaw;
 
   if (
-    penaltiesTotal != null &&
-    Number.isFinite(penaltiesTotal) &&
-    penaltiesTotal >= penaltyHeavyThreshold
+    (isFiniteNumber(sgPenalties) && sgPenalties <= penaltySgSevereThreshold) ||
+    elevatedPenaltiesRaw
   ) {
     return PENALTY_HEAVY_ACTION_VARIANTS;
   }
 
   if (
-    scoreToPar != null &&
-    Number.isFinite(scoreToPar) &&
-    scoreToPar >= blowupThreshold &&
-    (input.context?.penaltiesTotal != null || input.context?.puttsTotal != null)
+    input.worstMeasured != null &&
+    isFiniteNumber(input.worstMeasuredValue) &&
+    input.worstMeasuredValue <= strongMeasuredWeaknessThreshold
+  ) {
+    return getAreaActionVariants(input.worstMeasured);
+  }
+
+  if (
+    (
+      (isFiniteNumber(sgTotal) && sgTotal <= blowupSgTotalThreshold && instabilityContext) ||
+      (isFiniteNumber(scoreToPar) && scoreToPar >= blowupRawScoreThreshold && instabilityContext)
+    )
   ) {
     return BLOWUP_HEAVY_ACTION_VARIANTS;
   }
 
   if (
-    area === 'putting' &&
-    puttsTotal != null &&
-    Number.isFinite(puttsTotal) &&
-    puttsTotal >= highPuttsThreshold &&
+    (area === 'putting' || input.worstMeasured === 'putting') &&
+    (
+      (isFiniteNumber(sgPutting) && sgPutting <= puttingSgSevereThreshold) ||
+      elevatedPuttsRaw
+    ) &&
     (input.worstMeasuredValue == null || input.worstMeasuredValue <= 0)
   ) {
     return PUTTING_HEAVY_ACTION_VARIANTS;

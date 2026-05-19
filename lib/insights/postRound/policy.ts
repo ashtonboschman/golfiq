@@ -34,6 +34,9 @@ export type PostRoundPolicyInput = {
   toPar: number;
   avgScore: number | null;
   band: PerformanceBand;
+  sgTotal?: number | null;
+  sgPenalties?: number | null;
+  sgPutting?: number | null;
   measuredComponents: PolicyMeasuredComponent[];
   bestMeasured: PolicyMeasuredComponent | null;
   worstMeasured: PolicyMeasuredComponent | null;
@@ -85,12 +88,11 @@ type PolicyThresholds = {
 };
 
 const M1_A_VARIANTS = [
-  "{scoreSentence} This round was logged as score only, so this read stays high-level.",
-  "{scoreSentence} Only score was recorded, so this breakdown stays broad.",
-  "{scoreSentence} With no fairways, greens, putts, or penalties logged, this view focuses on score pattern only.",
-  "{scoreSentence} The score is in, and this read focuses on likely scoring pattern.",
-  "{scoreSentence} With score-only logging, the takeaways stay directional.",
-  "{scoreSentence} Because no supporting stats were logged, this read stays score-pattern only.",
+  "{scoreSentence} A few holes likely shaped the round more than anything else.",
+  "{scoreSentence} The score suggests a couple of stretches likely swung the day.",
+  "{scoreSentence} A handful of moments likely made the biggest difference here.",
+  "{scoreSentence} This score usually comes down to a few costly holes and missed chances.",
+  "{scoreSentence} One or two holes likely carried more weight than the rest of the round.",
 ] as const;
 
 const M1_B_VARIANTS = [
@@ -99,32 +101,28 @@ const M1_B_VARIANTS = [
   "{scoreSentence} Among logged stats, {BestLabel} limited damage most at about {bestAbs1} strokes{evidence}.",
   "{scoreSentence} {BestLabel} was the cleanest area at about {bestAbs1} strokes{evidence}.",
   "{scoreSentence} {BestLabel} was the least costly area at about {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} stayed the most stable at about {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} gave up the fewest strokes at about {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M1_C_VARIANTS = [
   "{scoreSentence} {BestLabel} was the clearest bright spot, gaining about {bestAbs1} strokes{evidence}.",
   "{scoreSentence} {BestLabel} led the round at about {bestAbs1} strokes gained{evidence}.",
   "{scoreSentence} {BestLabel} delivered the biggest gain at about {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} provided the strongest boost at about {bestAbs1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} created the biggest scoring advantage at about {bestAbs1} strokes{evidence}.",
   "{scoreSentence} The largest gain came from {BestLabel} at about {bestAbs1} strokes{evidence}.",
   "{scoreSentence} {BestLabel} stood out most at about {bestAbs1} strokes gained{evidence}.",
 ] as const;
 
 const M1_D_VARIANTS = [
-  "{scoreSentence} {BestLabel} finished near even at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} didn't make a big difference at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} was essentially even at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} held steady at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} stayed around even at {bestSigned1} strokes{evidence}.",
-  "{scoreSentence} {BestLabel} remained flat at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} finished close to baseline at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} stayed near even at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} was mostly neutral at {bestSigned1} strokes{evidence}.",
+  "{scoreSentence} {BestLabel} neither gained nor lost much at {bestSigned1} strokes{evidence}.",
 ] as const;
 
 const M1_SINGLE_B_VARIANTS = [
-  "{scoreSentence} Only {BestLabel} was logged, so the takeaway is limited: it cost about {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} With only {BestLabel} logged, the takeaway is limited: it finished at about {bestAbs1} strokes lost{evidence}.",
+  "{scoreSentence} With only {BestLabel} logged, it finished at about {bestAbs1} strokes lost{evidence}.",
   "{scoreSentence} One area was logged: {BestLabel}, which cost about {bestAbs1} strokes{evidence}.",
-  "{scoreSentence} Only {BestLabel} was measured, so the picture is limited: it gave up about {bestAbs1} strokes{evidence}.",
 ] as const;
 
 const M1_SINGLE_C_VARIANTS = [
@@ -155,63 +153,31 @@ const M1_NO_BASELINE_SUFFIX_VARIANTS = [
 ] as const;
 
 const M2_A_VARIANTS = [
-  "Rounds like this usually come from missed scoring chances and a few difficult recovery situations.",
-  "Scores in this range often come from uneven approach play and a few holes that require recovery.",
-  "Rounds like this typically come from lost scoring opportunities and extra pressure around the green.",
-  "Scores in this range often come from missed approach targets and a few swings that force recovery.",
-  "Scores like this usually reflect uneven ball striking and a few holes where recovery becomes difficult.",
-  "Rounds in this range often come from lost scoring opportunities and one or two holes that get away.",
-] as const;
-
-const M2_A_NONE_BETTER_VARIANTS = [
-  "You beat your recent usual level. Rounds in this range usually come from cleaner approaches and fewer recovery situations.",
-  "This round came in lower than your recent average. Scores like this often come from steadier approach play and cleaner recovery decisions.",
-  "Scoring improved versus your recent play. Rounds like this typically come from fewer big mistakes and more routine pars.",
-  "This was a clear step forward versus recent rounds. Scores in this range often come from more consistent approach distance control.",
-  "You finished below your recent average. Rounds like this usually come from fewer penalty moments and better position play.",
-  "This round beat your recent level. Results like this often come from tighter misses and fewer holes that get away.",
-] as const;
-
-const M2_A_NONE_NEAR_VARIANTS = [
-  "You finished in line with your recent usual level. Rounds in this range usually come from routine misses balanced by a few solid saves.",
-  "This result sits within your normal scores. Scores like this often come from inconsistent approaches and average conversion on chances.",
-  "Scoring held steady versus your recent average. Rounds like this typically come from ordinary ball striking plus one or two difficult recovery situations.",
-  "This round matched your recent play. Scores like this often come from mixed shots across approach and getting up and down.",
-  "You landed within your usual scores. Scores like this often come from missed greens plus a handful of good scrambles.",
-  "This score matches your recent trend. Rounds in this range usually come from routine pars mixed with a few avoidable setbacks.",
-] as const;
-
-const M2_A_NONE_WORSE_VARIANTS = [
-  "You finished above your recent usual level. Rounds like this usually come from missed approach targets and recovery-heavy holes.",
-  "This round came in higher than your recent average. Scores in this range often come from inconsistent approaches and a few holes that get away.",
-  "Scoring slipped relative to your recent play. Rounds like this typically come from getting up and down adding up over multiple holes.",
-  "This result came in higher than your usual scores. Scores like this often come from missed approach targets plus one or two forced recoveries.",
-  "You lost ground versus your recent usual level. Rounds in this range usually come from missed scoring chances and recovery situations adding up.",
-  "This score finished above your recent trend. Results like this often come from uneven approach control and a few high-cost holes.",
+  "Rounds in this range often come from lost scoring chances and one or two holes that get away.",
+  "Scores like this usually build from a few missed opportunities and difficult recoveries.",
+  "A couple of costly holes likely shaped most of the scoring here.",
+  "Scores in this range often reflect missed chances and a few holes that add pressure.",
+  "Rounds like this usually come down to a few swings that shift momentum the wrong way.",
+  "The score suggests a mix of missed opportunities and a few holes that became difficult to manage.",
 ] as const;
 
 const M2_A_SINGLE_VARIANTS = [
-  "With one logged area, rounds like this often come from missed scoring chances and a few difficult recovery situations.",
-  "With one logged stat, scores like this usually come from uneven approach play plus pressure around the green.",
-  "With one logged area, rounds like this typically come from combined effects across multiple parts of the game.",
-  "With one logged stat, results like this often come from missed scoring opportunities and a few forced recoveries.",
-  "With one measured area, rounds like this usually reflect mixed shot quality across ball striking and recovery.",
-  "With one logged area, scores like this often come from missed approach targets and a couple holes that get away.",
+  "Scoring pressure likely came from missed chances and tougher recovery spots.",
+  "Scores like this usually come from missed chances and a couple of difficult holes.",
+  "A few holes likely carried most of the scoring pressure in this round.",
 ] as const;
 
 const M2_C_VARIANTS = [
-  "{WorstLabel} was steady and didn't make much difference at {worstSigned1} strokes.{residualSuffix}",
-  "{WorstLabel} didn't make a big difference at {worstSigned1} strokes.{residualSuffix}",
-  "{WorstLabel} stayed mostly even at {worstSigned1} strokes.{residualSuffix}",
-  "{WorstLabel} was not a major factor at {worstSigned1} strokes.{residualSuffix}",
-  "{WorstLabel} stayed close to even at {worstSigned1} strokes.{residualSuffix}",
-  "{WorstLabel} stayed steady at {worstSigned1} strokes.{residualSuffix}",
+  "{WorstLabel} sat near neutral at {worstSigned1} strokes, so it was not the main driver.{residualSuffix}",
+  "{WorstLabel} was close to even at {worstSigned1}, with no clear leak by itself.{residualSuffix}",
+  "{WorstLabel} stayed near baseline at {worstSigned1} strokes, so no single area drove the score.{residualSuffix}",
+  "{WorstLabel} stayed near baseline at {worstSigned1} strokes rather than clearly helping or hurting.{residualSuffix}",
 ] as const;
 
 const M2_C_MED_VARIANTS = [
-  "{WorstLabel} was likely close to neutral at {worstSigned1} strokes, so no single measured area clearly drove the score.{residualSuffix}",
-  "{WorstLabel} looked mostly even at {worstSigned1} strokes, so the round was likely shaped by multiple small factors.{residualSuffix}",
-  "{WorstLabel} stayed near even at {worstSigned1} strokes, so no one measured area clearly explained the score.{residualSuffix}",
+  "{WorstLabel} looked close to neutral at {worstSigned1} strokes, so no single area stood out.{residualSuffix}",
+  "{WorstLabel} was mostly even at {worstSigned1} strokes, and the score likely came from several small misses.{residualSuffix}",
+  "{WorstLabel} stayed near baseline at {worstSigned1} strokes, without one clear scoring leak.{residualSuffix}",
 ] as const;
 
 const M2_D_VARIANTS = [
@@ -252,6 +218,14 @@ const M2_D_PENALTIES_VARIANTS = [
   "Penalties accounted for the largest loss at {worstAbs1} strokes{evidence}.{residualSuffix}",
 ] as const;
 
+const M2_D_SHORT_GAME_VARIANTS = [
+  "Short Game added pressure after missed greens and became a clear scoring leak.{residualSuffix}",
+  "Missed greens created tougher recovery situations throughout the round.{residualSuffix}",
+  "Short Game trailed expectation because missed greens kept leading to difficult recoveries.{residualSuffix}",
+  "Short Game became a scoring issue as missed greens kept creating difficult recoveries.{residualSuffix}",
+  "Short Game cost strokes as missed greens kept creating difficult next shots.{residualSuffix}",
+] as const;
+
 const M2_E_PENALTIES_VARIANTS = [
   "Penalties still helped the score by about {worstAbs1} strokes. Risk control held up.{residualSuffix}",
   "Penalties remained a positive at about {worstAbs1} strokes. That kept extra shots off the card.{residualSuffix}",
@@ -260,10 +234,24 @@ const M2_E_PENALTIES_VARIANTS = [
   "Penalties were still a scoring help at about {worstAbs1} strokes. Risk discipline paid off.{residualSuffix}",
 ] as const;
 
+const M2_E_SHORT_GAME_VARIANTS = [
+  "Short Game protected scoring after missed greens and kept recovery holes manageable.{residualSuffix}",
+  "Short Game helped offset missed greens by turning recoveries into manageable next shots.{residualSuffix}",
+  "Short Game saved strokes by needing fewer recovery shots than expected.{residualSuffix}",
+  "Short Game stayed in your favor by reducing recovery pressure after missed greens.{residualSuffix}",
+  "Short Game helped stabilize scoring by keeping missed-green recovery efficient.{residualSuffix}",
+] as const;
+
 const M2_D_PENALTIES_MED_VARIANTS = [
   "Penalties likely cost the most strokes at about {worstAbs1} strokes{evidence}.{residualSuffix}",
   "Penalties were likely the main source of lost strokes at about {worstAbs1} strokes{evidence}.{residualSuffix}",
   "Penalty shots looked like the clearest scoring leak at about {worstAbs1} strokes{evidence}.{residualSuffix}",
+] as const;
+
+const M2_D_SHORT_GAME_MED_VARIANTS = [
+  "Short Game likely added pressure after missed greens and became a scoring leak.{residualSuffix}",
+  "Missed greens likely created tougher recovery situations through the round.{residualSuffix}",
+  "Short Game likely lost strokes because missed greens led to tougher recoveries.{residualSuffix}",
 ] as const;
 
 const M2_E_PENALTIES_MED_VARIANTS = [
@@ -272,38 +260,44 @@ const M2_E_PENALTIES_MED_VARIANTS = [
   "Penalties likely stayed in your favor at about {worstAbs1} strokes. Risk control stayed steady.{residualSuffix}",
 ] as const;
 
+const M2_E_SHORT_GAME_MED_VARIANTS = [
+  "Short Game likely protected scoring after missed greens and kept recovery holes manageable.{residualSuffix}",
+  "Short Game likely helped offset missed greens by creating simpler next putts.{residualSuffix}",
+  "Short Game likely saved strokes by needing fewer recovery shots than expected.{residualSuffix}",
+] as const;
+
 const RESIDUAL_POSITIVE_VARIANTS = [
-  "A big part of the score came from short game and getting up and down that is not shown in these stats.",
-  "Some of the score came from parts of the round not shown in these stats, like getting up and down or short-game shots.",
-  "Not every scoring swing is shown in these stats, especially around getting up and down and short game.",
-  "The stats explain part of the round, but some scoring came from other parts of your game not shown in these stats.",
-  "Short game, getting up and down, and other details not shown in these stats also played a role in the final score.",
+  "A few scoring boosts came from in-between situations across the round.",
+  "Several scoring swings came from moments that built on each other.",
+  "Part of the scoring came from holes where small advantages added up together.",
+  "Some gains came from holes that played out across connected parts of the game.",
 ] as const;
 
 const M2_RESIDUAL_DOMINANT_MED_VARIANTS = [
-  "{WorstLabel} was one likely factor, but a large share of this round came from short game and getting up and down not shown in these stats.",
-  "{WorstLabel} likely contributed, but this round was also shaped by short game and getting up and down not shown in these stats.",
-  "{WorstLabel} looked like part of the story, but short game and getting up and down not shown in these stats also drove scoring.",
+  "{WorstLabel} likely contributed about {worstAbs1} strokes{evidence}, though several holes were also shaped by overlapping mistakes.",
+  "{WorstLabel} likely mattered at about {worstAbs1} strokes{evidence}, while other mistakes added pressure across the round.",
+  "{WorstLabel} was probably part of the story at about {worstAbs1} strokes{evidence}, but other mistakes also added up through the round.",
+  "The round likely included both {WorstLabel} leaking at about {worstAbs1} strokes{evidence} and overlapping mistakes elsewhere.",
 ] as const;
 
 const M2_RESIDUAL_DOMINANT_HIGH_VARIANTS = [
-  "{WorstLabel} was a clear factor at about {worstAbs1} strokes{evidence}, but this round was also heavily shaped by short game and getting up and down not shown in these stats.",
-  "{WorstLabel} clearly influenced scoring at about {worstAbs1} strokes{evidence}, and a large share also came from short game and getting up and down not shown in these stats.",
-  "{WorstLabel} was a strong measured factor at about {worstAbs1} strokes{evidence}, but short game and getting up and down not shown in these stats also drove the score.",
+  "{WorstLabel} contributed at about {worstAbs1} strokes{evidence}, but several holes were shaped by overlapping mistakes.",
+  "{WorstLabel} mattered at about {worstAbs1} strokes{evidence}, while other mistakes added pressure through the round.",
+  "{WorstLabel} was part of the story at about {worstAbs1} strokes{evidence}, but other mistakes also added up through the round.",
+  "The round combined {WorstLabel} leaking at about {worstAbs1} strokes{evidence} with overlapping mistakes on other holes.",
 ] as const;
 
 const RESIDUAL_NEGATIVE_VARIANTS = [
-  "A big part of the score came from short game and getting up and down that is not shown in these stats.",
-  "Some of the score came from parts of the round not shown in these stats, like getting up and down or short-game shots.",
-  "Not every scoring swing is shown in these stats, especially around getting up and down and short game.",
-  "The stats explain part of the round, but some scoring came from other parts of your game not shown in these stats.",
-  "Short game, getting up and down, and other details not shown in these stats also played a role in the final score.",
+  "Part of the round slipped away through mistakes that added up across several holes.",
+  "A few scoring leaks came from in-between situations across the round.",
+  "Several costly holes came from mistakes that built on each other.",
+  "Some strokes slipped away through connected mistakes rather than one clear area.",
 ] as const;
 
 const M2_GROUNDED_GIR_VARIANTS = [
   "With {girMade}/{girTotal} greens hit, several holes were played from recovery positions.",
   "Missing that many greens usually puts pressure on recovery shots and first-putt distance.",
-  "Low GIR rounds like this often leave fewer simple looks and more recovery work.",
+  "Low GIR rounds like this usually create tougher recoveries and longer first putts.",
 ] as const;
 
 const M2_GROUNDED_PENALTIES_VARIANTS = [
@@ -325,23 +319,23 @@ const M2_GROUNDED_PUTTS_VARIANTS = [
 ] as const;
 
 const M2_GROUNDED_GIR_NEUTRAL_VARIANTS = [
-  "With {girMade}/{girTotal} greens hit, approach targets shaped how many scoring chances you had.",
-  "Your greens hit gave useful context for how often you were attacking versus recovering.",
+  "With {girMade}/{girTotal} greens hit, approach position set the quality of your chances.",
+  "Greens hit at {girMade}/{girTotal} shows how often you were attacking versus recovering.",
 ] as const;
 
 const M2_GROUNDED_PENALTIES_NEUTRAL_VARIANTS = [
-  "With {penaltiesTotal} {penaltyWord}, risk control still shaped the round.",
-  "Penalty stats helped show how much trouble influenced the score.",
+  "With {penaltiesTotal} {penaltyWord}, trouble avoidance still played a meaningful role.",
+  "{penaltiesTotal} {penaltyWord} shows how often trouble changed the hole plan.",
 ] as const;
 
 const M2_GROUNDED_FIR_NEUTRAL_VARIANTS = [
-  "With {firMade}/{firTotal} fairways hit, tee-shot position gave useful context for the round.",
-  "Fairways hit helped show how often you were playing from position.",
+  "With {firMade}/{firTotal} fairways hit, tee position set up more or fewer clean approaches.",
+  "Fairways at {firMade}/{firTotal} shows how often you played from a comfortable lie.",
 ] as const;
 
 const M2_GROUNDED_PUTTS_NEUTRAL_VARIANTS = [
-  "With {puttsTotal} putts, putting volume gave useful context for the score.",
-  "Your putting total helped explain how many chances turned into scores.",
+  "With {puttsTotal} putts, pace and leave distance still influenced scoring flow.",
+  "Putting totals at {puttsTotal} suggest several holes still needed extra work on the greens.",
 ] as const;
 
 const SCORE_ONLY_NEAR_DELTA_BASE = 1.5;
@@ -402,12 +396,6 @@ function resolveScoreOnlyBucket(
   return 'near';
 }
 
-function resolveScoreOnlyMessage2Variants(bucket: ScoreOnlyBucket): readonly string[] {
-  if (bucket === 'better') return M2_A_NONE_BETTER_VARIANTS;
-  if (bucket === 'worse') return M2_A_NONE_WORSE_VARIANTS;
-  return M2_A_NONE_NEAR_VARIANTS;
-}
-
 function pluralize(n: number, singular: string, plural: string): string {
   return Math.abs(n - 1) < 0.001 ? singular : plural;
 }
@@ -439,6 +427,33 @@ function buildComponentEvidenceDetail(
       return `${n}/${possible} greens in regulation`;
     }
     return `${n} greens in regulation`;
+  }
+  if (component.name === 'short_game') {
+    const greensHit =
+      evidence.greensHit != null && Number.isFinite(evidence.greensHit)
+        ? Math.round(evidence.greensHit)
+        : null;
+    const greensPossible =
+      evidence.greensPossible != null && Number.isFinite(evidence.greensPossible) && evidence.greensPossible > 0
+        ? Math.round(evidence.greensPossible)
+        : null;
+    const missedGreens =
+      greensHit != null && greensPossible != null
+        ? Math.max(0, greensPossible - greensHit)
+        : null;
+    if (component.value > 0) {
+      if (missedGreens != null) {
+        return `fewer recovery shots than expected after ${missedGreens} missed greens`;
+      }
+      return 'fewer recovery shots than expected';
+    }
+    if (component.value < 0) {
+      if (missedGreens != null) {
+        return `recovery shots added up after ${missedGreens} missed greens`;
+      }
+      return 'recovery shots added up around missed greens';
+    }
+    return '';
   }
   if (component.name === 'putting' && evidence.puttsTotal != null && Number.isFinite(evidence.puttsTotal)) {
     return `${Math.round(evidence.puttsTotal)} total putts`;
@@ -805,7 +820,6 @@ function buildMessage2(
   input: PostRoundPolicyInput,
   variantOptions: VariantOptions,
   thresholds: PolicyThresholds,
-  m1HasScoreBaselineComparison: boolean,
 ): BuiltMessage {
   const messageVariantOptions: VariantOptions = {
     ...variantOptions,
@@ -821,14 +835,13 @@ function buildMessage2(
   // LOW confidence keeps message 2 broad and avoids SG-specific callouts.
   if (input.confidence === 'LOW') {
     const measuredCount = input.measuredComponents.length;
-    const hasBaseline = hasScoreBaseline(input.avgScore);
     const scoreOnlyBucket = measuredCount === 0
       ? resolveScoreOnlyBucket(input, thresholds.scoreOnlyNearDelta)
       : null;
     const grounded = pickGroundedM2Message(input, messageVariantOptions);
     const variants =
       measuredCount === 0
-        ? (hasBaseline && !m1HasScoreBaselineComparison ? resolveScoreOnlyMessage2Variants(scoreOnlyBucket!) : M2_A_VARIANTS)
+        ? M2_A_VARIANTS
         : measuredCount === 1
           ? M2_A_SINGLE_VARIANTS
           : M2_A_VARIANTS;
@@ -844,14 +857,13 @@ function buildMessage2(
 
   if (!hasOpportunityComponent || !input.worstMeasured) {
     const measuredCount = input.measuredComponents.length;
-    const hasBaseline = hasScoreBaseline(input.avgScore);
     const scoreOnlyBucket = measuredCount === 0
       ? resolveScoreOnlyBucket(input, thresholds.scoreOnlyNearDelta)
       : null;
     const grounded = pickGroundedM2Message(input, messageVariantOptions);
     const variants =
       measuredCount === 0
-        ? (hasBaseline && !m1HasScoreBaselineComparison ? resolveScoreOnlyMessage2Variants(scoreOnlyBucket!) : M2_A_VARIANTS)
+        ? M2_A_VARIANTS
         : measuredCount === 1
           ? M2_A_SINGLE_VARIANTS
           : M2_A_VARIANTS;
@@ -926,6 +938,9 @@ function buildMessage2(
 
   if (worstMeasured.value < 0) {
     const leakVariants = (() => {
+      if (worstMeasured.name === 'short_game') {
+        return useMediumConfidenceTone ? M2_D_SHORT_GAME_MED_VARIANTS : M2_D_SHORT_GAME_VARIANTS;
+      }
       if (worstMeasured.name === 'penalties') {
         return useMediumConfidenceTone ? M2_D_PENALTIES_MED_VARIANTS : M2_D_PENALTIES_VARIANTS;
       }
@@ -947,6 +962,9 @@ function buildMessage2(
 
   if (worstMeasured.value > 0) {
     const positiveVariants = (() => {
+      if (worstMeasured.name === 'short_game') {
+        return useMediumConfidenceTone ? M2_E_SHORT_GAME_MED_VARIANTS : M2_E_SHORT_GAME_VARIANTS;
+      }
       if (worstMeasured.name === 'penalties') {
         return useMediumConfidenceTone ? M2_E_PENALTIES_MED_VARIANTS : M2_E_PENALTIES_VARIANTS;
       }
@@ -1002,6 +1020,9 @@ function buildMessage3(
       scoreToPar: input.toPar,
       penaltiesTotal: input.roundEvidence?.penaltiesTotal ?? null,
       puttsTotal: input.roundEvidence?.puttsTotal ?? null,
+      sgTotal: input.sgTotal ?? null,
+      sgPenalties: input.sgPenalties ?? null,
+      sgPutting: input.sgPutting ?? null,
     },
   });
 
@@ -1029,7 +1050,7 @@ export function buildDeterministicPostRoundInsights(
   };
 
   const m1 = buildMessage1(input, options, thresholds);
-  const m2 = buildMessage2(input, options, thresholds, m1.hasScoreBaselineComparison === true);
+  const m2 = buildMessage2(input, options, thresholds);
   const m3 = buildMessage3(input, options, thresholds);
 
   return {

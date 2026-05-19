@@ -119,7 +119,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(belowMagnitude.messages[1].toLowerCase()).not.toContain('short game');
+    expect(belowMagnitude.messages[1].toLowerCase()).not.toContain('do not split cleanly yet');
 
     const dominantTrigger = buildDeterministicPostRoundInsights(
       {
@@ -129,7 +129,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(dominantTrigger.messages[1].toLowerCase()).toContain('short game');
+    expect(dominantTrigger.messages[1].toLowerCase()).toContain('do not fit cleanly into one area');
 
     const noTrigger = buildDeterministicPostRoundInsights(
       {
@@ -139,7 +139,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(noTrigger.messages[1].toLowerCase()).not.toContain('short game');
+    expect(noTrigger.messages[1].toLowerCase()).not.toContain('do not split cleanly yet');
 
     const nullResidual = buildDeterministicPostRoundInsights(
       {
@@ -150,7 +150,7 @@ describe('post-round message 3 rules', () => {
       { fixedVariantIndex: 0 },
     );
     expect(nullResidual.messages[1]).not.toContain('strokes of swing coming from areas that were not tracked');
-    expect(nullResidual.messages[1].toLowerCase()).not.toContain('short game');
+    expect(nullResidual.messages[1].toLowerCase()).not.toContain('do not split cleanly yet');
   });
 
   test('9-hole normalization does not force residual sentence when residual is not dominant', () => {
@@ -174,7 +174,7 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(nineHole.messages[1].toLowerCase()).not.toContain('short game');
+    expect(nineHole.messages[1].toLowerCase()).not.toContain('do not split cleanly yet');
   });
 
   test('9-hole residual suffix appears at 1.0+ when dominant', () => {
@@ -188,7 +188,7 @@ describe('post-round message 3 rules', () => {
       { fixedVariantIndex: 0 },
     );
 
-    expect(nineHoleDominant.messages[1].toLowerCase()).toContain('short game');
+    expect(nineHoleDominant.messages[1].toLowerCase()).toContain('do not fit cleanly into one area');
   });
 
   test('M3-B uses broad action when one stat is missing but leak is not meaningful', () => {
@@ -240,18 +240,41 @@ describe('post-round message 3 rules', () => {
     expect(m3bApproach.messages[2]).not.toContain('When penalty is in play');
   });
 
+  test('M3 uses short-game specific actions when short game is the worst measured area', () => {
+    const m3bShortGame = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        missing: { fir: false, gir: false, putts: false, penalties: true },
+        worstMeasured: { name: 'short_game', label: 'Short Game', value: -1.1 },
+        measuredComponents: [
+          { name: 'approach', label: 'Approach', value: -0.3 },
+          { name: 'short_game', label: 'Short Game', value: -1.1 },
+          { name: 'putting', label: 'Putting', value: -0.2 },
+        ],
+        bestMeasured: { name: 'putting', label: 'Putting', value: -0.2 },
+        opportunityIsWeak: true,
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(m3bShortGame.outcomes[2]).toBe('M3-B');
+    expect(m3bShortGame.messages[2]).toContain('Favor approach targets that leave easier short-game misses');
+    expect(m3bShortGame.messages[2].toLowerCase()).not.toContain('track ');
+  });
+
   test('M3 uses penalty-heavy contextual action when penalties spike', () => {
     const penaltyHeavy = buildDeterministicPostRoundInsights(
       {
         ...BASE,
         toPar: 11,
+        sgPenalties: -2.2,
         roundEvidence: {
           fairwaysHit: 6,
           fairwaysPossible: 14,
           greensHit: 7,
           greensPossible: 18,
           puttsTotal: 33,
-          penaltiesTotal: 3,
+          penaltiesTotal: 2,
         },
       },
       { fixedVariantIndex: 0 },
@@ -260,17 +283,56 @@ describe('post-round message 3 rules', () => {
     expect(penaltyHeavy.messages[2]).toContain('Around hazards, play for the miss you can recover from');
   });
 
-  test('M3 uses blowup-safe contextual action when score runs high without penalty spike', () => {
-    const blowupHeavy = buildDeterministicPostRoundInsights(
+  test('M3 uses penalty-heavy contextual action from raw backstop at 18-hole threshold', () => {
+    const penaltyHeavyRaw = buildDeterministicPostRoundInsights(
       {
         ...BASE,
-        toPar: 12,
+        roundEvidence: {
+          fairwaysHit: 6,
+          fairwaysPossible: 14,
+          greensHit: 7,
+          greensPossible: 18,
+          puttsTotal: 33,
+          penaltiesTotal: 4,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(penaltyHeavyRaw.messages[2]).toContain('Around hazards, play for the miss you can recover from');
+  });
+
+  test('M3 no longer over-triggers penalty-heavy at 3 penalties on 18 holes without SG severity', () => {
+    const notPenaltyHeavy = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
         roundEvidence: {
           fairwaysHit: 8,
           fairwaysPossible: 14,
           greensHit: 8,
           greensPossible: 18,
-          puttsTotal: 32,
+          puttsTotal: 33,
+          penaltiesTotal: 3,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(notPenaltyHeavy.messages[2]).not.toContain('Around hazards, play for the miss you can recover from');
+  });
+
+  test('M3 uses blowup-safe contextual action when SG total is severe and instability context is elevated', () => {
+    const blowupHeavy = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        toPar: 12,
+        sgTotal: -8.5,
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 8,
+          greensPossible: 18,
+          puttsTotal: 35,
           penaltiesTotal: 0,
         },
       },
@@ -305,6 +367,58 @@ describe('post-round message 3 rules', () => {
     expect(puttingHeavy.messages[2]).toContain('Prioritize pace that leaves stress-free second putts');
   });
 
+  test('M3 uses putting-heavy contextual action when SG putting is severely negative', () => {
+    const puttingHeavyBySg = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        sgPutting: -2.2,
+        worstMeasured: { name: 'putting', label: 'Putting', value: -1.4 },
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+          { name: 'approach', label: 'Approach', value: -0.6 },
+          { name: 'putting', label: 'Putting', value: -1.4 },
+        ],
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 8,
+          greensPossible: 18,
+          puttsTotal: 34,
+          penaltiesTotal: 0,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(puttingHeavyBySg.messages[2]).toContain('Prioritize pace that leaves stress-free second putts');
+  });
+
+  test('M3 no longer over-triggers putting-heavy at 34 putts on 18 holes without SG severity', () => {
+    const noPuttingHeavyAt34 = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        sgPutting: -1.4,
+        worstMeasured: { name: 'putting', label: 'Putting', value: -1.4 },
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+          { name: 'approach', label: 'Approach', value: -0.6 },
+          { name: 'putting', label: 'Putting', value: -1.4 },
+        ],
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 8,
+          greensPossible: 18,
+          puttsTotal: 34,
+          penaltiesTotal: 0,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(noPuttingHeavyAt34.messages[2]).not.toContain('Prioritize pace that leaves stress-free second putts');
+  });
+
   test('M3 avoids over-selling off-tee when it is least-bad but not truly good', () => {
     const offTeeLeastBad = buildDeterministicPostRoundInsights(
       {
@@ -318,5 +432,124 @@ describe('post-round message 3 rules', () => {
 
     expect(offTeeLeastBad.outcomes[2]).toBe('M3-E');
     expect(offTeeLeastBad.messages[2]).toContain('Keep leaning on the tee strategy that kept misses playable');
+  });
+
+  test('M3 strong measured weakness beats SG-total blowup when instability context is not severe', () => {
+    const strongShortGameWins = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        sgTotal: -8.8,
+        worstMeasured: { name: 'short_game', label: 'Short Game', value: -2.4 },
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -0.3 },
+          { name: 'approach', label: 'Approach', value: -0.5 },
+          { name: 'short_game', label: 'Short Game', value: -2.4 },
+          { name: 'putting', label: 'Putting', value: -0.4 },
+        ],
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 6,
+          greensPossible: 18,
+          puttsTotal: 34,
+          penaltiesTotal: 1,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(strongShortGameWins.messages[2]).toContain('Favor approach targets that leave easier short-game misses');
+    expect(strongShortGameWins.messages[2]).not.toContain('After mistakes, prioritize targets that keep doubles out of play');
+  });
+
+  test('M3 old +10 score-to-par no longer forces blowup without SG-total severity', () => {
+    const noRawBlowupForce = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        toPar: 10,
+        sgTotal: -6.5,
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 8,
+          greensPossible: 18,
+          puttsTotal: 34,
+          penaltiesTotal: 2,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(noRawBlowupForce.messages[2]).not.toContain('After mistakes, prioritize targets that keep doubles out of play');
+  });
+
+  test('M3 9-hole severe penalty SG threshold triggers penalty-heavy', () => {
+    const nineHolePenaltyHeavy = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        holesPlayed: 9,
+        sgPenalties: -1.1,
+        roundEvidence: {
+          fairwaysHit: 4,
+          fairwaysPossible: 7,
+          greensHit: 3,
+          greensPossible: 9,
+          puttsTotal: 17,
+          penaltiesTotal: 1,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(nineHolePenaltyHeavy.messages[2]).toContain('Around hazards, play for the miss you can recover from');
+  });
+
+  test('M3 9-hole raw penalty backstop triggers at 2 penalties', () => {
+    const nineHolePenaltyRaw = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        holesPlayed: 9,
+        roundEvidence: {
+          fairwaysHit: 4,
+          fairwaysPossible: 7,
+          greensHit: 3,
+          greensPossible: 9,
+          puttsTotal: 17,
+          penaltiesTotal: 2,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(nineHolePenaltyRaw.messages[2]).toContain('Around hazards, play for the miss you can recover from');
+  });
+
+  test('M3 null SG values remain safe and raw backstops still apply', () => {
+    const nullSgSafe = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        sgTotal: null,
+        sgPenalties: null,
+        sgPutting: null,
+        worstMeasured: { name: 'putting', label: 'Putting', value: -1.2 },
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+          { name: 'approach', label: 'Approach', value: -0.6 },
+          { name: 'putting', label: 'Putting', value: -1.2 },
+        ],
+        roundEvidence: {
+          fairwaysHit: 8,
+          fairwaysPossible: 14,
+          greensHit: 8,
+          greensPossible: 18,
+          puttsTotal: 35,
+          penaltiesTotal: 0,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(nullSgSafe.messages[2].length).toBeGreaterThan(0);
+    expect(nullSgSafe.messages[2]).toContain('Prioritize pace that leaves stress-free second putts');
   });
 });

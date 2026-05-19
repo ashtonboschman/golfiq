@@ -520,7 +520,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     );
 
     expect(dominant.messages[1].toLowerCase()).toMatch(
-      /short game and getting up and down|not shown in these stats|other parts of your game not shown in these stats/,
+      /part of the round slipped away through overlapping mistakes across multiple areas|a few scoring leaks came from in-between situations across the round|several costly holes came from situations that crossed multiple parts of the game|some strokes slipped away through connected mistakes rather than one clear area|a few scoring boosts came from in-between situations across the round|several positive swings came from connected moments across multiple parts of the game|part of the scoring came from situations that overlapped rather than one clear area|some gains came from holes that played out across connected parts of the game/,
     );
     expect(dominant.messages.join(' ').toLowerCase()).not.toContain('residual');
 
@@ -729,7 +729,9 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     expect(insights.confidence).toBe('MED');
     expect(insights.message_outcomes[1]).toBe('M2-D');
-    expect(insights.messages[1].toLowerCase()).toContain('not shown in these stats');
+    expect(insights.messages[1].toLowerCase()).toMatch(
+      /likely contributed about|likely mattered at|was probably part of the story|round likely included both/,
+    );
     expect(insights.messages[1].toLowerCase()).toMatch(/likely|looked like/);
     expect(insights.messages[1].toLowerCase()).not.toContain('main source of lost strokes');
   });

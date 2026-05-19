@@ -66,7 +66,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-D',
     messageIndex: 0,
     expectedOutcome: 'M1-D',
-    expectedMessageFragment: 'finished near even at 0.0 strokes',
+    expectedMessageFragment: 'finished close to baseline at 0.0 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0 },
@@ -80,7 +80,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-A',
     messageIndex: 1,
     expectedOutcome: 'M2-A',
-    expectedMessageFragment: 'Rounds like this usually come from missed scoring chances and a few difficult recovery situations.',
+    expectedMessageFragment: 'Rounds in this range often come from lost scoring chances and one or two holes that get away.',
     input: {
       ...baseInput,
       measuredComponents: [],
@@ -92,7 +92,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-C',
     messageIndex: 1,
     expectedOutcome: 'M2-C',
-    expectedMessageFragment: "didn't make much difference at 0.0 strokes",
+    expectedMessageFragment: 'sat near neutral at 0.0 strokes',
     input: {
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0 },
