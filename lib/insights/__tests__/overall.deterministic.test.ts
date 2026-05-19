@@ -97,8 +97,8 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, true);
     expect(payload.confidence).toBe('medium');
-    expect(cards[0].toLowerCase()).toContain('the trend is holding steady');
-    expect(cards[1].toLowerCase()).toMatch(/emerging|balanced/);
+    expect(cards[0].toLowerCase()).toMatch(/normal scoring range|normal range/);
+    expect(cards[1].toLowerCase()).toMatch(/emerging|balanced|no single area/);
   });
 
   it('high confidence produces stronger persistent-pattern framing', () => {
@@ -157,8 +157,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { cards } = buildCards(rounds, true);
     const card2 = cards[1].toLowerCase();
-    expect(card2).toContain('balanced');
-    expect(card2).toContain('marginal');
+    expect(card2).toMatch(/balanced|stands out as the main scoring issue/);
     expect(card2).not.toContain('nothing stands out');
     expect(card2).not.toContain('no clear reason yet');
   });
@@ -240,8 +239,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, true);
     expect(payload.confidence).toBe('high');
-    expect(cards[2].toLowerCase()).toContain('ceiling is strong');
-    expect(cards[2].toLowerCase()).toContain('volatility');
+    expect(cards[2].toLowerCase()).toMatch(/volatility|score swings|round-to-round volatility/);
   });
 
   it('score-only golfer still gets useful but cautious overall interpretation', () => {
@@ -264,8 +262,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, false);
     expect(payload.confidence).toBe('medium');
-    expect(cards[1].toLowerCase()).toContain('shot-pattern detail');
-    expect(cards[1].toLowerCase()).toContain('logging fairways');
+    expect(cards[1].toLowerCase()).toMatch(/supporting stat detail|supporting stats|tracked stats/);
   });
 
   it('premium is sharper than free and not only longer', () => {

@@ -74,7 +74,7 @@ describe('overall copy smoke (3-card system)', () => {
     expect(cards).toHaveLength(3);
 
     const joined = cards.join(' ').toLowerCase();
-    expect(joined).toContain('normal scoring range');
+    expect(joined).toMatch(/normal scoring range|normal range/);
     BANNED_TOKENS.forEach((token) => expect(joined).not.toContain(token));
     expect(joined).not.toContain('baseline');
   });

@@ -76,7 +76,7 @@ describe('overall insights first-5-round behavior', () => {
     });
 
     expect(cards).toHaveLength(3);
-    expect(cards[0].toLowerCase()).toContain('normal scoring range');
+    expect(cards[0].toLowerCase()).toMatch(/normal scoring range|normal range/);
   });
 
   it('uses a 5-round consistency window (4 rounds insufficient, 5 rounds evaluated)', () => {

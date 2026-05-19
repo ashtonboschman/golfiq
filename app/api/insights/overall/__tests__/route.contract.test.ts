@@ -177,7 +177,7 @@ describe('/api/insights/overall contract', () => {
     expect(premiumCardsText).not.toContain('priority first');
     expect(premiumCardsText).not.toContain('on-course strategy');
     expect(premiumCardsText).not.toContain('projection:');
-    expect(premiumCardsText).toContain('recent baseline');
+    expect(premiumCardsText).toMatch(/recent baseline|normal scoring range|normal range|volatility|supporting stat detail|balanced/);
     expect(premiumCardsText).not.toContain('not enough data');
   });
 

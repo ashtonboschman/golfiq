@@ -372,6 +372,121 @@ const OVERALL_COPY_BANNED_TOKENS = [
   '–',
 ] as const;
 
+const OVERALL_EARLY_SCORE_TREND_VARIANTS = [
+  'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.',
+  'Early scoring patterns are starting to form. More rounds will clarify the long-term direction.',
+  'Your long-term scoring trend is still forming. A few more rounds will make the direction clearer.',
+] as const;
+
+const OVERALL_STABLE_SCORE_HIGH_VARIANTS = [
+  'Your recent rounds are close to your normal scoring range, and this looks stable over time.',
+  'Your recent rounds are staying close to your normal scoring range over time.',
+  'Your scoring has stayed near your normal range over recent rounds.',
+] as const;
+
+const OVERALL_STABLE_SCORE_MED_VARIANTS = [
+  'Your recent rounds are close to your normal scoring range. The trend is holding steady.',
+  'Your recent rounds are staying close to your normal scoring range.',
+  'Your scoring is holding near your normal range.',
+] as const;
+
+const OVERALL_STABLE_SCORE_LOW_VARIANTS = [
+  'Your recent rounds are close to your normal scoring range, though the sample is still small.',
+  'Your scoring is near your normal range, but a few more rounds will clarify the trend.',
+  'Your recent scores are close to normal, though the sample is still building.',
+] as const;
+
+const OVERALL_BALANCED_PROFILE_HIGH_VARIANTS = [
+  'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.',
+  'Your profile is fairly balanced, so small round-to-round swings are mattering more than one major weakness.',
+  'No single area clearly stands out as the main scoring issue right now.',
+] as const;
+
+const OVERALL_BALANCED_PROFILE_MED_VARIANTS = [
+  'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.',
+  'Your profile is fairly balanced, so small changes across the round are shaping the scores.',
+  'No single area is clearly separating from the rest right now.',
+] as const;
+
+const OVERALL_BALANCED_PROFILE_LOW_VARIANTS = [
+  'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.',
+  'No single area has separated clearly yet. Small gains across the round can still move scoring.',
+  'The profile is still fairly balanced, with scoring changes spread across multiple areas.',
+] as const;
+
+const OVERALL_VOLATILITY_STRONG_HIGH_VARIANTS = [
+  'Your scoring is inconsistent: the ceiling is strong, but the floor is still low. Volatility is the clearest long-term pattern affecting your averages.',
+  'Round-to-round volatility is currently the clearest pattern affecting your scoring.',
+  'Large score swings are having more impact than one isolated weakness right now.',
+] as const;
+
+const OVERALL_VOLATILITY_STRONG_MED_VARIANTS = [
+  'Your scoring is inconsistent, and this volatility is becoming a meaningful pattern across recent rounds.',
+  'Large score swings are starting to show up as a real scoring pattern.',
+  'Round-to-round movement is becoming one of the clearest scoring signals.',
+] as const;
+
+const OVERALL_VOLATILITY_STRONG_LOW_VARIANTS = [
+  'Your scoring is moving around more than usual. Keep logging rounds to confirm whether volatility is the main trend.',
+  'Your scores are moving around more than usual, but a few more rounds will confirm the pattern.',
+  'There are signs of scoring volatility, though the sample is still building.',
+] as const;
+
+const OVERALL_VOLATILITY_MODERATE_HIGH_VARIANTS = [
+  'Your scoring still has enough movement to cap average gains, even without extreme volatility.',
+  'Your scoring has enough round-to-round movement to keep average gains limited.',
+  'Moderate score movement is still affecting the overall scoring picture.',
+] as const;
+
+const OVERALL_VOLATILITY_MODERATE_MED_VARIANTS = [
+  'Your scoring has moderate movement from round to round, and that is becoming part of the overall pattern.',
+  'Round-to-round movement is starting to show up in the overall scoring picture.',
+  'Moderate scoring movement is becoming part of the recent pattern.',
+] as const;
+
+const OVERALL_VOLATILITY_MODERATE_LOW_VARIANTS = [
+  'Your scoring has some movement from round to round, and this pattern is still forming.',
+  'Your scores are moving around a bit, but the long-term pattern is still forming.',
+  'There is some scoring movement, though a few more rounds will clarify the trend.',
+] as const;
+
+const OVERALL_LOW_COVERAGE_HIGH_VARIANTS = [
+  'Score trends are clearer than supporting stat detail right now. Logging fairways, greens, putts, and penalties will sharpen the long-term read.',
+  'The score trend is clearer than the supporting stats right now. More tracked rounds will sharpen the read.',
+  'Scoring direction is clearer than the stat detail right now. More tracked rounds will tighten the long-term read.',
+] as const;
+
+const OVERALL_LOW_COVERAGE_MED_VARIANTS = [
+  'Score trends are emerging, but the supporting stat detail is still limited. Logging fairways, greens, putts, and penalties will sharpen this read.',
+  'Score trends are starting to form, but the supporting stats are still limited.',
+  'The scoring direction is starting to show, but more tracked stats will make the read stronger.',
+] as const;
+
+const OVERALL_LOW_COVERAGE_LOW_VARIANTS = [
+  'Score trends are forming, but the supporting stat detail is still light. A few more tracked rounds will sharpen this read.',
+  'Score trends are still forming, and a few more tracked rounds will make the read clearer.',
+  'The scoring read is still building. More tracked rounds will make the pattern clearer.',
+] as const;
+
+function stableIndex(seed: string, count: number): number {
+  if (count <= 0) return 0;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return hash % count;
+}
+
+function pickOverallVariant<T extends readonly string[]>(
+  variants: T,
+  seedParts: Array<string | number | boolean | null | undefined>,
+): T[number] {
+  const seed = seedParts
+    .filter((part) => part !== null && part !== undefined && part !== '')
+    .join('|');
+  return variants[stableIndex(seed, variants.length)];
+}
+
 function sanitizeCopy(text: string): string {
   return String(text ?? '')
     .replace(/\s+([.,!?;:])/g, '$1')
@@ -1384,43 +1499,117 @@ export function buildDeterministicOverallCards(args: {
     confidence,
     isPremium: args.isPremium,
   });
+  const pickBalancedProfileVariant = (seedSuffix: string): string => {
+    if (confidence === 'high') {
+      return pickOverallVariant(OVERALL_BALANCED_PROFILE_HIGH_VARIANTS, [
+        'card2',
+        'balanced_profile',
+        seedSuffix,
+        mode,
+        args.isPremium,
+        confidence,
+        modeRoundsRecent,
+        consistency.label,
+        balancedState.reason,
+      ]);
+    }
+    if (confidence === 'medium') {
+      return pickOverallVariant(OVERALL_BALANCED_PROFILE_MED_VARIANTS, [
+        'card2',
+        'balanced_profile',
+        seedSuffix,
+        mode,
+        args.isPremium,
+        confidence,
+        modeRoundsRecent,
+        consistency.label,
+        balancedState.reason,
+      ]);
+    }
+    return pickOverallVariant(OVERALL_BALANCED_PROFILE_LOW_VARIANTS, [
+      'card2',
+      'balanced_profile',
+      seedSuffix,
+      mode,
+      args.isPremium,
+      confidence,
+      modeRoundsRecent,
+      consistency.label,
+      balancedState.reason,
+    ]);
+  };
 
   const card1 = (() => {
     if (modeRoundsRecent === 0 || scoreRecent == null || scoreBaseline == null || modeRoundsRecent < 3) {
-      return 'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.';
+      return pickOverallVariant(OVERALL_EARLY_SCORE_TREND_VARIANTS, [
+        'card1',
+        'early',
+        mode,
+        args.isPremium,
+        confidence,
+        modeRoundsRecent,
+      ]);
     }
     const delta = scoreRecent - scoreBaseline;
+    const roundedDelta = Math.round(delta * 10) / 10;
     if (Math.abs(delta) <= scoreNearThreshold) {
       if (confidence === 'high') {
-        return 'Your recent rounds are close to your normal scoring range, and this looks stable over time.';
+        return pickOverallVariant(OVERALL_STABLE_SCORE_HIGH_VARIANTS, [
+          'card1',
+          'stable',
+          'high',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          roundedDelta,
+        ]);
       }
       if (confidence === 'medium') {
-        return 'Your recent rounds are close to your normal scoring range. The trend is holding steady.';
+        return pickOverallVariant(OVERALL_STABLE_SCORE_MED_VARIANTS, [
+          'card1',
+          'stable',
+          'medium',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          roundedDelta,
+        ]);
       }
-      return 'Your recent rounds are close to your normal scoring range. This trend is still early.';
+      return pickOverallVariant(OVERALL_STABLE_SCORE_LOW_VARIANTS, [
+        'card1',
+        'stable',
+        'low',
+        mode,
+        args.isPremium,
+        confidence,
+        modeRoundsRecent,
+        roundedDelta,
+      ]);
     }
     if (delta < 0) {
       if (confidence === 'high') {
         if (args.isPremium) {
           return `Your recent rounds are outperforming your recent baseline by about ${formatOneDecimal(Math.abs(delta))} strokes, and this has become a persistent trend.`;
         }
-        return 'Your recent rounds are outperforming your recent baseline, and this has become a persistent trend.';
+        return 'Your recent rounds are outperforming your recent baseline, and this improvement is holding steady.';
       }
       if (confidence === 'medium') {
-      return 'Your recent rounds are trending better than your normal scoring range. This is becoming an emerging trend.';
+      return 'Your recent rounds are trending better than your normal scoring range, and the improvement is becoming more reliable.';
       }
-    return 'Your recent rounds are trending better than your normal scoring range, but this trend is still early.';
+    return 'Your recent rounds are trending better than your normal scoring range, though the sample is still small.';
     }
     if (confidence === 'high') {
       if (args.isPremium) {
         return `Your recent rounds are above your recent baseline by about ${formatOneDecimal(delta)} strokes, and this has become a persistent trend.`;
       }
-      return 'Your recent rounds are above your recent baseline, and this has become a persistent trend.';
+      return 'Your recent rounds are above your recent baseline, and this pattern is holding steady.';
     }
     if (confidence === 'medium') {
-      return 'Your recent rounds are trending above your normal scoring range. This is becoming an emerging trend.';
+      return 'Your recent rounds are trending above your normal scoring range, and the pattern is becoming more reliable.';
     }
-    return 'Your recent rounds are trending above your normal scoring range, but this trend is still early.';
+    return 'Your recent rounds are trending above your normal scoring range, though the sample is still small.';
   })();
 
   const card2 = (() => {
@@ -1444,15 +1633,50 @@ export function buildDeterministicOverallCards(args: {
       weakestAbs >= 0.15 &&
       weakestAbs < 0.3 &&
       balancedState.reason !== 'neutral_band';
+    const weakestLabelSeed = weakestLabel ?? 'none';
+    const strongestLabelSeed = strongestLabel ?? 'none';
 
     if (lowCoverage || (!weakestLabel && !strongestLabel)) {
       if (confidence === 'high') {
-        return 'Score trends are clearer than shot-pattern detail right now. Logging fairways, greens, putts, and penalties will sharpen the long-term diagnosis.';
+        return pickOverallVariant(OVERALL_LOW_COVERAGE_HIGH_VARIANTS, [
+          'card2',
+          'low_coverage',
+          'high',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          consistency.label,
+          weakestLabelSeed,
+          strongestLabelSeed,
+        ]);
       }
       if (confidence === 'medium') {
-        return 'Score trends are emerging, but shot-pattern detail is still limited. Logging fairways, greens, putts, and penalties will sharpen this read.';
+        return pickOverallVariant(OVERALL_LOW_COVERAGE_MED_VARIANTS, [
+          'card2',
+          'low_coverage',
+          'medium',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          consistency.label,
+          weakestLabelSeed,
+          strongestLabelSeed,
+        ]);
       }
-      return 'Score trends are forming, but shot-pattern detail is still light. A few more tracked rounds will sharpen this read.';
+      return pickOverallVariant(OVERALL_LOW_COVERAGE_LOW_VARIANTS, [
+        'card2',
+        'low_coverage',
+        'low',
+        mode,
+        args.isPremium,
+        confidence,
+        modeRoundsRecent,
+        consistency.label,
+        weakestLabelSeed,
+        strongestLabelSeed,
+      ]);
     }
 
     if (weakestLabel && weakestIsWeakness) {
@@ -1466,13 +1690,7 @@ export function buildDeterministicOverallCards(args: {
           }
           return `${weakestLabel} may be a slight relative weakness, but this pattern is still early.`;
         }
-        if (confidence === 'high') {
-          return 'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.';
-        }
-        if (confidence === 'medium') {
-          return 'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.';
-        }
-        return 'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.';
+        return pickBalancedProfileVariant('weakness_balanced_profile');
       }
       if (confidence === 'low') {
         return `${weakestLabel} may be quietly limiting scoring recently, but this pattern is still early.`;
@@ -1502,13 +1720,7 @@ export function buildDeterministicOverallCards(args: {
 
     if (strongestLabel && strongestValue != null && Number.isFinite(strongestValue) && strongestValue > 0.15) {
       if (strengthBalancedProfile) {
-        if (confidence === 'high') {
-          return 'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.';
-        }
-        if (confidence === 'medium') {
-          return 'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.';
-        }
-        return 'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.';
+        return pickBalancedProfileVariant('strength_balanced_profile');
       }
       if (confidence === 'low') {
         return `${strongestLabel} is helping your score recently, but this pattern is still early.`;
@@ -1522,13 +1734,7 @@ export function buildDeterministicOverallCards(args: {
       return `${strongestLabel} is helping your score and has become a stable long-term strength.`;
     }
 
-    if (confidence === 'high') {
-      return 'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.';
-    }
-    if (confidence === 'medium') {
-      return 'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.';
-    }
-    return 'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.';
+    return pickBalancedProfileVariant('fallback_balanced_profile');
   })();
 
   const card2WithDirection = directionalQualifier
@@ -1539,25 +1745,92 @@ export function buildDeterministicOverallCards(args: {
     const stdDev = consistency.stdDev;
     if (volatilitySignal.severity === 'strong') {
       if (confidence === 'high') {
-        if (volatilitySignal.hasCeilingFloorGap) {
-          return 'Your scoring is inconsistent: the ceiling is strong, but the floor is still low. Volatility is the clearest long-term pattern affecting your averages.';
-        }
-        return 'Your scoring is inconsistent, and volatility is now the clearest long-term pattern affecting your averages.';
+        const strongHighVariants = volatilitySignal.hasCeilingFloorGap
+          ? OVERALL_VOLATILITY_STRONG_HIGH_VARIANTS
+          : OVERALL_VOLATILITY_STRONG_HIGH_VARIANTS.slice(1);
+        return pickOverallVariant(strongHighVariants, [
+          'card3',
+          'volatility_strong',
+          'high',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          consistency.label,
+          consistency.stdDev ?? 'na',
+          recentScoreRange ?? 'na',
+          volatilitySignal.hasCeilingFloorGap,
+        ]);
       }
       if (confidence === 'medium') {
-        return 'Your scoring is inconsistent, and this volatility is becoming a meaningful pattern across recent rounds.';
+        return pickOverallVariant(OVERALL_VOLATILITY_STRONG_MED_VARIANTS, [
+          'card3',
+          'volatility_strong',
+          'medium',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          consistency.label,
+          consistency.stdDev ?? 'na',
+          recentScoreRange ?? 'na',
+        ]);
       }
-      return 'Your scoring is moving around more than usual. Keep logging rounds to confirm whether volatility is the main trend.';
+      return pickOverallVariant(OVERALL_VOLATILITY_STRONG_LOW_VARIANTS, [
+        'card3',
+        'volatility_strong',
+        'low',
+        mode,
+        args.isPremium,
+        confidence,
+        modeRoundsRecent,
+        consistency.label,
+        consistency.stdDev ?? 'na',
+        recentScoreRange ?? 'na',
+      ]);
     }
 
     if (volatilitySignal.severity === 'moderate') {
       if (confidence === 'high') {
-        return 'Your scoring still has enough movement to cap average gains, even without extreme volatility.';
+        return pickOverallVariant(OVERALL_VOLATILITY_MODERATE_HIGH_VARIANTS, [
+          'card3',
+          'volatility_moderate',
+          'high',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          consistency.label,
+          consistency.stdDev ?? 'na',
+          recentScoreRange ?? 'na',
+        ]);
       }
       if (confidence === 'medium') {
-        return 'Your scoring has moderate movement from round to round, and that is becoming part of the overall pattern.';
+        return pickOverallVariant(OVERALL_VOLATILITY_MODERATE_MED_VARIANTS, [
+          'card3',
+          'volatility_moderate',
+          'medium',
+          mode,
+          args.isPremium,
+          confidence,
+          modeRoundsRecent,
+          consistency.label,
+          consistency.stdDev ?? 'na',
+          recentScoreRange ?? 'na',
+        ]);
       }
-      return 'Your scoring has some movement from round to round, and this pattern is still forming.';
+      return pickOverallVariant(OVERALL_VOLATILITY_MODERATE_LOW_VARIANTS, [
+        'card3',
+        'volatility_moderate',
+        'low',
+        mode,
+        args.isPremium,
+        confidence,
+        modeRoundsRecent,
+        consistency.label,
+        consistency.stdDev ?? 'na',
+        recentScoreRange ?? 'na',
+      ]);
     }
 
     if (stdDev != null && Number.isFinite(stdDev) && stdDev <= 1.5) {
