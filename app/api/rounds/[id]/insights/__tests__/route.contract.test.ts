@@ -180,6 +180,172 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(free.messages[1]).not.toMatch(/Recorded GIR misses clustered right this round/i);
   });
 
+  it('passes short-game opportunity guard inputs into measured SG selection', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 40,
+      firHit: 4,
+      girHit: 8, // 1 missed green in a 9-hole front segment
+      putts: 16,
+      penalties: 0,
+      teeSegment: 'front9',
+      roundHoles: [],
+      tee: makeTee(),
+    });
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      sgTotal: -0.6,
+      sgOffTee: -0.1,
+      sgApproach: -0.2,
+      sgShortGame: -0.9,
+      sgPutting: -0.2,
+      sgPenalties: 0,
+      sgResidual: -0.2,
+    });
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+        { name: 'approach', label: 'Approach', value: -0.2 },
+        { name: 'putting', label: 'Putting', value: -0.2 },
+      ],
+      best: { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+      opportunity: { name: 'approach', label: 'Approach', value: -0.2 },
+      opportunityIsWeak: false,
+      componentCount: 3,
+      residualDominant: false,
+      weakSeparation: true,
+    });
+
+    await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(mockedRunMeasuredSgSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shortGame: -0.9,
+        shortGameOpportunities: 1,
+        minShortGameOpportunities: 2,
+      }),
+      expect.any(Number),
+      expect.any(Object),
+    );
+  });
+
+  it('uses broad all-positive M2 framing when short-game SG is excluded by low opportunities', async () => {
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+        return [
+          { id: BigInt(10), score: 95, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+          { id: BigInt(20), score: 94, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+          { id: BigInt(30), score: 92, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+          { id: BigInt(40), score: 82, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+        ];
+      }
+      if (args?.orderBy?.date === 'desc') {
+        return [
+          { id: BigInt(39), score: 93, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(38), score: 94, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(37), score: 92, date: new Date('2026-01-25T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(36), score: 93, date: new Date('2026-01-22T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(35), score: 94, date: new Date('2026-01-18T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        ];
+      }
+      return [];
+    });
+
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 82,
+      firHit: 9,
+      girHit: 15,
+      putts: 34,
+      penalties: 0,
+      teeSegment: 'full',
+      chips: 4,
+      greensideBunkerShots: 1,
+      shortGameShots: 5,
+      roundHoles: [],
+      tee: {
+        ...makeTee(),
+        parTotal: 70,
+        nonPar3Holes: 12,
+        courseRating: 67.3,
+        slopeRating: 112,
+      },
+    });
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      sgTotal: 9.6,
+      sgOffTee: 1.0,
+      sgApproach: 4.8,
+      sgShortGame: -0.8,
+      sgPutting: 3.1,
+      sgPenalties: 2.9,
+      sgResidual: -1.4,
+    });
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        { name: 'approach', label: 'Approach', value: 4.8 },
+        { name: 'putting', label: 'Putting', value: 3.1 },
+        { name: 'penalties', label: 'Penalties', value: 2.9 },
+      ],
+      best: { name: 'approach', label: 'Approach', value: 4.8 },
+      opportunity: { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+      opportunityIsWeak: false,
+      componentCount: 4,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(insights.messages).toHaveLength(3);
+    expect(insights.messages[0]).toMatch(/You shot 82 \(\+12\)/);
+    expect(insights.messages[0]).toMatch(/Approach/);
+    expect(insights.messages[0]).toMatch(/4\.8 strokes/);
+
+    expect(insights.message_outcomes[1]).toBe('M2-E');
+    expect(insights.messages[1]).toMatch(
+      /Several areas contributed positively|No measured area clearly held the round back|The round stayed stable because scoring pressure never built|Multiple areas helped the score/,
+    );
+    expect(insights.messages[1]).not.toMatch(/Off The Tee likely helped|Off Tee likely helped|Off The Tee/i);
+    expect(insights.message_outcomes[2]).toBe('M3-E');
+    expect(insights.messages[2]).toMatch(
+      /Keep choosing targets that leave a playable next shot|Let the safest miss guide decisions when risk appears|Keep favoring the side that keeps recovery manageable|Build decisions around avoiding the miss that escalates the hole/,
+    );
+    expect(insights.messages[2]).not.toMatch(/Off the tee|tee strategy|tee targets/i);
+
+    if (
+      insights.raw_payload?.sg &&
+      Object.prototype.hasOwnProperty.call(insights.raw_payload.sg, 'short_game')
+    ) {
+      expect(insights.raw_payload.sg.short_game).toBe(-0.8);
+    }
+    expect(mockedRunMeasuredSgSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shortGame: -0.8,
+        shortGameOpportunities: 3,
+        minShortGameOpportunities: 4,
+      }),
+      expect.any(Number),
+      expect.any(Object),
+    );
+  });
+
   it('suppresses directional qualifier when sample is tiny or mixed', async () => {
     mockedPrisma.round.findUnique.mockResolvedValue({
       id: BigInt(40),
@@ -624,6 +790,58 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[1].toLowerCase()).not.toContain('accounted for the most');
     expect(insights.messages[1].toLowerCase()).not.toContain('strokes gained');
     expect(insights.messages[1]).not.toMatch(/\b\d+(\.\d)? strokes\b/i);
+  });
+
+  it('LOW-confidence grounded M2 uses penalty-pressure copy for extreme penalty/off-tee rounds even when GIR is low', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 95,
+      firHit: 2,
+      girHit: 5,
+      putts: 35,
+      penalties: 5,
+      teeSegment: 'full',
+      roundHoles: [],
+      tee: { ...makeTee(), nonPar3Holes: 12, parTotal: 70 },
+    });
+
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(40), score: 95, date: new Date('2026-02-03T12:00:00.000Z'), createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([]);
+
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [
+        { name: 'off_tee', label: 'Off The Tee', value: -1.9 },
+        { name: 'approach', label: 'Approach', value: -1.4 },
+        { name: 'putting', label: 'Putting', value: -0.5 },
+        { name: 'penalties', label: 'Penalties', value: -3.1 },
+      ],
+      best: { name: 'putting', label: 'Putting', value: -0.5 },
+      opportunity: { name: 'penalties', label: 'Penalties', value: -3.1 },
+      opportunityIsWeak: true,
+      componentCount: 4,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(insights.confidence).toBe('LOW');
+    expect(insights.message_outcomes[1]).toBe('M2-A');
+    expect(insights.messages[1]).toMatch(
+      /Penalty trouble created the biggest scoring pressure in this round|Penalty strokes kept forcing difficult recovery situations|Trouble off the tee added pressure before the hole could settle|Penalty trouble made too many holes harder to manage/,
+    );
+    expect(insights.messages[1]).not.toContain('Missing that many greens usually puts pressure');
   });
 
   it('MED vs HIGH confidence differ in M2 decisiveness at the API boundary', async () => {

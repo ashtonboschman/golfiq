@@ -179,6 +179,30 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.messageLevels[1]).toBe('success');
   });
 
+  test('uses broad positive M2 copy when all measured components are positive in a strong round', () => {
+    const comps = [
+      { name: 'approach' as const, label: 'Approach', value: 4.8 },
+      { name: 'putting' as const, label: 'Putting', value: 3.1 },
+      { name: 'penalties' as const, label: 'Penalties', value: 2.9 },
+      { name: 'off_tee' as const, label: 'Off The Tee', value: 1.0 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        band: 'great',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[3],
+        opportunityIsWeak: false,
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-E');
+    expect(out.messageLevels[1]).toBe('success');
+    expect(out.messages[1]).toContain('Several areas contributed positively');
+    expect(out.messages[1]).not.toContain('Off The Tee likely helped the score');
+  });
+
   test('adds stat evidence to message 1 and message 2 when available', () => {
     const comps = [
       { name: 'approach' as const, label: 'Approach', value: 1.4 },
@@ -304,14 +328,14 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.messages[1]).toContain('Short Game protected scoring after missed greens');
   });
 
-  test('uses penalties-safe positive copy for M2-E', () => {
+  test('uses penalties-safe positive copy for M2-E outside strong all-positive context', () => {
     const comps = [
       { name: 'off_tee' as const, label: 'Off The Tee', value: 1.1 },
       { name: 'penalties' as const, label: 'Penalties', value: 0.4 },
     ];
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
-        band: 'above',
+        band: 'below',
         measuredComponents: comps,
         bestMeasured: comps[0],
         worstMeasured: comps[1],
@@ -476,6 +500,128 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.messages[1]).toContain('With 1 penalty stroke');
   });
 
+  test('LOW confidence extreme penalties override low-GIR grounded copy on 18 holes', () => {
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'LOW',
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -1.4 },
+          { name: 'approach', label: 'Approach', value: -1.1 },
+          { name: 'putting', label: 'Putting', value: -0.6 },
+          { name: 'penalties', label: 'Penalties', value: -3.2 },
+        ],
+        bestMeasured: { name: 'putting', label: 'Putting', value: -0.6 },
+        worstMeasured: { name: 'penalties', label: 'Penalties', value: -3.2 },
+        opportunityIsWeak: true,
+        holesPlayed: 18,
+        roundEvidence: {
+          fairwaysHit: 2,
+          fairwaysPossible: 12,
+          greensHit: 5,
+          greensPossible: 18,
+          puttsTotal: 35,
+          penaltiesTotal: 6,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-A');
+    expect(out.messages[1]).toContain('Penalty trouble created the biggest scoring pressure in this round.');
+    expect(out.messages[1]).not.toContain('Missing that many greens usually puts pressure');
+  });
+
+  test('LOW confidence off-tee plus penalties override low-GIR grounded copy on 18 holes', () => {
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'LOW',
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -2.1 },
+          { name: 'approach', label: 'Approach', value: -1.0 },
+          { name: 'putting', label: 'Putting', value: -0.4 },
+          { name: 'penalties', label: 'Penalties', value: -2.5 },
+        ],
+        bestMeasured: { name: 'putting', label: 'Putting', value: -0.4 },
+        worstMeasured: { name: 'off_tee', label: 'Off The Tee', value: -2.1 },
+        opportunityIsWeak: true,
+        holesPlayed: 18,
+        roundEvidence: {
+          fairwaysHit: 2,
+          fairwaysPossible: 12,
+          greensHit: 6,
+          greensPossible: 18,
+          puttsTotal: 34,
+          penaltiesTotal: 4,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-A');
+    expect(out.messages[1]).toContain('Penalty trouble created the biggest scoring pressure in this round.');
+    expect(out.messages[1]).not.toContain('Missing that many greens usually puts pressure');
+  });
+
+  test('LOW confidence normal low GIR still uses GIR-pressure copy when penalties are not extreme', () => {
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'LOW',
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -0.7 },
+          { name: 'approach', label: 'Approach', value: -1.4 },
+          { name: 'putting', label: 'Putting', value: -0.5 },
+        ],
+        bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.7 },
+        worstMeasured: { name: 'approach', label: 'Approach', value: -1.4 },
+        opportunityIsWeak: true,
+        holesPlayed: 18,
+        roundEvidence: {
+          fairwaysHit: 7,
+          fairwaysPossible: 14,
+          greensHit: 2,
+          greensPossible: 18,
+          puttsTotal: 33,
+          penaltiesTotal: 1,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-A');
+    expect(out.messages[1]).toContain('With 2/18 greens hit');
+    expect(out.messages[1]).not.toContain('Penalty trouble created the biggest scoring pressure in this round.');
+  });
+
+  test('LOW confidence 9-hole penalties=2 can override low-GIR grounded copy', () => {
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'LOW',
+        measuredComponents: [
+          { name: 'off_tee', label: 'Off The Tee', value: -1.1 },
+          { name: 'approach', label: 'Approach', value: -0.8 },
+          { name: 'putting', label: 'Putting', value: -0.3 },
+          { name: 'penalties', label: 'Penalties', value: -1.8 },
+        ],
+        bestMeasured: { name: 'putting', label: 'Putting', value: -0.3 },
+        worstMeasured: { name: 'penalties', label: 'Penalties', value: -1.8 },
+        opportunityIsWeak: true,
+        holesPlayed: 9,
+        roundEvidence: {
+          fairwaysHit: 1,
+          fairwaysPossible: 6,
+          greensHit: 2,
+          greensPossible: 9,
+          puttsTotal: 18,
+          penaltiesTotal: 2,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-A');
+    expect(out.messages[1]).toContain('Penalty trouble created the biggest scoring pressure in this round.');
+  });
+
   test('LOW confidence uses neutral grounded M2 when stats exist but no threshold trigger', () => {
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
@@ -624,6 +770,36 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.messages[1].toLowerCase()).toMatch(/cost|source|largest|clearest/);
     expect(out.messages[1].toLowerCase()).not.toMatch(/swing|clubface|face angle|path|mechanic/);
+  });
+
+  test('measured penalties M2-D remains penalty-specific in main measured path', () => {
+    const comps = [
+      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.2 },
+      { name: 'approach' as const, label: 'Approach', value: -0.6 },
+      { name: 'putting' as const, label: 'Putting', value: -0.4 },
+      { name: 'penalties' as const, label: 'Penalties', value: -1.6 },
+    ];
+    const out = buildDeterministicPostRoundInsights(
+      withOverrides({
+        confidence: 'HIGH',
+        measuredComponents: comps,
+        bestMeasured: comps[0],
+        worstMeasured: comps[3],
+        opportunityIsWeak: true,
+        roundEvidence: {
+          fairwaysHit: 9,
+          fairwaysPossible: 14,
+          greensHit: 10,
+          greensPossible: 18,
+          puttsTotal: 32,
+          penaltiesTotal: 4,
+        },
+      }),
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(out.outcomes[1]).toBe('M2-D');
+    expect(out.messages[1]).toContain('Penalties were the biggest source of lost strokes');
   });
 
   test('residual-dominant ambiguous rounds acknowledge uncertainty instead of forcing one cause', () => {

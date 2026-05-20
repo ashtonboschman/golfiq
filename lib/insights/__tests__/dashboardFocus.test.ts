@@ -949,6 +949,29 @@ describe('dashboardFocus state output', () => {
     expect(state.focus.body).toBe('One avoidable mistake is still adding strokes.');
   });
 
+  it('does not prioritize short game when its SG delta is suppressed by opportunity guard', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: -0.32,
+          shortGame: null,
+          putting: -0.2,
+          penalties: -0.1,
+          residual: 0.0,
+        },
+      }),
+      true,
+      false,
+    );
+
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('component_opportunity');
+    expect(state.focus.component).toBe('approach');
+    expect(state.focus.headline).toContain('Approach');
+  });
+
   it('uses score-only focus when SG data is missing but score trend is available', () => {
     const state = buildRoundFocusState(
       makeSummary({

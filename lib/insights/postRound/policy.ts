@@ -210,6 +210,13 @@ const M2_E_MED_VARIANTS = [
   "{WorstLabel} likely stayed in your favor at about {worstAbs1} strokes. {followUp}{residualSuffix}",
 ] as const;
 
+const M2_E_ALL_POSITIVE_VARIANTS = [
+  "Several areas contributed positively, and the round stayed mostly mistake-free.{residualSuffix}",
+  "No measured area clearly held the round back, which helped the score stay steady.{residualSuffix}",
+  "The round stayed stable because scoring pressure never built in one major measured area.{residualSuffix}",
+  "Multiple areas helped the score, with no clear measured leak standing out.{residualSuffix}",
+] as const;
+
 const M2_D_PENALTIES_VARIANTS = [
   "Penalties were the biggest source of lost strokes at {worstAbs1} strokes{evidence}.{residualSuffix}",
   "Penalties cost about {worstAbs1} strokes{evidence}.{residualSuffix}",
@@ -304,6 +311,13 @@ const M2_GROUNDED_PENALTIES_VARIANTS = [
   "With {penaltiesTotal} {penaltyWord}, avoiding trouble is one of the fastest ways to protect the score.",
   "Penalty strokes added pressure to the round, so keeping the ball in play matters most next time.",
   "Even one penalty can turn a manageable hole into a big number.",
+] as const;
+
+const M2_GROUNDED_PENALTY_PRESSURE_VARIANTS = [
+  "Penalty trouble created the biggest scoring pressure in this round.",
+  "Penalty strokes kept forcing difficult recovery situations.",
+  "Trouble off the tee added pressure before the hole could settle.",
+  "Penalty trouble made too many holes harder to manage.",
 ] as const;
 
 const M2_GROUNDED_FIR_VARIANTS = [
@@ -733,11 +747,12 @@ function pickGroundedM2Message(
 
   let firMade = 0;
   let firTotal = 0;
+  let firPct: number | null = null;
   let firLow = false;
   if (hasFir) {
     firMade = Math.round(evidence.fairwaysHit!);
     firTotal = Math.round(evidence.fairwaysPossible!);
-    const firPct = firTotal > 0 ? firMade / firTotal : null;
+    firPct = firTotal > 0 ? firMade / firTotal : null;
     firLow = firPct != null && firPct <= 0.45;
   }
 
@@ -752,6 +767,23 @@ function pickGroundedM2Message(
   }
 
   // Pass 1: threshold-triggered grounded messages in priority order.
+  const firVeryLow = firPct != null && firPct <= 0.25;
+  const penaltiesExtreme =
+    hasPenalties &&
+    (
+      (isNineHole && penaltiesTotal >= 2) ||
+      (!isNineHole && (penaltiesTotal >= 4 || (penaltiesTotal >= 3 && firVeryLow)))
+    );
+  if (penaltiesExtreme) {
+    return pickTemplate(
+      'message2',
+      'M2-A-GROUNDED-PENALTY-PRESSURE',
+      M2_GROUNDED_PENALTY_PRESSURE_VARIANTS,
+      messageVariantOptions,
+      {},
+    );
+  }
+
   if (hasGir && girLow) {
     return pickTemplate('message2', 'M2-A-GROUNDED-GIR', M2_GROUNDED_GIR_VARIANTS, messageVariantOptions, {
       girMade: String(girMade),
@@ -917,6 +949,42 @@ function buildMessage2(
       residualIncluded,
       level: levelForMessage2Outcome(outcome),
       outcome,
+    };
+  }
+
+  const allMeasuredPositive =
+    input.measuredComponents.length > 0 &&
+    input.measuredComponents.every((component) => component.value > 0);
+  const strongPositiveRound = input.band === 'above' || input.band === 'great';
+  const useAllPositiveSummary =
+    worstMeasured.value > 0 &&
+    !input.opportunityIsWeak &&
+    allMeasuredPositive &&
+    strongPositiveRound;
+  if (useAllPositiveSummary) {
+    const text = pickTemplate(
+      'message2',
+      'M2-E-ALL-POSITIVE',
+      M2_E_ALL_POSITIVE_VARIANTS,
+      messageVariantOptions,
+      replacements,
+    );
+    const baseText = pickTemplate(
+      'message2',
+      'M2-E-ALL-POSITIVE',
+      M2_E_ALL_POSITIVE_VARIANTS,
+      messageVariantOptions,
+      {
+        ...replacements,
+        residualSuffix: '',
+      },
+    );
+    return {
+      text,
+      baseText,
+      residualIncluded,
+      level: levelForMessage2Outcome('M2-E'),
+      outcome: 'M2-E',
     };
   }
 

@@ -146,6 +146,13 @@ const OFF_TEE_LEAST_BAD_ACTION_VARIANTS = [
   "Next round: Let safer landing areas shape tee decisions on tighter holes.",
 ] as const;
 
+const M3_E_ALL_POSITIVE_ACTION_VARIANTS = [
+  "Next round: Keep choosing targets that leave a playable next shot.",
+  "Next round: Let the safest miss guide decisions when risk appears.",
+  "Next round: Keep favoring the side that keeps recovery manageable.",
+  "Next round: Build decisions around avoiding the miss that escalates the hole.",
+] as const;
+
 function getAreaActionVariants(area: SgMeasuredComponentName | null): readonly string[] {
   if (area === 'off_tee') return OFF_TEE_ACTION_VARIANTS;
   if (area === 'approach') return APPROACH_ACTION_VARIANTS;
@@ -226,6 +233,16 @@ function selectContextualVariants(
     (input.worstMeasuredValue == null || input.worstMeasuredValue <= 0)
   ) {
     return PUTTING_HEAVY_ACTION_VARIANTS;
+  }
+
+  if (
+    outcome === 'M3-E' &&
+    input.opportunityIsWeak === false &&
+    input.worstMeasuredValue != null &&
+    Number.isFinite(input.worstMeasuredValue) &&
+    input.worstMeasuredValue > 0
+  ) {
+    return M3_E_ALL_POSITIVE_ACTION_VARIANTS;
   }
 
   if (

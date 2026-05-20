@@ -640,6 +640,11 @@ async function generateInsightsInternal(
   }
 
   const totalSg = sgComponents?.sgTotal != null ? Number(sgComponents.sgTotal) : null;
+  const shortGameOpportunities =
+    round.girHit != null && Number.isFinite(Number(round.girHit))
+      ? Math.max(0, currentHolesPlayed - Number(round.girHit))
+      : null;
+  const minShortGameOpportunities = currentHolesPlayed <= 9 ? 2 : 4;
 
   const strokeScale = resolvePostRoundStrokeScale(currentHolesPlayed);
   const weaknessThreshold = POST_ROUND_THRESHOLDS.sgWeakness * strokeScale;
@@ -648,6 +653,8 @@ async function generateInsightsInternal(
       offTee: sgComponents?.sgOffTee != null ? Number(sgComponents.sgOffTee) : null,
       approach: sgComponents?.sgApproach != null ? Number(sgComponents.sgApproach) : null,
       shortGame: (sgComponents as any)?.sgShortGame != null ? Number((sgComponents as any).sgShortGame) : null,
+      shortGameOpportunities,
+      minShortGameOpportunities,
       putting: sgComponents?.sgPutting != null ? Number(sgComponents.sgPutting) : null,
       penalties: sgComponents?.sgPenalties != null ? Number(sgComponents.sgPenalties) : null,
       residual: sgComponents?.sgResidual != null ? Number(sgComponents.sgResidual) : null,

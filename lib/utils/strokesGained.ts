@@ -152,13 +152,8 @@ export async function calculateStrokesGained(
   const adjFIR = (adjFIRPct / 100) * nonPar3Holes;
   const adjGIR = (adjGIRPct / 100) * totalHoles;
   const baselineMissedGir18 = 18 * (1 - baselineGIR / 100);
-  const shortGamePerMissedGir =
+  const baselineShortGameShotsPerOpportunity =
     baselineMissedGir18 > 0 ? baselineShortGameShots18 / baselineMissedGir18 : null;
-  const expectedMissedGirContext = Math.max(0, totalHoles - adjGIR);
-  const expectedShortGameShots =
-    shortGamePerMissedGir != null && Number.isFinite(shortGamePerMissedGir)
-      ? shortGamePerMissedGir * expectedMissedGirContext
-      : null;
 
   // Adjusted putts and penalties (scale adjustment by holeScaling since baselines are already scaled)
   const adjPutts = baselinePutts + courseDiffAdj * C.COURSE_DIFF_TO_PUTTS * holeScaling;
@@ -171,6 +166,13 @@ export async function calculateStrokesGained(
   const actualPutts = round.putts ?? null;
   const actualPenalties = round.penalties ?? null;
   const actualShortGameShots = round.shortGameShots ?? null;
+  const actualMissedGreens = actualGIR !== null ? Math.max(0, totalHoles - actualGIR) : null;
+  const expectedShortGameShots =
+    baselineShortGameShotsPerOpportunity != null &&
+    Number.isFinite(baselineShortGameShotsPerOpportunity) &&
+    actualMissedGreens != null
+      ? baselineShortGameShotsPerOpportunity * actualMissedGreens
+      : null;
 
   const sgTotal = adjScore - actualScore;
   const messages: string[] = [];
@@ -188,7 +190,10 @@ export async function calculateStrokesGained(
     offTee: actualFIR !== null ? (actualFIR - adjFIR) * C.STROKES_PER_FIR : null,
     approach: actualGIR !== null ? (actualGIR - adjGIR) * girStrokeValue : null,
     shortGame:
-      actualShortGameShots !== null && expectedShortGameShots !== null
+      actualShortGameShots !== null &&
+      expectedShortGameShots !== null &&
+      actualMissedGreens !== null &&
+      actualMissedGreens > 0
         ? expectedShortGameShots - actualShortGameShots
         : null,
     putting:
@@ -218,7 +223,7 @@ export async function calculateStrokesGained(
   const sgResidual = sgTotal - knownSGSum;
 
   // --- Overall Confidence Calculation ---
-  const shortGameOpps = actualGIR !== null ? totalHoles - actualGIR : 0;
+  const shortGameOpps = actualMissedGreens ?? 0;
   let confidence: "high" | "medium" | "low" = "low"; // default low
   const essentialDataMissing =
     actualGIR === null || actualPutts === null || actualPenalties === null;

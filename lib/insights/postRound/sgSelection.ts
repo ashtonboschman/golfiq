@@ -5,6 +5,8 @@ export type MeasuredSgInputs = {
   offTee: number | null;
   approach: number | null;
   shortGame?: number | null;
+  shortGameOpportunities?: number | null;
+  minShortGameOpportunities?: number | null;
   putting: number | null;
   penalties: number | null;
   residual: number | null;
@@ -53,7 +55,17 @@ export function buildMeasuredComponents(inputs: MeasuredSgInputs): MeasuredSgCom
   if (isFiniteNumber(inputs.approach)) {
     components.push({ name: 'approach', label: COMPONENT_LABELS.approach, value: inputs.approach });
   }
-  if (isFiniteNumber(inputs.shortGame)) {
+  const shortGameOpportunities = isFiniteNumber(inputs.shortGameOpportunities)
+    ? inputs.shortGameOpportunities
+    : null;
+  const minShortGameOpportunities =
+    isFiniteNumber(inputs.minShortGameOpportunities) && inputs.minShortGameOpportunities > 0
+      ? Math.floor(inputs.minShortGameOpportunities)
+      : null;
+  const shortGameEligible =
+    minShortGameOpportunities == null ||
+    (shortGameOpportunities != null && shortGameOpportunities >= minShortGameOpportunities);
+  if (isFiniteNumber(inputs.shortGame) && shortGameEligible) {
     components.push({ name: 'short_game', label: COMPONENT_LABELS.short_game, value: inputs.shortGame });
   }
   if (isFiniteNumber(inputs.putting)) {

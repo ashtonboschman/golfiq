@@ -129,7 +129,9 @@ describe('post-round message 3 rules', () => {
       },
       { fixedVariantIndex: 0 },
     );
-    expect(dominantTrigger.messages[1].toLowerCase()).toContain('do not fit cleanly into one area');
+    expect(dominantTrigger.messages[1].toLowerCase()).toMatch(
+      /do not fit cleanly into one area|in-between situations across the round/,
+    );
 
     const noTrigger = buildDeterministicPostRoundInsights(
       {
@@ -188,7 +190,9 @@ describe('post-round message 3 rules', () => {
       { fixedVariantIndex: 0 },
     );
 
-    expect(nineHoleDominant.messages[1].toLowerCase()).toContain('do not fit cleanly into one area');
+    expect(nineHoleDominant.messages[1].toLowerCase()).toMatch(
+      /do not fit cleanly into one area|in-between situations across the round/,
+    );
   });
 
   test('M3-B uses broad action when one stat is missing but leak is not meaningful', () => {
@@ -432,6 +436,83 @@ describe('post-round message 3 rules', () => {
 
     expect(offTeeLeastBad.outcomes[2]).toBe('M3-E');
     expect(offTeeLeastBad.messages[2]).toContain('Keep leaning on the tee strategy that kept misses playable');
+  });
+
+  test('M3 uses broad all-positive action when no weak measured opportunity exists', () => {
+    const allPositiveM3 = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        band: 'great',
+        measuredComponents: [
+          { name: 'approach', label: 'Approach', value: 4.8 },
+          { name: 'putting', label: 'Putting', value: 3.1 },
+          { name: 'penalties', label: 'Penalties', value: 2.9 },
+          { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        ],
+        bestMeasured: { name: 'approach', label: 'Approach', value: 4.8 },
+        worstMeasured: { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        opportunityIsWeak: false,
+        weakSeparation: false,
+      },
+      { fixedVariantIndex: 0 },
+    );
+
+    expect(allPositiveM3.outcomes[2]).toBe('M3-E');
+    expect(allPositiveM3.messages[2]).toContain('Keep choosing targets that leave a playable next shot');
+    expect(allPositiveM3.messages[2]).not.toContain('Keep leaning on the tee strategy that kept misses playable');
+  });
+
+  test('M3 penalty-heavy and blowup overrides still win over all-positive branch', () => {
+    const penaltyOverrideWins = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        measuredComponents: [
+          { name: 'approach', label: 'Approach', value: 4.8 },
+          { name: 'putting', label: 'Putting', value: 3.1 },
+          { name: 'penalties', label: 'Penalties', value: 2.9 },
+          { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        ],
+        bestMeasured: { name: 'approach', label: 'Approach', value: 4.8 },
+        worstMeasured: { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        opportunityIsWeak: false,
+        roundEvidence: {
+          fairwaysHit: 9,
+          fairwaysPossible: 14,
+          greensHit: 12,
+          greensPossible: 18,
+          puttsTotal: 33,
+          penaltiesTotal: 4,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+    expect(penaltyOverrideWins.messages[2]).toContain('Around hazards, play for the miss you can recover from');
+
+    const blowupOverrideWins = buildDeterministicPostRoundInsights(
+      {
+        ...BASE,
+        measuredComponents: [
+          { name: 'approach', label: 'Approach', value: 4.8 },
+          { name: 'putting', label: 'Putting', value: 3.1 },
+          { name: 'penalties', label: 'Penalties', value: 2.9 },
+          { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        ],
+        bestMeasured: { name: 'approach', label: 'Approach', value: 4.8 },
+        worstMeasured: { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        opportunityIsWeak: false,
+        sgTotal: -8.5,
+        roundEvidence: {
+          fairwaysHit: 9,
+          fairwaysPossible: 14,
+          greensHit: 12,
+          greensPossible: 18,
+          puttsTotal: 36,
+          penaltiesTotal: 0,
+        },
+      },
+      { fixedVariantIndex: 0 },
+    );
+    expect(blowupOverrideWins.messages[2]).toContain('After mistakes, prioritize targets that keep doubles out of play');
   });
 
   test('M3 strong measured weakness beats SG-total blowup when instability context is not severe', () => {

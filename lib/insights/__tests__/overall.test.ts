@@ -113,6 +113,115 @@ describe('overall insights helpers', () => {
     expect(shouldAutoRefreshOverall(old, 'abc', 'def')).toBe(true);
     expect(shouldAutoRefreshOverall(null, null, 'abc')).toBe(true);
   });
+
+  it('suppresses short-game opportunity when recent missed-green opportunities are below guard', () => {
+    const rounds = Array.from({ length: 5 }, (_, index) =>
+      mkRound({
+        id: BigInt(index + 1),
+        date: new Date(`2026-01-${String(31 - index).padStart(2, '0')}T12:00:00Z`),
+        holes: 18,
+        nonPar3Holes: 14,
+        girHit: 16, // only 2 missed greens (< 4 guard)
+        sgOffTee: -0.2,
+        sgApproach: -0.1,
+        sgShortGame: -1.8,
+        sgPutting: -0.1,
+        sgPenalties: -0.1,
+        sgResidual: 0,
+      }),
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 3 }, () => ''),
+    });
+
+    expect(payload.mode_payload.combined.sgComponents?.recentAvg.shortGame).toBeNull();
+    expect(payload.mode_payload.combined.sgComponents?.baselineAvg.shortGame).toBeNull();
+    expect(payload.mode_payload.combined.narrative.opportunity.name).not.toBe('short_game');
+  });
+
+  it('keeps short-game opportunity eligible when enough recent rounds meet opportunity guard', () => {
+    const rounds = [
+      mkRound({
+        id: BigInt(1),
+        date: new Date('2026-01-31T12:00:00Z'),
+        holes: 18,
+        nonPar3Holes: 14,
+        girHit: 11, // 7 missed greens
+        sgOffTee: 0.1,
+        sgApproach: 0.1,
+        sgShortGame: -1.5,
+        sgPutting: 0.1,
+        sgPenalties: 0.1,
+        sgResidual: 0,
+      }),
+      mkRound({
+        id: BigInt(2),
+        date: new Date('2026-01-30T12:00:00Z'),
+        holes: 18,
+        nonPar3Holes: 14,
+        girHit: 12, // 6 missed greens
+        sgOffTee: 0.2,
+        sgApproach: 0.1,
+        sgShortGame: -1.2,
+        sgPutting: 0.1,
+        sgPenalties: 0.1,
+        sgResidual: 0,
+      }),
+      mkRound({
+        id: BigInt(3),
+        date: new Date('2026-01-29T12:00:00Z'),
+        holes: 18,
+        nonPar3Holes: 14,
+        girHit: 16,
+        sgOffTee: 0.1,
+        sgApproach: 0.1,
+        sgShortGame: -1.0,
+        sgPutting: 0.1,
+        sgPenalties: 0.1,
+        sgResidual: 0,
+      }),
+      mkRound({
+        id: BigInt(4),
+        date: new Date('2026-01-28T12:00:00Z'),
+        holes: 18,
+        nonPar3Holes: 14,
+        girHit: 16,
+        sgOffTee: 0.2,
+        sgApproach: 0.2,
+        sgShortGame: -0.8,
+        sgPutting: 0.2,
+        sgPenalties: 0.2,
+        sgResidual: 0,
+      }),
+      mkRound({
+        id: BigInt(5),
+        date: new Date('2026-01-27T12:00:00Z'),
+        holes: 18,
+        nonPar3Holes: 14,
+        girHit: 16,
+        sgOffTee: 0.1,
+        sgApproach: 0.2,
+        sgShortGame: -0.7,
+        sgPutting: 0.1,
+        sgPenalties: 0.1,
+        sgResidual: 0,
+      }),
+    ];
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 3 }, () => ''),
+    });
+
+    expect(payload.mode_payload.combined.sgComponents?.recentAvg.shortGame).not.toBeNull();
+    expect(payload.mode_payload.combined.narrative.opportunity.name).toBe('short_game');
+  });
 });
 
 

@@ -18,6 +18,7 @@ export type SGComponentName = 'off_tee' | 'approach' | 'putting' | 'penalties' |
 export type SGCostlyComponent = 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties' | 'residual';
 export const OVERALL_SG_MIN_RECENT_COVERAGE = 3;
 export const OVERALL_SG_MIN_RECENT_COVERAGE_FOR_SELECTION = 1;
+const OVERALL_SHORT_GAME_MIN_RECENT_COVERAGE_FOR_SELECTION = 2;
 export const OVERALL_RECENT_WINDOW = 5;
 export const OVERALL_EARLY_SAMPLE_MAX_ROUNDS = 5;
 export const OVERALL_CONSISTENCY_WINDOW = 5;
@@ -726,8 +727,21 @@ function computeBand(avgSg: number | null): PerformanceBand {
   return 'great';
 }
 
+function minShortGameOpportunitiesForRound(holes: number): number {
+  return holes <= 9 ? 2 : 4;
+}
+
+function hasEnoughShortGameOpportunities(point: OverallRoundPoint): boolean {
+  if (point.girHit == null || !Number.isFinite(point.girHit) || point.holes <= 0) return false;
+  const missedGreens = Math.max(0, point.holes - point.girHit);
+  return missedGreens >= minShortGameOpportunitiesForRound(point.holes);
+}
+
 function componentAverages(recentCombined: OverallRoundPoint[], baselineCombined: OverallRoundPoint[]) {
   const useRecentAbsoluteValues = baselineCombined.length <= OVERALL_EARLY_SAMPLE_MAX_ROUNDS;
+  const shortGameCoverageRecent = recentCombined.filter(hasEnoughShortGameOpportunities).length;
+  const shortGameAllowedForSelection =
+    shortGameCoverageRecent >= OVERALL_SHORT_GAME_MIN_RECENT_COVERAGE_FOR_SELECTION;
   const componentDefs: Array<{
     name: SGComponentName;
     get: (p: OverallRoundPoint) => number | null;
@@ -741,11 +755,27 @@ function componentAverages(recentCombined: OverallRoundPoint[], baselineCombined
 
   const deltas = componentDefs
     .map((def) => {
-      const recentVals = recentCombined
+      const recentRows =
+        def.name === 'short_game'
+          ? recentCombined.filter(hasEnoughShortGameOpportunities)
+          : recentCombined;
+      const baselineRows =
+        def.name === 'short_game'
+          ? baselineCombined.filter(hasEnoughShortGameOpportunities)
+          : baselineCombined;
+      const recentVals = recentRows
         .map(def.get)
         .filter((n): n is number => n != null && Number.isFinite(n));
-      const coverageRecent = recentVals.length;
+      const coverageRecent =
+        def.name === 'short_game' ? shortGameCoverageRecent : recentVals.length;
       if (coverageRecent < OVERALL_SG_MIN_RECENT_COVERAGE_FOR_SELECTION) {
+        return {
+          name: def.name,
+          value: null as number | null,
+          coverageRecent,
+        };
+      }
+      if (def.name === 'short_game' && !shortGameAllowedForSelection) {
         return {
           name: def.name,
           value: null as number | null,
@@ -767,7 +797,7 @@ function componentAverages(recentCombined: OverallRoundPoint[], baselineCombined
           coverageRecent,
         };
       }
-      const baselineVals = baselineCombined
+      const baselineVals = baselineRows
         .map(def.get)
         .filter((n): n is number => n != null && Number.isFinite(n));
       const baselineAvg = average(baselineVals);
@@ -1125,11 +1155,16 @@ function computeEfficiency(
   };
 }
 
-function pickWorstComponentForRound(row: OverallRoundPoint): { component: SGCostlyComponent; value: number } | null {
+function pickWorstComponentForRound(
+  row: OverallRoundPoint,
+  options?: { allowShortGame?: boolean },
+): { component: SGCostlyComponent; value: number } | null {
+  const allowShortGame =
+    options?.allowShortGame === true && hasEnoughShortGameOpportunities(row);
   const items: Array<{ component: SGCostlyComponent; value: number | null }> = [
     { component: 'offTee', value: row.sgOffTee },
     { component: 'approach', value: row.sgApproach },
-    { component: 'shortGame', value: row.sgShortGame ?? null },
+    { component: 'shortGame', value: allowShortGame ? (row.sgShortGame ?? null) : null },
     { component: 'putting', value: row.sgPutting },
     { component: 'penalties', value: row.sgPenalties },
     { component: 'residual', value: row.sgResidual },
@@ -1143,12 +1178,14 @@ function pickWorstComponentForRound(row: OverallRoundPoint): { component: SGCost
 function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<OverallInsightsPayload['sg']> {
   const sgFrequencyWindow = 5;
   const trendRows = pointsCombined.slice(0, 20).reverse();
+  const recentWindow = pointsCombined.slice(0, sgFrequencyWindow);
+  const shortGameCoverageRecent = recentWindow.filter(hasEnoughShortGameOpportunities).length;
+  const shortGameAllowedForSelection =
+    shortGameCoverageRecent >= OVERALL_SHORT_GAME_MIN_RECENT_COVERAGE_FOR_SELECTION;
 
   const latestWithSg = pointsCombined.find((r) =>
     [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
   ) ?? null;
-
-  const recentWindow = pointsCombined.slice(0, sgFrequencyWindow);
 
   const componentRows = pointsCombined.filter((r) =>
     [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
@@ -1160,9 +1197,15 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
   const recentRowsForAvg = recentRows.length
     ? recentRows
     : componentRows.slice(0, Math.min(sgFrequencyWindow, componentRows.length));
+  const shortGameRecentRowsForAvg = shortGameAllowedForSelection
+    ? recentRowsForAvg.filter(hasEnoughShortGameOpportunities)
+    : [];
+  const shortGameComponentRows = shortGameAllowedForSelection
+    ? componentRows.filter(hasEnoughShortGameOpportunities)
+    : [];
 
   const picks = recentWindow
-    .map((r) => pickWorstComponentForRound(r))
+    .map((r) => pickWorstComponentForRound(r, { allowShortGame: shortGameAllowedForSelection }))
     .filter((p): p is { component: SGCostlyComponent; value: number } => p != null);
 
   const counts = new Map<SGCostlyComponent, number>();
@@ -1210,7 +1253,7 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
         total: averageBy(recentRowsForAvg, (r) => r.sgTotal),
         offTee: averageBy(recentRowsForAvg, (r) => r.sgOffTee),
         approach: averageBy(recentRowsForAvg, (r) => r.sgApproach),
-        shortGame: averageBy(recentRowsForAvg, (r) => r.sgShortGame ?? null),
+        shortGame: averageBy(shortGameRecentRowsForAvg, (r) => r.sgShortGame ?? null),
         putting: averageBy(recentRowsForAvg, (r) => r.sgPutting),
         penalties: averageBy(recentRowsForAvg, (r) => r.sgPenalties),
         residual: averageBy(recentRowsForAvg, (r) => r.sgResidual),
@@ -1219,7 +1262,7 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
         total: averageBy(componentRows, (r) => r.sgTotal),
         offTee: averageBy(componentRows, (r) => r.sgOffTee),
         approach: averageBy(componentRows, (r) => r.sgApproach),
-        shortGame: averageBy(componentRows, (r) => r.sgShortGame ?? null),
+        shortGame: averageBy(shortGameComponentRows, (r) => r.sgShortGame ?? null),
         putting: averageBy(componentRows, (r) => r.sgPutting),
         penalties: averageBy(componentRows, (r) => r.sgPenalties),
         residual: averageBy(componentRows, (r) => r.sgResidual),

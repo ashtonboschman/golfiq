@@ -183,7 +183,7 @@ describe("calculateStrokesGained (new SG model)", () => {
     expect(Math.abs(result.sgTotal!)).toBeLessThan(10);
   });
 
-  it("computes sgShortGame as expected minus actual when short_game_shots is tracked", async () => {
+  it("computes sgShortGame from opportunity-adjusted expected shots when short_game_shots is tracked", async () => {
     mockPrisma.round.findUnique.mockResolvedValue(
       makeRound({
         score: 88,
@@ -201,7 +201,7 @@ describe("calculateStrokesGained (new SG model)", () => {
       mockPrisma as any
     );
 
-    expect(result.sgShortGame).toBeCloseTo(3.1, 1);
+    expect(result.sgShortGame).toBeCloseTo(1.6, 1);
   });
 
   it("returns null sgShortGame when short_game_shots is untracked", async () => {
@@ -225,16 +225,37 @@ describe("calculateStrokesGained (new SG model)", () => {
     expect(result.sgShortGame).toBeNull();
   });
 
-  it("scales expected short game for 9-hole contexts through adjusted missed GIR", async () => {
+  it("returns null sgShortGame when GIR is missing even if short_game_shots is tracked", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue(
+      makeRound({
+        score: 88,
+        firHit: 7,
+        girHit: null,
+        putts: 34,
+        penalties: 2,
+        shortGameShots: 8,
+        handicapAtRound: 10,
+      })
+    );
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(6), roundId: BigInt(706) },
+      mockPrisma as any
+    );
+
+    expect(result.sgShortGame).toBeNull();
+  });
+
+  it("evaluates 9-hole short game near neutral when shots per missed green are reasonable", async () => {
     mockPrisma.round.findUnique.mockResolvedValue(
       makeRound({
         score: 44,
         firHit: 4,
-        girHit: 3,
+        girHit: 4,
         putts: 17,
         penalties: 1,
         shortGameShots: 6,
-        handicapAtRound: 10,
+        handicapAtRound: 6,
         tee: baseTee9,
       })
     );
@@ -244,7 +265,73 @@ describe("calculateStrokesGained (new SG model)", () => {
       mockPrisma as any
     );
 
-    expect(result.sgShortGame).toBeCloseTo(0.5, 1);
+    expect(result.sgShortGame).toBeCloseTo(-0.2, 1);
+  });
+
+  it("keeps short game clearly negative when shots per missed green are inefficient", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue(
+      makeRound({
+        score: 46,
+        firHit: 4,
+        girHit: 4,
+        putts: 18,
+        penalties: 1,
+        shortGameShots: 9,
+        handicapAtRound: 6,
+        tee: baseTee9,
+      })
+    );
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(6), roundId: BigInt(703) },
+      mockPrisma as any
+    );
+
+    expect(result.sgShortGame).toBeLessThan(-2);
+  });
+
+  it("keeps short game positive when shots per missed green are efficient", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue(
+      makeRound({
+        score: 42,
+        firHit: 4,
+        girHit: 4,
+        putts: 16,
+        penalties: 1,
+        shortGameShots: 4,
+        handicapAtRound: 6,
+        tee: baseTee9,
+      })
+    );
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(6), roundId: BigInt(704) },
+      mockPrisma as any
+    );
+
+    expect(result.sgShortGame).toBeGreaterThan(0);
+  });
+
+  it("returns null sgShortGame when there are no missed-green opportunities", async () => {
+    mockPrisma.round.findUnique.mockResolvedValue(
+      makeRound({
+        score: 37,
+        firHit: 4,
+        girHit: 9,
+        putts: 15,
+        penalties: 0,
+        shortGameShots: 0,
+        handicapAtRound: 6,
+        tee: baseTee9,
+      })
+    );
+
+    const result = await calculateStrokesGained(
+      { userId: BigInt(6), roundId: BigInt(705) },
+      mockPrisma as any
+    );
+
+    expect(result.sgShortGame).toBeNull();
   });
 
   // --------------------------------------------------
