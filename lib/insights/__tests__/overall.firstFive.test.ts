@@ -99,7 +99,7 @@ describe('overall insights first-5-round behavior', () => {
     expect(fiveRoundsPayload.consistency.stdDev).toBe(0);
   });
 
-  it('keeps trajectory flat for <=5 rounds and keeps premium score projection locked until 10 rounds', () => {
+  it('keeps trajectory in building state for <=5 rounds and keeps premium score projection locked until 10 rounds', () => {
     const rounds = Array.from({ length: 5 }, (_, i) =>
       mkRound(i, {
         score: 80 - i, // intentionally trending to prove early-sample guard wins
@@ -113,11 +113,11 @@ describe('overall insights first-5-round behavior', () => {
       cards: Array.from({ length: 3 }, () => ''),
     });
 
-    expect(payload.projection.trajectory).toBe('flat');
+    expect(payload.projection.trajectory).toBe('unknown');
     expect(payload.projection.projectedScoreIn10).toBeNull();
     expect(payload.projection.projectedHandicapIn10).toBeNull();
     expect(payload.projection_ranges).toBeUndefined();
-    expect(payload.projection_by_mode.combined.trajectory).toBe('flat');
+    expect(payload.projection_by_mode.combined.trajectory).toBe('unknown');
     expect(payload.projection_by_mode.combined.projectedScoreIn10).toBeNull();
     expect(payload.projection_by_mode.combined.roundsUsed).toBe(5);
   });

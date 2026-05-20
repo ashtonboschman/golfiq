@@ -742,6 +742,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   };
   const scoringProfileActiveIndex =
     scoringProfileHoveredIndex != null ? scoringProfileHoveredIndex : scoringProfileSelectedIndex;
+  const toggleScoringProfileSelection = (index: number) => {
+    setScoringProfileSelectedIndex((previous) => (previous === index ? null : index));
+  };
   const scoringProfileActiveItem =
     scoringProfileActiveIndex != null ? scoringProfileItems[scoringProfileActiveIndex] : null;
   const scoringProfilePercentText = (value: number): string =>
@@ -794,7 +797,11 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         enabled: false,
       },
     },
-    onHover: (_event: unknown, elements: any[]) => {
+    onHover: (event: any, elements: any[]) => {
+      const hoverTarget = event?.native?.target as HTMLElement | undefined;
+      if (hoverTarget) {
+        hoverTarget.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+      }
       if (elements.length > 0) {
         setScoringProfileHoveredIndex(elements[0].index);
       } else {
@@ -803,7 +810,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     },
     onClick: (_event: unknown, elements: any[]) => {
       if (elements.length > 0) {
-        setScoringProfileSelectedIndex(elements[0].index);
+        toggleScoringProfileSelection(elements[0].index);
       }
     },
   };
@@ -1438,10 +1445,11 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                       className={`scoring-profile-legend-row ${
                         scoringProfileActiveIndex === index ? 'is-active' : ''
                       }`}
-                      onClick={() => setScoringProfileSelectedIndex(index)}
+                      onClick={() => toggleScoringProfileSelection(index)}
                       onMouseEnter={() => setScoringProfileHoveredIndex(index)}
                       onMouseLeave={() => setScoringProfileHoveredIndex(null)}
-                      onFocus={() => setScoringProfileSelectedIndex(index)}
+                      onFocus={() => setScoringProfileHoveredIndex(index)}
+                      onBlur={() => setScoringProfileHoveredIndex(null)}
                       role="listitem"
                       aria-label={`${item.label}: ${formatWholePercent(item.percentage)}`}
                     >

@@ -365,7 +365,7 @@ function formatTrajectoryLabel(
   if (trajectory === 'flat') return 'Flat';
   if (trajectory === 'worsening') return 'Worsening';
   if (trajectory === 'volatile') return 'Volatile';
-  return 'Data is still building';
+  return 'Still Building';
 }
 
 function getScoreNearThresholdForMode(mode: StatsMode): number {

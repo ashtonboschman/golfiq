@@ -177,8 +177,27 @@ describe('/api/insights/overall contract', () => {
     expect(premiumCardsText).not.toContain('priority first');
     expect(premiumCardsText).not.toContain('on-course strategy');
     expect(premiumCardsText).not.toContain('projection:');
-    expect(premiumCardsText).toMatch(/recent baseline|normal scoring range|normal range|volatility|supporting stat detail|balanced/);
+    expect(premiumCardsText).toMatch(/normal scoring range|normal range|volatility|supporting stat detail|balanced/);
     expect(premiumCardsText).not.toContain('not enough data');
+  });
+
+  it('keeps trajectory in building state for premium users with fewer than 10 rounds', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      subscriptionTier: 'premium',
+      subscriptionStatus: 'active',
+    });
+    mockedPrisma.round.findMany.mockResolvedValue(Array.from({ length: 6 }, (_, i) => makeRound(i)) as any);
+
+    const request = new Request('http://localhost/api/insights/overall?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.type).toBe('success');
+    expect(body.insights.projection.trajectory).toBe('unknown');
+    expect(body.insights.projection_by_mode.combined.trajectory).toBe('unknown');
+    expect(body.insights.projection.projectedScoreIn10).toBeNull();
+    expect(body.insights.projection_by_mode.combined.projectedScoreIn10).toBeNull();
   });
 
   it('computes short-game efficiency with null excluded and zero included', async () => {

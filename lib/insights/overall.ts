@@ -22,6 +22,7 @@ const OVERALL_SHORT_GAME_MIN_RECENT_COVERAGE_FOR_SELECTION = 2;
 export const OVERALL_RECENT_WINDOW = 5;
 export const OVERALL_EARLY_SAMPLE_MAX_ROUNDS = 5;
 export const OVERALL_CONSISTENCY_WINDOW = 5;
+export const MIN_ROUNDS_FOR_DIRECTIONAL_TRAJECTORY = 10;
 
 export type OverallRoundPoint = {
   id: bigint;
@@ -919,10 +920,11 @@ function computeProjection(
   const handicapSlope = linearSlope([...handicapTrendWindow].reverse());
 
   const delta = (recentAvgScore != null && baselineAvgScore != null) ? recentAvgScore - baselineAvgScore : null;
-  const isEarlySample = baselineCombined.length <= OVERALL_EARLY_SAMPLE_MAX_ROUNDS;
+  const roundsInContext = baselineCombined.length;
+  const trajectoryStillDeveloping = roundsInContext < MIN_ROUNDS_FOR_DIRECTIONAL_TRAJECTORY;
   let trajectory: ProjectionPayload['trajectory'] = 'unknown';
-  if (isEarlySample) {
-    trajectory = delta != null ? 'flat' : 'unknown';
+  if (trajectoryStillDeveloping) {
+    trajectory = 'unknown';
   } else if (scoreSlope != null && Math.abs(scoreSlope) >= 0.35) {
     trajectory = scoreSlope < 0 ? 'improving' : 'worsening';
   } else if (delta != null && Math.abs(delta) <= 0.8) {
@@ -1634,9 +1636,9 @@ export function buildDeterministicOverallCards(args: {
     if (delta < 0) {
       if (confidence === 'high') {
         if (args.isPremium) {
-          return `Your recent rounds are outperforming your recent baseline by about ${formatOneDecimal(Math.abs(delta))} strokes, and this has become a persistent trend.`;
+          return `Your recent rounds are outperforming your normal scoring range by about ${formatOneDecimal(Math.abs(delta))} strokes, and this has become a persistent trend.`;
         }
-        return 'Your recent rounds are outperforming your recent baseline, and this improvement is holding steady.';
+        return 'Your recent rounds are outperforming your normal scoring range, and this improvement is holding steady.';
       }
       if (confidence === 'medium') {
       return 'Your recent rounds are trending better than your normal scoring range, and the improvement is becoming more reliable.';
@@ -1645,9 +1647,9 @@ export function buildDeterministicOverallCards(args: {
     }
     if (confidence === 'high') {
       if (args.isPremium) {
-        return `Your recent rounds are above your recent baseline by about ${formatOneDecimal(delta)} strokes, and this has become a persistent trend.`;
+        return `Your recent rounds are above your normal scoring range by about ${formatOneDecimal(delta)} strokes, and this has become a persistent trend.`;
       }
-      return 'Your recent rounds are above your recent baseline, and this pattern is holding steady.';
+      return 'Your recent rounds are above your normal scoring range, and this pattern is holding steady.';
     }
     if (confidence === 'medium') {
       return 'Your recent rounds are trending above your normal scoring range, and the pattern is becoming more reliable.';
@@ -1740,7 +1742,7 @@ export function buildDeterministicOverallCards(args: {
       }
       if (confidence === 'medium') {
         if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue) && weakestAbs != null && weakestAbs >= 0.3) {
-          return `${weakestLabel} is emerging as the main area holding scores back. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your recent baseline.`;
+          return `${weakestLabel} is emerging as the main area holding scores back. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your usual level.`;
         }
         return `${weakestLabel} is emerging as the clearest area limiting recent scoring.`;
       }
@@ -1751,7 +1753,7 @@ export function buildDeterministicOverallCards(args: {
       });
       if (effectivePersistenceTier === 'persistent') {
         if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue) && weakestAbs != null && weakestAbs >= 0.3) {
-          return `${weakestLabel} has been the most persistent scoring weakness over recent rounds. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your recent baseline.`;
+          return `${weakestLabel} has been the most persistent scoring weakness over recent rounds. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your usual level.`;
         }
         return `${weakestLabel} has been the most persistent scoring weakness over recent rounds.`;
       }

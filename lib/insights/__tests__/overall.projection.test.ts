@@ -128,7 +128,7 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection.trajectory).toBe('flat');
   });
 
-  it('keeps trajectory flat for early samples (5 rounds or fewer)', () => {
+  it('keeps trajectory in building state for early samples (5 rounds or fewer)', () => {
     const rounds = buildRounds(
       [79, 78, 77, 76, 75],
       [6.8, 6.7, 6.6, 6.5, 6.4],
@@ -141,7 +141,25 @@ describe('overall projection + trajectory', () => {
       cards: Array.from({ length: 3 }, () => ''),
     });
 
-    expect(payload.projection.trajectory).toBe('flat');
+    expect(payload.projection.trajectory).toBe('unknown');
+  });
+
+  it('keeps trajectory in building state for 6-9 rounds even with worsening slope', () => {
+    const rounds = buildRounds(
+      [92, 104, 88, 92, 90, 120],
+      [21.0, 21.0, 20.8, 20.7, 20.6, 20.5],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 3 }, () => ''),
+    });
+
+    expect(payload.analysis.avg_score_recent).toBeCloseTo(93.2, 1);
+    expect(payload.analysis.avg_score_baseline).toBeCloseTo(97.7, 1);
+    expect(payload.projection.trajectory).toBe('unknown');
   });
 
   it('keeps projection ranges centered around projected score/handicap (low handicap case)', () => {

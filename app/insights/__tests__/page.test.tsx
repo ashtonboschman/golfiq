@@ -492,6 +492,34 @@ describe('/insights page', () => {
     expect(screen.getByText('Flat')).toBeInTheDocument();
   });
 
+  it('shows building trajectory label for early-state backend trajectory', async () => {
+    const insights = makeInsights(true, {
+      combined: {
+        kpis: {
+          roundsRecent: 5,
+          avgScoreRecent: 93.2,
+          avgScoreBaseline: 97.7,
+          avgToParRecent: 21.2,
+          avgSgTotalRecent: 0.1,
+          bestScoreRecent: 88,
+          deltaVsBaseline: -4.5,
+        },
+      },
+    });
+    insights.projection_by_mode.combined.trajectory = 'unknown';
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    await screen.findByText('Still Building');
+    expect(screen.queryByText('Worsening')).not.toBeInTheDocument();
+    expect(screen.queryByText('Improving')).not.toBeInTheDocument();
+  });
+
   it('falls back to frontend trajectory classification when backend trajectory is missing', async () => {
     const insights = makeInsights(true, {
       combined: {

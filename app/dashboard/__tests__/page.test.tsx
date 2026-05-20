@@ -435,6 +435,17 @@ describe('/dashboard Round Focus card', () => {
     expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Par');
     expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('41%');
     expect(screen.getByText('7.1 / round')).toBeInTheDocument();
+
+    fireEvent.click(parLegend);
+    fireEvent.mouseLeave(parLegend);
+    expect(parLegend.className).not.toContain('is-active');
+    expect(document.querySelector('.scoring-profile-center-label')).toBeNull();
+    expect(document.querySelector('.scoring-profile-center-percent')).toBeNull();
+
+    fireEvent.click(parLegend);
+    expect(parLegend.className).toContain('is-active');
+    expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Par');
+    expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('41%');
   });
 
   it('renders safe hole type fallback state when par averages are missing', async () => {
