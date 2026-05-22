@@ -26,6 +26,14 @@ import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import {
+  clearLiveRoundRecoveryState,
+  decideAddRoundEntry,
+  getLiveRoundResumeTarget,
+  hasAutoResumeAttemptedThisSession,
+  isDashboardResumeCtaSnoozed,
+  snoozeDashboardResumeCta,
+} from '@/lib/rounds/liveRoundResume';
+import {
   buildRoundFocusState,
   focusComponentLabel,
   type DashboardOverallInsightsSummary,
@@ -219,7 +227,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session, status } = useSession();
-  const { showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage, showConfirm } = useMessage();
   const searchParams = useSearchParams();
 
   const queryUserId = searchParams.get('user_id');
@@ -241,6 +249,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
   const [showFocusConfidenceInfo, setShowFocusConfidenceInfo] = useState(false);
+  const [resumeCtaVisible, setResumeCtaVisible] = useState(false);
+  const [resumeCtaTarget, setResumeCtaTarget] = useState<string | null>(null);
   const focusConfidenceTooltipRef = useRef<HTMLDivElement | null>(null);
   const scoringProfileCardRef = useRef<HTMLDivElement | null>(null);
   const [scoringProfileHoveredIndex, setScoringProfileHoveredIndex] = useState<number | null>(null);
@@ -271,6 +281,41 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     overallInsightsSummary: null,
     latestRoundUpdatedAt: null,
   });
+
+  const handleAddRoundClick = useCallback(() => {
+    const sessionUserId = session?.user?.id ? String(session.user.id) : null;
+    if (!sessionUserId) return;
+
+    const startNewTarget = '/rounds/add?from=dashboard';
+    const decision = decideAddRoundEntry({
+      userId: sessionUserId,
+      startNewTarget,
+    });
+
+    if (decision.action === 'resume') {
+      router.push(decision.resumeTarget);
+      return;
+    }
+
+    if (decision.action === 'prompt') {
+      showConfirm({
+        message:
+          'You already have an active Live Round. Resume it, or start a new round and discard the current one.',
+        cancelText: 'Resume Round',
+        confirmText: 'Start New Round',
+        onCancel: () => {
+          router.push(decision.resumeTarget);
+        },
+        onConfirm: () => {
+          clearLiveRoundRecoveryState(sessionUserId);
+          router.push(decision.startNewTarget);
+        },
+      });
+      return;
+    }
+
+    router.push(decision.startNewTarget);
+  }, [router, session?.user?.id, showConfirm]);
 
   const trackUpgradeClick = useCallback((ctaLocation: string) => {
     captureClientEvent(
@@ -351,6 +396,30 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       router.replace('/login');
     }
   }, [status, router]);
+
+  useEffect(() => {
+    const sessionUserId = session?.user?.id ? String(session.user.id) : null;
+    if (status !== 'authenticated' || !sessionUserId) {
+      setResumeCtaVisible(false);
+      setResumeCtaTarget(null);
+      return;
+    }
+
+    if (pathname !== '/dashboard') {
+      setResumeCtaVisible(false);
+      setResumeCtaTarget(null);
+      return;
+    }
+
+    const target = getLiveRoundResumeTarget(sessionUserId);
+    const shouldShow = Boolean(
+      target &&
+      hasAutoResumeAttemptedThisSession(sessionUserId) &&
+      !isDashboardResumeCtaSnoozed(sessionUserId),
+    );
+    setResumeCtaVisible(shouldShow);
+    setResumeCtaTarget(target);
+  }, [pathname, session?.user?.id, status]);
 
   // Fetch dashboard stats
   useEffect(() => {
@@ -1087,11 +1156,43 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       {isOwnDashboard && (
         <button
           className="btn btn-add"
-          onClick={() => router.push('/rounds/add?from=dashboard')}
+          onClick={handleAddRoundClick}
           disabled={loading}
         >
           <Plus/> Add Round
         </button>
+      )}
+
+      {isOwnDashboard && resumeCtaVisible && resumeCtaTarget && (
+        <div className="info-banner">
+          <div className="info-banner-content">
+            <div className="info-banner-text">
+              <h4>Resume Live Round</h4>
+              <p>You have an active Live Round in progress.</p>
+            </div>
+          </div>
+          <div className="dashboard-focus-actions">
+            <button
+              type="button"
+              className="btn btn-add"
+              onClick={() => router.push(resumeCtaTarget)}
+            >
+              Resume Round
+            </button>
+            <button
+              type="button"
+              className="btn btn-cancel"
+              onClick={() => {
+                const sessionUserId = session?.user?.id ? String(session.user.id) : null;
+                if (!sessionUserId) return;
+                snoozeDashboardResumeCta(sessionUserId);
+                setResumeCtaVisible(false);
+              }}
+            >
+              Not Now
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="dashboard-filters">

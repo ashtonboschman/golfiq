@@ -53,7 +53,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'handicap' | 'average_score' | 'best_score'>('handicap');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [scope, setScope] = useState<'global' | 'friends'>('global');
+  const [scope, setScope] = useState<'global' | 'friends'>('friends');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showingLimited, setShowingLimited] = useState(false);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -246,8 +246,8 @@ export default function LeaderboardPage() {
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="page-stack">
       <div className="stats-tabs">
-        <button className={`stats-tab ${scope === 'global' ? 'active' : ''}`} onClick={() => setScope('global')}>Global</button>
         <button className={`stats-tab ${scope === 'friends' ? 'active' : ''}`} onClick={() => setScope('friends')}>Friends</button>
+        <button className={`stats-tab ${scope === 'global' ? 'active' : ''}`} onClick={() => setScope('global')}>Global</button>
       </div>
 
       {scope === 'global' && showingLimited && (

@@ -7,6 +7,7 @@ import { useMessage } from '@/app/providers';
 import RoundCard from '@/components/RoundCard';
 import { Plus } from 'lucide-react';
 import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
+import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
 
 interface Round {
   round_context?: 'real' | 'simulator' | 'practice' | null;
@@ -224,6 +225,39 @@ export default function RoundsPage() {
     });
   };
 
+  const handleAddRoundClick = () => {
+    if (!userId) return;
+    const startNewTarget = '/rounds/add?from=rounds';
+    const decision = decideAddRoundEntry({
+      userId,
+      startNewTarget,
+    });
+
+    if (decision.action === 'resume') {
+      router.push(decision.resumeTarget);
+      return;
+    }
+
+    if (decision.action === 'prompt') {
+      showConfirm({
+        message:
+          'You already have an active Live Round. Resume it, or start a new round and discard the current one.',
+        cancelText: 'Resume Round',
+        confirmText: 'Start New Round',
+        onCancel: () => {
+          router.push(decision.resumeTarget);
+        },
+        onConfirm: () => {
+          clearLiveRoundRecoveryState(userId);
+          router.push(decision.startNewTarget);
+        },
+      });
+      return;
+    }
+
+    router.push(decision.startNewTarget);
+  };
+
   if (status === 'unauthenticated') {
     return null;
   }
@@ -233,7 +267,7 @@ export default function RoundsPage() {
   return (
     <div className="page-stack">
       <button
-        onClick={() => router.push('/rounds/add?from=rounds')}
+        onClick={handleAddRoundClick}
         className="btn btn-add"
         disabled={status !== 'authenticated'}
       >

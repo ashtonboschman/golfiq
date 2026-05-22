@@ -8,6 +8,7 @@ import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import { Landmark, MapPin, Plus } from 'lucide-react';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
+import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
 
 interface Hole {
   id: number;
@@ -50,7 +51,7 @@ export default function CourseDetailsPage() {
   const id = params?.id as string;
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { showMessage, clearMessage } = useMessage();
+  const { showMessage, clearMessage, showConfirm } = useMessage();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,20 +166,52 @@ export default function CourseDetailsPage() {
   const back9Totals = computeTotals(holes.slice(9, 18));
   const fullTotals = computeTotals(holes);
 
+  const handleAddRoundClick = () => {
+    if (!course) return;
+    const sessionUserId = session?.user?.id ? String(session.user.id) : null;
+    if (!sessionUserId) return;
+
+    const startNewTarget = `/rounds/add?courseId=${course.id}&courseName=${encodeURIComponent(
+      course.course_name,
+    )}&teeId=${selectedTee?.id}&teeName=${encodeURIComponent(
+      selectedTee?.tee_name || '',
+    )}&from=${encodeURIComponent(`/courses/${course.id}`)}`;
+
+    const decision = decideAddRoundEntry({
+      userId: sessionUserId,
+      startNewTarget,
+    });
+
+    if (decision.action === 'resume') {
+      router.push(decision.resumeTarget);
+      return;
+    }
+
+    if (decision.action === 'prompt') {
+      showConfirm({
+        message:
+          'You already have an active Live Round. Resume it, or start a new round and discard the current one.',
+        cancelText: 'Resume Round',
+        confirmText: 'Start New Round',
+        onCancel: () => {
+          router.push(decision.resumeTarget);
+        },
+        onConfirm: () => {
+          clearLiveRoundRecoveryState(sessionUserId);
+          router.push(decision.startNewTarget);
+        },
+      });
+      return;
+    }
+
+    router.push(decision.startNewTarget);
+  };
+
   return (
     <div className="page-stack">
       <button
         className="btn btn-add"
-        onClick={() =>
-          course &&
-          router.push(
-            `/rounds/add?courseId=${course.id}&courseName=${encodeURIComponent(
-              course.course_name
-            )}&teeId=${selectedTee?.id}&teeName=${encodeURIComponent(
-              selectedTee?.tee_name || ''
-            )}&from=${encodeURIComponent(`/courses/${course.id}`)}`
-          )
-        }
+        onClick={handleAddRoundClick}
         disabled={showDataSkeleton || !course || !allTees.length}
       >
         <Plus/> Add Round

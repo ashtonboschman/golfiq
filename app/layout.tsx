@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from 'react';
 import "./globals.css";
 import "./app.css";
 import { Providers, PostHogProvider } from "./providers";
@@ -6,6 +7,7 @@ import Layout from "@/components/Layout";
 import { Inter, Space_Grotesk, IBM_Plex_Sans } from 'next/font/google';
 import BootstrapClient from '@/components/BootstrapClient';
 import PwaManager from '@/components/pwa/PwaManager';
+import LiveRoundAutoResumeGate from '@/components/rounds/LiveRoundAutoResumeGate';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.golfiq.ca"),
@@ -133,6 +135,9 @@ export default function RootLayout({
         <PostHogProvider>
           <Providers>
             <BootstrapClient />
+            <Suspense fallback={null}>
+              <LiveRoundAutoResumeGate />
+            </Suspense>
             <PwaManager />
             <Layout>{children}</Layout>
           </Providers>

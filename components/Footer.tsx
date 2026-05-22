@@ -10,7 +10,7 @@ import {
   clearInsightsNudgePending,
   hasInsightsNudgePending,
 } from '@/lib/insights/insightsNudge';
-import { clearRoundAddDraft } from '@/lib/rounds/addDraft';
+import { clearLiveRoundRecoveryState } from '@/lib/rounds/liveRoundResume';
 
 export default function Footer() {
   const { data: session, status } = useSession();
@@ -67,7 +67,7 @@ export default function Footer() {
             sessionStorage.removeItem('profile-has-changes');
           }
           if (pathname === '/rounds/add') {
-            clearRoundAddDraft(user?.id);
+            clearLiveRoundRecoveryState(user?.id);
           }
           router.push(path);
         }

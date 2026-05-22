@@ -15,7 +15,15 @@ import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSe
 import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
-import { clearRoundAddDraft, getRoundAddDraftKey } from '@/lib/rounds/addDraft';
+import { getRoundAddDraftKey } from '@/lib/rounds/addDraft';
+import {
+  buildLiveRoundContextFromDraft,
+  clearDashboardResumeCtaSnooze,
+  clearLiveRoundContext,
+  clearLiveRoundRecoveryState,
+  readLiveRoundContext,
+  writeLiveRoundContext,
+} from '@/lib/rounds/liveRoundResume';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -330,71 +338,112 @@ function AddRoundContent() {
   }, [holeScores]);
 
   const clearRoundDraft = useCallback(() => {
-    clearRoundAddDraft(session?.user?.id);
+    clearLiveRoundRecoveryState(session?.user?.id);
   }, [session?.user?.id]);
 
-  useEffect(() => {
+  const buildCurrentDraft = useCallback((): AddRoundDraft => ({
+    version: 1,
+    savedAt: new Date().toISOString(),
+    round,
+    holeScores,
+    selectedCourse,
+    selectedTee,
+    completedHoles: Array.from(completedHoles),
+    expandedHole,
+  }), [
+    completedHoles,
+    expandedHole,
+    holeScores,
+    round,
+    selectedCourse,
+    selectedTee,
+  ]);
+
+  const hasDraftProgress = useCallback(() => Boolean(
+    round.course_id ||
+    round.tee_id ||
+    round.score != null ||
+    round.fir_hit != null ||
+    round.gir_hit != null ||
+    round.putts != null ||
+    round.penalties != null ||
+    round.chips != null ||
+    round.greenside_bunker_shots != null ||
+    round.notes.trim().length > 0 ||
+    holeScores.some((hole) =>
+      hole.score != null ||
+      hole.fir_hit != null ||
+      hole.fir_direction != null ||
+      hole.gir_hit != null ||
+      hole.gir_direction != null ||
+      hole.putts != null ||
+      hole.penalties != null ||
+      hole.chips != null ||
+      hole.greenside_bunker_shots != null),
+  ), [holeScores, round]);
+
+  const persistDraftAndResumeContext = useCallback(() => {
     if (status !== 'authenticated' || !roundAddDraftKey) return;
 
-    const hasProgress = Boolean(
-      round.course_id ||
-      round.tee_id ||
-      round.score != null ||
-      round.fir_hit != null ||
-      round.gir_hit != null ||
-      round.putts != null ||
-      round.penalties != null ||
-      round.chips != null ||
-      round.greenside_bunker_shots != null ||
-      round.notes.trim().length > 0 ||
-      holeScores.some((hole) =>
-        hole.score != null ||
-        hole.fir_hit != null ||
-        hole.fir_direction != null ||
-        hole.gir_hit != null ||
-        hole.gir_direction != null ||
-        hole.putts != null ||
-        hole.penalties != null ||
-        hole.chips != null ||
-        hole.greenside_bunker_shots != null),
-    );
-
+    const hasProgress = hasDraftProgress();
     if (!hasProgress) {
       clearRoundDraft();
       return;
     }
 
-    const timeout = window.setTimeout(() => {
-      const draft: AddRoundDraft = {
-        version: 1,
-        savedAt: new Date().toISOString(),
-        round,
-        holeScores,
-        selectedCourse,
-        selectedTee,
-        completedHoles: Array.from(completedHoles),
-        expandedHole,
-      };
+    const draft = buildCurrentDraft();
+    try {
+      localStorage.setItem(roundAddDraftKey, JSON.stringify(draft));
+    } catch {
+      // noop
+    }
 
-      try {
-        localStorage.setItem(roundAddDraftKey, JSON.stringify(draft));
-      } catch {
-        // noop
-      }
+    const userId = session?.user?.id ? String(session.user.id) : null;
+    if (!userId) return;
+
+    if (!isHBH) {
+      clearLiveRoundContext(userId);
+      return;
+    }
+
+    const sourcePage = from.startsWith('/') ? from : `/${from}`;
+    const route = `${pathname}${typeof window !== 'undefined' ? window.location.search : ''}`;
+    const nextContext = buildLiveRoundContextFromDraft({
+      userId,
+      route,
+      sourcePage,
+      draft,
+      previousContext: readLiveRoundContext(userId),
+    });
+
+    if (!nextContext) {
+      clearLiveRoundContext(userId);
+      return;
+    }
+
+    writeLiveRoundContext(nextContext);
+    clearDashboardResumeCtaSnooze(userId);
+  }, [
+    buildCurrentDraft,
+    clearRoundDraft,
+    from,
+    hasDraftProgress,
+    isHBH,
+    pathname,
+    roundAddDraftKey,
+    session?.user?.id,
+    status,
+  ]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !roundAddDraftKey) return;
+
+    const timeout = window.setTimeout(() => {
+      persistDraftAndResumeContext();
     }, 150);
 
     return () => window.clearTimeout(timeout);
-  }, [
-    clearRoundDraft,
-    completedHoles,
-    expandedHole,
-    holeScores,
-    round,
-    roundAddDraftKey,
-    selectedCourse,
-    selectedTee,
-    status,
-  ]);
+  }, [persistDraftAndResumeContext, roundAddDraftKey, status]);
 
   useEffect(() => {
     return () => {
@@ -423,12 +472,21 @@ function AddRoundContent() {
 
   useEffect(() => {
     const handlePageHide = () => {
-      clearRoundDraft();
+      persistDraftAndResumeContext();
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        persistDraftAndResumeContext();
+      }
     };
 
     window.addEventListener('pagehide', handlePageHide);
-    return () => window.removeEventListener('pagehide', handlePageHide);
-  }, [clearRoundDraft]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [persistDraftAndResumeContext]);
 
   // Get user's geolocation for course sorting
   useEffect(() => {

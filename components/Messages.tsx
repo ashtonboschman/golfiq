@@ -51,7 +51,7 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
                 }}
                 className="btn btn-cancel"
               >
-                Cancel
+                {confirmDialog.cancelText || 'Cancel'}
               </button>
               <button
                 onClick={() => {
@@ -60,7 +60,7 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
                 }}
                 className="btn btn-save"
               >
-                OK
+                {confirmDialog.confirmText || 'OK'}
               </button>
             </div>
           </div>
