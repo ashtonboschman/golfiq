@@ -375,7 +375,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('Performance Overview');
     expect(screen.getByText('Scrambling')).toBeInTheDocument();
-    expect(screen.getByText('Short Game Shots')).toBeInTheDocument();
+    expect(screen.getByText('Short Game')).toBeInTheDocument();
     expect(screen.getByText('Up & Down')).toBeInTheDocument();
     expect(screen.getByText('Sand Saves')).toBeInTheDocument();
 
@@ -403,7 +403,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('Performance Overview');
     expect(screen.getByText('Scrambling').closest('.dashboard-stat-card')).toHaveTextContent('-');
-    expect(screen.getByText('Short Game Shots').closest('.dashboard-stat-card')).toHaveTextContent('-');
+    expect(screen.getByText('Short Game').closest('.dashboard-stat-card')).toHaveTextContent('-');
     expect(screen.getByText('Up & Down').closest('.dashboard-stat-card')).toHaveTextContent('-');
     expect(screen.getByText('Sand Saves').closest('.dashboard-stat-card')).toHaveTextContent('-');
   });

@@ -242,6 +242,23 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
     expect(cards[2].toLowerCase()).toMatch(/volatility|score swings|round-to-round volatility/);
   });
 
+  it('does not emit volatility copy when consistency is stable despite a wide recent score range', () => {
+    const rounds = Array.from({ length: 10 }, (_, i) =>
+      mkRound({
+        id: BigInt(i + 1),
+        date: new Date(`2026-01-${String(31 - i).padStart(2, '0')}T12:00:00Z`),
+        score: i < 5 ? [77, 82, 83, 81, 80][i] : 88,
+        toPar: i < 5 ? [10, 9, 11, 8, 10][i] : 16,
+      }),
+    );
+
+    const { payload, cards } = buildCards(rounds, true);
+    expect(payload.confidence).toBe('high');
+    expect(payload.consistency.label).toBe('stable');
+    expect(cards[2].toLowerCase()).not.toMatch(/volatility|score swings|round-to-round volatility/);
+    expect(cards[2].toLowerCase()).toMatch(/consistent|stability/);
+  });
+
   it('score-only golfer still gets useful but cautious overall interpretation', () => {
     const rounds = Array.from({ length: 10 }, (_, i) =>
       mkRound({

@@ -600,7 +600,7 @@ function componentDisplayName(component: DashboardFocusComponent): string {
   if (component === 'shortGame') return 'Short Game';
   if (component === 'putting') return 'Putting';
   if (component === 'penalties') return 'Penalties';
-  return 'Residual';
+  return 'Untracked';
 }
 
 function componentHeadlineName(component: Exclude<DashboardFocusComponent, 'residual'>): string {

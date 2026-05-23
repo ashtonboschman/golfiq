@@ -570,7 +570,7 @@ export function RoundStatsPageSkeleton({
               </span>
             </div>
             <div className="stats-score-grid">
-              {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Residual'].map((label, index) => (
+              {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Untracked'].map((label, index) => (
                 <div key={`round-sg-summary-${index}`}>
                   <SkeletonBlock width="44%" height={29} style={{ marginInline: 'auto' }} />
                   <div className="stats-score-label" style={{ marginTop: 6 }}>

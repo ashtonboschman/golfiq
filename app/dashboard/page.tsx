@@ -1579,7 +1579,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               ['Putts', stats.avg_putts, null, 'Average number of putts per round. Lower is better.'],
               ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round. Lower is better.'],
               ['Scrambling', stats.scramblingPct, '%', 'How often you make par or better after missing the green. Higher is better.'],
-              ['Short Game Shots', stats.shortGameShotsAvg, null, 'Average chips and greenside bunker shots per round. Lower is better.'],
+              ['Short Game', stats.shortGameShotsAvg, null, 'Average chips and greenside bunker shots per round. Lower is better.'],
               ['Up & Down', stats.upAndDownPct, '%', 'How often you save par or better after one short-game shot and one putt or fewer. Higher is better.'],
               ['Sand Saves', stats.sandSavePct, '%', 'How often you make par or better after a greenside bunker shot. Higher is better.'],
             ].map(([label, val, isPercent, tooltip]) => (

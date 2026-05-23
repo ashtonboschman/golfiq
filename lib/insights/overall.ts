@@ -23,6 +23,7 @@ export const OVERALL_RECENT_WINDOW = 5;
 export const OVERALL_EARLY_SAMPLE_MAX_ROUNDS = 5;
 export const OVERALL_CONSISTENCY_WINDOW = 5;
 export const MIN_ROUNDS_FOR_DIRECTIONAL_TRAJECTORY = 10;
+export const TRAJECTORY_MEANINGFUL_DELTA_STROKES = 1.5;
 
 export type OverallRoundPoint = {
   id: bigint;
@@ -900,8 +901,6 @@ function computeProjection(
 ): ProjectionPayload {
   const recentAvgScore = average(recentCombined.map((p) => p.score));
   const baselineAvgScore = average(baselineCombined.map((p) => p.score));
-  const scoreSeries = [...recentCombined].reverse().map((p) => p.score);
-  const scoreSlope = linearSlope(scoreSeries);
 
   // Handicap uses a longer, dedicated window than scoring so projections are
   // anchored to true current index and not overreacting to a short sample.
@@ -919,30 +918,56 @@ function computeProjection(
     .filter((n): n is number => n != null && Number.isFinite(n));
   const handicapSlope = linearSlope([...handicapTrendWindow].reverse());
 
-  const delta = (recentAvgScore != null && baselineAvgScore != null) ? recentAvgScore - baselineAvgScore : null;
   const roundsInContext = baselineCombined.length;
   const trajectoryStillDeveloping = roundsInContext < MIN_ROUNDS_FOR_DIRECTIONAL_TRAJECTORY;
   let trajectory: ProjectionPayload['trajectory'] = 'unknown';
-  if (trajectoryStillDeveloping) {
-    trajectory = 'unknown';
-  } else if (scoreSlope != null && Math.abs(scoreSlope) >= 0.35) {
-    trajectory = scoreSlope < 0 ? 'improving' : 'worsening';
-  } else if (delta != null && Math.abs(delta) <= 0.8) {
-    trajectory = 'flat';
-  } else if (delta != null) {
-    trajectory = delta < 0 ? 'improving' : 'worsening';
-  } else {
-    trajectory = 'unknown';
+  if (!trajectoryStillDeveloping && recentAvgScore != null) {
+    const previousWindow = baselineCombined.slice(
+      OVERALL_RECENT_WINDOW,
+      OVERALL_RECENT_WINDOW * 2,
+    );
+    const previousAvg = average(previousWindow.map((p) => p.score));
+    const historyWindow = roundsInContext >= 15
+      ? baselineCombined.slice(OVERALL_RECENT_WINDOW)
+      : previousWindow;
+    const historyAvg = average(historyWindow.map((p) => p.score));
+
+    const recentBetterThanPrevious =
+      previousAvg != null &&
+      (previousAvg - recentAvgScore) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
+    const recentWorseThanPrevious =
+      previousAvg != null &&
+      (recentAvgScore - previousAvg) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
+    const recentBetterThanHistory =
+      historyAvg != null &&
+      (historyAvg - recentAvgScore) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
+    const recentWorseThanHistory =
+      historyAvg != null &&
+      (recentAvgScore - historyAvg) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
+    const notMeaningfullyWorseThanPrevious =
+      previousAvg == null ||
+      (recentAvgScore - previousAvg) < TRAJECTORY_MEANINGFUL_DELTA_STROKES;
+
+    if (
+      recentBetterThanPrevious ||
+      (recentBetterThanHistory && notMeaningfullyWorseThanPrevious)
+    ) {
+      trajectory = 'improving';
+    } else if (recentWorseThanPrevious && recentWorseThanHistory) {
+      trajectory = 'worsening';
+    } else {
+      trajectory = 'flat';
+    }
   }
 
-  // Keep projections grounded: short-term trend with bounded movement.
-  const scoreTrendShift = scoreSlope != null ? clamp(scoreSlope * 4, -2, 2) : 0;
+  // Keep score projection centered on window-comparison baselines.
+  // Trajectory now captures direction; avoid re-introducing short-window slope noise.
   const projectedScoreIn10 =
     recentAvgScore != null && baselineAvgScore != null
-      ? round1((recentAvgScore * 0.7) + (baselineAvgScore * 0.3) + scoreTrendShift)
+      ? round1((recentAvgScore * 0.7) + (baselineAvgScore * 0.3))
       : recentAvgScore != null
-        ? round1(recentAvgScore + scoreTrendShift)
-      : null;
+        ? round1(recentAvgScore)
+        : null;
   const handicapTrendShift = handicapSlope != null ? clamp(handicapSlope * 8, -0.8, 1.2) : 0;
   const handicapFromSlopeOnly =
     handicapCurrent != null && handicapTrendWindow.length >= HANDICAP_MIN_HISTORY_FOR_PROJECTION
@@ -1350,7 +1375,7 @@ export function computeOverallPayload(args: {
       .map((r) => r.score)
       .filter((n): n is number => Number.isFinite(n));
     const handicapValues = combined
-      .slice(0, 12)
+      .slice(0, 8)
       .map((r) => r.handicapAtRound)
       .filter((n): n is number => n != null && Number.isFinite(n));
 
@@ -1539,6 +1564,8 @@ export function buildDeterministicOverallCards(args: {
       moderateScoreRange: scoreRangeModerateTrigger,
     },
   });
+  const suppressVolatilityNarrativeForStableConsistency =
+    consistency.label === 'stable';
   const directionalQualifier = buildOverallDirectionalQualifier({
     pattern: modePayload?.directional?.dominant ?? null,
     confidence,
@@ -1788,7 +1815,7 @@ export function buildDeterministicOverallCards(args: {
 
   const card3 = (() => {
     const stdDev = consistency.stdDev;
-    if (volatilitySignal.severity === 'strong') {
+    if (!suppressVolatilityNarrativeForStableConsistency && volatilitySignal.severity === 'strong') {
       if (confidence === 'high') {
         const strongHighVariants = volatilitySignal.hasCeilingFloorGap
           ? OVERALL_VOLATILITY_STRONG_HIGH_VARIANTS
@@ -1835,7 +1862,7 @@ export function buildDeterministicOverallCards(args: {
       ]);
     }
 
-    if (volatilitySignal.severity === 'moderate') {
+    if (!suppressVolatilityNarrativeForStableConsistency && volatilitySignal.severity === 'moderate') {
       if (confidence === 'high') {
         return pickOverallVariant(OVERALL_VOLATILITY_MODERATE_HIGH_VARIANTS, [
           'card3',

@@ -1071,13 +1071,13 @@ function EditRoundContent() {
                 <strong>Score</strong> {show(totals.score)}
               </div>
               <div className="hole-field">
-                <strong>Fairways In Regulation</strong> {show(totals.fir_hit)}
+                <strong>FIR</strong> {show(totals.fir_hit)}
+              </div>
+              <div className="hole-field">
+                <strong>GIR</strong> {show(totals.gir_hit)}
               </div>
               <div className="hole-field">
                 <strong>Chips</strong> {show(totals.chips)}
-              </div>
-              <div className="hole-field">
-                <strong>Greens In Regulation</strong> {show(totals.gir_hit)}
               </div>
               <div className="hole-field">
                 <strong>Bunker</strong> {show(totals.greenside_bunker_shots)}

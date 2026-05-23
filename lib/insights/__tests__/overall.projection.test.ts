@@ -112,6 +112,48 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection.trajectory).toBe('worsening');
   });
 
+  it('does not classify worsening for improving demo-style profile with a noisy final-5 slope', () => {
+    const rounds = buildRounds(
+      [
+        80, 81, 83, 82, 77,
+        83, 81, 85, 80, 84,
+        83, 82, 84, 86, 84,
+        91, 86, 89, 88, 93,
+        91, 90, 96, 92, 95,
+      ],
+      Array.from({ length: 25 }, (_, idx) => 10.8 + idx * 0.3),
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v2',
+      cards: Array.from({ length: 3 }, () => ''),
+    });
+
+    expect(payload.analysis.avg_score_recent).toBeCloseTo(80.6, 1);
+    expect(payload.analysis.avg_score_baseline).toBeCloseTo(85.8, 1);
+    expect(payload.projection.trajectory).toBe('improving');
+  });
+
+  it('resolves conflicting local-slope signals to non-worsening when recent average beats baseline windows', () => {
+    const rounds = buildRounds(
+      [80, 81, 83, 82, 77, 90, 89, 91, 88, 92],
+      [10.8, 11.1, 11.4, 11.6, 11.9, 14.2, 14.6, 15.0, 15.3, 15.7],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v2',
+      cards: Array.from({ length: 3 }, () => ''),
+    });
+
+    expect(payload.analysis.avg_score_recent).toBeCloseTo(80.6, 1);
+    expect(payload.analysis.avg_score_baseline).toBeCloseTo(85.3, 1);
+    expect(payload.projection.trajectory).toBe('improving');
+  });
+
   it('classifies flat trajectory when recent and baseline averages are nearly equal', () => {
     const rounds = buildRounds(
       [74, 74, 75, 74, 75, 74, 75, 74, 75, 74],
@@ -122,6 +164,22 @@ describe('overall projection + trajectory', () => {
       rounds,
       isPremium: true,
       model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 3 }, () => ''),
+    });
+
+    expect(payload.projection.trajectory).toBe('flat');
+  });
+
+  it('classifies flat when recent scoring is within threshold of previous/history baselines', () => {
+    const rounds = buildRounds(
+      [84, 85, 84, 85, 84, 84, 85, 84, 85, 84, 83, 84, 85, 84, 85],
+      [6.1, 6.1, 6.2, 6.2, 6.3, 6.3, 6.4, 6.4, 6.5, 6.5, 6.6, 6.6, 6.7, 6.7, 6.8],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v2',
       cards: Array.from({ length: 3 }, () => ''),
     });
 

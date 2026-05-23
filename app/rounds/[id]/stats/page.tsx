@@ -253,6 +253,13 @@ export default function RoundStatsPage() {
     if (value === 0) return 'E';
     return value > 0 ? `+${value}` : `${value}`;
   };
+  const getParTypeSeverityClass = (delta: number | null): string => {
+    if (delta == null || !Number.isFinite(delta)) return 'is-unavailable';
+    if (delta <= 0) return 'is-under';
+    if (delta <= 0.5) return 'is-near';
+    if (delta <= 1.25) return 'is-moderate';
+    return 'is-severe';
+  };
 
   const renderFgResult = (hit: number | null, direction: HoleDetail['fir_direction']) => {
     if (hit == null) {
@@ -327,21 +334,24 @@ export default function RoundStatsPage() {
         : null;
 
   const sgTooltipText =
-    'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Short Game, Putting, and Penalties use the stats you logged. Short Game compares your tracked chips and greenside bunker shots to expected short-game workload for your handicap and round context. Residual is scoring not explained by tracked stats.';
+    'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Short Game, Putting, and Penalties use the stats you logged. Untracked is strokes not explained by the stats you tracked this round. Track more details like FIR, GIR, chips, bunkers, penalties, and putts to reduce this category.';
 
   const parBreakdownRows: ParBreakdownChartRow[] = [...stats.scoring_by_par]
     .map((item) => {
       const parsedAverage = Number(item.average_score);
       const averageValue = Number.isFinite(parsedAverage) ? parsedAverage : item.par;
+      const delta = averageValue - item.par;
+      const severityClass = getParTypeSeverityClass(delta);
       return {
         id: item.par,
         par: item.par,
         average: averageValue,
-        delta: averageValue - item.par,
+        delta,
         averageLabel: item.average_score,
         deltaLabel: formatScoreToPar(item.score_to_par),
         holesLabel: `${item.holes} holes`,
-        vsClassName: item.score_to_par > 0 ? 'over-par' : item.score_to_par < 0 ? 'under-par' : '',
+        vsClassName: severityClass,
+        trendClassName: severityClass,
       };
     })
     .sort((a, b) => a.par - b.par);
@@ -559,7 +569,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_residual)}
                       </div>
                       <div className="stats-score-label">
-                        Residual
+                        Untracked
                       </div>
                     </div>
                   </>

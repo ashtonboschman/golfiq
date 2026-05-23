@@ -230,7 +230,7 @@ function sgComponentLabel(component: SGComponentKey): string {
   if (component === 'shortGame') return 'Short Game';
   if (component === 'putting') return 'Putting';
   if (component === 'penalties') return 'Penalties';
-  return 'Residual';
+  return 'Untracked';
 }
 
 function normalizeDelta(v: number | null | undefined): number | null {
@@ -1293,11 +1293,6 @@ export default function InsightsPage() {
             )}
           </div>
         </div>
-        <div className="overall-insights-meta">
-          <p className="secondary-text">
-            Last updated {insights?.generated_at ? new Date(insights.generated_at).toLocaleString() : '-'}
-          </p>
-        </div>
         {error && <p className="error-text">{error}</p>}
 
         <div className="insights-content">
@@ -1525,7 +1520,7 @@ export default function InsightsPage() {
         <LockedSection
           locked={!isPremiumContext}
           title="SG Component Breakdown (Premium)"
-          subtitle="Compare Off The Tee, Approach, Short Game, Putting, Penalties, and Residual deltas vs your average to find your biggest leak."
+          subtitle="Compare Off The Tee, Approach, Short Game, Putting, Penalties, and Untracked deltas vs your average to find your biggest leak."
         >
           <div
             className="card dashboard-stat-card sg-delta-card"

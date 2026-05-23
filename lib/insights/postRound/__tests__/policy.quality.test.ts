@@ -23,7 +23,6 @@ const QUALITY_BANNED = [
   /\bbe aggressive\b/i,
   /\bdecision-?making\b/i,
   /\btrust your swing\b/i,
-  /\bmomentum\b/i,
   /\bfeel\b/i,
   /\blocked in\b/i,
   /\bdialed in\b/i,

@@ -130,7 +130,7 @@ describe('/rounds/[id]/stats page', () => {
     expect(screen.getByText('Total')).toBeInTheDocument();
     expect(screen.getByText('Off Tee')).toBeInTheDocument();
     expect(screen.getByText('Short Game')).toBeInTheDocument();
-    expect(screen.getByText('Residual')).toBeInTheDocument();
+    expect(screen.getByText('Untracked')).toBeInTheDocument();
   });
 
   it('does not render strokes gained summary for free users', async () => {

@@ -1480,7 +1480,7 @@ describe('focusComponentLabel', () => {
     expect(focusComponentLabel('approach')).toBe('Approach');
     expect(focusComponentLabel('putting')).toBe('Putting');
     expect(focusComponentLabel('penalties')).toBe('Penalties');
-    expect(focusComponentLabel('residual')).toBe('Residual');
+    expect(focusComponentLabel('residual')).toBe('Untracked');
     expect(focusComponentLabel(null)).toBeNull();
   });
 });

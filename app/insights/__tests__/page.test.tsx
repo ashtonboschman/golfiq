@@ -255,6 +255,7 @@ describe('/insights page', () => {
     expect(screen.queryByText('Overall Insights compares your recent rounds (up to 5) against your last 20 rounds to detect form trends.')).not.toBeInTheDocument();
     expect(screen.getByText('Approach is costing you strokes. This has been the biggest difference in your recent rounds. The full breakdown shows exactly how much.')).toBeInTheDocument();
     expect(screen.getByText('Your scoring has some movement. Your scores are moving around, but not wildly from round to round.')).toBeInTheDocument();
+    expect(screen.queryByText(/Last updated/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
     expect(screen.queryByText('Not enough data')).not.toBeInTheDocument();
@@ -320,7 +321,7 @@ describe('/insights page', () => {
       'Short Game',
       'Putting',
       'Penalties',
-      'Residual',
+      'Untracked',
     ]);
 
     const perfTitles = Array.from(document.querySelectorAll('.insights-performance-grid .comparison-bar-header h3')).map(
