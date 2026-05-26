@@ -2157,8 +2157,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   box-sizing: border-box;
 }
 
-.scoring-profile-legend-row:hover,
-.scoring-profile-legend-row:focus-visible,
 .scoring-profile-legend-row.is-active {
   border-color: var(--color-border);
   background-color: color-mix(in srgb, var(--color-secondary-surface) 55%, transparent);
@@ -2167,6 +2165,13 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .scoring-profile-legend-row:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scoring-profile-legend-row:hover {
+    border-color: var(--color-border);
+    background-color: color-mix(in srgb, var(--color-secondary-surface) 55%, transparent);
+  }
 }
 
 .scoring-profile-legend-label-wrap {

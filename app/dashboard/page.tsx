@@ -884,8 +884,18 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const scoringProfileActiveIndex =
     scoringProfileHoveredIndex != null ? scoringProfileHoveredIndex : scoringProfileSelectedIndex;
   const toggleScoringProfileSelection = (index: number) => {
-    setScoringProfileSelectedIndex((previous) => (previous === index ? null : index));
+    const isDeselecting = scoringProfileSelectedIndex === index;
+    setScoringProfileSelectedIndex(isDeselecting ? null : index);
+    if (isDeselecting) {
+      setScoringProfileHoveredIndex(null);
+    }
   };
+  const shouldUseScoringProfileHover = (): boolean => {
+    if (typeof window === 'undefined') return true;
+    if (typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  };
+  const scoringProfileUsesHoverEffects = shouldUseScoringProfileHover();
   const scoringProfileActiveItem =
     scoringProfileActiveIndex != null ? scoringProfileItems[scoringProfileActiveIndex] : null;
   const scoringProfilePercentText = (value: number): string =>
@@ -917,12 +927,24 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         borderWidth: scoringProfileItems.map((_, index) =>
           scoringProfileActiveIndex === index ? 2 : 1,
         ),
-        hoverOffset: 4,
+        hoverOffset: scoringProfileItems.map((_, index) =>
+          scoringProfileUsesHoverEffects ? 4 : scoringProfileActiveIndex === index ? 2 : 0,
+        ),
         offset: scoringProfileItems.map((_, index) =>
           scoringProfileActiveIndex === index ? 2 : 0,
         ),
-        hoverBorderColor: withAlpha(textColor, 0.62),
-        hoverBorderWidth: 2,
+        hoverBorderColor: scoringProfileItems.map((_, index) => {
+          if (scoringProfileActiveIndex === index) {
+            return withAlpha(textColor, 0.62);
+          }
+          return scoringProfileUsesHoverEffects ? withAlpha(textColor, 0.62) : withAlpha(textColor, 0.14);
+        }),
+        hoverBorderWidth: scoringProfileItems.map((_, index) => {
+          if (scoringProfileActiveIndex === index) {
+            return 2;
+          }
+          return scoringProfileUsesHoverEffects ? 2 : 1;
+        }),
       },
     ],
   };
@@ -939,6 +961,12 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       },
     },
     onHover: (event: any, elements: any[]) => {
+      if (!scoringProfileUsesHoverEffects) {
+        return;
+      }
+      if (event?.native?.type !== 'mousemove') {
+        return;
+      }
       const hoverTarget = event?.native?.target as HTMLElement | undefined;
       if (hoverTarget) {
         hoverTarget.style.cursor = elements.length > 0 ? 'pointer' : 'default';
@@ -951,6 +979,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     },
     onClick: (_event: unknown, elements: any[]) => {
       if (elements.length > 0) {
+        setScoringProfileHoveredIndex(null);
         toggleScoringProfileSelection(elements[0].index);
       }
     },
@@ -1631,10 +1660,22 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                       className={`scoring-profile-legend-row ${
                         scoringProfileActiveIndex === index ? 'is-active' : ''
                       }`}
-                      onClick={() => toggleScoringProfileSelection(index)}
-                      onMouseEnter={() => setScoringProfileHoveredIndex(index)}
-                      onMouseLeave={() => setScoringProfileHoveredIndex(null)}
-                      onFocus={() => setScoringProfileHoveredIndex(index)}
+                      onClick={() => {
+                        setScoringProfileHoveredIndex(null);
+                        toggleScoringProfileSelection(index);
+                      }}
+                      onMouseEnter={() => {
+                        if (!scoringProfileUsesHoverEffects) return;
+                        setScoringProfileHoveredIndex(index);
+                      }}
+                      onMouseLeave={() => {
+                        if (!scoringProfileUsesHoverEffects) return;
+                        setScoringProfileHoveredIndex(null);
+                      }}
+                      onFocus={() => {
+                        if (!scoringProfileUsesHoverEffects) return;
+                        setScoringProfileHoveredIndex(index);
+                      }}
                       onBlur={() => setScoringProfileHoveredIndex(null)}
                       role="listitem"
                       aria-label={`${item.label}: ${formatWholePercent(item.percentage)}`}

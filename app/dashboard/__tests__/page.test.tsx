@@ -480,6 +480,50 @@ describe('/dashboard Round Focus card', () => {
     expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('41%');
   });
 
+  it('deselects a scoring profile legend item on second tap in coarse-pointer mode without requiring mouse leave', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: query === '(hover: hover) and (pointer: fine)' ? false : false,
+        media: query,
+        onchange: null,
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      })),
+    });
+
+    try {
+      render(<DashboardPage />);
+
+      await screen.findByText('Scoring Profile');
+
+      const triplePlusLegend = screen.getByRole('listitem', { name: 'Triple+: 6%' });
+      fireEvent.focus(triplePlusLegend);
+      fireEvent.click(triplePlusLegend);
+      expect(triplePlusLegend.className).toContain('is-active');
+      expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Triple+');
+      expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('6%');
+
+      fireEvent.click(triplePlusLegend);
+      expect(triplePlusLegend.className).not.toContain('is-active');
+      expect(document.querySelector('.scoring-profile-center-label')).toBeNull();
+      expect(document.querySelector('.scoring-profile-center-percent')).toBeNull();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
   it('renders safe hole type fallback state when par averages are missing', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
