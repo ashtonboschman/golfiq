@@ -336,6 +336,57 @@ describe('/insights page', () => {
     ]);
   });
 
+  it('shows absolute SG component averages for early samples under 10 rounds', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true });
+    const insights = makeInsights(true);
+    insights.projection_by_mode.combined.roundsUsed = 8;
+    insights.mode_payload.combined.sgComponents = {
+      recentAvg: {
+        total: -0.1,
+        offTee: 0.24,
+        approach: -0.24,
+        shortGame: -0.2,
+        putting: -0.18,
+        penalties: 0.11,
+        residual: 0.08,
+      },
+      baselineAvg: {
+        total: -0.1,
+        offTee: 0.2,
+        approach: -0.2,
+        shortGame: -0.16,
+        putting: -0.14,
+        penalties: 0.07,
+        residual: 0.04,
+      },
+      hasData: true,
+    };
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    await screen.findByText("Approach is costing you strokes. You're losing about 0.8 strokes per round compared to your usual level.");
+    await screen.findByText('SG Component Delta');
+    expect(
+      screen.getByText(
+        'Early sample: showing average SG per component from your last 5 rounds. Deltas vs baseline appear after 10 rounds.',
+      ),
+    ).toBeInTheDocument();
+
+    const offTeeRow = Array.from(document.querySelectorAll('.sg-delta-row')).find(
+      (row) => row.querySelector('.sg-delta-label')?.textContent?.trim() === 'Off The Tee',
+    );
+    const approachRow = Array.from(document.querySelectorAll('.sg-delta-row')).find(
+      (row) => row.querySelector('.sg-delta-label')?.textContent?.trim() === 'Approach',
+    );
+    expect(offTeeRow?.querySelector('.sg-delta-value')).toHaveTextContent('+0.2');
+    expect(approachRow?.querySelector('.sg-delta-value')).toHaveTextContent('-0.2');
+  });
+
   it('shows Overall Insights confidence tooltip copy', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,

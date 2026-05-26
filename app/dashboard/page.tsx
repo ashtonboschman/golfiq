@@ -232,6 +232,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const { showMessage, clearMessage, showConfirm } = useMessage();
+  const { isPremium, loading: subscriptionLoading } = useSubscription();
   const searchParams = useSearchParams();
 
   const queryUserId = searchParams.get('user_id');
@@ -241,10 +242,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statsMode, setStatsMode] = useState<StatsMode>('combined');
-  const [dateFilter, setDateFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState(() => (!subscriptionLoading && !isPremium ? 'last20' : 'all'));
   const [activeMilestoneModal, setActiveMilestoneModal] = useState<'welcome' | 'unlock' | 'upgrade' | null>(null);
   const [showToPar, setShowToPar] = useState(false);
-  const { isPremium, loading: subscriptionLoading } = useSubscription();
   const [accentColor, setAccentColor] = useState('#2D6CFF');
   const [accentHighlight, setAccentHighlight] = useState('#36ad64');
   const [warningColor, setWarningColor] = useState('#f59e0b');
@@ -288,6 +288,18 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     overallInsightsSummary: null,
     latestRoundUpdatedAt: null,
   });
+  const isFreeTierDateFilterLocked = !subscriptionLoading && !isPremium;
+
+  useEffect(() => {
+    if (subscriptionLoading) return;
+    if (!isPremium && dateFilter !== 'last20') {
+      setDateFilter('last20');
+      return;
+    }
+    if (isPremium && dateFilter === 'last20') {
+      setDateFilter('all');
+    }
+  }, [dateFilter, isPremium, subscriptionLoading]);
 
   const handleAddRoundClick = useCallback(() => {
     const sessionUserId = session?.user?.id ? String(session.user.id) : null;
@@ -480,7 +492,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
         try {
           const res = await fetch(
-            `/api/dashboard?statsMode=${statsMode}&user_id=${requestedUserId}&dateFilter=${dateFilter}`,
+            `/api/dashboard?statsMode=${statsMode}&user_id=${requestedUserId}&dateFilter=${dateFilter === 'last20' ? 'all' : dateFilter}`,
             {
               cache: 'no-store',
               credentials: 'include',
@@ -1281,36 +1293,49 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           instanceId="dashboard-date-filter"
           inputId="dashboard-date-filter-input"
           value={{
-            value: dateFilter,
+            value: isFreeTierDateFilterLocked && dateFilter !== 'last20' ? 'last20' : dateFilter,
             label:
-              dateFilter === 'all'
-                ? `All Time ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`
-                : dateFilter === '30'
-                ? `Last 30 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`
-                : dateFilter === '90'
-                ? `Last 90 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`
-                : `Last Year ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}`,
+              (isFreeTierDateFilterLocked && dateFilter !== 'last20' ? 'last20' : dateFilter) === 'last20'
+                ? 'Last 20 Rounds'
+                : (isFreeTierDateFilterLocked && dateFilter !== 'last20' ? 'last20' : dateFilter) === 'all'
+                ? `All Time ${isFreeTierDateFilterLocked ? '(Premium)' : ''}`
+                : (isFreeTierDateFilterLocked && dateFilter !== 'last20' ? 'last20' : dateFilter) === '30'
+                ? `Last 30 Days ${isFreeTierDateFilterLocked ? '(Premium)' : ''}`
+                : (isFreeTierDateFilterLocked && dateFilter !== 'last20' ? 'last20' : dateFilter) === '90'
+                ? `Last 90 Days ${isFreeTierDateFilterLocked ? '(Premium)' : ''}`
+                : `Last Year ${isFreeTierDateFilterLocked ? '(Premium)' : ''}`,
           }}
           onChange={(option) => {
-            if (!subscriptionLoading && !isPremium) {
+            if (!option) return;
+            if (isFreeTierDateFilterLocked && option.value !== 'last20') {
               trackUpgradeClick('dashboard_date_filter_lock');
               router.push('/pricing'); // redirect free users
-            } else if (option) {
-              setDateFilter(option.value);
+              return;
             }
+            setDateFilter(option.value);
           }}
-          options={[
-            { value: 'all', label: `All Time ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
-            { value: '30', label: `Last 30 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
-            { value: '90', label: `Last 90 Days ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
-            { value: '365', label: `Last Year ${!subscriptionLoading && !isPremium ? '(Premium)' : ''}` },
-          ]}
+          options={
+            isFreeTierDateFilterLocked
+              ? [
+                  { value: 'last20', label: 'Last 20 Rounds' },
+                  { value: 'all', label: 'All Time (Premium)' },
+                  { value: '30', label: 'Last 30 Days (Premium)' },
+                  { value: '90', label: 'Last 90 Days (Premium)' },
+                  { value: '365', label: 'Last Year (Premium)' },
+                ]
+              : [
+                  { value: 'all', label: 'All Time' },
+                  { value: '30', label: 'Last 30 Days' },
+                  { value: '90', label: 'Last 90 Days' },
+                  { value: '365', label: 'Last Year' },
+                ]
+          }
           isSearchable={false}
           isDisabled={subscriptionLoading || loading} // disable while loading
           styles={selectStyles}
           menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
           className={
-            !subscriptionLoading && !isPremium
+            isFreeTierDateFilterLocked
               ? 'dashboard-date-filter locked'
               : 'dashboard-date-filter'
           }

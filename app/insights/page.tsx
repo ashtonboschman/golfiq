@@ -190,6 +190,7 @@ const DEFAULT_EFFICIENCY_METRIC: EfficiencyMetric = {
 
 const INSIGHTS_POSITIVE_COLOR = '#16a34a';
 const INSIGHTS_NEGATIVE_COLOR = '#ef4444';
+const SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS = 10;
 
 function formatSigned(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '-';
@@ -941,7 +942,7 @@ export default function InsightsPage() {
     insights?.tier_context?.maxRoundsUsed,
     sgRecentWindowRounds,
   ]);
-  const sgUseRecentAbsolute = sgBaselineWindowRounds <= sgRecentWindowRounds;
+  const sgUseRecentAbsolute = sgBaselineWindowRounds < SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS;
   const sgDeltaRows = useMemo(() => {
     if (!sgHasComponentData || !sgComponents) return [];
     const recent = sgComponents.recentAvg;
@@ -988,8 +989,11 @@ export default function InsightsPage() {
     }));
   }, [sgHasAnyDelta, sgDeltaRows]);
   const sgComponentDeltaTooltip = useMemo(
-    () => 'Shows recent strokes gained component performance from your last 5 rounds. More rounds improve long-term trend accuracy.',
-    [],
+    () =>
+      sgUseRecentAbsolute
+        ? `Early sample: showing average SG per component from your last ${sgRecentWindowRounds} rounds. Deltas vs baseline appear after ${SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS} rounds.`
+        : `Shows SG component deltas from your last ${sgRecentWindowRounds} rounds versus your ${sgBaselineWindowRounds}-round baseline.`,
+    [sgBaselineWindowRounds, sgRecentWindowRounds, sgUseRecentAbsolute],
   );
   const sgTrendData = useMemo(() => {
     if (!insights) return null;

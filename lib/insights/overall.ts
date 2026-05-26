@@ -38,6 +38,7 @@ export type OverallRoundPoint = {
   penalties: number | null;
   shortGameShots?: number | null;
   handicapAtRound: number | null;
+  handicapAfterRound?: number | null;
   sgTotal: number | null;
   sgOffTee: number | null;
   sgApproach: number | null;
@@ -551,6 +552,37 @@ function formatDateShort(d: Date): string {
   return formatDate(new Date(d).toISOString());
 }
 
+function annotatePostRoundHandicap(
+  points: OverallRoundPoint[],
+  currentHandicapOverride?: number | null,
+): OverallRoundPoint[] {
+  const sortedDesc = [...points].sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  const hasCurrentOverride =
+    currentHandicapOverride != null && Number.isFinite(currentHandicapOverride);
+
+  return sortedDesc.map((point, index) => {
+    const newerPoint = index > 0 ? sortedDesc[index - 1] : null;
+    const newerPreRoundHandicap =
+      newerPoint?.handicapAtRound != null && Number.isFinite(newerPoint.handicapAtRound)
+        ? newerPoint.handicapAtRound
+        : null;
+    const preRoundFallback =
+      point.handicapAtRound != null && Number.isFinite(point.handicapAtRound)
+        ? point.handicapAtRound
+        : null;
+
+    const handicapAfterRound =
+      index === 0 && hasCurrentOverride
+        ? currentHandicapOverride!
+        : newerPreRoundHandicap ?? preRoundFallback;
+
+    return {
+      ...point,
+      handicapAfterRound,
+    };
+  });
+}
+
 export function normalizeByMode(points: OverallRoundPoint[], mode: StatsMode): OverallRoundPoint[] {
   if (mode === '9') return points.filter((p) => p.holes === 9);
   if (mode === '18') return points.filter((p) => p.holes === 18);
@@ -603,7 +635,7 @@ function computeModePayload(points: OverallRoundPoint[], isPremium: boolean): Mo
   const firPct = trend.map((p) => (p.firHit != null && p.nonPar3Holes > 0 ? (p.firHit / p.nonPar3Holes) * 100 : null));
   const girPct = trend.map((p) => (p.girHit != null && p.holes > 0 ? (p.girHit / p.holes) * 100 : null));
   const sgTotal = trend.map((p) => round1(p.sgTotal));
-  const handicap = trend.map((p) => round1(p.handicapAtRound));
+  const handicap = trend.map((p) => round1(p.handicapAfterRound ?? p.handicapAtRound));
   const sgModePayload = computeSgPayload(sortedDesc);
   const recentFirDirections = recent.flatMap((point) => point.firDirections ?? []);
   const recentGirDirections = recent.flatMap((point) => point.girDirections ?? []);
@@ -904,7 +936,7 @@ function computeProjection(
 
   // Handicap uses a longer, dedicated window than scoring so projections are
   // anchored to true current index and not overreacting to a short sample.
-  const newestHandicap = baselineCombined[0]?.handicapAtRound;
+  const newestHandicap = baselineCombined[0]?.handicapAfterRound ?? baselineCombined[0]?.handicapAtRound;
   const derivedHandicapCurrent =
     newestHandicap != null && Number.isFinite(newestHandicap) ? newestHandicap : null;
   const hasHandicapOverride =
@@ -914,7 +946,7 @@ function computeProjection(
     : derivedHandicapCurrent;
   const handicapTrendWindow = baselineCombined
     .slice(0, 12)
-    .map((p) => p.handicapAtRound)
+    .map((p) => p.handicapAfterRound ?? p.handicapAtRound)
     .filter((n): n is number => n != null && Number.isFinite(n));
   const handicapSlope = linearSlope([...handicapTrendWindow].reverse());
 
@@ -979,7 +1011,7 @@ function computeProjection(
     .map((row) => scoreToPer18(row.score, row.holes))
     .filter((value): value is number => value != null && Number.isFinite(value));
   const handicapHistory = scoreProjectionWindow
-    .map((row) => row.handicapAtRound)
+    .map((row) => row.handicapAfterRound ?? row.handicapAtRound)
     .filter((value): value is number => value != null && Number.isFinite(value));
   const recentAvgScorePer18 = average(
     recentCombined.map((row) => scoreToPer18(row.score, row.holes)),
@@ -1319,8 +1351,10 @@ export function computeOverallPayload(args: {
   cardsByMode?: Record<StatsMode, string[]>;
   currentHandicapOverride?: number | null;
 }): OverallInsightsPayload {
-  const combined = normalizeByMode(args.rounds, 'combined')
-    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  const combined = annotatePostRoundHandicap(
+    normalizeByMode(args.rounds, 'combined'),
+    args.currentHandicapOverride,
+  );
   const recentCombined = combined.slice(0, OVERALL_RECENT_WINDOW);
   const baselineCombined = args.isPremium ? combined : combined.slice(0, 20);
 
@@ -1349,8 +1383,19 @@ export function computeOverallPayload(args: {
       };
 
   const modes: StatsMode[] = ['combined', '9', '18'];
+  const combinedHandicapAfterById = new Map<bigint, number | null>(
+    combined.map((row) => [row.id, row.handicapAfterRound ?? row.handicapAtRound ?? null]),
+  );
   const modePoints = Object.fromEntries(
-    modes.map((m) => [m, normalizeByMode(args.rounds, m)]),
+    modes.map((m) => {
+      const normalized = normalizeByMode(args.rounds, m);
+      const withPostRound = normalized.map((row) => ({
+        ...row,
+        handicapAfterRound:
+          combinedHandicapAfterById.get(row.id) ?? row.handicapAtRound ?? null,
+      }));
+      return [m, withPostRound];
+    }),
   ) as Record<StatsMode, OverallRoundPoint[]>;
   const modePayload = Object.fromEntries(
     modes.map((m) => [m, computeModePayload(modePoints[m], args.isPremium)]),
@@ -1362,7 +1407,7 @@ export function computeOverallPayload(args: {
   const handicapPoints = [...combined]
     .slice(0, 20)
     .reverse()
-    .map((r) => ({ label: formatDateShort(r.date), value: r.handicapAtRound }));
+    .map((r) => ({ label: formatDateShort(r.date), value: r.handicapAfterRound ?? r.handicapAtRound }));
 
   const consistency = computeConsistency(combined);
   const efficiency = computeEfficiency(combined, baselineCombined);
@@ -1376,7 +1421,7 @@ export function computeOverallPayload(args: {
       .filter((n): n is number => Number.isFinite(n));
     const handicapValues = combined
       .slice(0, 8)
-      .map((r) => r.handicapAtRound)
+      .map((r) => r.handicapAfterRound ?? r.handicapAtRound)
       .filter((n): n is number => n != null && Number.isFinite(n));
 
     const scoreP25 = percentile(scoreValues, 0.25);

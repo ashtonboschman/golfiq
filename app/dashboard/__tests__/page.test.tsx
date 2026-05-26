@@ -372,6 +372,33 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('Triple+')).toBeInTheDocument();
   });
 
+  it('defaults free users to Last 20 Rounds and keeps date-based filters premium-gated', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<DashboardPage />);
+
+    await screen.findByTestId('dashboard-focus-card');
+
+    const dateFilterSelect = screen.getByLabelText('dashboard-date-filter-input') as HTMLSelectElement;
+    expect(dateFilterSelect.value).toBe('last20');
+    expect(screen.getByRole('option', { name: 'Last 20 Rounds' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'All Time (Premium)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Last 30 Days (Premium)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Last 90 Days (Premium)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Last Year (Premium)' })).toBeInTheDocument();
+
+    expect(
+      (global.fetch as jest.Mock).mock.calls.some((call) => String(call[0]).includes('dateFilter=all')),
+    ).toBe(true);
+
+    fireEvent.change(dateFilterSelect, {
+      target: { value: 'all' },
+    });
+
+    expect(mockPush).toHaveBeenCalledWith('/pricing');
+    expect(dateFilterSelect.value).toBe('last20');
+  });
+
   it('renders short-game metric cards in Performance Overview', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
 

@@ -217,7 +217,7 @@ export async function generateAndStoreOverallInsights(
   });
   if (!user) throw new Error('User not found');
   const isPremium = isPremiumUser(user);
-  const model = 'overall-deterministic-v4';
+  const model = 'overall-deterministic-v5';
   const leaderboardStats = await prisma.userLeaderboardStats.findUnique({
     where: { userId },
     select: { handicap: true },

@@ -342,6 +342,26 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection_ranges).toBeDefined();
   });
 
+  it('uses post-round handicap for the latest handicap trend point', () => {
+    const rounds = buildRounds(
+      [74, 75, 76],
+      [10.0, 9.0, 8.0],
+    );
+
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 3 }, () => ''),
+      currentHandicapOverride: 10.5,
+    });
+
+    const trend = payload.handicap_trend.handicap;
+    expect(trend).toHaveLength(3);
+    expect(trend[trend.length - 1]).toBeCloseTo(10.5, 1);
+    expect(trend[trend.length - 2]).toBeCloseTo(10.0, 1);
+  });
+
   it('keeps handicap projection direction aligned for improving trajectory even if handicap slope rises', () => {
     const rounds = buildRounds(
       [70, 71, 72, 73, 74, 75, 76, 77, 78, 79],
