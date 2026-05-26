@@ -541,7 +541,7 @@ describe('/api/dashboard route contract', () => {
       });
     });
     mockedPrisma.roundHole.findMany.mockResolvedValue([
-      // Round 101 (9 holes): birdie+ 2, par 3, bogey 2, double+ 2
+      // Round 101 (9 holes): birdie+ 2, par 3, bogey 2, double 2
       { roundId: BigInt(101), score: 3, hole: { par: 4 } }, // birdie
       { roundId: BigInt(101), score: 2, hole: { par: 4 } }, // eagle
       { roundId: BigInt(101), score: 4, hole: { par: 4 } }, // par
@@ -549,10 +549,10 @@ describe('/api/dashboard route contract', () => {
       { roundId: BigInt(101), score: 3, hole: { par: 3 } }, // par
       { roundId: BigInt(101), score: 5, hole: { par: 4 } }, // bogey
       { roundId: BigInt(101), score: 6, hole: { par: 5 } }, // bogey
-      { roundId: BigInt(101), score: 6, hole: { par: 4 } }, // double+
-      { roundId: BigInt(101), score: 7, hole: { par: 5 } }, // double+
+      { roundId: BigInt(101), score: 6, hole: { par: 4 } }, // double
+      { roundId: BigInt(101), score: 7, hole: { par: 5 } }, // double
 
-      // Round 102 (18 holes): birdie+ 3, par 9, bogey 4, double+ 2
+      // Round 102 (18 holes): birdie+ 3, par 9, bogey 4, double 1, triple+ 1
       { roundId: BigInt(102), score: 3, hole: { par: 4 } }, // birdie
       { roundId: BigInt(102), score: 3, hole: { par: 5 } }, // eagle
       { roundId: BigInt(102), score: 1, hole: { par: 3 } }, // ace
@@ -569,8 +569,8 @@ describe('/api/dashboard route contract', () => {
       { roundId: BigInt(102), score: 6, hole: { par: 5 } }, // bogey
       { roundId: BigInt(102), score: 4, hole: { par: 3 } }, // bogey
       { roundId: BigInt(102), score: 5, hole: { par: 4 } }, // bogey
-      { roundId: BigInt(102), score: 6, hole: { par: 4 } }, // double+
-      { roundId: BigInt(102), score: 7, hole: { par: 5 } }, // double+
+      { roundId: BigInt(102), score: 6, hole: { par: 4 } }, // double
+      { roundId: BigInt(102), score: 8, hole: { par: 5 } }, // triple+
     ]);
 
     const request = new Request('http://localhost/api/dashboard?statsMode=combined');
@@ -583,20 +583,23 @@ describe('/api/dashboard route contract', () => {
       birdie_plus: 7,
       par: 15,
       bogey: 8,
-      double_plus: 6,
+      double: 5,
+      triple_plus: 1,
     });
     expect(body.scoring_profile.normalized_total_holes).toBe(36);
     expect(body.scoring_profile.percentages).toEqual({
       birdie_plus: 19.44,
       par: 41.67,
       bogey: 22.22,
-      double_plus: 16.67,
+      double: 13.89,
+      triple_plus: 2.78,
     });
     expect(body.scoring_profile.averages_per_round).toEqual({
       birdie_plus: 3.5,
       par: 7.5,
       bogey: 4,
-      double_plus: 3,
+      double: 2.5,
+      triple_plus: 0.5,
     });
     expect(body.scoring_profile.source_round_count).toBe(2);
     expect(body.scoring_profile.normalization).toBe('combined_18_equivalent');
@@ -667,7 +670,7 @@ describe('/api/dashboard route contract', () => {
       { roundId: BigInt(201), score: 5, hole: { par: 4 } },
       { roundId: BigInt(201), score: 6, hole: { par: 5 } },
       { roundId: BigInt(201), score: 6, hole: { par: 4 } },
-      { roundId: BigInt(201), score: 7, hole: { par: 5 } },
+      { roundId: BigInt(201), score: 9, hole: { par: 5 } },
     ]);
 
     const request = new Request('http://localhost/api/dashboard?statsMode=9');
@@ -679,20 +682,23 @@ describe('/api/dashboard route contract', () => {
       birdie_plus: 2,
       par: 3,
       bogey: 2,
-      double_plus: 2,
+      double: 1,
+      triple_plus: 1,
     });
     expect(body.scoring_profile.normalized_total_holes).toBe(9);
     expect(body.scoring_profile.percentages).toEqual({
       birdie_plus: 22.22,
       par: 33.33,
       bogey: 22.22,
-      double_plus: 22.22,
+      double: 11.11,
+      triple_plus: 11.11,
     });
     expect(body.scoring_profile.averages_per_round).toEqual({
       birdie_plus: 2,
       par: 3,
       bogey: 2,
-      double_plus: 2,
+      double: 1,
+      triple_plus: 1,
     });
     expect(body.scoring_profile.normalization).toBe('nine_hole');
   });
@@ -764,7 +770,7 @@ describe('/api/dashboard route contract', () => {
       { roundId: BigInt(301), score: 4, hole: { par: 3 } },
       { roundId: BigInt(301), score: 5, hole: { par: 4 } },
       { roundId: BigInt(301), score: 6, hole: { par: 4 } },
-      { roundId: BigInt(301), score: 7, hole: { par: 5 } },
+      { roundId: BigInt(301), score: 8, hole: { par: 5 } },
     ]);
 
     const request = new Request('http://localhost/api/dashboard?statsMode=18');
@@ -776,20 +782,23 @@ describe('/api/dashboard route contract', () => {
       birdie_plus: 3,
       par: 9,
       bogey: 4,
-      double_plus: 2,
+      double: 1,
+      triple_plus: 1,
     });
     expect(body.scoring_profile.normalized_total_holes).toBe(18);
     expect(body.scoring_profile.percentages).toEqual({
       birdie_plus: 16.67,
       par: 50,
       bogey: 22.22,
-      double_plus: 11.11,
+      double: 5.56,
+      triple_plus: 5.56,
     });
     expect(body.scoring_profile.averages_per_round).toEqual({
       birdie_plus: 3,
       par: 9,
       bogey: 4,
-      double_plus: 2,
+      double: 1,
+      triple_plus: 1,
     });
     expect(body.scoring_profile.normalization).toBe('eighteen_hole');
   });
@@ -834,23 +843,27 @@ describe('/api/dashboard route contract', () => {
       birdie_plus: 0,
       par: 0,
       bogey: 0,
-      double_plus: 0,
+      double: 0,
+      triple_plus: 0,
     });
     expect(body.scoring_profile.percentages).toEqual({
       birdie_plus: 0,
       par: 0,
       bogey: 0,
-      double_plus: 0,
+      double: 0,
+      triple_plus: 0,
     });
     expect(body.scoring_profile.averages_per_round).toEqual({
       birdie_plus: 0,
       par: 0,
       bogey: 0,
-      double_plus: 0,
+      double: 0,
+      triple_plus: 0,
     });
     expect(Number.isFinite(body.scoring_profile.percentages.birdie_plus)).toBe(true);
     expect(Number.isFinite(body.scoring_profile.percentages.par)).toBe(true);
     expect(Number.isFinite(body.scoring_profile.percentages.bogey)).toBe(true);
-    expect(Number.isFinite(body.scoring_profile.percentages.double_plus)).toBe(true);
+    expect(Number.isFinite(body.scoring_profile.percentages.double)).toBe(true);
+    expect(Number.isFinite(body.scoring_profile.percentages.triple_plus)).toBe(true);
   });
 });

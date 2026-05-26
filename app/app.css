@@ -903,17 +903,19 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
-  padding-top: 80px;
+  padding-top: 0;
   padding-bottom: 80px;
-  justify-content: center;
+  justify-content: flex-start;
   align-content: center;
 }
 
 .login-card {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
-  padding: var(--padding);
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--color-primary-surface);
 }
 
 .login-card .form {
@@ -927,6 +929,27 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .login-card .btn-toggle {
   width: 100%;
   box-sizing: border-box;
+}
+
+.login-context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-title {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(1.5rem, 5.5vw, 2rem);
+  line-height: 1.15;
+}
+
+.login-subcopy {
+  margin: 0;
+  text-align: center;
+  color: var(--color-secondary-text);
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 
 
@@ -2178,14 +2201,14 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 
 @media (max-width: 640px) {
   .scoring-profile-body {
-    grid-template-columns: minmax(124px, 142px) minmax(126px, 150px);
+    grid-template-columns: minmax(136px, 156px) minmax(126px, 150px);
     column-gap: 6px;
     max-width: 360px;
     padding-inline: 8px;
   }
 
   .scoring-profile-donut {
-    width: min(44vw, 147px);
+    width: min(48.5vw, 162px);
   }
 
   .scoring-profile-legend {
@@ -5100,6 +5123,10 @@ input[type='date'].form-input {
   color: var(--color-green);
 }
 
+.stats-par-chart-vs.is-even {
+  color: var(--color-secondary-text);
+}
+
 .stats-par-chart-vs.is-near {
   color: var(--color-blue);
 }
@@ -5813,6 +5840,16 @@ input[type='date'].form-input {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
+}
+
+.landing-hero-secondary-link {
+  margin: 0 0 48px;
+  border: 0;
+  background: none;
+  color: var(--color-secondary-text);
+  font-size: 0.95rem;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .btn-large {

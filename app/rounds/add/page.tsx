@@ -128,6 +128,8 @@ function AddRoundContent() {
     switch (from) {
       case 'dashboard':
         return '/dashboard';
+      case 'onboarding':
+        return '/post-signup';
       case 'rounds':
       default:
         return '/rounds';
@@ -1683,4 +1685,3 @@ export default function AddRoundPage() {
     </Suspense>
   );
 }
-

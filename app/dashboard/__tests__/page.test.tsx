@@ -248,20 +248,23 @@ function makeDashboardPayload(overrides: Partial<any> = {}) {
         birdie_plus: 15,
         par: 57,
         bogey: 48,
-        double_plus: 18,
+        double: 10,
+        triple_plus: 8,
       },
       normalized_total_holes: 138,
       percentages: {
         birdie_plus: 10.87,
         par: 41.3,
         bogey: 34.78,
-        double_plus: 13.04,
+        double: 7.25,
+        triple_plus: 5.8,
       },
       averages_per_round: {
         birdie_plus: 1.88,
         par: 7.13,
         bogey: 6,
-        double_plus: 2.25,
+        double: 1.25,
+        triple_plus: 1,
       },
       source_round_count: 8,
       normalization: 'combined_18_equivalent',
@@ -365,7 +368,8 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('Birdie+')).toBeInTheDocument();
     expect(screen.getByText('Par')).toBeInTheDocument();
     expect(screen.getByText('Bogey')).toBeInTheDocument();
-    expect(screen.getByText('Double+')).toBeInTheDocument();
+    expect(screen.getByText('Double')).toBeInTheDocument();
+    expect(screen.getByText('Triple+')).toBeInTheDocument();
   });
 
   it('renders short-game metric cards in Performance Overview', async () => {
@@ -417,21 +421,22 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('11%')).toBeInTheDocument();
     expect(screen.getByText('41%')).toBeInTheDocument();
     expect(screen.getByText('35%')).toBeInTheDocument();
-    expect(screen.getByText('13%')).toBeInTheDocument();
+    expect(screen.getByText('7%')).toBeInTheDocument();
+    expect(screen.getByText('6%')).toBeInTheDocument();
     expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
 
-    const doublePlusLegend = screen.getByRole('listitem', { name: 'Double+: 13%' });
-    fireEvent.mouseEnter(doublePlusLegend);
-    expect(doublePlusLegend.className).toContain('is-active');
-    expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Double+');
-    expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('13%');
-    expect(screen.getByText('2.3 / round')).toBeInTheDocument();
+    const triplePlusLegend = screen.getByRole('listitem', { name: 'Triple+: 6%' });
+    fireEvent.mouseEnter(triplePlusLegend);
+    expect(triplePlusLegend.className).toContain('is-active');
+    expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Triple+');
+    expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('6%');
+    expect(screen.getByText('1.0 / round')).toBeInTheDocument();
 
     const parLegend = screen.getByRole('listitem', { name: 'Par: 41%' });
     fireEvent.click(parLegend);
     fireEvent.mouseLeave(parLegend);
     expect(parLegend.className).toContain('is-active');
-    expect(doublePlusLegend.className).not.toContain('is-active');
+    expect(triplePlusLegend.className).not.toContain('is-active');
     expect(document.querySelector('.scoring-profile-center-label')?.textContent).toBe('Par');
     expect(document.querySelector('.scoring-profile-center-percent')?.textContent).toBe('41%');
     expect(screen.getByText('7.1 / round')).toBeInTheDocument();
@@ -499,6 +504,64 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('Avg 5.0')).toBeInTheDocument();
     expect(screen.getByText('+5.0')).toBeInTheDocument();
     expect(screen.queryByText(/vs par/i)).not.toBeInTheDocument();
+  });
+
+  it('uses 1-decimal rounded deltas for moderate/severe/even bucket classes', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          hbh_stats: {
+            ...makeDashboardPayload().hbh_stats,
+            par3_avg: 4.46, // +1.46 => +1.5 (severe)
+            par4_avg: 4.04, // +0.04 => E (even)
+            par5_avg: 6.44, // +1.44 => +1.4 (moderate)
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Scoring Summary');
+    expect(screen.getByText('Avg 4.5')).toBeInTheDocument();
+    expect(screen.getByText('Avg 4.0')).toBeInTheDocument();
+    expect(screen.getByText('Avg 6.4')).toBeInTheDocument();
+
+    const severeVs = screen.getByText('+1.5').closest('.stats-par-chart-vs');
+    const evenVs = screen.getByText('E').closest('.stats-par-chart-vs');
+    const moderateVs = screen.getByText('+1.4').closest('.stats-par-chart-vs');
+
+    expect(severeVs).toHaveClass('is-severe');
+    expect(evenVs).toHaveClass('is-even');
+    expect(moderateVs).toHaveClass('is-moderate');
+  });
+
+  it('uses 1-decimal rounded deltas for under and near bucket classes', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          hbh_stats: {
+            ...makeDashboardPayload().hbh_stats,
+            par3_avg: 2.94, // -0.06 => -0.1 (under)
+            par4_avg: 4.14, // +0.14 => +0.1 (near)
+            par5_avg: 5, // E
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Scoring Summary');
+    const underVs = screen.getByText('-0.1').closest('.stats-par-chart-vs');
+    const nearVs = screen.getByText('+0.1').closest('.stats-par-chart-vs');
+
+    expect(underVs).toHaveClass('is-under');
+    expect(nearVs).toHaveClass('is-near');
   });
 
   it.each([
@@ -760,14 +823,16 @@ describe('/dashboard Round Focus card', () => {
               birdie_plus: 0,
               par: 0,
               bogey: 0,
-              double_plus: 0,
+              double: 0,
+              triple_plus: 0,
             },
             normalized_total_holes: 0,
             percentages: {
               birdie_plus: 0,
               par: 0,
               bogey: 0,
-              double_plus: 0,
+              double: 0,
+              triple_plus: 0,
             },
             source_round_count: 0,
             normalization: 'combined_18_equivalent',
@@ -1216,6 +1281,41 @@ describe('/dashboard Round Focus card', () => {
   it('does not re-show zero-round welcome modal after acknowledgment', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     localStorage.setItem('milestone-modal-ack:1:welcome:0', 'true');
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          total_rounds: 0,
+          totalRoundsInDb: 0,
+          all_rounds: [],
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      const hasOpenWelcomeCall = mockUpgradeModal.mock.calls.some(
+        ([props]) => props.title === 'Welcome to GolfIQ' && props.isOpen === true,
+      );
+      expect(hasOpenWelcomeCall).toBe(false);
+    });
+  });
+
+  it('suppresses zero-round welcome modal for onboarding-completed users', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    localStorage.setItem(
+      'golfiq:onboarding:v1',
+      JSON.stringify({
+        version: 1,
+        selectedGoal: 'Break 90',
+        completed: true,
+        completedAt: '2026-05-23T00:00:00.000Z',
+        lastStep: 5,
+        source: 'landing',
+        startedAt: '2026-05-23T00:00:00.000Z',
+      }),
+    );
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },

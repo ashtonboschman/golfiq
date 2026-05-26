@@ -46,8 +46,8 @@ export default function InsightsCTA() {
             ))}
           </div>
 
-          <Link href="/login" className="btn btn-accent btn-large landing-insights-cta">
-            Create Free Account
+          <Link href="/onboarding?source=landing" className="btn btn-accent btn-large landing-insights-cta">
+            Get Started
           </Link>
         </div>
       </div>

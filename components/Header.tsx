@@ -39,7 +39,7 @@ export default function Header() {
 
   // Check if on add/edit round pages
   const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
-  const shouldShowAvatarSlot = !!user;
+  const shouldShowAvatarSlot = !!user && pathname !== '/post-signup';
 
   // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
@@ -110,7 +110,7 @@ export default function Header() {
   };
 
   const showBackButton =
-    (user && pathname !== '/dashboard') ||
+    (user && pathname !== '/dashboard' && pathname !== '/post-signup') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     pathname === '/about' ||
@@ -143,6 +143,8 @@ export default function Header() {
             router.replace(from);
           } else if (from === 'dashboard') {
             router.replace('/dashboard');
+          } else if (from === 'onboarding') {
+            router.replace('/post-signup');
           } else {
             router.replace('/rounds');
           }

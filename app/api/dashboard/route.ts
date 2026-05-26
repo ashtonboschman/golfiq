@@ -62,20 +62,23 @@ export async function GET(request: NextRequest) {
         birdie_plus: 0,
         par: 0,
         bogey: 0,
-        double_plus: 0,
+        double: 0,
+        triple_plus: 0,
       },
       normalized_total_holes: 0,
       percentages: {
         birdie_plus: 0,
         par: 0,
         bogey: 0,
-        double_plus: 0,
+        double: 0,
+        triple_plus: 0,
       },
       averages_per_round: {
         birdie_plus: 0,
         par: 0,
         bogey: 0,
-        double_plus: 0,
+        double: 0,
+        triple_plus: 0,
       },
       source_round_count: 0,
       normalization: scoringProfileNormalization,
@@ -370,7 +373,8 @@ export async function GET(request: NextRequest) {
       birdie_plus: 0,
       par: 0,
       bogey: 0,
-      double_plus: 0,
+      double: 0,
+      triple_plus: 0,
     };
     let normalizedTotalHoles = 0;
     let scoringProfileRoundCount = 0;
@@ -392,7 +396,8 @@ export async function GET(request: NextRequest) {
         birdie_plus: 0,
         par: 0,
         bogey: 0,
-        double_plus: 0,
+        double: 0,
+        triple_plus: 0,
       };
 
       holes.forEach((rh: any) => {
@@ -423,9 +428,12 @@ export async function GET(request: NextRequest) {
         } else if (diff === 1) {
           scoring.bogey += 1;
           roundBucketCounts.bogey += 1;
+        } else if (diff === 2) {
+          scoring.double_plus += 1;
+          roundBucketCounts.double += 1;
         } else {
           scoring.double_plus += 1;
-          roundBucketCounts.double_plus += 1;
+          roundBucketCounts.triple_plus += 1;
         }
       });
 
@@ -435,8 +443,10 @@ export async function GET(request: NextRequest) {
         roundBucketCounts.par * normalizationMultiplier;
       normalizedScoringCounts.bogey +=
         roundBucketCounts.bogey * normalizationMultiplier;
-      normalizedScoringCounts.double_plus +=
-        roundBucketCounts.double_plus * normalizationMultiplier;
+      normalizedScoringCounts.double +=
+        roundBucketCounts.double * normalizationMultiplier;
+      normalizedScoringCounts.triple_plus +=
+        roundBucketCounts.triple_plus * normalizationMultiplier;
       normalizedTotalHoles += holes.length * normalizationMultiplier;
     });
 
@@ -455,13 +465,15 @@ export async function GET(request: NextRequest) {
         birdie_plus: toPercent(normalizedScoringCounts.birdie_plus, normalizedTotalHoles),
         par: toPercent(normalizedScoringCounts.par, normalizedTotalHoles),
         bogey: toPercent(normalizedScoringCounts.bogey, normalizedTotalHoles),
-        double_plus: toPercent(normalizedScoringCounts.double_plus, normalizedTotalHoles),
+        double: toPercent(normalizedScoringCounts.double, normalizedTotalHoles),
+        triple_plus: toPercent(normalizedScoringCounts.triple_plus, normalizedTotalHoles),
       },
       averages_per_round: {
         birdie_plus: toAveragePerRound(normalizedScoringCounts.birdie_plus, scoringProfileRoundCount),
         par: toAveragePerRound(normalizedScoringCounts.par, scoringProfileRoundCount),
         bogey: toAveragePerRound(normalizedScoringCounts.bogey, scoringProfileRoundCount),
-        double_plus: toAveragePerRound(normalizedScoringCounts.double_plus, scoringProfileRoundCount),
+        double: toAveragePerRound(normalizedScoringCounts.double, scoringProfileRoundCount),
+        triple_plus: toAveragePerRound(normalizedScoringCounts.triple_plus, scoringProfileRoundCount),
       },
       source_round_count: scoringProfileRoundCount,
       normalization: scoringProfileNormalization,

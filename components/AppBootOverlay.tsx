@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 
 const PUBLIC_ROUTES = new Set([
   '/',
+  '/onboarding',
+  '/post-signup',
   '/login',
   '/register',
   '/forgot-password',

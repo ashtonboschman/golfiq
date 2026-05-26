@@ -15,7 +15,7 @@ export default function LandingFooter() {
               <Link href="/#features" className="landing-footer-link">
                 Features
               </Link>
-              <Link href="/login" className="landing-footer-link">
+              <Link href="/onboarding?source=landing" className="landing-footer-link">
                 Get Started
               </Link>
             </div>

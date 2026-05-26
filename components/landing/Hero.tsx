@@ -4,13 +4,6 @@ import Link from 'next/link';
 import ScreenshotCarousel from './ScreenshotCarousel';
 
 export default function Hero() {
-  const scrollToFeatures = () => {
-    const element = document.getElementById('features');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   return (
     <section className="landing-hero">
       <div className="landing-hero-content">
@@ -22,12 +15,9 @@ export default function Hero() {
           Track every round, uncover hidden weaknesses, and improve faster with Intelligent Insights built from your real performance data.
         </p>
         <div className="landing-hero-actions">
-          <Link href="/login" className="btn btn-accent btn-large">
-            Create Free Account
+          <Link href="/onboarding?source=landing" className="btn btn-accent btn-large">
+            Get Started
           </Link>
-          <button onClick={scrollToFeatures} className="btn btn-secondary btn-large">
-            See How It Works
-          </button>
         </div>
 
         <div className="landing-hero-image">

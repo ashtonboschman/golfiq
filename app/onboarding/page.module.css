@@ -1,0 +1,302 @@
+.wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  height: calc(100dvh - 90px);
+  max-height: calc(100dvh - 90px);
+  box-sizing: border-box;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.cardShell {
+  width: min(100%, 520px);
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  background: var(--color-primary-surface);
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cardShellConstrained {
+  max-height: calc(100% - 10px);
+  overflow: hidden;
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+}
+
+.dots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(154, 163, 178, 0.42);
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.dotActive {
+  transform: scale(1.25);
+  background: var(--color-accent);
+}
+
+.skipButton {
+  background: none;
+  border: 0;
+  color: var(--color-secondary-text);
+  font-size: 0.88rem;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+}
+
+.screenStep3 {
+  min-height: 0;
+}
+
+.screenStep4 {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.contentZone {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeSlideIn 200ms ease;
+}
+
+.contentZoneStep3 {
+  min-height: 0;
+}
+
+.contentZoneStep4 {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+.actionZone {
+  margin-top: 12px;
+  padding-top: 10px;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(154, 163, 178, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.actionZone :global(.btn) {
+  width: 100%;
+}
+
+.secondaryButton {
+  opacity: 0.78;
+}
+
+.visual {
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  margin-inline: auto;
+}
+
+.visualStep1 {
+  width: 100%;
+}
+
+.visualStep1Constrained {
+  overflow: hidden;
+}
+
+.visualStep3 {
+  width: 100%;
+  min-height: 0;
+}
+
+.visualStep3Constrained {
+  overflow: hidden;
+}
+
+.visualStep4 {
+  width: 100%;
+}
+
+.visualStep4Constrained {
+  overflow: hidden;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  color: var(--color-primary-text);
+  text-align: center;
+}
+
+.titleFinal {
+  margin-top: 0;
+}
+
+.screenFinal {
+  justify-content: flex-start;
+}
+
+.contentZoneFinal {
+  flex: 0 0 auto;
+}
+
+.actionZoneFinal {
+  margin-top: 12px;
+}
+
+.copy {
+  margin: 0;
+  color: var(--color-secondary-text);
+  line-height: 1.45;
+  font-size: 0.99rem;
+  text-align: center;
+}
+
+.copyMuted {
+  margin: 0;
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+  line-height: 1.36;
+}
+
+.secondaryLink {
+  text-align: center;
+  color: var(--color-secondary-text);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.secondaryLink:hover {
+  text-decoration: underline;
+}
+
+.optionGrid {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.optionButton {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-secondary-surface);
+  color: var(--color-primary-text);
+  padding: 13px 12px;
+  font-size: 0.98rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 120ms ease, background-color 120ms ease;
+}
+
+.optionButton:active {
+  transform: scale(0.99);
+}
+
+.optionActive {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px rgba(45, 108, 255, 0.35) inset;
+  background: rgba(45, 108, 255, 0.09);
+}
+
+.progressionLadder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 13px;
+  border: 1px solid var(--color-border);
+  background: rgba(42, 49, 61, 0.4);
+  padding: 10px;
+}
+
+.progressionRow {
+  display: grid;
+  grid-template-columns: 98px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.progressionRow p {
+  margin: 0;
+  color: var(--color-primary-text);
+  font-size: 0.93rem;
+  line-height: 1.35;
+}
+
+.progressionBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(45, 108, 255, 0.45);
+  background: rgba(45, 108, 255, 0.14);
+  color: var(--color-primary-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.progressionConnector {
+  width: 2px;
+  height: 11px;
+  margin-left: 48px;
+  border-radius: 999px;
+  background: rgba(45, 108, 255, 0.34);
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 768px) {
+  .cardShell {
+    padding: 18px;
+  }
+
+  .progressionRow {
+    grid-template-columns: 110px 1fr;
+  }
+
+  .progressionConnector {
+    margin-left: 54px;
+  }
+}

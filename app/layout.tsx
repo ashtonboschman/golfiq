@@ -103,6 +103,8 @@ export default function RootLayout({
         var publicDarkRoutes = {
           '/': true,
           '/login': true,
+          '/onboarding': true,
+          '/post-signup': true,
           '/register': true,
           '/forgot-password': true,
           '/reset-password': true,

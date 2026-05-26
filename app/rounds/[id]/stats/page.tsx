@@ -253,11 +253,17 @@ export default function RoundStatsPage() {
     if (value === 0) return 'E';
     return value > 0 ? `+${value}` : `${value}`;
   };
+  const roundParTypeDelta = (value: number): number => {
+    const rounded = Math.round(value * 10) / 10;
+    return Object.is(rounded, -0) ? 0 : rounded;
+  };
   const getParTypeSeverityClass = (delta: number | null): string => {
     if (delta == null || !Number.isFinite(delta)) return 'is-unavailable';
-    if (delta <= 0) return 'is-under';
-    if (delta <= 0.5) return 'is-near';
-    if (delta <= 1.25) return 'is-moderate';
+    const rounded = roundParTypeDelta(delta);
+    if (rounded <= -0.1) return 'is-under';
+    if (rounded === 0) return 'is-even';
+    if (rounded <= 0.5) return 'is-near';
+    if (rounded <= 1.4) return 'is-moderate';
     return 'is-severe';
   };
 

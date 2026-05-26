@@ -1,0 +1,60 @@
+.previewSurface {
+  padding: 10px;
+}
+
+.insightsPreviewRoot {
+  display: block;
+  min-height: 0;
+}
+
+.insightsScrollViewport {
+  max-height: var(--onboarding-insights-preview-max-height, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 10px;
+  box-sizing: border-box;
+}
+
+.previewNonInteractive {
+  user-select: none;
+}
+
+.previewTrendRoot {
+  display: block;
+  min-height: 0;
+}
+
+.trendScrollViewport {
+  max-height: var(--onboarding-trend-preview-max-height, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+.liveRoundPreviewRoot {
+  display: block;
+  min-height: 0;
+}
+
+.liveRoundScrollViewport {
+  max-height: var(--onboarding-live-preview-max-height, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+.liveRoundScrollViewport :global(button),
+.liveRoundScrollViewport :global(input),
+.liveRoundScrollViewport :global(select),
+.liveRoundScrollViewport :global(textarea),
+.liveRoundScrollViewport :global(a) {
+  pointer-events: none;
+}
+
+.previewTrendWrap :global(.trend-card) {
+  max-width: none;
+  width: 100%;
+}

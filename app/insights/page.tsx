@@ -4,11 +4,12 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import Select from 'react-select';
-import { Sparkles, Lock, BarChart3, CircleCheck, CircleAlert, Info } from 'lucide-react';
+import { Sparkles, Lock } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 import { useSubscription } from '@/hooks/useSubscription';
 import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
+import OverallInsightMessage from '@/components/insights/OverallInsightMessage';
 import { formatHandicap, formatNumber } from '@/lib/formatters';
 import { SkeletonText } from '@/components/skeleton/Skeleton';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
@@ -438,53 +439,6 @@ type LockedSectionProps = {
   onCtaClick?: () => void;
   className?: string;
 };
-
-function stripOverallCardPrefix(message: string): string {
-  return String(message ?? '')
-    .replace(/^(?:\u2705|\u26A0\uFE0F|\u2139\uFE0F|\u{1F525})\s*/u, '')
-    .trim();
-}
-
-function getOverallCardMeta(index: number, card: string): { icon: ReactNode } {
-  const text = card.toLowerCase();
-  if (index === 0) {
-    if (text.includes('outperforming your usual level') || text.includes('better than your usual level')) {
-      return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-great" /> };
-    }
-    if (text.includes('above your usual level')) {
-      return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-warning" /> };
-    }
-    return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-info" /> };
-  }
-  if (index === 1) {
-    if (text.includes('costing you strokes')) {
-      return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
-    }
-    if (text.includes('helping your score')) {
-      return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
-    }
-    return { icon: <Info size={18} className="insight-message-icon insight-level-info" /> };
-  }
-  if (text.includes('inconsistent')) {
-    return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
-  }
-  if (text.includes('consistent')) {
-    return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
-  }
-  return { icon: <Info size={18} className="insight-message-icon insight-level-info" /> };
-}
-
-function OverallInsightMessage({ card, index }: { card: string; index: number }) {
-  const meta = getOverallCardMeta(index, card);
-  return (
-    <div className="insight-message">
-      <div className="insight-message-content">
-        {meta.icon}
-        <span className="insight-message-text">{stripOverallCardPrefix(card)}</span>
-      </div>
-    </div>
-  );
-}
 
 function ComparisonBarCard({
   title,

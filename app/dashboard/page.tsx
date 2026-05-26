@@ -38,6 +38,7 @@ import {
   focusComponentLabel,
   type DashboardOverallInsightsSummary,
 } from '@/lib/insights/dashboardFocus';
+import { readOnboardingState } from '@/lib/onboarding/state';
 
 type StatsMode = 'combined' | '9' | '18';
 const dashboardFocusViewedKeys = new Set<string>();
@@ -84,20 +85,23 @@ interface DashboardStats {
       birdie_plus: number;
       par: number;
       bogey: number;
-      double_plus: number;
+      double: number;
+      triple_plus: number;
     };
     normalized_total_holes: number;
     percentages: {
       birdie_plus: number;
       par: number;
       bogey: number;
-      double_plus: number;
+      double: number;
+      triple_plus: number;
     };
     averages_per_round?: {
       birdie_plus: number;
       par: number;
       bogey: number;
-      double_plus: number;
+      double: number;
+      triple_plus: number;
     };
     source_round_count: number;
     normalization: 'combined_18_equivalent' | 'nine_hole' | 'eighteen_hole';
@@ -245,6 +249,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [accentHighlight, setAccentHighlight] = useState('#36ad64');
   const [warningColor, setWarningColor] = useState('#f59e0b');
   const [dangerColor, setDangerColor] = useState('#e74c3c');
+  const [dangerMutedColor, setDangerMutedColor] = useState('#8B1E14');
+  const [greenScaleColor, setGreenScaleColor] = useState('#28a065');
+  const [blueScaleColor, setBlueScaleColor] = useState('#3498db');
   const [textColor, setTextColor] = useState('#EDEFF2');
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
@@ -286,6 +293,23 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     const sessionUserId = session?.user?.id ? String(session.user.id) : null;
     if (!sessionUserId) return;
 
+    captureClientEvent(
+      ANALYTICS_EVENTS.addRoundCtaClicked,
+      {
+        source: 'dashboard',
+        location: 'dashboard_add_round',
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+
     const startNewTarget = '/rounds/add?from=dashboard';
     const decision = decideAddRoundEntry({
       userId: sessionUserId,
@@ -315,7 +339,15 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     }
 
     router.push(decision.startNewTarget);
-  }, [router, session?.user?.id, showConfirm]);
+  }, [
+    pathname,
+    router,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    showConfirm,
+    status,
+  ]);
 
   const trackUpgradeClick = useCallback((ctaLocation: string) => {
     captureClientEvent(
@@ -368,6 +400,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       const highlight = rootStyles.getPropertyValue('--color-accent-highlight').trim() || '#36ad64';
       const warning = rootStyles.getPropertyValue('--color-warning').trim() || '#f59e0b';
       const danger = rootStyles.getPropertyValue('--color-red').trim() || '#e74c3c';
+      const dangerMuted =
+        rootStyles.getPropertyValue('--color-scoring-triple-plus').trim() || '#8B1E14';
+      const greenScale = rootStyles.getPropertyValue('--color-green').trim() || '#28a065';
+      const blueScale = rootStyles.getPropertyValue('--color-blue').trim() || '#3498db';
       const text = rootStyles.getPropertyValue('--color-primary-text').trim() || '#EDEFF2';
       const grid = rootStyles.getPropertyValue('--color-border').trim() || '#2A313D';
       const surface = rootStyles.getPropertyValue('--color-primary-surface').trim() || '#171C26';
@@ -376,6 +412,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       setAccentHighlight(highlight);
       setWarningColor(warning);
       setDangerColor(danger);
+      setDangerMutedColor(dangerMuted);
+      setGreenScaleColor(greenScale);
+      setBlueScaleColor(blueScale);
       setTextColor(text);
       setGridColor(grid);
       setSurfaceColor(surface);
@@ -641,6 +680,11 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
 
     // Round 0 is a beta welcome message for new users.
     if (totalRoundsForModal === 0) {
+      const onboardingCompleted = readOnboardingState().completed;
+      if (onboardingCompleted) {
+        setActiveMilestoneModal(null);
+        return;
+      }
       const welcomeAcknowledged = localStorage.getItem(getMilestoneAckKey('welcome', totalRoundsForModal)) === 'true';
       setActiveMilestoneModal(welcomeAcknowledged ? null : 'welcome');
       return;
@@ -705,18 +749,24 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const par5_avg = stats.hbh_stats?.par5_avg ?? null;
   const formatOneDecimal = (value: number | null): string =>
     value == null || !Number.isFinite(value) ? '-' : value.toFixed(1);
+  const roundHoleTypeDelta = (value: number): number => {
+    const rounded = Math.round(value * 10) / 10;
+    return Object.is(rounded, -0) ? 0 : rounded;
+  };
   const formatHoleTypeDelta = (value: number | null): string => {
     if (value == null || !Number.isFinite(value)) return '-';
-    if (Math.abs(value) < 0.0001) return 'E';
-    const rounded = Math.round(value * 10) / 10;
+    const rounded = roundHoleTypeDelta(value);
+    if (rounded === 0) return 'E';
     const magnitude = Math.abs(rounded).toFixed(1);
     return rounded > 0 ? `+${magnitude}` : `-${magnitude}`;
   };
   const getHoleTypeSeverityClass = (delta: number | null): string => {
     if (delta == null || !Number.isFinite(delta)) return 'is-unavailable';
-    if (delta <= 0) return 'is-under';
-    if (delta <= 0.5) return 'is-near';
-    if (delta <= 1.25) return 'is-moderate';
+    const rounded = roundHoleTypeDelta(delta);
+    if (rounded <= -0.1) return 'is-under';
+    if (rounded === 0) return 'is-even';
+    if (rounded <= 0.5) return 'is-near';
+    if (rounded <= 1.4) return 'is-moderate';
     return 'is-severe';
   };
   const holeTypeRows: ParBreakdownChartRow[] = [
@@ -749,7 +799,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       averagePerRound:
         scoringProfile?.averages_per_round?.birdie_plus ??
         fallbackAveragePerRound(scoringProfile?.normalized_counts.birdie_plus ?? 0),
-      color: accentHighlight,
+      color: greenScaleColor,
     },
     {
       key: 'par',
@@ -759,7 +809,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       averagePerRound:
         scoringProfile?.averages_per_round?.par ??
         fallbackAveragePerRound(scoringProfile?.normalized_counts.par ?? 0),
-      color: accentColor,
+      color: blueScaleColor,
     },
     {
       key: 'bogey',
@@ -772,14 +822,24 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       color: warningColor,
     },
     {
-      key: 'double_plus',
-      label: 'Double+',
-      count: scoringProfile?.normalized_counts.double_plus ?? 0,
-      percentage: scoringProfile?.percentages.double_plus ?? 0,
+      key: 'double',
+      label: 'Double',
+      count: scoringProfile?.normalized_counts.double ?? 0,
+      percentage: scoringProfile?.percentages.double ?? 0,
       averagePerRound:
-        scoringProfile?.averages_per_round?.double_plus ??
-        fallbackAveragePerRound(scoringProfile?.normalized_counts.double_plus ?? 0),
+        scoringProfile?.averages_per_round?.double ??
+        fallbackAveragePerRound(scoringProfile?.normalized_counts.double ?? 0),
       color: dangerColor,
+    },
+    {
+      key: 'triple_plus',
+      label: 'Triple+',
+      count: scoringProfile?.normalized_counts.triple_plus ?? 0,
+      percentage: scoringProfile?.percentages.triple_plus ?? 0,
+      averagePerRound:
+        scoringProfile?.averages_per_round?.triple_plus ??
+        fallbackAveragePerRound(scoringProfile?.normalized_counts.triple_plus ?? 0),
+      color: dangerMutedColor,
     },
   ] as const;
   const withAlpha = (color: string, alpha: number): string => {

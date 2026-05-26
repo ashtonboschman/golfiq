@@ -11,6 +11,8 @@ const PUBLIC_NAV_ROUTES = new Set([
   '/privacy',
   '/terms',
   '/pricing',
+  '/onboarding',
+  '/post-signup',
   '/login',
   '/forgot-password',
   '/reset-password',

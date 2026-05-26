@@ -216,6 +216,74 @@ describe('/rounds/[id]/stats page', () => {
     expect(screen.getByText('Avg 3.5')).toBeInTheDocument();
     expect(screen.getByText('total +2')).toBeInTheDocument();
   });
+
+  it('uses rounded 1-decimal deltas for post-round Par Breakdown bucket classes', async () => {
+    mockedUseSubscription.mockReturnValue({
+      isPremium: true,
+      loading: false,
+    });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stats: {
+          ...statsPayload,
+          scoring_by_par: [
+            {
+              par: 3,
+              holes: 4,
+              total_score: 12,
+              total_par: 12,
+              average_score: '2.94', // -0.06 => -0.1 => under
+              score_to_par: 0,
+            },
+            {
+              par: 4,
+              holes: 8,
+              total_score: 32,
+              total_par: 32,
+              average_score: '4.04', // +0.04 => 0.0 => even
+              score_to_par: 0,
+            },
+            {
+              par: 5,
+              holes: 6,
+              total_score: 38,
+              total_par: 30,
+              average_score: '6.44', // +1.44 => +1.4 => moderate
+              score_to_par: 8,
+            },
+            {
+              par: 6,
+              holes: 1,
+              total_score: 8,
+              total_par: 6,
+              average_score: '7.46', // +1.46 => +1.5 => severe
+              score_to_par: 2,
+            },
+          ],
+        },
+      }),
+    });
+
+    const { container } = render(<RoundStatsPage />);
+
+    await screen.findByText('Par Breakdown');
+    const underVs = screen.getAllByText('total E')[0].closest('.stats-par-chart-vs');
+    const evenVs = screen.getAllByText('total E')[1].closest('.stats-par-chart-vs');
+    const moderateVs = screen.getByText('total +8').closest('.stats-par-chart-vs');
+    const severeVs = screen.getByText('total +2').closest('.stats-par-chart-vs');
+
+    expect(underVs).toHaveClass('is-under');
+    expect(evenVs).toHaveClass('is-even');
+    expect(moderateVs).toHaveClass('is-moderate');
+    expect(severeVs).toHaveClass('is-severe');
+
+    expect(container.querySelectorAll('.stats-par-chart-vs.is-under').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('.stats-par-chart-vs.is-even').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('.stats-par-chart-vs.is-moderate').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('.stats-par-chart-vs.is-severe').length).toBeGreaterThanOrEqual(1);
+  });
+
   it('renders directional indicators and golf-native score shapes in scorecard', async () => {
     mockedUseSubscription.mockReturnValue({
       isPremium: false,

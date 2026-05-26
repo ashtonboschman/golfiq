@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
 import { Eye, EyeOff } from 'lucide-react';
+import { resolveSafeNextPath } from '@/lib/auth/redirect';
 
 import Link from 'next/link';
 
@@ -34,12 +35,17 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const { showMessage, clearMessage } = useMessage();
+  const modeParam = searchParams.get('mode');
+  const nextParam = searchParams.get('next');
+  const safeNextPath = resolveSafeNextPath(nextParam, '/dashboard');
+  const isOnboardingIntent = safeNextPath === '/post-signup';
 
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(() => modeParam === 'register');
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [oauthLoadingProvider, setOauthLoadingProvider] = useState<'google' | 'apple' | null>(null);
@@ -49,6 +55,22 @@ export default function LoginPage() {
   const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === '1';
   const isAppleEnabled = process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED === '1';
   const hasOauthEnabled = isGoogleEnabled || isAppleEnabled;
+
+  const authTitle = isRegister
+    ? isOnboardingIntent
+      ? 'Create Your Account'
+      : 'Create Account'
+    : isOnboardingIntent
+      ? 'Welcome Back'
+      : 'Welcome Back';
+
+  const authSubcopy = isRegister
+    ? isOnboardingIntent
+      ? 'Track your rounds and uncover what’s shaping your scores.'
+      : 'Create your account to start tracking rounds and insights.'
+    : isOnboardingIntent
+      ? 'Pick up where you left off.'
+      : 'Sign in to continue.';
 
   // Lock scroll while on login page
   useEffect(() => {
@@ -62,14 +84,12 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (status === 'authenticated') {
-      router.replace('/dashboard');
+      router.replace(safeNextPath);
     }
-  }, [status, router]);
+  }, [router, safeNextPath, status]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const error = params.get('error');
+    const error = searchParams.get('error');
     if (!error) {
       if (handledOAuthError) setHandledOAuthError(null);
       return;
@@ -80,10 +100,21 @@ export default function LoginPage() {
       showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
     }
     setHandledOAuthError(error);
-  }, [handledOAuthError, showMessage]);
+  }, [handledOAuthError, searchParams, showMessage]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+  const moveCaretToEndIfSupported = (input: HTMLInputElement) => {
+    try {
+      if (typeof input.setSelectionRange !== 'function') return;
+      const supportedTypes = new Set(['text', 'search', 'tel', 'url', 'password']);
+      if (!supportedTypes.has(input.type)) return;
+      const len = input.value.length;
+      input.setSelectionRange(len, len);
+    } catch {
+      // Some input modes/types do not support text selection APIs.
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,7 +165,7 @@ export default function LoginPage() {
           } catch {
             // noop
           }
-          router.push('/dashboard');
+          router.push(safeNextPath);
         }
       } else {
         // Registration - Frontend validation
@@ -196,11 +227,17 @@ export default function LoginPage() {
           throw new HandledAuthError(data.message || 'Failed to create account. Please try again.');
         }
 
-        showMessage('Account created successfully! Please check your email to verify your account. You can still login and use the app while unverified.', 'success');
+        showMessage(
+          safeNextPath === '/dashboard'
+            ? 'Account created successfully! Please check your email to verify your account. You can still login and use the app while unverified.'
+            : 'Account created successfully! Check your email to verify your account, then log in to continue.',
+          'success',
+        );
         setIsRegister(false);
         setForm({ first_name: '', last_name: '', email: '', password: '', confirmPassword: '' });
         setShowPassword(false);
         setShowConfirmPassword(false);
+        router.replace(`/login?mode=login&next=${encodeURIComponent(safeNextPath)}`);
       }
     } catch (err: any) {
       if (!(err instanceof HandledAuthError)) {
@@ -216,7 +253,7 @@ export default function LoginPage() {
     clearMessage();
     setOauthLoadingProvider(provider);
     try {
-      const result = await signIn(provider, { callbackUrl: '/dashboard', redirect: true });
+      const result = await signIn(provider, { callbackUrl: safeNextPath, redirect: true });
       if (result?.error) {
         showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
         setOauthLoadingProvider(null);
@@ -231,6 +268,11 @@ export default function LoginPage() {
   return (
     <div className="login-stack">
       <div className="card login-card">
+        <div className="login-context">
+          <h1 className="login-title">{authTitle}</h1>
+          <p className="login-subcopy">{authSubcopy}</p>
+        </div>
+
         <form onSubmit={handleSubmit} className="form">
           {isRegister && (
             <>
@@ -243,8 +285,7 @@ export default function LoginPage() {
                 className="form-input"
                 max={100}
                 onFocus={(e) => {
-                  const len = e.target.value.length;
-                  e.target.setSelectionRange(len, len);
+                  moveCaretToEndIfSupported(e.target);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -262,8 +303,7 @@ export default function LoginPage() {
                 className="form-input"
                 max={100}
                 onFocus={(e) => {
-                  const len = e.target.value.length;
-                  e.target.setSelectionRange(len, len);
+                  moveCaretToEndIfSupported(e.target);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -284,7 +324,7 @@ export default function LoginPage() {
             className="form-input"
             max={250}
             onFocus={(e) => {
-              const input = e.target as HTMLInputElement;
+              moveCaretToEndIfSupported(e.target);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -305,8 +345,7 @@ export default function LoginPage() {
               style={{ paddingRight: '45px' }}
               max={100}
               onFocus={(e) => {
-                const len = e.target.value.length;
-                e.target.setSelectionRange(len, len);
+                moveCaretToEndIfSupported(e.target);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -380,7 +419,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {!isRegister && hasOauthEnabled && (
+        {hasOauthEnabled && (
           <div
             style={{
               display: 'flex',
@@ -413,7 +452,13 @@ export default function LoginPage() {
               >
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                   <GoogleIcon />
-                  <span>{oauthLoadingProvider === 'google' ? 'Redirecting to Google...' : 'Continue with Google'}</span>
+                  <span>
+                    {oauthLoadingProvider === 'google'
+                      ? 'Redirecting to Google...'
+                      : isRegister
+                      ? 'Sign up with Google'
+                      : 'Continue with Google'}
+                  </span>
                 </span>
               </button>
             )}
@@ -425,7 +470,11 @@ export default function LoginPage() {
                 onClick={() => handleOauthSignIn('apple')}
                 style={{ width: '100%' }}
               >
-                {oauthLoadingProvider === 'apple' ? 'Redirecting to Apple...' : 'Continue with Apple'}
+                {oauthLoadingProvider === 'apple'
+                  ? 'Redirecting to Apple...'
+                  : isRegister
+                  ? 'Sign up with Apple'
+                  : 'Continue with Apple'}
               </button>
             )}
           </div>
@@ -450,5 +499,13 @@ export default function LoginPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }

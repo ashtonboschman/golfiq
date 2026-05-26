@@ -36,6 +36,8 @@ export default function Footer() {
   const publicRoutes = new Set([
     '/',
     '/login',
+    '/onboarding',
+    '/post-signup',
     '/register',
     '/forgot-password',
     '/reset-password',
@@ -101,6 +103,7 @@ export default function Footer() {
     }
   }, [pathname]);
 
+  if (pathname === '/post-signup') return null;
   if (!isInteractive && !showPersistentShell) return null;
 
   return (
