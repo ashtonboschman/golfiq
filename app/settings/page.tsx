@@ -71,7 +71,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleExportData = async (format: 'csv' | 'json') => {
+  const handleExportData = async (format: 'csv' | 'excel' | 'json') => {
     setExporting(true);
 
     try {
@@ -79,9 +79,7 @@ export default function SettingsPage() {
 
       if (res.status === 403) {
         const data = await res.json();
-        // Show upgrade message when limit reached
-        const limitMessage = data.message || 'Free users are limited to 1 export per month. Upgrade to Premium for unlimited exports.';
-        showMessage(limitMessage, 'error');
+        showMessage(data.message || 'Export is not available right now.', 'error');
         setExporting(false);
         return;
       }
@@ -96,7 +94,12 @@ export default function SettingsPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `golfiq_rounds_${new Date().toISOString().split('T')[0]}.${format}`;
+      const extensionByFormat: Record<'csv' | 'excel' | 'json', string> = {
+        csv: 'csv',
+        excel: 'xlsx',
+        json: 'json',
+      };
+      a.download = `golfiq_rounds_${new Date().toISOString().split('T')[0]}.${extensionByFormat[format]}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -347,11 +350,6 @@ export default function SettingsPage() {
             <div className="settings-card">
               <div className="settings-export-container">
                 <label className="form-label">Export</label>
-                {!showSubscriptionSkeleton && !isPremium && (
-                  <span className="settings-export-upgrade">
-                    Upgrade to Premium for unlimited exports plus Json!
-                  </span>
-                )}
                 <button
                   className="btn btn-secondary"
                   onClick={() => handleExportData('csv')}
@@ -359,15 +357,20 @@ export default function SettingsPage() {
                 >
                   <Download/>{exporting ? ' Exporting...' : ' Export CSV'}
                 </button>
-                {!showSubscriptionSkeleton && isPremium && (
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => handleExportData('json')}
-                    disabled={exporting || showSessionSkeleton}
-                  >
-                    <Download/>{exporting ? ' Exporting...' : ' Export JSON'}
-                  </button>
-                )}
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleExportData('json')}
+                  disabled={exporting || showSessionSkeleton}
+                >
+                  <Download/>{exporting ? ' Exporting...' : ' Export JSON'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleExportData('excel')}
+                  disabled={exporting || showSessionSkeleton}
+                >
+                  <Download/>{exporting ? ' Exporting...' : ' Export Excel'}
+                </button>
               </div>
             </div>
           </section>

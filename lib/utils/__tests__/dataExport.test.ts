@@ -5,7 +5,6 @@ import {
   getMonthlyExportStats,
 } from "../dataExport";
 import { prisma } from "@/lib/db";
-import { isPremiumUser } from "@/lib/subscription";
 
 jest.mock("@/lib/db", () => ({
   prisma: {
@@ -18,10 +17,6 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
-jest.mock("@/lib/subscription", () => ({
-  isPremiumUser: jest.fn(),
-}));
-
 const mockedPrisma = prisma as unknown as {
   user: { findUnique: jest.Mock };
   dataExport: {
@@ -31,8 +26,6 @@ const mockedPrisma = prisma as unknown as {
   };
 };
 
-const mockedIsPremium = isPremiumUser as unknown as jest.Mock;
-
 describe("dataExport utils", () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -41,7 +34,6 @@ describe("dataExport utils", () => {
     mockedPrisma.dataExport.count.mockReset();
     mockedPrisma.dataExport.create.mockReset();
     mockedPrisma.dataExport.findMany.mockReset();
-    mockedIsPremium.mockReset();
   });
 
   afterEach(() => {
@@ -56,37 +48,13 @@ describe("dataExport utils", () => {
     expect(result).toEqual({ canExport: false, reason: "User not found" });
   });
 
-  it("allows premium users without limits", async () => {
+  it("allows users to export when account exists", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue({ subscriptionTier: "premium" });
-    mockedIsPremium.mockReturnValue(true);
 
     const result = await canUserExport(BigInt(1));
 
     expect(result).toEqual({ canExport: true });
     expect(mockedPrisma.dataExport.count).not.toHaveBeenCalled();
-  });
-
-  it("allows free users under the monthly limit", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue({ subscriptionTier: "free" });
-    mockedIsPremium.mockReturnValue(false);
-    mockedPrisma.dataExport.count.mockResolvedValue(0);
-
-    const result = await canUserExport(BigInt(1));
-
-    expect(result.canExport).toBe(true);
-    expect(result.exportsThisMonth).toBe(0);
-    expect(result.limit).toBe(1);
-  });
-
-  it("blocks free users when monthly limit reached", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue({ subscriptionTier: "free" });
-    mockedIsPremium.mockReturnValue(false);
-    mockedPrisma.dataExport.count.mockResolvedValue(1);
-
-    const result = await canUserExport(BigInt(1));
-
-    expect(result.canExport).toBe(false);
-    expect(result.reason).toMatch(/Free users are limited to 1 export per month/);
   });
 
   it("records data exports", async () => {

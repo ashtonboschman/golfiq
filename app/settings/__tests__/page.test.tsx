@@ -111,6 +111,8 @@ describe('/settings page', () => {
     expect(screen.getByTestId('theme-select')).toBeInTheDocument();
     expect(screen.getByText('Export')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export excel/i })).toBeInTheDocument();
     expect(screen.getByLabelText('Feedback')).toBeInTheDocument();
     expect(screen.getByLabelText('Feedback message')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /submit feedback/i })).toBeInTheDocument();
@@ -216,6 +218,8 @@ describe('/settings page', () => {
     render(<SettingsPage />);
 
     expect(screen.getByText(/deeper analytics history/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export excel/i })).toBeInTheDocument();
     expect(screen.queryByText(/unlimited analytics history/i)).not.toBeInTheDocument();
   });
 });

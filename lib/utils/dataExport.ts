@@ -1,10 +1,8 @@
 import { prisma } from '@/lib/db';
-import { isPremiumUser } from '@/lib/subscription';
 
 /**
- * Check if user can export data based on their subscription tier
- * Free users: 1 export per month (CSV only)
- * Premium users: Unlimited exports (CSV, Excel, JSON)
+ * Check if user can export data.
+ * Exports are available to all users.
  */
 export async function canUserExport(userId: bigint): Promise<{
   canExport: boolean;
@@ -22,35 +20,7 @@ export async function canUserExport(userId: bigint): Promise<{
     return { canExport: false, reason: 'User not found' };
   }
 
-  const isPremium = isPremiumUser(user);
-
-  // Premium users have unlimited exports
-  if (isPremium) {
-    return { canExport: true };
-  }
-
-  // Free users: check monthly limit
-  const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const exportsThisMonth = await prisma.dataExport.count({
-    where: {
-      userId,
-      createdAt: {
-        gte: firstDayOfMonth,
-      },
-    },
-  });
-
-  const limit = 1;
-  const canExport = exportsThisMonth < limit;
-
-  return {
-    canExport,
-    reason: canExport ? undefined : `Free users are limited to ${limit} export per month. Upgrade to Premium for unlimited exports.`,
-    exportsThisMonth,
-    limit,
-  };
+  return { canExport: true };
 }
 
 /**
