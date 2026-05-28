@@ -70,7 +70,7 @@ function toExcelColumnName(index: number): string {
 }
 
 function buildXlsxWorkbook(rows: Array<Record<string, unknown>>, headers: readonly string[]): Uint8Array {
-  const allRows: unknown[][] = [headers, ...rows.map((row) => headers.map((h) => row[h]))];
+  const allRows: Array<readonly unknown[]> = [headers, ...rows.map((row) => headers.map((h) => row[h]))];
 
   const sheetRows = allRows.map((row, rIdx) => {
     const rowNumber = rIdx + 1;
@@ -297,7 +297,8 @@ export async function GET(request: NextRequest) {
 
     if (format === 'excel') {
       const workbook = buildXlsxWorkbook(exportData, headers);
-      return new Response(workbook, {
+      const workbookBytes = Uint8Array.from(workbook);
+      return new Response(workbookBytes, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="golfiq_rounds_${new Date().toISOString().split('T')[0]}.xlsx"`,
