@@ -19,6 +19,17 @@ import {
   type InsightLevel,
   type PerformanceBand,
 } from '@/lib/insights/postRound/policy';
+import {
+  buildRoundIdentityInputHash,
+  resolveRoundIdentity,
+} from '@/lib/insights/roundIdentity/resolve';
+import { resolveRoundEntryMode } from '@/lib/insights/roundIdentity/evidence';
+import { hasCompleteHoleScores } from '@/lib/insights/roundIdentity/features';
+import {
+  ROUND_IDENTITY_V1_VERSION,
+  type RoundIdentityHoleInput,
+  type RoundIdentityResolverInput,
+} from '@/lib/insights/roundIdentity/types';
 
 const MAX_INSIGHTS = 3;
 type PostRoundConfidence = 'LOW' | 'MED' | 'HIGH';
@@ -335,6 +346,24 @@ function buildViewerMessageLevels(
   });
 }
 
+function buildViewerRoundIdentity(
+  insights: any,
+  entitlements: ViewerEntitlements,
+): any | null {
+  const identity = insights?.raw_payload?.round_identity_v1;
+  if (!identity || typeof identity !== 'object') return null;
+  if (entitlements.isPremium) return identity;
+
+  const shapedBy = Array.isArray(identity.shapedBy) ? identity.shapedBy.slice(0, 3) : [];
+  const modifiers = Array.isArray(identity.modifiers) ? identity.modifiers.slice(0, 2) : [];
+
+  return {
+    ...identity,
+    shapedBy,
+    modifiers,
+  };
+}
+
 function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements): any {
   const effectiveEntitlements: ViewerEntitlements = entitlements ?? { isPremium: false, showStrokesGained: true };
   const rawMessages: string[] = Array.isArray(insights?.messages) ? insights.messages : [];
@@ -347,6 +376,7 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
 
   const viewerMessages = buildViewerMessages(insights, normalizedMessages, effectiveEntitlements);
   const viewerLevels = buildViewerMessageLevels(insights, viewerMessages);
+  const viewerRoundIdentity = buildViewerRoundIdentity(insights, effectiveEntitlements);
 
   const {
     raw_payload,
@@ -369,6 +399,11 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
     messages: viewerMessages,
     message_levels: viewerLevels.slice(0, viewerMessages.length),
     visible_count: visibleCount,
+    round_identity_v1: viewerRoundIdentity,
+    round_number:
+      insights?.raw_payload?.onboarding?.round_number != null
+        ? Number(insights.raw_payload.onboarding.round_number)
+        : null,
   };
 }
 
@@ -419,7 +454,7 @@ function computePerformanceBand(totalSG: number | null, holesPlayed: number): Pe
 type RoundOrderingEntry = {
   id: bigint;
   score: number;
-  createdAt: Date;
+  date: Date;
 };
 
 function resolveHistoryRoundContext(raw: unknown): RoundContextKey {
@@ -444,17 +479,60 @@ function resolveRoundOrdinalContext(roundId: bigint, rounds: RoundOrderingEntry[
   };
 }
 
-async function getRoundsInLoggedOrder(
-  userId: bigint,
-  roundContext: RoundContextKey,
-): Promise<RoundOrderingEntry[]> {
+function resolveRoundPlayedDateTime(round: { date?: Date | string | null }): Date {
+  const rawDate = round?.date;
+  const playedAt = rawDate instanceof Date ? rawDate : rawDate != null ? new Date(rawDate) : null;
+  if (!playedAt || Number.isNaN(playedAt.getTime())) {
+    throw new Error('Round missing valid played date-time');
+  }
+  return playedAt;
+}
+
+async function getRoundsInHistoricalPlayOrder(input: {
+  userId: bigint;
+  roundContext: RoundContextKey;
+  targetRoundId: bigint;
+  targetRoundDate: Date;
+}): Promise<RoundOrderingEntry[]> {
   const rounds = await prisma.round.findMany({
-    where: { userId, roundContext },
-    select: { id: true, score: true, createdAt: true },
-    // Onboarding should follow logging sequence, not play-date sequence.
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    where: {
+      userId: input.userId,
+      roundContext: input.roundContext,
+      OR: [
+        { date: { lt: input.targetRoundDate } },
+        { id: input.targetRoundId },
+      ],
+    },
+    select: { id: true, score: true, date: true },
+    orderBy: [{ date: 'asc' }, { id: 'asc' }],
   });
   return rounds as RoundOrderingEntry[];
+}
+
+async function getLastHistoricalRounds(input: {
+  userId: bigint;
+  roundContext: RoundContextKey;
+  targetRoundId: bigint;
+  targetRoundDate: Date;
+  take: number;
+}) {
+  return prisma.round.findMany({
+    where: {
+      userId: input.userId,
+      roundContext: input.roundContext,
+      id: { not: input.targetRoundId },
+      date: { lt: input.targetRoundDate },
+    },
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    take: input.take,
+    include: {
+      tee: {
+        include: {
+          holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } },
+        },
+      },
+    },
+  });
 }
 
 function isOnboardingInsight(insights: any): boolean {
@@ -472,6 +550,216 @@ async function shouldRegenerateForOnboardingMismatch(
 
   // Onboarding has been retired. Regenerate any legacy onboarding payload.
   return true;
+}
+
+function mapRoundIdentityHoles(input: {
+  entryMode: ReturnType<typeof resolveRoundEntryMode>;
+  holesPlayed: number;
+  roundHoles: any[];
+}): { roundHoles: RoundIdentityHoleInput[]; hasTrustedHoleByHole: boolean } {
+  if (input.entryMode !== 'live_round') {
+    return { roundHoles: [], hasTrustedHoleByHole: false };
+  }
+
+  const mapped: RoundIdentityHoleInput[] = Array.isArray(input.roundHoles)
+    ? input.roundHoles.map((hole: any) => ({
+        holeNumber: hole?.hole?.holeNumber != null ? Number(hole.hole.holeNumber) : null,
+        par: hole?.hole?.par != null ? Number(hole.hole.par) : null,
+        score: hole?.score != null ? Number(hole.score) : null,
+        pass: hole?.pass != null ? Number(hole.pass) : null,
+        firHit: hole?.firHit != null ? Number(hole.firHit) : null,
+        girHit: hole?.girHit != null ? Number(hole.girHit) : null,
+        putts: hole?.putts != null ? Number(hole.putts) : null,
+        penalties: hole?.penalties != null ? Number(hole.penalties) : null,
+        chips: hole?.chips != null ? Number(hole.chips) : null,
+        greensideBunkerShots:
+          hole?.greensideBunkerShots != null ? Number(hole.greensideBunkerShots) : null,
+        firDirection: hole?.firDirection ?? null,
+        girDirection: hole?.girDirection ?? null,
+      }))
+    : [];
+
+  const hasTrustedHoleByHole = hasCompleteHoleScores({
+    holesPlayed: input.holesPlayed,
+    roundHoles: mapped,
+  });
+
+  return {
+    roundHoles: hasTrustedHoleByHole ? mapped : [],
+    hasTrustedHoleByHole,
+  };
+}
+
+function buildRoundIdentityResolverInput(input: {
+  roundId: bigint;
+  round: any;
+  sgComponents: any | null;
+  holesPlayed: number;
+  parTotal: number;
+  toPar: number;
+  roundNumber: number;
+  avgScore: number | null;
+}): RoundIdentityResolverInput {
+  const entryMode = resolveRoundEntryMode(input.round?.holeByHole);
+  const mappedHoles = mapRoundIdentityHoles({
+    entryMode,
+    holesPlayed: input.holesPlayed,
+    roundHoles: input.round?.roundHoles ?? [],
+  });
+  const normalizedSgConfidence = input.sgComponents?.confidence
+    ? String(input.sgComponents.confidence).toLowerCase()
+    : null;
+  const sgConfidence =
+    normalizedSgConfidence === 'high' ||
+    normalizedSgConfidence === 'medium' ||
+    normalizedSgConfidence === 'low'
+      ? normalizedSgConfidence
+      : null;
+
+  return {
+    roundId: input.roundId.toString(),
+    score: Number(input.round.score),
+    parTotal: input.parTotal,
+    toPar: input.toPar,
+    holesPlayed: input.holesPlayed,
+    teeSegment: input.round?.teeSegment ?? null,
+    roundContext: input.round?.roundContext ?? null,
+    roundsLifetime: input.roundNumber,
+    avgScoreRecent: input.avgScore != null && Number.isFinite(input.avgScore) ? input.avgScore : null,
+    handicapAtRound:
+      input.round?.handicapAtRound != null ? Number(input.round.handicapAtRound) : null,
+    firHit: input.round?.firHit != null ? Number(input.round.firHit) : null,
+    girHit: input.round?.girHit != null ? Number(input.round.girHit) : null,
+    putts: input.round?.putts != null ? Number(input.round.putts) : null,
+    penalties: input.round?.penalties != null ? Number(input.round.penalties) : null,
+    chips: input.round?.chips != null ? Number(input.round.chips) : null,
+    greensideBunkerShots:
+      input.round?.greensideBunkerShots != null
+        ? Number(input.round.greensideBunkerShots)
+        : null,
+    shortGameShots:
+      input.round?.shortGameShots != null ? Number(input.round.shortGameShots) : null,
+    sgTotal: input.sgComponents?.sgTotal != null ? Number(input.sgComponents.sgTotal) : null,
+    sgOffTee: input.sgComponents?.sgOffTee != null ? Number(input.sgComponents.sgOffTee) : null,
+    sgApproach:
+      input.sgComponents?.sgApproach != null ? Number(input.sgComponents.sgApproach) : null,
+    sgShortGame:
+      input.sgComponents?.sgShortGame != null ? Number(input.sgComponents.sgShortGame) : null,
+    sgPutting: input.sgComponents?.sgPutting != null ? Number(input.sgComponents.sgPutting) : null,
+    sgPenalties:
+      input.sgComponents?.sgPenalties != null ? Number(input.sgComponents.sgPenalties) : null,
+    sgResidual:
+      input.sgComponents?.sgResidual != null ? Number(input.sgComponents.sgResidual) : null,
+    sgConfidence,
+    sgPartialAnalysis:
+      input.sgComponents?.partialAnalysis != null
+        ? Boolean(input.sgComponents.partialAnalysis)
+        : null,
+    entryMode,
+    roundHoles: mappedHoles.roundHoles,
+    hasTrustedHoleByHole: mappedHoles.hasTrustedHoleByHole,
+  };
+}
+
+async function computeCurrentRoundIdentityHash(
+  roundId: bigint,
+  userId: bigint,
+): Promise<string | null> {
+  const round = await prisma.round.findUnique({
+    where: { id: roundId },
+    include: {
+      tee: {
+        include: {
+          holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } },
+        },
+      },
+      roundHoles: {
+        select: {
+          pass: true,
+          score: true,
+          firHit: true,
+          girHit: true,
+          putts: true,
+          penalties: true,
+          chips: true,
+          greensideBunkerShots: true,
+          firDirection: true,
+          girDirection: true,
+          hole: {
+            select: {
+              holeNumber: true,
+              par: true,
+            },
+          },
+        },
+        orderBy: [{ pass: 'asc' }, { hole: { holeNumber: 'asc' } }],
+      },
+    },
+  });
+  if (!round || round.userId !== userId) return null;
+
+  const currentSegment = ((round as any).teeSegment ?? 'full') as TeeSegment;
+  const currentContext = resolveTeeContext(round.tee, currentSegment);
+  const currentHolesPlayed = currentContext.holes;
+  const historyRoundContext = resolveHistoryRoundContext((round as any).roundContext);
+  const targetRoundDate = resolveRoundPlayedDateTime(round as any);
+  const roundsInOrder = await getRoundsInHistoricalPlayOrder({
+    userId,
+    roundContext: historyRoundContext,
+    targetRoundId: roundId,
+    targetRoundDate,
+  });
+  const { roundNumber } = resolveRoundOrdinalContext(roundId, roundsInOrder);
+
+  const last5Rounds = await getLastHistoricalRounds({
+    userId,
+    roundContext: historyRoundContext,
+    targetRoundId: roundId,
+    targetRoundDate,
+    take: 5,
+  });
+  let avgScore: number | null = null;
+  if (last5Rounds.length > 0) {
+    const avgScorePerHole =
+      last5Rounds.reduce((sum, item) => {
+        const seg = ((item as any).teeSegment ?? 'full') as TeeSegment;
+        const ctx = resolveTeeContext(item.tee, seg);
+        return sum + Number(item.score) / ctx.holes;
+      }, 0) / last5Rounds.length;
+    avgScore = avgScorePerHole * currentHolesPlayed;
+  }
+
+  const sgComponents = await prisma.roundStrokesGained.findUnique({
+    where: { roundId },
+  });
+  const toPar = Number(round.score) - currentContext.parTotal;
+
+  const resolverInput = buildRoundIdentityResolverInput({
+    roundId,
+    round,
+    sgComponents,
+    holesPlayed: currentHolesPlayed,
+    parTotal: currentContext.parTotal,
+    toPar,
+    roundNumber,
+    avgScore,
+  });
+  return buildRoundIdentityInputHash(resolverInput);
+}
+
+async function shouldRegenerateForRoundIdentityMismatch(
+  roundId: bigint,
+  userId: bigint,
+  insights: any,
+): Promise<boolean> {
+  const identity = insights?.raw_payload?.round_identity_v1;
+  if (!identity || typeof identity !== 'object') return true;
+  if (identity.version !== ROUND_IDENTITY_V1_VERSION) return true;
+  if (typeof identity.inputHash !== 'string' || !identity.inputHash) return true;
+
+  const currentHash = await computeCurrentRoundIdentityHash(roundId, userId);
+  if (!currentHash) return false;
+  return currentHash !== identity.inputHash;
 }
 
 export async function GET(
@@ -534,12 +822,15 @@ export async function generateInsights(
   const needsOnboardingCorrection = existing
     ? await shouldRegenerateForOnboardingMismatch(roundId, userId, existingInsights)
     : false;
+  const needsRoundIdentityRefresh = existing
+    ? await shouldRegenerateForRoundIdentityMismatch(roundId, userId, existingInsights)
+    : false;
 
   if (existing) {
     if (existing.userId !== userId) {
       throw new Error('Unauthorized');
     }
-    if (!forceRegenerate && !needsOnboardingCorrection) {
+    if (!forceRegenerate && !needsOnboardingCorrection && !needsRoundIdentityRefresh) {
       return limitInsightsForViewer(existing.insights, effectiveEntitlements);
     }
   }
@@ -586,9 +877,24 @@ async function generateInsightsInternal(
       },
       roundHoles: {
         select: {
+          pass: true,
+          score: true,
+          firHit: true,
+          girHit: true,
+          putts: true,
+          penalties: true,
+          chips: true,
+          greensideBunkerShots: true,
           firDirection: true,
           girDirection: true,
+          hole: {
+            select: {
+              holeNumber: true,
+              par: true,
+            },
+          },
         },
+        orderBy: [{ pass: 'asc' }, { hole: { holeNumber: 'asc' } }],
       },
     },
   });
@@ -600,8 +906,13 @@ async function generateInsightsInternal(
   const currentContext = resolveTeeContext(round.tee, currentSegment);
   const currentHolesPlayed = currentContext.holes;
   const historyRoundContext = resolveHistoryRoundContext((round as any).roundContext);
-
-  const roundsInOrder = await getRoundsInLoggedOrder(userId, historyRoundContext);
+  const targetRoundDate = resolveRoundPlayedDateTime(round as any);
+  const roundsInOrder = await getRoundsInHistoricalPlayOrder({
+    userId,
+    roundContext: historyRoundContext,
+    targetRoundId: roundId,
+    targetRoundDate,
+  });
   const { roundNumber, previousScore, totalRounds } = resolveRoundOrdinalContext(roundId, roundsInOrder);
   const isOnboardingRound = false;
   const shouldBumpVariant = generationOptions.forceRegenerate && generationOptions.bumpVariant && !isOnboardingRound;
@@ -615,17 +926,12 @@ async function generateInsightsInternal(
     where: { roundId },
   });
 
-  const last5Rounds = await prisma.round.findMany({
-    where: { userId, roundContext: historyRoundContext, id: { not: roundId } },
-    orderBy: { date: 'desc' },
+  const last5Rounds = await getLastHistoricalRounds({
+    userId,
+    roundContext: historyRoundContext,
+    targetRoundId: roundId,
+    targetRoundDate,
     take: 5,
-    include: {
-      tee: {
-        include: {
-          holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } },
-        },
-      },
-    },
   });
 
   let avgScore: number | null = null;
@@ -638,6 +944,18 @@ async function generateInsightsInternal(
       }, 0) / last5Rounds.length;
     avgScore = avgScorePerHole * currentHolesPlayed;
   }
+
+  const roundIdentityInput = buildRoundIdentityResolverInput({
+    roundId,
+    round,
+    sgComponents,
+    holesPlayed: currentHolesPlayed,
+    parTotal: currentContext.parTotal,
+    toPar,
+    roundNumber,
+    avgScore,
+  });
+  const roundIdentity = resolveRoundIdentity(roundIdentityInput);
 
   const totalSg = sgComponents?.sgTotal != null ? Number(sgComponents.sgTotal) : null;
   const shortGameOpportunities =
@@ -716,13 +1034,12 @@ async function generateInsightsInternal(
   });
 
   const preferredDirectionalArea = resolveDirectionalPreferredArea(measuredSelection.opportunity?.name);
+  const directionalRoundHoles = roundIdentityInput.entryMode === 'live_round'
+    ? (Array.isArray((round as any).roundHoles) ? (round as any).roundHoles : [])
+    : [];
   const directionalPattern = pickDirectionalPattern({
-    firValues: Array.isArray((round as any).roundHoles)
-      ? (round as any).roundHoles.map((hole: any) => hole?.firDirection ?? null)
-      : [],
-    girValues: Array.isArray((round as any).roundHoles)
-      ? (round as any).roundHoles.map((hole: any) => hole?.girDirection ?? null)
-      : [],
+    firValues: directionalRoundHoles.map((hole: any) => hole?.firDirection ?? null),
+    girValues: directionalRoundHoles.map((hole: any) => hole?.girDirection ?? null),
     preferredArea: preferredDirectionalArea,
     options: {
       minMisses: 4,
@@ -788,6 +1105,7 @@ async function generateInsightsInternal(
             confidence: directionalPattern.confidence,
           }
         : null,
+      round_identity_v1: roundIdentity,
       onboarding: {
         active: false,
         round_number: roundNumber,

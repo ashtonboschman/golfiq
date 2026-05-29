@@ -110,7 +110,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('adds premium directional M2 qualifier only when this-round skew is clearly supported', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
-      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
         return [
           { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
           { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
@@ -118,7 +118,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
         ];
       }
-      if (args?.orderBy?.date === 'desc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
         return [
           { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
           { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
@@ -136,6 +136,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
       girHit: 8,
       putts: 32,
       penalties: 1,
+      holeByHole: true,
       teeSegment: 'full',
       roundHoles: [
         { firDirection: null, girDirection: 'miss_right' },
@@ -178,6 +179,70 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(premium.messages[1]).toMatch(/Recorded GIR misses clustered right this round/i);
     expect(premium.messages[1].toLowerCase()).not.toMatch(/swing|clubface|path|mechanic|slice/);
     expect(free.messages[1]).not.toMatch(/Recorded GIR misses clustered right this round/i);
+  });
+
+  it('regenerates when stored round_identity_v1 hash is stale', async () => {
+    mockedPrisma.roundInsight.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      userId: BigInt(1),
+      insights: {
+        messages: ['old 1', 'old 2', 'old 3'],
+        raw_payload: {
+          round_identity_v1: {
+            version: 'round_identity_v1.0.0',
+            inputHash: 'stale_hash',
+          },
+        },
+      },
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+    );
+
+    expect(mockedPrisma.roundInsight.upsert).toHaveBeenCalled();
+    expect(insights.round_identity_v1.inputHash).not.toBe('stale_hash');
+  });
+
+  it('does not use HBH evidence when holeByHole is false, even if round holes exist', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 84,
+      firHit: 7,
+      girHit: 7,
+      putts: 34,
+      penalties: 1,
+      holeByHole: false,
+      teeSegment: 'full',
+      roundHoles: Array.from({ length: 18 }, (_, index) => ({
+        pass: 1,
+        score: 5,
+        firHit: 0,
+        girHit: 0,
+        putts: 2,
+        penalties: 0,
+        chips: 1,
+        greensideBunkerShots: 0,
+        firDirection: null,
+        girDirection: null,
+        hole: { holeNumber: index + 1, par: 4 },
+      })),
+      tee: makeTee(),
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(insights.round_identity_v1.entryMode).toBe('post_round');
+    expect(insights.round_identity_v1.evidenceLevel).not.toBe('hole_by_hole');
   });
 
   it('passes short-game opportunity guard inputs into measured SG selection', async () => {
@@ -239,7 +304,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('uses broad all-positive M2 framing when short-game SG is excluded by low opportunities', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
-      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
         return [
           { id: BigInt(10), score: 95, createdAt: new Date('2026-01-01T12:00:00.000Z') },
           { id: BigInt(20), score: 94, createdAt: new Date('2026-01-10T12:00:00.000Z') },
@@ -247,7 +312,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           { id: BigInt(40), score: 82, createdAt: new Date('2026-02-03T12:00:00.000Z') },
         ];
       }
-      if (args?.orderBy?.date === 'desc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
         return [
           { id: BigInt(39), score: 93, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
           { id: BigInt(38), score: 94, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
@@ -416,7 +481,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[2].startsWith('Next round:')).toBe(true);
   });
 
-  it('uses logged order (createdAt) so backdated rounds do not re-enter onboarding', async () => {
+  it('uses historical played date-time order and excludes future rounds from baseline scope', async () => {
     mockedPrisma.round.findUnique.mockResolvedValue({
       id: BigInt(40),
       userId: BigInt(1),
@@ -432,16 +497,16 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
-      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
         return [
-          { id: BigInt(10), score: 78, createdAt: new Date('2026-01-10T12:00:00.000Z') },
-          { id: BigInt(20), score: 77, createdAt: new Date('2026-01-20T12:00:00.000Z') },
-          { id: BigInt(30), score: 76, createdAt: new Date('2026-01-30T12:00:00.000Z') },
-          { id: BigInt(40), score: 74, createdAt: new Date('2026-02-10T12:00:00.000Z') },
+          { id: BigInt(10), score: 78, date: new Date('2025-12-20T12:00:00.000Z') },
+          { id: BigInt(20), score: 77, date: new Date('2025-12-28T12:00:00.000Z') },
+          { id: BigInt(30), score: 76, date: new Date('2025-12-31T12:00:00.000Z') },
+          { id: BigInt(40), score: 74, date: new Date('2026-01-01T12:00:00.000Z') },
         ];
       }
 
-      if (args?.orderBy?.date === 'desc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
         return [
           { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
           { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
@@ -476,7 +541,22 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        where: expect.objectContaining({
+          OR: [
+            { date: { lt: new Date('2026-01-01T12:00:00.000Z') } },
+            { id: BigInt(40) },
+          ],
+        }),
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      }),
+    );
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { not: BigInt(40) },
+          date: { lt: new Date('2026-01-01T12:00:00.000Z') },
+        }),
       }),
     );
 
@@ -847,7 +927,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('MED vs HIGH confidence differ in M2 decisiveness at the API boundary', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
-      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
         return [
           { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
           { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
@@ -855,7 +935,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
         ];
       }
-      if (args?.orderBy?.date === 'desc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
         return [
           { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
           { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
@@ -1203,7 +1283,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('M2 outcome levels map to semantic levels (C=info, D=warning, E=success)', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
-      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
         return [
           { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
           { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
@@ -1211,7 +1291,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
         ];
       }
-      if (args?.orderBy?.date === 'desc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
         return [
           { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
           { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
@@ -1289,7 +1369,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('free rewritten M2 level matches the final displayed free text', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
-      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
         return [
           { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
           { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
@@ -1297,7 +1377,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
         ];
       }
-      if (args?.orderBy?.date === 'desc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
         return [
           { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
           { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
@@ -1375,7 +1455,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('M3 remains info-level across outcomes', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
-      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.createdAt === 'asc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
         return [
           { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
           { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
@@ -1383,7 +1463,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
         ];
       }
-      if (args?.orderBy?.date === 'desc') {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
         return [
           { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
           { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
@@ -1432,4 +1512,277 @@ describe('/api/rounds/[id]/insights route contract', () => {
       expect(insights.message_levels[2]).toBe('info');
     }
   });
+
+  it('scopes same-day two rounds by strict played date-time ordering', async () => {
+    const roundA = {
+      id: BigInt(101),
+      userId: BigInt(1),
+      date: new Date('2026-06-10T08:00:00.000Z'),
+      score: 44,
+      firHit: 4,
+      girHit: 5,
+      putts: 17,
+      penalties: 0,
+      teeSegment: 'front9',
+      tee: makeTee(),
+      roundHoles: [],
+    };
+    const roundB = {
+      ...roundA,
+      id: BigInt(102),
+      date: new Date('2026-06-10T14:00:00.000Z'),
+      score: 41,
+    };
+
+    mockedPrisma.round.findUnique.mockResolvedValueOnce(roundB).mockResolvedValueOnce(roundA);
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      const ascOrder = Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc';
+      const descOrder = Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc';
+      if (ascOrder) {
+        const lt = args?.where?.OR?.[0]?.date?.lt as Date | undefined;
+        if (lt?.toISOString() === '2026-06-10T14:00:00.000Z') {
+          return [
+            { id: BigInt(101), score: 44, date: new Date('2026-06-10T08:00:00.000Z') },
+            { id: BigInt(102), score: 41, date: new Date('2026-06-10T14:00:00.000Z') },
+          ];
+        }
+        return [{ id: BigInt(101), score: 44, date: new Date('2026-06-10T08:00:00.000Z') }];
+      }
+      if (descOrder) {
+        const lt = args?.where?.date?.lt as Date | undefined;
+        if (lt?.toISOString() === '2026-06-10T14:00:00.000Z') {
+          return [{ id: BigInt(101), score: 44, date: new Date('2026-06-10T08:00:00.000Z'), teeSegment: 'front9', tee: makeTee() }];
+        }
+        return [];
+      }
+      return [];
+    });
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [],
+      best: null,
+      opportunity: null,
+      opportunityIsWeak: false,
+      componentCount: 0,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue(null);
+
+    const laterInsights = await generateInsights(
+      BigInt(102),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+    const earlierInsights = await generateInsights(
+      BigInt(101),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    const savedLaterInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
+    const savedEarlierInsights = mockedPrisma.roundInsight.upsert.mock.calls[1][0].create.insights;
+    expect(savedLaterInsights.raw_payload?.historical?.avg_score).not.toBeNull();
+    expect(savedEarlierInsights.raw_payload?.historical?.avg_score).toBeNull();
+    expect(laterInsights.round_number).toBe(2);
+    expect(earlierInsights.round_identity_v1.sampleContext).toBe('first_round');
+  });
+
+  it('editing earliest round excludes all later rounds from baseline and baseline delta context', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(201),
+      userId: BigInt(1),
+      date: new Date('2026-07-01T08:00:00.000Z'),
+      score: 43,
+      firHit: 5,
+      girHit: 4,
+      putts: 16,
+      penalties: 0,
+      teeSegment: 'front9',
+      tee: makeTee(),
+      roundHoles: [],
+    });
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
+        return [{ id: BigInt(201), score: 43, date: new Date('2026-07-01T08:00:00.000Z') }];
+      }
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
+        return [];
+      }
+      return [];
+    });
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [],
+      best: null,
+      opportunity: null,
+      opportunityIsWeak: false,
+      componentCount: 0,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue(null);
+
+    const insights = await generateInsights(
+      BigInt(201),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    const savedInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
+    expect(savedInsights.raw_payload?.historical?.avg_score).toBeNull();
+    expect(insights.round_identity_v1.sampleContext).toBe('first_round');
+    expect(insights.round_identity_v1.primaryKey).not.toBe('breakthrough');
+  });
+
+  it('editing middle round includes prior rounds and excludes later rounds', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(302),
+      userId: BigInt(1),
+      date: new Date('2026-08-02T12:00:00.000Z'),
+      score: 84,
+      firHit: 7,
+      girHit: 8,
+      putts: 33,
+      penalties: 1,
+      teeSegment: 'full',
+      tee: makeTee(),
+      roundHoles: [],
+    });
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
+        return [
+          { id: BigInt(301), score: 88, date: new Date('2026-08-01T09:00:00.000Z') },
+          { id: BigInt(302), score: 84, date: new Date('2026-08-02T12:00:00.000Z') },
+        ];
+      }
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
+        return [{ id: BigInt(301), score: 88, date: new Date('2026-08-01T09:00:00.000Z'), teeSegment: 'full', tee: makeTee() }];
+      }
+      return [];
+    });
+
+    const insights = await generateInsights(
+      BigInt(302),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          date: { lt: new Date('2026-08-02T12:00:00.000Z') },
+        }),
+      }),
+    );
+    expect(insights.raw_payload?.historical?.avg_score).not.toBeNull();
+  });
+
+  it('editing latest round includes all earlier rounds and excludes current round by id', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(403),
+      userId: BigInt(1),
+      date: new Date('2026-09-03T18:00:00.000Z'),
+      score: 79,
+      firHit: 8,
+      girHit: 10,
+      putts: 31,
+      penalties: 0,
+      teeSegment: 'full',
+      tee: makeTee(),
+      roundHoles: [],
+    });
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
+        return [
+          { id: BigInt(401), score: 90, date: new Date('2026-09-01T08:00:00.000Z') },
+          { id: BigInt(402), score: 86, date: new Date('2026-09-02T08:00:00.000Z') },
+          { id: BigInt(403), score: 79, date: new Date('2026-09-03T18:00:00.000Z') },
+        ];
+      }
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
+        return [
+          { id: BigInt(402), score: 86, date: new Date('2026-09-02T08:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(401), score: 90, date: new Date('2026-09-01T08:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        ];
+      }
+      return [];
+    });
+
+    await generateInsights(
+      BigInt(403),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { not: BigInt(403) },
+          date: { lt: new Date('2026-09-03T18:00:00.000Z') },
+        }),
+      }),
+    );
+  });
+
+  it('excludes same-timestamp rounds from historical baseline scope', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(501),
+      userId: BigInt(1),
+      date: new Date('2026-10-01T12:00:00.000Z'),
+      score: 83,
+      firHit: 7,
+      girHit: 8,
+      putts: 33,
+      penalties: 1,
+      teeSegment: 'full',
+      tee: makeTee(),
+      roundHoles: [],
+    });
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
+        // Same timestamp round id 502 should be excluded by strict lt scope.
+        return [{ id: BigInt(501), score: 83, date: new Date('2026-10-01T12:00:00.000Z') }];
+      }
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
+        return [];
+      }
+      return [];
+    });
+
+    const insights = await generateInsights(
+      BigInt(501),
+      BigInt(1),
+      { isPremium: true, showStrokesGained: true },
+      { forceRegenerate: true, bumpVariant: false },
+    );
+
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { date: { lt: new Date('2026-10-01T12:00:00.000Z') } },
+            { id: BigInt(501) },
+          ],
+        }),
+      }),
+    );
+    expect(insights.round_number).toBe(1);
+    const savedInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
+    expect(savedInsights.raw_payload?.historical?.avg_score).toBeNull();
+  });
 });
+
+
+

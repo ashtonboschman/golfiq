@@ -1,0 +1,141 @@
+import {
+  buildAreaCard,
+  buildStoryCard,
+  buildWatchCard,
+} from '@/lib/insights/roundIdentity/copyTemplates';
+import type { RoundIdentity, RoundIdentityPrimaryKey } from '@/lib/insights/roundIdentity/types';
+
+export type RoundIdentityDisplayInsight = {
+  kind: 'story' | 'worked' | 'watch';
+  title: string;
+  body: string;
+  icon?: 'spark' | 'check' | 'target' | 'warning' | 'trend';
+};
+
+export type RoundIdentityDisplay = {
+  eyebrow?: string;
+  headline: string;
+  subhead?: string;
+  insights: RoundIdentityDisplayInsight[];
+  confidenceLabel: 'Building' | 'Moderate' | 'Strong';
+  confidenceText: string;
+  progressText?: string;
+};
+
+function confidenceLabel(confidence: RoundIdentity['confidence']): RoundIdentityDisplay['confidenceLabel'] {
+  if (confidence === 'strong') return 'Strong';
+  if (confidence === 'moderate') return 'Moderate';
+  return 'Building';
+}
+
+function confidenceText(identity: RoundIdentity): string {
+  if (identity.confidence === 'strong') return 'Strong support from this round profile.';
+  if (identity.confidence === 'moderate') return 'Useful support from this round profile.';
+  if (identity.evidenceLevel === 'score_only') return 'Early read: score is known, causes are still limited.';
+  return 'Early read while this pattern develops.';
+}
+
+function headlineFromPrimary(primary: RoundIdentityPrimaryKey): string {
+  switch (primary) {
+    case 'score_only_baseline':
+      return 'This round sets your baseline.';
+    case 'breakthrough':
+      return 'Your scoring upside showed up in this round.';
+    case 'clean_control':
+      return 'This was a controlled scorecard from start to finish.';
+    case 'all_around_strong':
+      return 'Multiple parts of your game moved the score in the right direction.';
+    case 'approach_carried':
+      return 'Approach play drove this score.';
+    case 'tee_controlled':
+      return 'Tee-ball control set up this round.';
+    case 'putting_saved':
+      return 'Putting carried this score.';
+    case 'short_game_rescue':
+      return 'Your short game protected this round.';
+    case 'steady_scoring':
+      return 'This was a steady scorecard with limited swings.';
+    case 'survival':
+      return 'You kept this round together under pressure.';
+    case 'approach_leak':
+      return 'Approach misses were the main reason this score climbed.';
+    case 'tee_trouble':
+      return 'Tee misses put too much pressure on each hole.';
+    case 'penalty_damaged':
+      return 'Penalty strokes were the turning point in this score.';
+    case 'putting_leak':
+      return 'The score got away mostly on the greens.';
+    case 'short_game_pressure':
+      return 'Missed greens created too many hard saves.';
+    case 'scoring_chance_missed':
+      return 'You created chances but did not convert enough of them.';
+    case 'volatile_scoring':
+      return 'There was real scoring upside, but it came with costly swings.';
+    case 'big_number':
+      return 'A small number of holes did most of the damage.';
+    case 'everything_leaked':
+      return 'Several parts of the round leaked at once.';
+    default:
+      return 'GolfIQ found a clear round pattern.';
+  }
+}
+
+function watchTitle(identity: RoundIdentity): string {
+  if (identity.tone === 'repeat') return 'What To Repeat Next Round';
+  if (identity.tone === 'fix') return 'What To Watch Next Round';
+  if (identity.tone === 'build') return 'What To Build Next Round';
+  return 'What GolfIQ Needs Next Round';
+}
+
+export function composeRoundIdentityDisplay(
+  identity: RoundIdentity,
+  options?: { isFirstRound?: boolean; isPremium?: boolean; roundNumber?: number | null },
+): RoundIdentityDisplay {
+  const isFirstRound = options?.isFirstRound || identity.sampleContext === 'first_round';
+  const roundNumber = typeof options?.roundNumber === 'number' ? options.roundNumber : null;
+  const progressText =
+    roundNumber === 1
+      ? '2 more rounds unlock stronger patterns.'
+      : roundNumber === 2
+        ? '1 more round unlocks stronger patterns.'
+        : roundNumber != null
+          ? undefined
+          : isFirstRound
+            ? '2 more rounds unlock stronger patterns.'
+            : identity.sampleContext === 'early'
+              ? '1 more round unlocks stronger patterns.'
+              : undefined;
+
+  const eyebrow = undefined;
+
+  const display: RoundIdentityDisplay = {
+    eyebrow: isFirstRound ? 'Round 1 Logged' : eyebrow,
+    headline: headlineFromPrimary(identity.primaryKey),
+    subhead: identity.primaryKey === 'score_only_baseline' ? 'GolfIQ will get sharper as more detail is added.' : undefined,
+    insights: [
+      {
+        kind: 'story',
+        title: 'Main Round Story',
+        body: buildStoryCard(identity),
+        icon: 'spark',
+      },
+      {
+        kind: 'worked',
+        title: 'What Worked',
+        body: buildAreaCard(identity),
+        icon: 'check',
+      },
+      {
+        kind: 'watch',
+        title: watchTitle(identity),
+        body: buildWatchCard(identity),
+        icon: identity.tone === 'fix' ? 'warning' : identity.tone === 'explain' ? 'trend' : 'target',
+      },
+    ],
+    confidenceLabel: confidenceLabel(identity.confidence),
+    confidenceText: confidenceText(identity),
+    progressText,
+  };
+
+  return display;
+}

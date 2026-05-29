@@ -7068,6 +7068,28 @@ input[type='date'].form-input {
   gap: var(--gap);
 }
 
+.round-identity-sample-note {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: var(--color-secondary-text);
+  text-align: center;
+}
+
+.round-legacy-insights {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.round-legacy-insights-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-secondary-text);
+}
+
 .insight-message {
   padding: var(--gap);
   background: var(--color-secondary-surface);

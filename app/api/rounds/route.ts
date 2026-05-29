@@ -492,6 +492,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (officialRoundsLifetime === 2) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.secondRoundCompleted,
+        distinctId: userId.toString(),
+        properties: {
+          rounds_lifetime: officialRoundsLifetime,
+          round_id: roundId.toString(),
+        },
+        context: { request, sourcePage: '/api/rounds', isLoggedIn: true },
+      });
+    }
+
     if (officialRoundsLifetime === 3) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.thirdRoundCompleted,
