@@ -17,6 +17,13 @@ export type DashboardFocusComponent =
   | 'penalties'
   | 'residual';
 export type DashboardFocusConfidence = 'high' | 'medium' | 'low' | null;
+export type DashboardFocusTone = 'fix' | 'repeat' | 'build' | 'explain';
+export type DashboardFocusTimeframeBasis =
+  | 'no_data'
+  | 'first_round'
+  | 'early_rounds'
+  | 'recent_window'
+  | 'long_term_watch';
 export type RoundFocusOutcome =
   | 'early_guidance'
   | 'score_only_stable'
@@ -91,7 +98,19 @@ export type RoundFocusPayload = {
   nextRound: string;
   component: DashboardFocusComponent | null;
   confidence: DashboardFocusConfidence;
+  tone?: DashboardFocusTone;
+  timeframeBasis?: DashboardFocusTimeframeBasis;
+  timeframeLabel?: string;
+  qualifierText?: string;
+  contradictionGuardApplied?: boolean;
 };
+
+export type DashboardLatestRoundIdentitySummary = {
+  primaryKey: string;
+  tone: 'fix' | 'repeat' | 'build' | 'explain' | null;
+  confidence: 'building' | 'moderate' | 'strong' | null;
+  evidenceLevel: 'score_only' | 'aggregate_stats' | 'hole_by_hole' | null;
+} | null;
 
 export type RoundFocusState =
   | { kind: 'READY_PREMIUM'; focus: RoundFocusPayload }
@@ -143,8 +162,8 @@ const EARLY_GUIDANCE_NUDGES = [
 ] as const;
 
 const SCORE_ONLY_STABLE_NUDGES = [
-  'Commit to one focus.',
-  'Pick one scoring habit to protect.',
+  'Commit to one scoring focus.',
+  'Pick one scoring habit to repeat.',
   'Choose one simple target pattern.',
 ] as const;
 
@@ -247,13 +266,13 @@ const STRENGTH_NUDGES = {
 } as const;
 
 const EARLY_GUIDANCE_HEADLINES = [
-  'Start with solid decisions.',
-  'Build the round around simple choices.',
+  'Start by keeping the round simple.',
+  'Build the round around safe targets.',
   'Start by keeping the ball in play.',
 ] as const;
 
 const EARLY_GUIDANCE_BODIES = [
-  'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
+  'Your first few rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
   'Early patterns usually show up through missed chances and harder recovery holes.',
   'At this stage, steady targets matter more than chasing one perfect stat.',
 ] as const;
@@ -277,9 +296,9 @@ const SCORE_ONLY_STABLE_BODIES_FREE_MED = [
 ] as const;
 
 const SCORE_ONLY_STABLE_BODIES_FREE_LOW = [
-  'Pick one area next round.',
+  'Pick one scoring focus next round.',
   'Keep the focus simple next round.',
-  'Choose one scoring habit to protect.',
+  'Choose one scoring habit to repeat.',
 ] as const;
 
 const SCORE_ONLY_IMPROVING_HEADLINES = [
@@ -325,14 +344,14 @@ const BALANCED_HEADLINES_MED = [
 ] as const;
 
 const BALANCED_BODIES_PREMIUM_VOLATILE = [
-  'Your scoring ceiling now depends on reducing costly swings from hole to hole.',
+  'Lower scores now depend on reducing costly swings from hole to hole.',
   'Bigger score swings are doing more damage than one small stat gap.',
   'Stabilizing the costly holes matters more than chasing one category.',
 ] as const;
 
 const BALANCED_BODIES_PREMIUM_STABLE = [
-  'Round-management choices now matter more than chasing one stat fix.',
-  'Small decisions across the round are likely worth more than one stat fix.',
+  'Managing the round matters more than chasing one stat fix.',
+  'Small decisions across the round likely matter more than one stat fix.',
   'Keeping misses playable matters more than forcing one category right now.',
 ] as const;
 
@@ -343,8 +362,8 @@ const BALANCED_BODIES_FREE_VOLATILE = [
 ] as const;
 
 const BALANCED_BODIES_FREE_STABLE = [
-  'Round-management choices are likely worth more than forcing one stat fix.',
-  'Keeping the round simple is worth more than chasing one stat right now.',
+  'Managing the round likely matters more than forcing one stat fix.',
+  'Keeping the round simple matters more than chasing one stat right now.',
   'Safer targets across the round are the best focus for now.',
 ] as const;
 
@@ -476,6 +495,58 @@ function normalizeConfidence(raw: unknown): DashboardFocusConfidence {
 function resolveFocusConfidence(value: DashboardFocusConfidence): Exclude<DashboardFocusConfidence, null> {
   if (value === 'high' || value === 'medium' || value === 'low') return value;
   return 'low';
+}
+
+function toneFromOutcome(outcome: RoundFocusOutcome): DashboardFocusTone {
+  if (outcome === 'component_opportunity') return 'fix';
+  if (outcome === 'score_only_worsening') return 'fix';
+  if (outcome === 'volatility_priority') return 'fix';
+  if (outcome === 'component_strength') return 'repeat';
+  if (outcome === 'score_only_improving') return 'repeat';
+  if (outcome === 'component_balanced') return 'build';
+  if (outcome === 'score_only_stable') return 'build';
+  return 'explain';
+}
+
+function deriveTimeframeBasis(summary: DashboardOverallInsightsSummary | null): DashboardFocusTimeframeBasis {
+  const roundsRecent = summary?.roundsRecent ?? 0;
+  if (!summary || roundsRecent <= 0) return 'no_data';
+  if (roundsRecent <= 1) return 'first_round';
+  if (roundsRecent <= 3) return 'early_rounds';
+  if (roundsRecent >= 10) return 'long_term_watch';
+  return 'recent_window';
+}
+
+function timeframeLabelFromBasis(basis: DashboardFocusTimeframeBasis): string {
+  if (basis === 'long_term_watch') return 'Based on your longer-term pattern.';
+  return 'Based on your recent rounds.';
+}
+
+function isWeaknessFocused(payload: RoundFocusPayload): boolean {
+  if (payload.outcome === 'component_opportunity') return true;
+  if (payload.outcome === 'score_only_worsening') return true;
+  if (payload.outcome === 'volatility_priority') return true;
+  return false;
+}
+
+function isStrongPositiveLatestIdentity(identity: DashboardLatestRoundIdentitySummary): boolean {
+  if (!identity) return false;
+  if (identity.tone !== 'repeat') return false;
+  return identity.confidence === 'strong';
+}
+
+function withFocusMeta(
+  payload: RoundFocusPayload,
+  summary: DashboardOverallInsightsSummary | null,
+): RoundFocusPayload {
+  const timeframeBasis = deriveTimeframeBasis(summary);
+  const tone = toneFromOutcome(payload.outcome);
+  return {
+    ...payload,
+    tone,
+    timeframeBasis,
+    timeframeLabel: timeframeLabelFromBasis(timeframeBasis),
+  };
 }
 
 function isTinyDelta(delta: number | null): boolean {
@@ -1040,7 +1111,7 @@ function buildSgDrivenFocus(
             ? 'Penalty avoidance is your clearest recurring way to stabilize scoring.'
             : 'Penalty avoidance is the clearest way to stabilize scoring right now.';
         }
-        return 'Penalty avoidance is a likely way to steady scores.';
+        return 'Fewer penalties would help steady your scores.';
       }
       return decisive
         ? isRecurring
@@ -1069,7 +1140,7 @@ function buildSgDrivenFocus(
             ? `${componentLabel} is repeatedly costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`
             : `${componentLabel} is costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
         }
-        return `You're losing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
+        return `That area is costing about ${formatAboutSg(selected.sgDelta)} strokes per round.`;
       }
       if (selected.component === 'penalties') {
         return 'One avoidable mistake is still adding strokes.';
@@ -1312,7 +1383,28 @@ export function buildRoundFocusState(
   summary: DashboardOverallInsightsSummary | null,
   isPremium: boolean,
   isLimited: boolean,
+  options?: {
+    latestRoundIdentity?: DashboardLatestRoundIdentitySummary;
+  },
 ): RoundFocusState {
+  const finalizeFocus = (rawFocus: RoundFocusPayload, nextSummary: DashboardOverallInsightsSummary | null): RoundFocusPayload => {
+    const focusWithMeta = withFocusMeta(rawFocus, nextSummary);
+    const latestRoundIdentity = options?.latestRoundIdentity ?? null;
+    if (isStrongPositiveLatestIdentity(latestRoundIdentity) && isWeaknessFocused(focusWithMeta)) {
+      return {
+        ...focusWithMeta,
+        qualifierText: 'Your latest round was strong, but your longer-term trend still points here.',
+        contradictionGuardApplied: true,
+        timeframeBasis: 'long_term_watch',
+        timeframeLabel: timeframeLabelFromBasis('long_term_watch'),
+      };
+    }
+    return {
+      ...focusWithMeta,
+      contradictionGuardApplied: false,
+    };
+  };
+
   if (!summary || summary.roundsRecent <= 0) {
     const fallbackFocus = buildNoDataFocus('low', [
       'fallback',
@@ -1321,16 +1413,17 @@ export function buildRoundFocusState(
       summary?.recentWindow ?? 0,
       summary?.lastUpdatedAt ?? 'none',
     ]);
+    const focus = finalizeFocus(fallbackFocus, summary);
     if (!isPremium) {
       return {
         kind: 'READY_FREE',
-        focus: fallbackFocus,
+        focus,
         isLimited,
       };
     }
     return {
       kind: 'READY_PREMIUM',
-      focus: fallbackFocus,
+      focus,
     };
   }
 
@@ -1338,16 +1431,17 @@ export function buildRoundFocusState(
   if (resolvedConfidence === 'low') {
     if (shouldUseMatureScoreOnlyForLowConfidence(summary)) {
       const scoreOnlyFocus = buildScoreOnlyFocus(summary, isPremium, 'medium');
+      const focus = finalizeFocus(scoreOnlyFocus, summary);
       if (!isPremium) {
         return {
           kind: 'READY_FREE',
-          focus: scoreOnlyFocus,
+          focus,
           isLimited,
         };
       }
       return {
         kind: 'READY_PREMIUM',
-        focus: scoreOnlyFocus,
+        focus,
       };
     }
     const fallbackFocus = buildEarlyGuidanceFocus('low', [
@@ -1358,31 +1452,33 @@ export function buildRoundFocusState(
       roundOne(summary.scoreTrendDelta),
       summary.lastUpdatedAt,
     ]);
+    const focus = finalizeFocus(fallbackFocus, summary);
     if (!isPremium) {
       return {
         kind: 'READY_FREE',
-        focus: fallbackFocus,
+        focus,
         isLimited,
       };
     }
     return {
       kind: 'READY_PREMIUM',
-      focus: fallbackFocus,
+      focus,
     };
   }
   const sgFocus = selectSgFocus(summary);
   if (shouldPrioritizeVolatility(summary, sgFocus, resolvedConfidence)) {
     const volatilityFocus = buildVolatilityFocus(summary, isPremium, resolvedConfidence);
+    const focus = finalizeFocus(volatilityFocus, summary);
     if (!isPremium) {
       return {
         kind: 'READY_FREE',
-        focus: volatilityFocus,
+        focus,
         isLimited,
       };
     }
     return {
       kind: 'READY_PREMIUM',
-      focus: volatilityFocus,
+      focus,
     };
   }
   const shouldPreferScoreOnly =
@@ -1391,20 +1487,24 @@ export function buildRoundFocusState(
 
   if (!sgFocus || shouldPreferScoreOnly) {
     const fallbackFocus = buildScoreOnlyFocus(summary, isPremium, resolvedConfidence);
+    const focus = finalizeFocus(fallbackFocus, summary);
     if (!isPremium) {
       return {
         kind: 'READY_FREE',
-        focus: fallbackFocus,
+        focus,
         isLimited,
       };
     }
     return {
       kind: 'READY_PREMIUM',
-      focus: fallbackFocus,
+      focus,
     };
   }
 
-  const focus = buildSgDrivenFocus(summary, sgFocus, isPremium, resolvedConfidence);
+  const focus = finalizeFocus(
+    buildSgDrivenFocus(summary, sgFocus, isPremium, resolvedConfidence),
+    summary,
+  );
 
   if (!isPremium) {
     return {

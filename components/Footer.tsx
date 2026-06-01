@@ -11,6 +11,8 @@ import {
   hasInsightsNudgePending,
 } from '@/lib/insights/insightsNudge';
 import { clearLiveRoundRecoveryState } from '@/lib/rounds/liveRoundResume';
+import { captureClientEvent } from '@/lib/analytics/client';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 
 export default function Footer() {
   const { data: session, status } = useSession();
@@ -94,6 +96,25 @@ export default function Footer() {
     return pathname.startsWith(path);
   };
 
+  const trackInsightsTabClick = () => {
+    captureClientEvent(
+      ANALYTICS_EVENTS.insightsTabClicked,
+      {
+        surface: 'footer_nav',
+        source_page: pathname,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  };
+
   const hasIncomingRequests = isInteractive && incomingRequests.length > 0;
   const showInsightsBadge = hasInsightsNudge && !pathname.startsWith('/insights');
 
@@ -115,6 +136,9 @@ export default function Footer() {
             className={isButtonActive(path) ? 'active' : ''}
             onClick={() => {
               if (!isInteractive) return;
+              if (path === '/insights') {
+                trackInsightsTabClick();
+              }
               navigateWithWarning(path);
             }}
             disabled={!isInteractive}

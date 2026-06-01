@@ -108,59 +108,62 @@ const mockedUseSubscription = useSubscription as unknown as jest.Mock;
 const mockedCaptureClientEvent = captureClientEvent as jest.Mock;
 
 function expectOneText(variants: readonly string[]): void {
-  const found = variants.some((variant) => screen.queryByText(variant) != null);
+  const normalize = (value: string): string => value.replace(/\s+/g, ' ').trim();
+  const found = variants.some((variant) =>
+    screen.queryByText((_, element) => normalize(element?.textContent ?? '') === normalize(variant)) != null,
+  );
   expect(found).toBe(true);
 }
 
 const OPPORTUNITY_PUTTING_NUDGES_UI = [
-  'Next Round: Focus on lag speed.',
-  'Next Round: Prioritize pace over perfect reads.',
-  'Next Round: Leave shorter second putts.',
+  'Next round: Focus on lag speed.',
+  'Next round: Prioritize pace over perfect reads.',
+  'Next round: Leave shorter second putts.',
 ] as const;
 
 const OPPORTUNITY_APPROACH_NUDGES_UI = [
-  'Next Round: Play to the center of the green.',
-  'Next Round: Favor the safe side of the green.',
-  'Next Round: Take the short-sided miss out of play.',
+  'Next round: Play to the center of the green.',
+  'Next round: Favor the safe side of the green.',
+  'Next round: Take the short-sided miss out of play.',
 ] as const;
 
 const VOLATILITY_NUDGES_UI = [
-  'Next Round: Choose the safest line on risk holes.',
-  'Next Round: Keep penalty trouble out of the miss.',
-  'Next Round: Play for the miss that stays in play.',
-  'Next Round: Play to center-green targets.',
-  'Next Round: Favor the safe side of the green.',
-  'Next Round: Take the short-sided miss out of play.',
-  'Next Round: Prioritize in-play misses on every hole.',
-  'Next Round: Keep the big miss out of play.',
-  'Next Round: Choose the line that protects bogey.',
+  'Next round: Choose the safest line on risk holes.',
+  'Next round: Keep penalty trouble out of the miss.',
+  'Next round: Play for the miss that stays in play.',
+  'Next round: Play to center-green targets.',
+  'Next round: Favor the safe side of the green.',
+  'Next round: Take the short-sided miss out of play.',
+  'Next round: Prioritize in-play misses on every hole.',
+  'Next round: Keep the big miss out of play.',
+  'Next round: Choose the line that protects bogey.',
 ] as const;
 
 const BALANCED_NUDGES_UI = [
-  'Next Round: Play to center-green targets.',
-  'Next Round: Choose targets with room to miss.',
-  'Next Round: Keep the next shot simple.',
-  'Next Round: Choose conservative targets after misses.',
-  'Next Round: Reset the hole after trouble.',
-  'Next Round: Protect bogey when the hole gets messy.',
+  'Next round: Play to center-green targets.',
+  'Next round: Choose targets with room to miss.',
+  'Next round: Keep the next shot simple.',
+  'Next round: Choose conservative targets after misses.',
+  'Next round: Reset the hole after trouble.',
+  'Next round: Protect bogey when the hole gets messy.',
 ] as const;
 
 const EARLY_GUIDANCE_HEADLINES = [
-  'Start with solid decisions.',
-  'Build the round around simple choices.',
+  'Start by keeping the round simple.',
+  'Build the round around safe targets.',
   'Start by keeping the ball in play.',
 ] as const;
 
 const EARLY_GUIDANCE_BODIES = [
-  'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
+  'Your first few rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
   'Early patterns usually show up through missed chances and harder recovery holes.',
   'At this stage, steady targets matter more than chasing one perfect stat.',
 ] as const;
 
 const EARLY_GUIDANCE_NUDGES_UI = [
-  'Next Round: Play to the widest target.',
-  'Next Round: Choose the safest target first.',
-  'Next Round: Keep the difficult miss out of play.',
+  'Next round: Play to the widest target.',
+  'Next round: Choose the safest target first.',
+  'Next round: Keep the difficult miss out of play.',
 ] as const;
 
 const SCORE_ONLY_WORSENING_HEADLINES = [
@@ -176,9 +179,9 @@ const SCORE_ONLY_WORSENING_BODIES_FREE_MED = [
 ] as const;
 
 const SCORE_ONLY_WORSENING_NUDGES_UI = [
-  'Next Round: Prioritize conservative targets.',
-  'Next Round: Keep the ball in play first.',
-  'Next Round: Avoid the miss that brings double into play.',
+  'Next round: Prioritize conservative targets.',
+  'Next round: Keep the ball in play first.',
+  'Next round: Avoid the miss that brings double into play.',
 ] as const;
 
 const VOLATILITY_HEADLINES_HIGH = [
@@ -674,6 +677,68 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText(/Strong: clear patterns are available\./i)).toBeInTheDocument();
   });
 
+  it('renders contradiction guard qualifier without a standalone timeframe line when latest identity is repeat+strong', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          latestRoundIdentity: {
+            primaryKey: 'clean_control',
+            tone: 'repeat',
+            confidence: 'strong',
+            evidenceLevel: 'hole_by_hole',
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByRole('button', { name: 'See Full Breakdown' });
+    expect(
+      await screen.findByText('Your latest round was strong, but your longer-term trend still points here.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Based on your longer-term pattern.')).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+        ANALYTICS_EVENTS.dashboardFocusViewed,
+        expect.objectContaining({
+          contradiction_guard_applied: true,
+          confidence: 'medium',
+          timeframe_basis: 'long_term_watch',
+        }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  it('does not render contradiction guard qualifier when latest identity confidence is not strong', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          latestRoundIdentity: {
+            primaryKey: 'clean_control',
+            tone: 'repeat',
+            confidence: 'moderate',
+            evidenceLevel: 'hole_by_hole',
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    await screen.findByRole('button', { name: 'See Full Breakdown' });
+    expect(
+      screen.queryByText('Your latest round was strong, but your longer-term trend still points here.'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Based on your recent rounds.')).not.toBeInTheDocument();
+  });
+
   it('renders Round Focus header with title and confidence pill only (no old info icon tooltip)', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
 
@@ -740,7 +805,7 @@ describe('/dashboard Round Focus card', () => {
 
     const focusCard = await screen.findByTestId('dashboard-focus-card');
     await screen.findByText('Approach is the biggest opportunity right now.');
-    expect(screen.getByText("You're losing about 0.7 strokes per round.")).toBeInTheDocument();
+    expect(screen.getByText('That area is costing about 0.7 strokes per round.')).toBeInTheDocument();
     expectOneText(OPPORTUNITY_APPROACH_NUDGES_UI);
     expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
 
@@ -844,7 +909,7 @@ describe('/dashboard Round Focus card', () => {
     expectOneText(BALANCED_HEADLINES_MED);
     expectOneText(BALANCED_NUDGES_UI);
     expect(screen.queryByText('No area clearly stands out as a weakness.')).not.toBeInTheDocument();
-    expect(screen.getAllByText(/^Next Round:/i)).toHaveLength(1);
+    expect(screen.getAllByText(/^Next round:/i)).toHaveLength(1);
   });
 
   it('shows fallback focus instead of locked text when historical gating flags are present', async () => {
@@ -1697,4 +1762,5 @@ describe('/dashboard Round Focus card', () => {
     });
   });
 });
+
 

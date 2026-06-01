@@ -36,9 +36,11 @@ import {
 import {
   buildRoundFocusState,
   focusComponentLabel,
+  type DashboardLatestRoundIdentitySummary,
   type DashboardOverallInsightsSummary,
 } from '@/lib/insights/dashboardFocus';
 import { readOnboardingState } from '@/lib/onboarding/state';
+import { getEarlySampleMessage } from '@/lib/insights/earlySample';
 
 type StatsMode = 'combined' | '9' | '18';
 const dashboardFocusViewedKeys = new Set<string>();
@@ -133,6 +135,7 @@ interface DashboardStats {
   };
   overallInsightsSummary?: DashboardOverallInsightsSummary | null;
   latestRoundUpdatedAt?: string | null;
+  latestRoundIdentity?: DashboardLatestRoundIdentitySummary;
 }
 
 function RoundFocusSkeletonBody() {
@@ -287,6 +290,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     miss_tendencies: null,
     overallInsightsSummary: null,
     latestRoundUpdatedAt: null,
+    latestRoundIdentity: null,
   });
   const isFreeTierDateFilterLocked = !subscriptionLoading && !isPremium;
 
@@ -380,17 +384,42 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     );
   }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
-  const trackFocusCtaClick = useCallback((component: string | null, focusType: string, confidence: string | null, deltaScore: number | null) => {
+  const trackFocusCtaClick = useCallback((
+    component: string | null,
+    focusType: string,
+    confidence: string | null,
+    deltaScore: number | null,
+    meta: {
+      tone: string | null;
+      timeframeBasis: string | null;
+      contradictionGuardApplied: boolean;
+      sampleSize: number | null;
+      roundsLifetime: number | null;
+      evidenceLevel: string | null;
+      primaryKey: string | null;
+      latestIdentityPrimary: string | null;
+    },
+  ) => {
     captureClientEvent(
       ANALYTICS_EVENTS.dashboardFocusCtaClicked,
       {
         cta: 'view_insights',
         plan: isPremium ? 'premium' : 'free',
+        surface: 'dashboard',
         mode: statsMode,
+        sample_size: meta.sampleSize,
+        rounds_lifetime: meta.roundsLifetime,
+        is_premium: Boolean(isPremium),
         focus_type: focusType,
         component,
         deltaScore,
         confidence,
+        tone: meta.tone,
+        evidenceLevel: meta.evidenceLevel,
+        primaryKey: meta.primaryKey,
+        latest_identity_primary: meta.latestIdentityPrimary,
+        timeframe_basis: meta.timeframeBasis,
+        contradiction_guard_applied: meta.contradictionGuardApplied,
       },
       {
         pathname,
@@ -528,6 +557,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               miss_tendencies: null,
               overallInsightsSummary: null,
               latestRoundUpdatedAt: null,
+              latestRoundIdentity: null,
             });
             return;
           }
@@ -581,6 +611,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 miss_tendencies: null,
                 overallInsightsSummary: null,
                 latestRoundUpdatedAt: null,
+                latestRoundIdentity: null,
               });
               setError(null);
               return;
@@ -1099,16 +1130,30 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   };
 
   const focusSummary = stats.overallInsightsSummary ?? null;
+  const latestRoundIdentity = stats.latestRoundIdentity ?? null;
+  const roundsLifetime = stats.totalRoundsInDb ?? stats.total_rounds ?? 0;
   const roundFocusState = buildRoundFocusState(
     focusSummary,
     Boolean(isPremium),
     Boolean(stats.limitedToLast20),
+    {
+      latestRoundIdentity,
+    },
   );
   const focusPayload = roundFocusState.focus;
   const focusComponent = focusComponentLabel(focusPayload?.component ?? null);
   const focusTypeForEvent = focusPayload?.focusType ?? 'score';
   const focusConfidenceLabel = formatFocusConfidenceLabel(focusPayload?.confidence);
   const focusConfidenceTone = getFocusConfidenceTone(focusPayload?.confidence);
+  const focusTone = focusPayload?.tone ?? null;
+  const focusTimeframeBasis = focusPayload?.timeframeBasis ?? null;
+  const earlySampleMessage = getEarlySampleMessage(roundsLifetime);
+  const scoreImprovingThreshold = statsMode === '9' ? -0.5 : -1.0;
+  const positiveBridgeCopy =
+    focusTone === 'fix' &&
+    (focusSummary?.scoreTrendDelta ?? 0) <= scoreImprovingThreshold
+      ? 'You are scoring better lately. This is the next area to build.'
+      : null;
 
   const parseTimestamp = (value: string | null | undefined): number | null => {
     if (!value) return null;
@@ -1132,6 +1177,10 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         fromMode,
         toMode,
         plan: isPremium ? 'premium' : 'free',
+        surface: 'dashboard',
+        is_premium: Boolean(isPremium),
+        sample_size: stats.overallInsightsSummary?.roundsRecent ?? null,
+        rounds_lifetime: stats.totalRoundsInDb ?? stats.total_rounds ?? null,
       },
       {
         pathname,
@@ -1143,17 +1192,49 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         isLoggedIn: status === 'authenticated',
       },
     );
-  }, [isPremium, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
+  }, [
+    isPremium,
+    pathname,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    stats.overallInsightsSummary?.roundsRecent,
+    stats.totalRoundsInDb,
+    stats.total_rounds,
+    status,
+  ]);
 
   const runFocusAction = useCallback(() => {
     trackFocusCtaClick(
       focusComponent,
       focusPayload.focusType,
-      focusSummary?.confidence ?? null,
+      focusPayload?.confidence ?? null,
       focusSummary?.scoreTrendDelta ?? null,
+      {
+        tone: focusTone,
+        timeframeBasis: focusTimeframeBasis,
+        contradictionGuardApplied: Boolean(focusPayload?.contradictionGuardApplied),
+        sampleSize: focusSummary?.roundsRecent ?? null,
+        roundsLifetime,
+        evidenceLevel: latestRoundIdentity?.evidenceLevel ?? null,
+        primaryKey: latestRoundIdentity?.primaryKey ?? null,
+        latestIdentityPrimary: latestRoundIdentity?.primaryKey ?? null,
+      },
     );
     router.push('/insights');
-  }, [focusComponent, focusPayload, focusSummary?.confidence, focusSummary?.scoreTrendDelta, router, trackFocusCtaClick]);
+  }, [
+    focusComponent,
+    focusPayload,
+    focusSummary?.roundsRecent,
+    focusSummary?.scoreTrendDelta,
+    focusTimeframeBasis,
+    focusTone,
+    latestRoundIdentity?.evidenceLevel,
+    latestRoundIdentity?.primaryKey,
+    roundsLifetime,
+    router,
+    trackFocusCtaClick,
+  ]);
 
   useEffect(() => {
     if (!showFocusConfidenceInfo) return;
@@ -1202,7 +1283,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       focusTypeForEvent,
       focusPayload?.component ?? 'none',
       focusSummary?.scoreTrendDelta ?? 'na',
-      focusSummary?.confidence ?? 'na',
+      focusPayload?.confidence ?? 'na',
+      focusTimeframeBasis ?? 'na',
+      focusPayload?.contradictionGuardApplied ? 'guard' : 'no-guard',
     ].join('|');
 
     if (dashboardFocusViewedKeys.has(viewKey)) return;
@@ -1212,11 +1295,21 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       ANALYTICS_EVENTS.dashboardFocusViewed,
       {
         plan: isPremium ? 'premium' : 'free',
+        surface: 'dashboard',
         mode: statsMode,
+        sample_size: focusSummary?.roundsRecent ?? null,
+        rounds_lifetime: roundsLifetime,
+        is_premium: Boolean(isPremium),
         focus_type: focusTypeForEvent,
         component: focusComponent,
         deltaScore: focusSummary?.scoreTrendDelta ?? null,
-        confidence: focusSummary?.confidence ?? null,
+        confidence: focusPayload?.confidence ?? null,
+        tone: focusTone,
+        evidenceLevel: latestRoundIdentity?.evidenceLevel ?? null,
+        primaryKey: latestRoundIdentity?.primaryKey ?? null,
+        latest_identity_primary: latestRoundIdentity?.primaryKey ?? null,
+        timeframe_basis: focusTimeframeBasis,
+        contradiction_guard_applied: Boolean(focusPayload?.contradictionGuardApplied),
       },
       {
         pathname,
@@ -1230,13 +1323,20 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     );
   }, [
     focusComponent,
-    focusSummary?.confidence,
     focusSummary?.scoreTrendDelta,
+    focusPayload?.confidence,
+    focusPayload?.contradictionGuardApplied,
     focusPayload?.component,
+    focusSummary?.roundsRecent,
     focusTypeForEvent,
+    focusTimeframeBasis,
+    focusTone,
     isPremium,
+    latestRoundIdentity?.evidenceLevel,
+    latestRoundIdentity?.primaryKey,
     loading,
     pathname,
+    roundsLifetime,
     session?.user?.auth_provider,
     session?.user?.id,
     session?.user?.subscription_tier,
@@ -1412,13 +1512,23 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           <RoundFocusSkeletonBody />
         ) : (
           <>
+            {positiveBridgeCopy && (
+              <p className="dashboard-focus-body dashboard-focus-positive-bridge">{positiveBridgeCopy}</p>
+            )}
             <p className="dashboard-focus-headline">{focusPayload.headline}</p>
+            {focusPayload.qualifierText && (
+              <p className="dashboard-focus-body dashboard-focus-qualifier">{focusPayload.qualifierText}</p>
+            )}
             {focusPayload.body && (
               <p className="dashboard-focus-body">{focusPayload.body}</p>
             )}
+            {earlySampleMessage && (
+              <p className="dashboard-focus-body dashboard-focus-sample-note">{earlySampleMessage}</p>
+            )}
             {focusPayload.nextRound && (
               <p className="dashboard-focus-body dashboard-focus-next-round">
-                Next Round: {focusPayload.nextRound}
+                <span className="dashboard-focus-next-round-label">Next round:</span>{' '}
+                {focusPayload.nextRound}
               </p>
             )}
             {showFocusUpdatingNote && (

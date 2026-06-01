@@ -200,6 +200,29 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.projection_by_mode.combined.projectedScoreIn10).toBeNull();
   });
 
+  it('returns a safe 0-round payload without crashing', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      subscriptionTier: 'free',
+      subscriptionStatus: 'active',
+    });
+    mockedPrisma.round.findMany.mockResolvedValue([]);
+
+    const request = new Request('http://localhost/api/insights/overall?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.type).toBe('success');
+    expect(body.insights.mode_payload.combined.kpis.roundsRecent).toBe(0);
+    expect(body.insights.confidence).toBe('low');
+    expect(body.insights.cards).toHaveLength(3);
+    expect(body.insights.projection.trajectory).toBe('unknown');
+    expect(body.insights.projection.projectedScoreIn10).toBeNull();
+    expect(body.insights.projection_by_mode.combined.trajectory).toBe('unknown');
+    expect(body.insights.projection_by_mode.combined.projectedScoreIn10).toBeNull();
+    expect(body.insights.mode_payload.combined.efficiency.fir.coverageRecent).toBe('0/0');
+  });
+
   it('computes short-game efficiency with null excluded and zero included', async () => {
     mockedPrisma.user.findUnique.mockResolvedValue({
       subscriptionTier: 'premium',

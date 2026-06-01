@@ -10,13 +10,13 @@ function expectOneOf(received: string, variants: readonly string[]): void {
 }
 
 const EARLY_GUIDANCE_HEADLINES = [
-  'Start with solid decisions.',
-  'Build the round around simple choices.',
+  'Start by keeping the round simple.',
+  'Build the round around safe targets.',
   'Start by keeping the ball in play.',
 ] as const;
 
 const EARLY_GUIDANCE_BODIES = [
-  'Early rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
+  'Your first few rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
   'Early patterns usually show up through missed chances and harder recovery holes.',
   'At this stage, steady targets matter more than chasing one perfect stat.',
 ] as const;
@@ -46,8 +46,8 @@ const SCORE_ONLY_STABLE_BODIES_FREE_MED = [
 ] as const;
 
 const SCORE_ONLY_STABLE_NUDGES = [
-  'Commit to one focus.',
-  'Pick one scoring habit to protect.',
+  'Commit to one scoring focus.',
+  'Pick one scoring habit to repeat.',
   'Choose one simple target pattern.',
 ] as const;
 
@@ -809,7 +809,7 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_balanced');
     expect(state.focus.headline).toBe('No single area clearly dominates right now.');
-    expect(state.focus.body).toBe('Round-management choices now matter more than chasing one stat fix.');
+    expect(state.focus.body).toBe('Managing the round matters more than chasing one stat fix.');
     expectOneOf(state.focus.nextRound, BALANCED_STABLE_NUDGES);
   });
 
@@ -832,7 +832,7 @@ describe('dashboardFocus state output', () => {
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_balanced');
     expect(state.focus.headline).toBe('No single area clearly dominates right now.');
-    expect(state.focus.body).toBe('Round-management choices now matter more than chasing one stat fix.');
+    expect(state.focus.body).toBe('Managing the round matters more than chasing one stat fix.');
     expectOneOf(state.focus.nextRound, BALANCED_STABLE_NUDGES);
     expect(state.focus.component).toBeNull();
   });
@@ -945,7 +945,7 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('component_opportunity');
-    expect(state.focus.headline).toBe('Penalty avoidance is a likely way to steady scores.');
+    expect(state.focus.headline).toBe('Fewer penalties would help steady your scores.');
     expect(state.focus.body).toBe('One avoidable mistake is still adding strokes.');
   });
 
@@ -1306,8 +1306,9 @@ describe('dashboardFocus state output', () => {
     if (mediumState.kind !== 'READY_PREMIUM' || highState.kind !== 'READY_PREMIUM') return;
     expect(mediumState.focus.headline).toBe('Approach is the biggest opportunity right now.');
     expect(highState.focus.headline).toBe('Approach is the clearest scoring focus right now.');
+    expect(highState.focus.body).toContain('Approach is');
     expect(highState.focus.body).toContain('costing about');
-    expect(mediumState.focus.body).not.toContain('costing about');
+    expect(mediumState.focus.body).toContain('That area is costing about');
   });
 
   it('suppresses tiny numeric wording when persistence weighting selects a mild recurring leak', () => {
@@ -1472,6 +1473,134 @@ describe('dashboardFocus state output', () => {
       expect(Array.isArray((focus as any).priorities)).toBe(false);
     }
   });
+
+  it('adds timeframe and tone metadata for dashboard copy alignment', () => {
+    const state = buildRoundFocusState(makeSummary(), true, false);
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.timeframeBasis).toBe('recent_window');
+    expect(state.focus.timeframeLabel).toBe('Based on your recent rounds.');
+    expect(state.focus.tone).toBe('fix');
+    expect(state.focus.contradictionGuardApplied).toBe(false);
+  });
+
+  it('uses early-round timeframe metadata for first-round guidance', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        roundsRecent: 1,
+        scoreTrendDelta: null,
+        confidence: 'low',
+      }),
+      false,
+      false,
+    );
+    expect(state.kind).toBe('READY_FREE');
+    if (state.kind !== 'READY_FREE') return;
+    expect(state.focus.timeframeBasis).toBe('first_round');
+    expect(state.focus.timeframeLabel).toBe('Based on your recent rounds.');
+    expect(state.focus.tone).toBe('explain');
+  });
+
+  it('applies contradiction guard qualifier when latest round was strongly positive', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        roundsRecent: 10,
+        confidence: 'high',
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: -0.42,
+          putting: -0.1,
+          penalties: -0.08,
+          residual: 0,
+        },
+      }),
+      true,
+      false,
+      {
+        latestRoundIdentity: {
+          primaryKey: 'approach_carried',
+          tone: 'repeat',
+          confidence: 'strong',
+          evidenceLevel: 'hole_by_hole',
+        },
+      },
+    );
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('component_opportunity');
+    expect(state.focus.qualifierText).toBe(
+      'Your latest round was strong, but your longer-term trend still points here.',
+    );
+    expect(state.focus.contradictionGuardApplied).toBe(true);
+    expect(state.focus.timeframeBasis).toBe('long_term_watch');
+    expect(state.focus.timeframeLabel).toBe('Based on your longer-term pattern.');
+  });
+
+  it('does not apply contradiction guard when latest round identity confidence is not strong', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        roundsRecent: 10,
+        confidence: 'high',
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: -0.42,
+          putting: -0.1,
+          penalties: -0.08,
+          residual: 0,
+        },
+      }),
+      true,
+      false,
+      {
+        latestRoundIdentity: {
+          primaryKey: 'approach_carried',
+          tone: 'repeat',
+          confidence: 'moderate',
+          evidenceLevel: 'hole_by_hole',
+        },
+      },
+    );
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('component_opportunity');
+    expect(state.focus.qualifierText).toBeUndefined();
+    expect(state.focus.contradictionGuardApplied).toBe(false);
+    expect(state.focus.timeframeBasis).toBe('long_term_watch');
+    expect(state.focus.timeframeLabel).toBe('Based on your longer-term pattern.');
+  });
+
+  it('does not apply contradiction guard when latest round identity tone is not repeat', () => {
+    const state = buildRoundFocusState(
+      makeSummary({
+        roundsRecent: 10,
+        confidence: 'high',
+        sgComponentDelta: {
+          offTee: -0.05,
+          approach: -0.42,
+          putting: -0.1,
+          penalties: -0.08,
+          residual: 0,
+        },
+      }),
+      true,
+      false,
+      {
+        latestRoundIdentity: {
+          primaryKey: 'approach_carried',
+          tone: 'build',
+          confidence: 'strong',
+          evidenceLevel: 'hole_by_hole',
+        },
+      },
+    );
+    expect(state.kind).toBe('READY_PREMIUM');
+    if (state.kind !== 'READY_PREMIUM') return;
+    expect(state.focus.outcome).toBe('component_opportunity');
+    expect(state.focus.qualifierText).toBeUndefined();
+    expect(state.focus.contradictionGuardApplied).toBe(false);
+    expect(state.focus.timeframeBasis).toBe('long_term_watch');
+    expect(state.focus.timeframeLabel).toBe('Based on your longer-term pattern.');
+  });
 });
 
 describe('focusComponentLabel', () => {
@@ -1484,5 +1613,6 @@ describe('focusComponentLabel', () => {
     expect(focusComponentLabel(null)).toBeNull();
   });
 });
+
 
 

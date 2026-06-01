@@ -15,8 +15,11 @@ import { SkeletonText } from '@/components/skeleton/Skeleton';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { useAdaptiveTooltipPlacement } from '@/lib/ui/useAdaptiveTooltipPlacement';
+import { getEarlySampleMessage } from '@/lib/insights/earlySample';
 
 const insightsViewedKeys = new Set<string>();
+const overallCardViewedKeys = new Set<string>();
+const paywallViewedKeys = new Set<string>();
 
 type StatsMode = 'combined' | '9' | '18';
 
@@ -251,8 +254,33 @@ function formatCoverageText(coverageRecent: string): string {
   return `Tracked in ${match[1]} of last ${match[2]} rounds`;
 }
 
+function parseCoverageCounts(coverageRecent: string | null | undefined): { tracked: number; total: number } | null {
+  if (!coverageRecent || typeof coverageRecent !== 'string') return null;
+  const match = coverageRecent.match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/);
+  if (!match) return null;
+  const tracked = Number.parseInt(match[1] ?? '0', 10);
+  const total = Number.parseInt(match[2] ?? '0', 10);
+  if (!Number.isFinite(tracked) || !Number.isFinite(total) || total <= 0) return null;
+  return { tracked, total };
+}
+
 function formatRoundCountLabel(count: number): string {
   return `${count} ${count === 1 ? 'round' : 'rounds'}`;
+}
+
+function resolveOverallCardMessageType(index: number): 'score_trend' | 'component_signal' | 'consistency_signal' {
+  if (index === 0) return 'score_trend';
+  if (index === 1) return 'component_signal';
+  return 'consistency_signal';
+}
+
+function hashMessageText(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
 }
 
 function getMagnitudeWidths(
@@ -588,11 +616,52 @@ export default function InsightsPage() {
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
 
   const trackSgTrendUpgradeCtaClick = useCallback(() => {
+    const modePayloadForEvent = insights?.mode_payload?.[statsMode];
+    const modeEfficiency = modePayloadForEvent?.efficiency;
+    const coverageMetrics = [
+      modeEfficiency?.fir,
+      modeEfficiency?.gir,
+      modeEfficiency?.puttsTotal ?? modeEfficiency?.puttsPerHole,
+      modeEfficiency?.penaltiesPerRound ?? modeEfficiency?.penaltiesPerHole,
+    ];
+    const recentSg = modePayloadForEvent?.sgComponents?.recentAvg;
+    const availableComponents = [
+      recentSg?.offTee != null ? 'off_tee' : null,
+      recentSg?.approach != null ? 'approach' : null,
+      recentSg?.shortGame != null ? 'short_game' : null,
+      recentSg?.putting != null ? 'putting' : null,
+      recentSg?.penalties != null ? 'penalties' : null,
+      recentSg?.residual != null ? 'residual' : null,
+    ].filter((item): item is string => item != null);
+    let trackedSum = 0;
+    let totalSum = 0;
+    let hasOptionalStats = false;
+    for (const metric of coverageMetrics) {
+      const parsed = parseCoverageCounts(metric?.coverageRecent);
+      if (!parsed) continue;
+      trackedSum += parsed.tracked;
+      totalSum += parsed.total;
+      if (parsed.tracked > 0) hasOptionalStats = true;
+    }
+    const statCompletenessScore = totalSum > 0 ? Math.round((trackedSum / totalSum) * 100) / 100 : null;
     captureClientEvent(
       ANALYTICS_EVENTS.upgradeCtaClicked,
       {
         cta_location: 'insights_sg_trend_lock',
         source_page: 'insights',
+        surface: 'overall_insights',
+        mode: statsMode,
+        sample_size: modePayloadForEvent?.kpis?.roundsRecent ?? null,
+        rounds_lifetime: insights?.tier_context?.maxRoundsUsed ?? null,
+        is_premium: insights?.tier_context?.isPremium ?? isPremium,
+        confidence: normalizeOverallConfidence(insights?.confidence),
+        selected_window: insights?.tier_context?.recentWindow ?? null,
+        stat_completeness_score: statCompletenessScore,
+        available_components: availableComponents,
+        locked_cards_count: insights?.cards_locked_count ?? null,
+        visible_cards_count: Array.isArray(insights?.cards) ? insights.cards.length : 0,
+        has_hbh: null,
+        has_optional_stats: hasOptionalStats,
       },
       {
         pathname,
@@ -604,7 +673,7 @@ export default function InsightsPage() {
         isLoggedIn: status === 'authenticated',
       },
     );
-  }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
+  }, [insights, isPremium, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
 
   useEffect(() => {
     const updateThemeColors = () => {
@@ -759,6 +828,7 @@ export default function InsightsPage() {
   const consistency = modePayload?.consistency ?? insights?.consistency ?? { label: 'insufficient' as const, stdDev: null };
   const consistencyLabel = consistency.label;
   const roundsRecent = modePayload?.kpis.roundsRecent ?? 0;
+  const earlySampleMessage = getEarlySampleMessage(roundsRecent);
   const fallbackConfidence = deriveOverallConfidence({
     hasInsights: Boolean(insights),
     modePayload,
@@ -1045,6 +1115,54 @@ export default function InsightsPage() {
     };
   }, [insights, modePayload, accentColor]);
 
+  const analyticsContext = useMemo(() => {
+    const coverageMetrics = [
+      efficiency.fir,
+      efficiency.gir,
+      puttsMetric,
+      penaltiesMetric,
+    ];
+    let trackedSum = 0;
+    let totalSum = 0;
+    let hasOptionalStats = false;
+    for (const metric of coverageMetrics) {
+      const parsed = parseCoverageCounts(metric?.coverageRecent);
+      if (!parsed) continue;
+      trackedSum += parsed.tracked;
+      totalSum += parsed.total;
+      if (parsed.tracked > 0) hasOptionalStats = true;
+    }
+    const statCompletenessScore = totalSum > 0 ? Math.round((trackedSum / totalSum) * 100) / 100 : null;
+    const recentSg = sgComponents?.recentAvg;
+    const availableComponents = [
+      recentSg?.offTee != null ? 'off_tee' : null,
+      recentSg?.approach != null ? 'approach' : null,
+      recentSg?.shortGame != null ? 'short_game' : null,
+      recentSg?.putting != null ? 'putting' : null,
+      recentSg?.penalties != null ? 'penalties' : null,
+      recentSg?.residual != null ? 'residual' : null,
+    ].filter((item): item is string => item != null);
+
+    return {
+      selected_window: insights?.tier_context?.recentWindow ?? null,
+      stat_completeness_score: statCompletenessScore,
+      available_components: availableComponents,
+      locked_cards_count: insights?.cards_locked_count ?? 0,
+      visible_cards_count: Array.isArray(insights?.cards) ? insights.cards.length : 0,
+      has_hbh: null as boolean | null,
+      has_optional_stats: hasOptionalStats,
+    };
+  }, [
+    efficiency.fir,
+    efficiency.gir,
+    insights?.cards,
+    insights?.cards_locked_count,
+    insights?.tier_context?.recentWindow,
+    penaltiesMetric,
+    puttsMetric,
+    sgComponents?.recentAvg,
+  ]);
+
   useEffect(() => {
     if (status !== 'authenticated') return;
     if (loading || !insights) return;
@@ -1056,9 +1174,21 @@ export default function InsightsPage() {
     captureClientEvent(
       ANALYTICS_EVENTS.insightsViewed,
       {
+        surface: 'overall_insights',
         insight_mode: statsMode,
+        mode: statsMode,
+        sample_size: modePayload?.kpis?.roundsRecent ?? null,
         rounds_recent: modePayload?.kpis?.roundsRecent ?? null,
+        rounds_lifetime: insights?.tier_context?.maxRoundsUsed ?? null,
+        is_premium: isPremiumContext,
         is_premium_view: isPremiumContext,
+        confidence: overallConfidence,
+        ...analyticsContext,
+        tone: null,
+        evidenceLevel: null,
+        primaryKey: null,
+        latest_identity_primary: null,
+        timeframe_basis: 'recent_window',
       },
       {
         pathname,
@@ -1070,10 +1200,227 @@ export default function InsightsPage() {
         isLoggedIn: true,
       },
     );
-  }, [insights, isPremiumContext, loading, modePayload?.kpis?.roundsRecent, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
+  }, [
+    insights,
+    isPremiumContext,
+    loading,
+    modePayload?.kpis?.roundsRecent,
+    overallConfidence,
+    analyticsContext,
+    pathname,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    statsMode,
+    status,
+  ]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    if (loading || !insights) return;
+    if (isPremiumContext) return;
+
+    const lockSurfaces: Array<'trajectory' | 'sg_trend' | 'sg_component_delta'> = [
+      'trajectory',
+      'sg_trend',
+      'sg_component_delta',
+    ];
+
+    for (const lockSurface of lockSurfaces) {
+      const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:${statsMode}:paywall:${lockSurface}`;
+      if (paywallViewedKeys.has(dedupeKey)) continue;
+      paywallViewedKeys.add(dedupeKey);
+      captureClientEvent(
+        ANALYTICS_EVENTS.paywallViewed,
+        {
+          surface: 'overall_insights',
+          source_page: 'insights',
+          lock_surface: lockSurface,
+          mode: statsMode,
+          sample_size: modePayload?.kpis?.roundsRecent ?? null,
+          rounds_lifetime: insights?.tier_context?.maxRoundsUsed ?? null,
+          is_premium: isPremiumContext,
+          confidence: overallConfidence,
+          ...analyticsContext,
+        },
+        {
+          pathname,
+          user: {
+            id: session?.user?.id,
+            subscription_tier: session?.user?.subscription_tier,
+            auth_provider: session?.user?.auth_provider,
+          },
+          isLoggedIn: true,
+        },
+      );
+    }
+  }, [
+    insights,
+    isPremiumContext,
+    loading,
+    modePayload?.kpis?.roundsRecent,
+    overallConfidence,
+    analyticsContext,
+    pathname,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    statsMode,
+    status,
+  ]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    if (loading || !insights) return;
+    const cards = Array.isArray(insights.cards) ? insights.cards : [];
+    cards.forEach((card, index) => {
+      const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:${statsMode}:card:${index}`;
+      if (overallCardViewedKeys.has(dedupeKey)) return;
+      overallCardViewedKeys.add(dedupeKey);
+      captureClientEvent(
+        ANALYTICS_EVENTS.overallCardViewed,
+        {
+          surface: 'overall_insights',
+          mode: statsMode,
+          card_index: index,
+          message_index: index,
+          message_type: resolveOverallCardMessageType(index),
+          message_hash: hashMessageText(String(card ?? '')),
+          card_length: String(card ?? '').length,
+          sample_size: modePayload?.kpis?.roundsRecent ?? null,
+          rounds_lifetime: insights?.tier_context?.maxRoundsUsed ?? null,
+          is_premium: isPremiumContext,
+          confidence: overallConfidence,
+          ...analyticsContext,
+          tone: null,
+          evidenceLevel: null,
+          primaryKey: null,
+          latest_identity_primary: null,
+          timeframe_basis: 'recent_window',
+        },
+        {
+          pathname,
+          user: {
+            id: session?.user?.id,
+            subscription_tier: session?.user?.subscription_tier,
+            auth_provider: session?.user?.auth_provider,
+          },
+          isLoggedIn: true,
+        },
+      );
+    });
+  }, [
+    insights,
+    isPremiumContext,
+    loading,
+    modePayload?.kpis?.roundsRecent,
+    overallConfidence,
+    analyticsContext,
+    pathname,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    statsMode,
+    status,
+  ]);
 
   if (status === 'unauthenticated') return null;
   const showSkeletonContent = status === 'loading' || loading;
+  const trajectorySection = showSkeletonContent ? (
+    <div className="card dashboard-stat-card trajectory-card">
+      <div className="trajectory-header">
+        <h3>Performance Trajectory</h3>
+      </div>
+      <div className="trajectory-status-row">
+        <span className="skeleton" style={{ display: 'inline-block', width: 140, height: 32, borderRadius: 999 }} />
+      </div>
+      <div className="trajectory-pill-grid">
+        <div className="trajectory-pill">
+          <span className="trajectory-pill-label">Score Range</span>
+          <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+        </div>
+        <div className="trajectory-pill">
+          <span className="trajectory-pill-label">Handicap Range</span>
+          <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+        </div>
+      </div>
+    </div>
+  ) : insights ? (
+    <div className="card dashboard-stat-card trajectory-card">
+      <div className="trajectory-header">
+        <h3>Performance Trajectory</h3>
+        <InfoTooltip text="Projects your scoring trend using recent rounds. More rounds improve projection confidence." />
+      </div>
+      <div className="trajectory-status-row">
+        <span
+          className={`trajectory-label trajectory-chip is-${trajectoryChipTone}`}
+          style={{ color: trajectoryChipColor, borderColor: trajectoryChipColor }}
+        >
+          {trajectoryLabel}
+        </span>
+      </div>
+
+      {isPremiumContext ? (
+        premiumScoreProjectionUnlocked ? (
+          <>
+            <div className="trajectory-pill-grid">
+              <div className="trajectory-pill">
+                <span className="trajectory-pill-label">{effectiveScoreRange ? 'Score Range' : 'Estimated Score'}</span>
+                <span className="trajectory-pill-value">
+                  {effectiveScoreRange
+                    ? `${Math.round(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.round(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
+                    : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? null)}`}
+                </span>
+              </div>
+              <div className="trajectory-pill">
+                <span className="trajectory-pill-label">
+                  {premiumHandicapProjectionUnlocked
+                    ? (effectiveHandicapRange ? 'Handicap Range' : 'Estimated Handicap')
+                    : 'Handicap Range'}
+                </span>
+                <span className="trajectory-pill-value">
+                  {premiumHandicapProjectionUnlocked
+                    ? (effectiveHandicapRange
+                      ? `${formatHandicap(Math.min(effectiveHandicapRange.low, effectiveHandicapRange.high))}-${formatHandicap(Math.max(effectiveHandicapRange.low, effectiveHandicapRange.high))}`
+                      : `~${formatHandicap(projection?.projectedHandicapIn10 ?? null)}`)
+                    : '--'}
+                </span>
+              </div>
+            </div>
+            {!premiumHandicapProjectionUnlocked && (
+              <span className="secondary-text insights-subtle-note insights-centered-title">
+                Not enough handicap history yet for a reliable handicap projection.
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="secondary-text insights-subtle-note insights-centered-title">
+            Projections unlock after 10 rounds logged.
+          </span>
+        )
+      ) : (
+        <>
+          <div className="trajectory-pill-grid">
+            <div className="trajectory-pill">
+              <span className="trajectory-pill-label">Score Range</span>
+              <span className="trajectory-pill-value">
+                <Lock size={15} className="trajectory-pill-lock-icon" aria-hidden="true" />
+              </span>
+            </div>
+            <div className="trajectory-pill">
+              <span className="trajectory-pill-label">Handicap Range</span>
+              <span className="trajectory-pill-value">
+                <Lock size={15} className="trajectory-pill-lock-icon" aria-hidden="true" />
+              </span>
+            </div>
+          </div>
+          <span className="secondary-text insights-subtle-note insights-centered-title trajectory-free-note">
+            Upgrade to unlock projected score and handicap ranges.
+          </span>
+        </>
+      )}
+    </div>
+  ) : null;
   return (
     <div className="page-stack">
       <div className="dashboard-filters">
@@ -1088,8 +1435,20 @@ export default function InsightsPage() {
               captureClientEvent(
                 ANALYTICS_EVENTS.insightModeChanged,
                 {
+                  surface: 'overall_insights',
                   from_mode: statsMode,
                   to_mode: nextMode,
+                  mode: nextMode,
+                  sample_size: insights?.mode_payload?.[nextMode]?.kpis?.roundsRecent ?? null,
+                  rounds_lifetime: insights?.tier_context?.maxRoundsUsed ?? null,
+                  is_premium: isPremiumContext,
+                  confidence: overallConfidence,
+                  ...analyticsContext,
+                  tone: null,
+                  evidenceLevel: null,
+                  primaryKey: null,
+                  latest_identity_primary: null,
+                  timeframe_basis: 'recent_window',
                 },
                 {
                   pathname,
@@ -1119,108 +1478,15 @@ export default function InsightsPage() {
       {statsMode === 'combined' && (
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
-
-      {showSkeletonContent ? (
-        <div className="card dashboard-stat-card trajectory-card">
-          <div className="trajectory-header">
-            <h3>Performance Trajectory</h3>
-          </div>
-          <div className="trajectory-status-row">
-            <span className="skeleton" style={{ display: 'inline-block', width: 140, height: 32, borderRadius: 999 }} />
-          </div>
-          <div className="trajectory-pill-grid">
-            <div className="trajectory-pill">
-              <span className="trajectory-pill-label">Score Range</span>
-              <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
-            </div>
-            <div className="trajectory-pill">
-              <span className="trajectory-pill-label">Handicap Range</span>
-              <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
-            </div>
-          </div>
-        </div>
-      ) : insights ? (
-        <div className="card dashboard-stat-card trajectory-card">
-          <div className="trajectory-header">
-            <h3>Performance Trajectory</h3>
-            <InfoTooltip text="Projects your scoring trend using recent rounds. More rounds improve projection confidence." />
-          </div>
-          <div className="trajectory-status-row">
-            <span
-              className={`trajectory-label trajectory-chip is-${trajectoryChipTone}`}
-              style={{ color: trajectoryChipColor, borderColor: trajectoryChipColor }}
-            >
-              {trajectoryLabel}
-            </span>
-          </div>
-
-          {isPremiumContext ? (
-            premiumScoreProjectionUnlocked ? (
-              <>
-                <div className="trajectory-pill-grid">
-                  <div className="trajectory-pill">
-                    <span className="trajectory-pill-label">{effectiveScoreRange ? 'Score Range' : 'Estimated Score'}</span>
-                    <span className="trajectory-pill-value">
-                      {effectiveScoreRange
-                        ? `${Math.round(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.round(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
-                        : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? null)}`}
-                    </span>
-                  </div>
-                  <div className="trajectory-pill">
-                    <span className="trajectory-pill-label">
-                      {premiumHandicapProjectionUnlocked
-                        ? (effectiveHandicapRange ? 'Handicap Range' : 'Estimated Handicap')
-                        : 'Handicap Range'}
-                    </span>
-                    <span className="trajectory-pill-value">
-                      {premiumHandicapProjectionUnlocked
-                        ? (effectiveHandicapRange
-                          ? `${formatHandicap(Math.min(effectiveHandicapRange.low, effectiveHandicapRange.high))}-${formatHandicap(Math.max(effectiveHandicapRange.low, effectiveHandicapRange.high))}`
-                          : `~${formatHandicap(projection?.projectedHandicapIn10 ?? null)}`)
-                        : '--'}
-                    </span>
-                  </div>
-                </div>
-                {!premiumHandicapProjectionUnlocked && (
-                  <span className="secondary-text insights-subtle-note insights-centered-title">
-                    Not enough handicap history yet for a reliable handicap projection.
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="secondary-text insights-subtle-note insights-centered-title">
-                Projections unlock after 10 rounds logged.
-              </span>
-            )
-          ) : (
-            <>
-              <div className="trajectory-pill-grid">
-                <div className="trajectory-pill">
-                  <span className="trajectory-pill-label">Score Range</span>
-                  <span className="trajectory-pill-value">
-                    <Lock size={15} className="trajectory-pill-lock-icon" aria-hidden="true" />
-                  </span>
-                </div>
-                <div className="trajectory-pill">
-                  <span className="trajectory-pill-label">Handicap Range</span>
-                  <span className="trajectory-pill-value">
-                    <Lock size={15} className="trajectory-pill-lock-icon" aria-hidden="true" />
-                  </span>
-                </div>
-              </div>
-              <span className="secondary-text insights-subtle-note insights-centered-title trajectory-free-note">
-                Upgrade to unlock projected score and handicap ranges.
-              </span>
-            </>
-          )}
-        </div>
-      ) : null}
+      {earlySampleMessage && (
+        <p className="secondary-text insights-page-subtitle">{earlySampleMessage}</p>
+      )}
       
       <div className="card insights-card">
         <div className="insights-header">
           <div className="insights-title">
             <Sparkles size={20} />
-            <h3>Overall Insights</h3>
+            <h3>Game Trends</h3>
           </div>
           <div className="overall-insights-actions">
             {showSkeletonContent ? (
@@ -1269,6 +1535,7 @@ export default function InsightsPage() {
           )}
         </div>
       </div>
+      {trajectorySection}
 
       {showSkeletonContent ? (
         <>

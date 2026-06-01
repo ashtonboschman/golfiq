@@ -21,6 +21,7 @@ jest.mock('@/lib/db', () => ({
     user: { findUnique: jest.fn() },
     roundHole: { findMany: jest.fn() },
     overallInsight: { findUnique: jest.fn() },
+    roundInsight: { findUnique: jest.fn() },
   },
 }));
 
@@ -44,6 +45,7 @@ type MockPrisma = {
   user: { findUnique: jest.Mock };
   roundHole: { findMany: jest.Mock };
   overallInsight: { findUnique: jest.Mock };
+  roundInsight: { findUnique: jest.Mock };
 };
 
 const mockedRequireAuth = requireAuth as jest.Mock;
@@ -109,6 +111,7 @@ describe('/api/dashboard route contract', () => {
     mockedPrisma.roundHole.findMany.mockResolvedValue([]);
     mockedCalculateHandicap.mockReturnValue(10.2);
     mockedPrisma.overallInsight.findUnique.mockResolvedValue(null);
+    mockedPrisma.roundInsight.findUnique.mockResolvedValue(null);
   });
 
   it('caps free-user aggregate averages to the latest 20 rounds', async () => {
@@ -126,6 +129,7 @@ describe('/api/dashboard route contract', () => {
     expect(body.all_rounds).toHaveLength(20);
     expect(body.limitedToLast20).toBe(true);
     expect(body.totalRoundsInDb).toBe(25);
+    expect(body.latestRoundIdentity).toBeNull();
     expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -230,6 +234,33 @@ describe('/api/dashboard route contract', () => {
         },
       }),
     );
+  });
+
+  it('returns normalized latestRoundIdentity summary when round insights exist', async () => {
+    mockedPrisma.roundInsight.findUnique.mockResolvedValue({
+      insights: {
+        raw_payload: {
+          round_identity_v1: {
+            primaryKey: 'approach_carried',
+            tone: 'repeat',
+            confidence: 'strong',
+            evidenceLevel: 'hole_by_hole',
+          },
+        },
+      },
+    });
+
+    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
+    const response = await GET(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.latestRoundIdentity).toEqual({
+      primaryKey: 'approach_carried',
+      tone: 'repeat',
+      confidence: 'strong',
+      evidenceLevel: 'hole_by_hole',
+    });
   });
 
   it('returns FIR/GIR miss tendencies percentages from directional misses', async () => {

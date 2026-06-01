@@ -248,6 +248,10 @@ describe('/insights page', () => {
     const { container } = render(<InsightsPage />);
 
     await screen.findByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.');
+    expect(screen.queryByText('Insights')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('See what is changing across your recent rounds and usual scoring patterns.'),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Overall insights confidence: Strong' })).toBeInTheDocument();
     expect(container.querySelector('.insights-badge')).toBeNull();
     expect(screen.queryByRole('button', { name: /Regenerate/i })).not.toBeInTheDocument();
@@ -260,6 +264,21 @@ describe('/insights page', () => {
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
     expect(screen.queryByText('Not enough data')).not.toBeInTheDocument();
     expect(container.querySelectorAll('.overall-insight-fake')).toHaveLength(0);
+  });
+
+  it('renders Game Trends before Performance Trajectory', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights: makeInsights(false) }),
+    });
+
+    render(<InsightsPage />);
+
+    const gameTrendsHeading = await screen.findByText('Game Trends');
+    const trajectoryHeading = await screen.findByText('Performance Trajectory');
+    expect(
+      Boolean(gameTrendsHeading.compareDocumentPosition(trajectoryHeading) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
   });
 
   it('renders SG sections locked for free and only SG trend lock has pricing CTA', async () => {
@@ -471,6 +490,116 @@ describe('/insights page', () => {
     expect(pill).toHaveClass('is-low');
   });
 
+  it('shows standardized early-sample messaging for first rounds and 3-round states', async () => {
+    const lowSample = makeInsights(false, {
+      combined: {
+        kpis: {
+          roundsRecent: 1,
+          avgScoreRecent: 90,
+          avgScoreBaseline: null,
+          avgToParRecent: 18,
+          avgSgTotalRecent: null,
+          bestScoreRecent: 90,
+          deltaVsBaseline: null,
+        },
+      },
+    });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ insights: lowSample }),
+    });
+    const firstRender = render(<InsightsPage />);
+    await screen.findByText(
+      'GolfIQ can spot early signals from your first rounds. Stronger trends form as more rounds are logged.',
+    );
+    firstRender.unmount();
+
+    const threeRoundSample = makeInsights(false, {
+      combined: {
+        kpis: {
+          roundsRecent: 3,
+          avgScoreRecent: 84.2,
+          avgScoreBaseline: 84.8,
+          avgToParRecent: 12.2,
+          avgSgTotalRecent: null,
+          bestScoreRecent: 81,
+          deltaVsBaseline: -0.6,
+        },
+      },
+    });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ insights: threeRoundSample }),
+    });
+    render(<InsightsPage />);
+    await screen.findByText('Trends are starting to form.');
+  });
+
+  it('renders 0-round state safely with building confidence and still-building trajectory', async () => {
+    const zeroRoundInsights: any = makeInsights(false, {
+      combined: {
+        kpis: {
+          roundsRecent: 0,
+          avgScoreRecent: null,
+          avgScoreBaseline: null,
+          avgToParRecent: null,
+          avgSgTotalRecent: null,
+          bestScoreRecent: null,
+          deltaVsBaseline: null,
+        },
+        consistency: { label: 'insufficient', stdDev: null },
+        efficiency: {
+          fir: { recent: null, baseline: null, coverageRecent: '0/5' },
+          gir: { recent: null, baseline: null, coverageRecent: '0/5' },
+          shortGameShots: { recent: null, baseline: null, coverageRecent: '0/5' },
+          puttsTotal: { recent: null, baseline: null, coverageRecent: '0/5' },
+          penaltiesPerRound: { recent: null, baseline: null, coverageRecent: '0/5' },
+        },
+      },
+    });
+    zeroRoundInsights.cards = [
+      'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.',
+      'Score trends are forming, but the supporting stat detail is still light. A few more tracked rounds will sharpen this read.',
+      'Consistency signals are still forming. A few more rounds will clarify whether stability or volatility is your long-term trend.',
+    ];
+    zeroRoundInsights.projection.trajectory = 'unknown';
+    zeroRoundInsights.projection_by_mode.combined.trajectory = 'unknown';
+    zeroRoundInsights.projection.projectedScoreIn10 = null;
+    zeroRoundInsights.projection_by_mode.combined.projectedScoreIn10 = null;
+    zeroRoundInsights.generated_at = '2026-02-12T10:00:09.000Z';
+    zeroRoundInsights.mode_payload.combined.trend = {
+      labels: [],
+      score: [],
+      firPct: [],
+      girPct: [],
+      sgTotal: [],
+      handicap: [],
+    };
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights: zeroRoundInsights }),
+    });
+
+    render(<InsightsPage />);
+
+    await screen.findByText(
+      'GolfIQ can spot early signals from your first rounds. Stronger trends form as more rounds are logged.',
+    );
+    await screen.findByText(
+      'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.',
+    );
+    expect(screen.getByRole('button', { name: 'Overall insights confidence: Building' })).toBeInTheDocument();
+    expect(screen.getByText('Still Building')).toBeInTheDocument();
+    expect(screen.queryByText(/You're losing about/i)).not.toBeInTheDocument();
+
+    const viewedCalls = mockedCaptureClientEvent.mock.calls.filter(
+      (call) => call[0] === ANALYTICS_EVENTS.insightsViewed,
+    );
+    expect(viewedCalls.length).toBeGreaterThan(0);
+    expect(viewedCalls[0][1]).toEqual(expect.objectContaining({ sample_size: 0 }));
+  });
+
   it('sends insights_viewed analytics with rounds_recent payload key', async () => {
     const insights = makeInsights(false);
     insights.generated_at = '2026-02-12T10:00:01.000Z';
@@ -488,11 +617,14 @@ describe('/insights page', () => {
     expect(viewedCalls.length).toBeGreaterThan(0);
     expect(viewedCalls[0][1]).toEqual(
       expect.objectContaining({
+        surface: 'overall_insights',
         rounds_recent: 5,
         insight_mode: 'combined',
+        mode: 'combined',
+        sample_size: 5,
+        rounds_lifetime: 20,
       }),
     );
-    expect(viewedCalls[0][1]).not.toHaveProperty('rounds_lifetime');
   });
 
   it('routes free SG trend lock CTA to /pricing and fires upgrade analytics payload', async () => {
@@ -515,6 +647,102 @@ describe('/insights page', () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it('fires paywall_viewed once per visible lock surface and does not duplicate on rerender', async () => {
+    const insights = makeInsights(false);
+    insights.generated_at = '2026-02-12T10:00:10.000Z';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    await screen.findByText("See exactly what's costing you strokes");
+
+    const initialPaywallCalls = mockedCaptureClientEvent.mock.calls.filter(
+      (call) => call[0] === ANALYTICS_EVENTS.paywallViewed,
+    );
+    expect(initialPaywallCalls).toHaveLength(3);
+    expect(initialPaywallCalls.map((call) => call[1]?.lock_surface).sort()).toEqual(
+      ['sg_component_delta', 'sg_trend', 'trajectory'],
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Overall insights confidence: Strong' }));
+
+    await waitFor(() => {
+      const afterRerenderPaywallCalls = mockedCaptureClientEvent.mock.calls.filter(
+        (call) => call[0] === ANALYTICS_EVENTS.paywallViewed,
+      );
+      expect(afterRerenderPaywallCalls).toHaveLength(3);
+    });
+  });
+
+  it('does not fire paywall_viewed for premium users when lock surfaces are not visible', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true });
+    const insights = makeInsights(true);
+    insights.generated_at = '2026-02-12T10:00:11.000Z';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    await screen.findByText('Game Trends');
+
+    const paywallCalls = mockedCaptureClientEvent.mock.calls.filter(
+      (call) => call[0] === ANALYTICS_EVENTS.paywallViewed,
+    );
+    expect(paywallCalls).toHaveLength(0);
+  });
+
+  it('enriches overall_card_viewed with message metadata and visibility context', async () => {
+    const insights = makeInsights(false);
+    insights.generated_at = '2026-02-12T10:00:12.000Z';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    await screen.findByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.');
+
+    let cardCalls = mockedCaptureClientEvent.mock.calls.filter(
+      (call) => call[0] === ANALYTICS_EVENTS.overallCardViewed,
+    );
+    await waitFor(() => {
+      cardCalls = mockedCaptureClientEvent.mock.calls.filter(
+        (call) => call[0] === ANALYTICS_EVENTS.overallCardViewed,
+      );
+      expect(cardCalls).toHaveLength(3);
+    });
+    expect(cardCalls[0][1]).toEqual(
+      expect.objectContaining({
+        surface: 'overall_insights',
+        message_index: 0,
+        message_type: 'score_trend',
+        visible_cards_count: 3,
+      }),
+    );
+    expect(cardCalls[1][1]).toEqual(
+      expect.objectContaining({
+        message_index: 1,
+        message_type: 'component_signal',
+      }),
+    );
+    expect(cardCalls[2][1]).toEqual(
+      expect.objectContaining({
+        message_index: 2,
+        message_type: 'consistency_signal',
+      }),
+    );
+    cardCalls.forEach((call) => {
+      expect(typeof call[1]?.message_hash).toBe('string');
+      expect((call[1]?.message_hash as string).length).toBeGreaterThan(0);
+    });
   });
 
   it('uses backend trajectory when projection_by_mode trajectory exists', async () => {
