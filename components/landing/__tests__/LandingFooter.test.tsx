@@ -11,10 +11,10 @@ jest.mock('@/components/landing/SocialLinks', () => ({
 }));
 
 describe('LandingFooter', () => {
-  it('uses the updated public contact email address', () => {
+  it('routes contact to the in-app support page', () => {
     render(<LandingFooter />);
 
     const contactLink = screen.getByRole('link', { name: 'Contact' });
-    expect(contactLink).toHaveAttribute('href', 'mailto:golfiqapp@gmail.com');
+    expect(contactLink).toHaveAttribute('href', '/contact');
   });
 });

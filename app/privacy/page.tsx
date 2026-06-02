@@ -13,132 +13,135 @@ export default function PrivacyPage() {
 
         <section className="legal-section">
           <p className="legal-last-updated">
-            Effective Date: April 2026
+            Effective Date: June 1, 2026
           </p>
 
           <p>
-            GolfIQ ("we," "our," or "us") respects your privacy and is committed to protecting the personal information you share with us. This Privacy Policy explains how we collect, use, and safeguard your information when you use GolfIQ, including our web app and progressive web app (PWA).
+            GolfIQ ("we," "our," or "us") helps golfers track rounds and understand performance trends. This policy explains what we collect, how we use it, and your choices.
           </p>
 
-          <h2 className="legal-subtitle">Information We Collect</h2>
+          <h2 className="legal-subtitle">What We Collect</h2>
 
-          <h3 className="legal-subheading">Information You Provide</h3>
-
-          <p>We collect information you voluntarily provide to us, including:</p>
-
+          <h3 className="legal-subheading">Account and Sign-In Data</h3>
           <ul>
+            <li>First name and last name</li>
             <li>Email address</li>
-            <li>First and last name</li>
-            <li>Handicap (optional)</li>
             <li>Account credentials</li>
-            <li>Golf round data and performance statistics</li>
-            <li>Feedback, messages, or communications you send to us</li>
+            <li>If you use email and password sign-in, we store a hashed password</li>
+            <li>If you use a third-party sign-in provider, such as Google or Apple when available, we receive account details from that provider</li>
           </ul>
 
-          <h3 className="legal-subheading">Information Collected Automatically</h3>
+          <h3 className="legal-subheading">Golf and Round Data</h3>
+          <ul>
+            <li>Courses played and round dates</li>
+            <li>Scores, net scores, and handicap-related fields</li>
+            <li>Hole-by-hole scores when entered</li>
+            <li>FIR, GIR, putts, chips, greenside bunker shots, and penalties</li>
+            <li>Directional misses and round context tags such as simulator or practice</li>
+            <li>Round insights and trends generated from your submitted round data</li>
+          </ul>
 
-          <p>When you use GolfIQ, we may automatically collect limited technical information, including:</p>
+          <h3 className="legal-subheading">Profile and Social Data</h3>
+          <ul>
+            <li>Avatar image, bio, gender, default tee, favorite course</li>
+            <li>Friends, friend requests, and related profile visibility settings</li>
+            <li>Leaderboard and user detail visibility choices</li>
+          </ul>
 
+          <h3 className="legal-subheading">Usage, Device, and Reliability Data</h3>
           <ul>
             <li>Device type, operating system, and browser</li>
-            <li>IP address and general location data</li>
-            <li>Usage activity within the app</li>
-            <li>Analytics data to improve app performance and reliability</li>
-            <li>Approximate location data to help you sort and display nearby golf courses</li>
+            <li>IP address and request metadata used for security and operations</li>
+            <li>App usage events and diagnostics</li>
+            <li>Analytics events through PostHog to improve activation, retention, reliability, and feature quality</li>
           </ul>
 
-          <p>
-            <strong>Important:</strong> We do not track your precise location during play, and location data is used only to make course selection easier.
-          </p>
-
-          <h2 className="legal-subtitle">How We Use Your Information</h2>
-
-          <p>We use your information to:</p>
-
+          <h3 className="legal-subheading">Location Data</h3>
           <ul>
-            <li>Provide, maintain, and improve GolfIQ features</li>
-            <li>Analyze rounds, generate insights, and deliver data-driven recommendations</li>
-            <li>Communicate with you regarding product updates, promotions, or support</li>
-            <li>Monitor app performance and usage trends</li>
-            <li>Ensure security and prevent unauthorized activity</li>
+            <li>GolfIQ may request location to sort nearby golf courses</li>
+            <li>You can deny location access and still search courses by name or city</li>
+            <li>Location coordinates are used in course lookup requests and are not sent as raw coordinates in analytics events</li>
           </ul>
 
-          <p>
-            <strong>We do not sell your personal information to third parties.</strong>
-          </p>
-
-          <h2 className="legal-subtitle">Intelligent Insights Analytics</h2>
-
-          <p>GolfIQ uses your real round data and performance statistics to provide:</p>
-
+          <h3 className="legal-subheading">Billing Data</h3>
           <ul>
-            <li>Personalized recommendations and actionable insights</li>
-            <li>Trend analysis for strengths and weaknesses</li>
-            <li>Strokes gained calculations compared to similar golfers</li>
+            <li>For web and PWA subscriptions, billing is processed by Stripe</li>
+            <li>We store billing-related account status fields needed to provide subscription access</li>
+            <li>We do not store full payment card numbers on GolfIQ servers</li>
           </ul>
 
-          <p>
-            Your data is processed securely to generate these insights. Recommendations are based on deterministic scoring and strokes-gained models combined with your personal performance data.
-          </p>
-
-          <h2 className="legal-subtitle">Data Sharing and Third Parties</h2>
-
-          <p>We may share your information with:</p>
-
+          <h3 className="legal-subheading">Uploads and Support</h3>
           <ul>
-            <li>Service providers that help us deliver GolfIQ features, such as email services</li>
-            <li>Vendors for analytics or technical support</li>
-            <li>Legal authorities if required by law or to protect rights</li>
+            <li>Avatar image uploads are handled through UploadThing</li>
+            <li>Feedback and support messages you send to us</li>
+            <li>Internal support notifications sent through our email provider</li>
+          </ul>
+
+          <h2 className="legal-subtitle">How We Use Data</h2>
+          <p>
+            GolfIQ uses this information to provide round tracking, insights, trends, account features, support, and product reliability improvements.
+          </p>
+          <ul>
+            <li>Create and secure your account</li>
+            <li>Run course search, scoring, and insights features</li>
+            <li>Personalize profile and social experiences</li>
+            <li>Process and manage subscriptions</li>
+            <li>Respond to support and feedback requests</li>
+            <li>Monitor reliability, investigate errors, and prevent abuse</li>
+          </ul>
+
+          <h2 className="legal-subtitle">How Data Is Shared</h2>
+          <p>We share data only as needed to run GolfIQ.</p>
+          <ul>
+            <li>Authentication providers for account sign-in</li>
+            <li>Stripe for billing and subscription management</li>
+            <li>PostHog for product analytics</li>
+            <li>UploadThing for avatar uploads</li>
+            <li>Email providers for account and support communications</li>
+            <li>Hosting and infrastructure providers that process app traffic and logs</li>
+            <li>Authorities when required by law or valid legal process</li>
           </ul>
 
           <p>
-            All third parties are contractually obligated to handle your data securely and only for the purposes we specify.
+            We do not sell your personal information.
           </p>
 
           <h2 className="legal-subtitle">Data Retention</h2>
-
           <p>
-            We retain your information for as long as necessary to provide GolfIQ services and comply with legal obligations. You can request deletion of your account and data at any time.
+            We retain data for as long as needed to operate GolfIQ and meet legal, security, and billing obligations.
+          </p>
+
+          <h2 className="legal-subtitle">Account Deletion</h2>
+          <p>
+            You can delete your account from Settings in the app. This permanently deletes your GolfIQ account and related in-app data. Some records may be retained by payment processors or in required security and compliance logs.
           </p>
 
           <h2 className="legal-subtitle">Your Choices</h2>
-
-          <p>You can:</p>
-
           <ul>
-            <li>Update your account information anytime</li>
-            <li>Opt out of promotional emails by following the unsubscribe link</li>
-            <li>Delete your GolfIQ account and all associated data</li>
+            <li>Update profile and account information in-app</li>
+            <li>Deny optional location access and continue using course search</li>
+            <li>Delete your account from Settings</li>
           </ul>
 
-          <p>
-            Location access can be turned off on your device, though this may limit course sorting functionality.
-          </p>
-
           <h2 className="legal-subtitle">Security</h2>
-
           <p>
-            We implement reasonable technical and organizational measures to protect your personal information. However, no system is completely secure. We cannot guarantee absolute security of your data.
+            We use reasonable safeguards to protect your data. No system can be guaranteed 100 percent secure.
           </p>
 
           <h2 className="legal-subtitle">Children's Privacy</h2>
-
           <p>
             GolfIQ is not intended for children under 13. We do not knowingly collect personal information from children under 13.
           </p>
 
           <h2 className="legal-subtitle">Changes to This Privacy Policy</h2>
-
           <p>
-            We may update this Privacy Policy from time to time. Updated policies will be posted on this page with a new effective date. We encourage you to review this policy periodically.
+            We may update this policy from time to time. Updates will be posted on this page with a revised effective date.
           </p>
 
           <h2 className="legal-subtitle">Contact Us</h2>
-
           <p>
-            If you have questions about this Privacy Policy or how your data is handled, contact us at:
+            Questions about privacy or data handling:
           </p>
-
           <p>
             <strong>Email:</strong> <a href="mailto:golfiqapp@gmail.com">golfiqapp@gmail.com</a>
           </p>

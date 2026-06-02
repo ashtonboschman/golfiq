@@ -33,7 +33,7 @@ interface Course {
 }
 
 export default function CoursesPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const { showMessage, clearMessage } = useMessage();
 
@@ -60,9 +60,10 @@ export default function CoursesPage() {
   // Request user's geolocation on mount with timeout
   useEffect(() => {
     if (navigator.geolocation) {
+      let settled = false;
       const timeoutId = setTimeout(() => {
-        if (!locationChecked) {
-          console.log('Location request timed out, proceeding without location');
+        if (!settled) {
+          settled = true;
           setLocationChecked(true);
           setWaitingForLocation(false);
         }
@@ -70,6 +71,8 @@ export default function CoursesPage() {
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(timeoutId);
           setUserLocation({
             lat: position.coords.latitude,
@@ -79,8 +82,9 @@ export default function CoursesPage() {
           setWaitingForLocation(false);
         },
         (error) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(timeoutId);
-          console.log('Geolocation denied or unavailable:', error.message);
           setLocationChecked(true);
           setWaitingForLocation(false);
           // Silently fail - courses will be shown without distance sorting
@@ -94,7 +98,7 @@ export default function CoursesPage() {
       setLocationChecked(true);
       setWaitingForLocation(false);
     }
-  }, [locationChecked]);
+  }, []);
 
   // Debounce search input
   useEffect(() => {

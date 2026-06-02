@@ -25,9 +25,9 @@ export default function LandingFooter() {
               <Link href="/about" className="landing-footer-link">
                 About
               </Link>
-              <a href="mailto:golfiqapp@gmail.com" className="landing-footer-link">
+              <Link href="/contact" className="landing-footer-link">
                 Contact
-              </a>
+              </Link>
             </div>
 
             <div className="landing-footer-section">

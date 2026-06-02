@@ -4,6 +4,7 @@ import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { getBlockStateBetweenUsers } from '@/lib/socialSafety';
 
 // GET friends list
 export async function GET(request: NextRequest) {
@@ -147,6 +148,23 @@ export async function POST(request: NextRequest) {
         context: { request, sourcePage: '/api/friends' },
       });
       return errorResponse('Invalid recipient', 400);
+    }
+
+    const blockState = await getBlockStateBetweenUsers(requesterId, recipientId);
+    if (blockState.eitherBlocked) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.apiRequestFailed,
+        distinctId: requesterId.toString(),
+        properties: {
+          endpoint: '/api/friends',
+          method: 'POST',
+          status_code: 403,
+          failure_stage: 'business_rule',
+          error_code: 'blocked_relationship',
+        },
+        context: { request, sourcePage: '/api/friends' },
+      });
+      return errorResponse('Friend request unavailable for this user.', 403);
     }
 
     // Check if already friends

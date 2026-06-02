@@ -11,6 +11,7 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
+let mockGetCurrentPosition: jest.Mock;
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
@@ -49,12 +50,14 @@ describe('/courses page', () => {
       data: { user: { id: '1' } },
     });
 
+    mockGetCurrentPosition = jest.fn((_success: any, error: any) => {
+      error({ code: 1, message: 'denied' });
+    });
+
     Object.defineProperty(window.navigator, 'geolocation', {
       configurable: true,
       value: {
-        getCurrentPosition: jest.fn((_success: any, error: any) => {
-          error({ message: 'denied' });
-        }),
+        getCurrentPosition: mockGetCurrentPosition,
       },
     });
 
@@ -104,5 +107,52 @@ describe('/courses page', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add Course' }));
     expect(mockPush).toHaveBeenCalledWith('/courses/search');
+  });
+
+  it('requests geolocation only once on initial render', async () => {
+    render(<CoursesPage />);
+
+    await screen.findByText('Assiniboine Park GC');
+    expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it('silently falls back when geolocation is denied and still renders course results', async () => {
+    render(<CoursesPage />);
+
+    expect(await screen.findByText('Assiniboine Park GC')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Location access was denied. You can still search courses by name or city.')
+    ).not.toBeInTheDocument();
+  });
+
+  it('handles missing geolocation without crashing and keeps the page usable', async () => {
+    Object.defineProperty(window.navigator, 'geolocation', {
+      configurable: true,
+      value: undefined,
+    });
+
+    render(<CoursesPage />);
+
+    expect(await screen.findByText('Assiniboine Park GC')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Location is unavailable on this device. You can still search courses by name or city.')
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps course search working when geolocation is denied', async () => {
+    const user = userEvent.setup();
+    render(<CoursesPage />);
+
+    await screen.findByText('Assiniboine Park GC');
+    (global as any).fetch.mockClear();
+
+    await user.type(screen.getByPlaceholderText('Search Courses'), 'Assin');
+
+    await waitFor(() => {
+      const hasSearchCall = (global as any).fetch.mock.calls.some((call: any[]) =>
+        String(call[0]).includes('search=Assin')
+      );
+      expect(hasSearchCall).toBe(true);
+    });
   });
 });

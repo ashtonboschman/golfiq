@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { getBlockStateBetweenUsers } from '@/lib/socialSafety';
 
 export async function POST(
   request: NextRequest,
@@ -38,6 +39,11 @@ export async function POST(
     }
 
     const requesterId = friendRequest.requesterId;
+
+    const blockState = await getBlockStateBetweenUsers(userId, requesterId);
+    if (blockState.eitherBlocked) {
+      return errorResponse('Friend request is no longer available.', 403);
+    }
 
     // Create friendship (canonical order: lower ID first)
     const [userId1, userId2] =

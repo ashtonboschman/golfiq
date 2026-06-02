@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 import { useSubscription } from '@/hooks/useSubscription';
-import { Download, MessageSquare, PartyPopper, Upload } from 'lucide-react';
+import { Download, MessageSquare, PartyPopper } from 'lucide-react';
 import { useMessage } from '@/app/providers';
 import { useTheme } from '@/context/ThemeContext';
 import Select from 'react-select';
@@ -438,18 +438,18 @@ export default function SettingsPage() {
             <div className="settings-card settings-admin-card">
               <label className="form-label">Admin Tools</label>
               <p className="settings-admin-helper">Only visible to your admin account.</p>
-              <div className="settings-admin-actions">
+              <div className="settings-export-container">
                 <button
                   className="btn btn-secondary"
                   onClick={() => router.push('/admin/import-course')}
                 >
-                  <Upload/> Import Course Data
+                  Import Course Data
                 </button>
                 <button
                   className="btn btn-secondary"
                   onClick={() => router.push('/admin/feedback')}
                 >
-                  <MessageSquare/> Manage Feedback
+                  Manage Feedback
                 </button>
               </div>
             </div>
@@ -457,11 +457,43 @@ export default function SettingsPage() {
           )}
 
           <section className="settings-section">
+            <div className="settings-card">
+              <div className="settings-export-container">
+                <label className="form-label">Help and Legal</label>
+                <button
+                  className="btn btn-secondary settings-nav-button"
+                  onClick={() => router.push('/settings/blocked-users')}
+                >
+                  Blocked Users
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => router.push('/contact?from=settings')}
+                >
+                  Contact Support
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => router.push('/privacy?from=settings')}
+                >
+                  Privacy Policy
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => router.push('/terms?from=settings')}
+                >
+                  Terms of Service
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-section">
             <div className="settings-card settings-danger-card">
               <div className="settings-danger-content">
                 <label className="form-label">Delete Account</label>
                 <p className="settings-danger-text">
-                  This action is permanent and cannot be undone. All your GolfIQ data will be deleted.
+                  This action is permanent and cannot be undone. Your GolfIQ account data will be deleted.
                 </p>
                 <button
                   className="btn btn-logout"

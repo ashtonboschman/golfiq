@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
+import { getBlockStateBetweenUsers } from '@/lib/socialSafety';
 
 export async function GET(
   request: NextRequest,
@@ -38,28 +39,20 @@ export async function GET(
       return errorResponse('User not found', 404);
     }
 
-    // Fetch leaderboard stats
-    const stats = await prisma.userLeaderboardStats.findUnique({
-      where: { userId: targetUserId },
-      select: {
-        handicap: true,
-        totalRounds: true,
-        averageToPar: true,
-        bestToPar: true,
-      },
-    });
-
-    const statsData = stats || {
-      handicap: null,
-      totalRounds: 0,
-      averageToPar: null,
-      bestToPar: null,
-    };
-
     // Check if viewing own profile
     const isSelf = viewerUserId === targetUserId;
 
     if (isSelf) {
+      const stats = await prisma.userLeaderboardStats.findUnique({
+        where: { userId: targetUserId },
+        select: {
+          handicap: true,
+          totalRounds: true,
+          averageToPar: true,
+          bestToPar: true,
+        },
+      });
+
       return successResponse({
         user: {
           id: user.id.toString(),
@@ -78,24 +71,28 @@ export async function GET(
           best_to_par: stats?.bestToPar != null ? Number(stats.bestToPar) : null,
         },
         relationship: { is_self: true, status: 'self' },
-        permissions: { can_view_dashboard: true },
+        permissions: { can_view_dashboard: true, can_view_stats: true },
       });
     }
 
-    // Check if friends
-    const friendship = await prisma.friend.findFirst({
-      where: {
-        OR: [
-          { userId: viewerUserId, friendId: targetUserId },
-          { userId: targetUserId, friendId: viewerUserId },
-        ],
-      },
-    });
+    const blockState = await getBlockStateBetweenUsers(viewerUserId, targetUserId);
 
-    let relationshipStatus = friendship ? 'friends' : 'none';
+    // Check if friends
+    const friendship = blockState.eitherBlocked
+      ? null
+      : await prisma.friend.findFirst({
+          where: {
+            OR: [
+              { userId: viewerUserId, friendId: targetUserId },
+              { userId: targetUserId, friendId: viewerUserId },
+            ],
+          },
+        });
+
+    let relationshipStatus = blockState.eitherBlocked ? 'blocked' : friendship ? 'friends' : 'none';
 
     // Check friend requests if not friends
-    if (!friendship) {
+    if (!friendship && !blockState.eitherBlocked) {
       const friendRequest = await prisma.friendRequest.findFirst({
         where: {
           OR: [
@@ -114,9 +111,24 @@ export async function GET(
       }
     }
 
-    const canViewDashboard =
+    const canViewDashboard = !blockState.eitherBlocked && (
       user.profile?.dashboardVisibility === 'public' ||
-      (user.profile?.dashboardVisibility === 'friends' && relationshipStatus === 'friends');
+      (user.profile?.dashboardVisibility === 'friends' &&
+        relationshipStatus === 'friends')
+    );
+    const canViewStats = !blockState.eitherBlocked;
+
+    const stats = canViewStats
+      ? await prisma.userLeaderboardStats.findUnique({
+          where: { userId: targetUserId },
+          select: {
+            handicap: true,
+            totalRounds: true,
+            averageToPar: true,
+            bestToPar: true,
+          },
+        })
+      : null;
 
     return successResponse({
       user: {
@@ -131,12 +143,20 @@ export async function GET(
       },
       stats: {
         handicap: stats?.handicap ? Number(stats.handicap) : null,
-        total_rounds: stats?.totalRounds || 0,
+        total_rounds: stats?.totalRounds ?? null,
         average_to_par: stats?.averageToPar != null ? Number(stats.averageToPar) : null,
         best_to_par: stats?.bestToPar != null ? Number(stats.bestToPar) : null,
       },
-      relationship: { is_self: false, status: relationshipStatus },
-      permissions: { can_view_dashboard: canViewDashboard },
+      relationship: {
+        is_self: false,
+        status: relationshipStatus,
+        blocked_by_viewer: blockState.blockedByA,
+        blocked_viewer: blockState.blockedByB,
+      },
+      permissions: {
+        can_view_dashboard: canViewDashboard,
+        can_view_stats: canViewStats,
+      },
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

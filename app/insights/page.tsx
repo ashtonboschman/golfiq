@@ -1478,7 +1478,7 @@ export default function InsightsPage() {
       {statsMode === 'combined' && (
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
-      {earlySampleMessage && (
+      {!showSkeletonContent && earlySampleMessage && (
         <p className="secondary-text insights-page-subtitle">{earlySampleMessage}</p>
       )}
       

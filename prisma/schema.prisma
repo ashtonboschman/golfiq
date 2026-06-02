@@ -41,10 +41,49 @@ model User {
   leaderboardStats        UserLeaderboardStats?
   profile                 UserProfile?
   oauthAccounts          OAuthAccount[]
+  reportsFiled            UserReport[]             @relation("ReportsFiled")
+  reportsReceived         UserReport[]             @relation("ReportsReceived")
+  blocksInitiated         UserBlock[]              @relation("BlocksInitiated")
+  blocksReceived          UserBlock[]              @relation("BlocksReceived")
 
   @@index([subscriptionTier, subscriptionStatus], map: "idx_users_subscription")
   @@index([stripeCustomerId], map: "idx_users_stripe_customer")
   @@map("users")
+}
+
+model UserReport {
+  id             BigInt           @id @default(autoincrement())
+  reporterId     BigInt           @map("reporter_id")
+  reportedUserId BigInt           @map("reported_user_id")
+  reason         UserReportReason
+  details        String?
+  status         UserReportStatus @default(open)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  reporter       User             @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser   User             @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, reportedUserId, status], map: "uq_user_reports_reporter_reported_status")
+  @@index([reporterId], map: "idx_user_reports_reporter")
+  @@index([reportedUserId], map: "idx_user_reports_reported")
+  @@index([status], map: "idx_user_reports_status")
+  @@index([createdAt], map: "idx_user_reports_created_at")
+  @@map("user_reports")
+}
+
+model UserBlock {
+  id            BigInt   @id @default(autoincrement())
+  blockerId     BigInt   @map("blocker_id")
+  blockedUserId BigInt   @map("blocked_user_id")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  blocker       User     @relation("BlocksInitiated", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedUser   User     @relation("BlocksReceived", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedUserId], map: "uq_user_blocks_blocker_blocked")
+  @@index([blockerId], map: "idx_user_blocks_blocker")
+  @@index([blockedUserId], map: "idx_user_blocks_blocked")
+  @@index([createdAt], map: "idx_user_blocks_created_at")
+  @@map("user_blocks")
 }
 
 model OAuthAccount {
@@ -659,4 +698,18 @@ enum RoundMissDirection {
   miss_right
   miss_short
   miss_long
+}
+
+enum UserReportReason {
+  inappropriate_profile_or_avatar
+  harassment_or_abuse
+  spam_or_fake_account
+  other
+}
+
+enum UserReportStatus {
+  open
+  in_review
+  resolved
+  dismissed
 }

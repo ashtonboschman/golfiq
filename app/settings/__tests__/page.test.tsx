@@ -78,10 +78,34 @@ jest.mock('@/components/SubscriptionBadge', () => ({
 const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedUseSubscription = useSubscription as unknown as jest.Mock;
 
+function createFetchMock() {
+  return jest.fn().mockImplementation((input: string) => {
+    if (input === '/api/feedback') {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ message: 'Thanks for your feedback.' }),
+      });
+    }
+
+    if (input.startsWith('/api/users/') && input.endsWith('/block')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ message: 'User unblocked.' }),
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({}),
+      blob: async () => new Blob(),
+    });
+  });
+}
+
 describe('/settings page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).fetch = jest.fn();
+    (global as any).fetch = createFetchMock();
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: { user: { id: '2', email: 'user@test.ca' } },
@@ -103,7 +127,7 @@ describe('/settings page', () => {
     expect(screen.queryByText(/preferences/i)).not.toBeInTheDocument();
   });
 
-  it('renders current settings sections with theme and export controls', () => {
+  it('renders current settings sections with theme and export controls', async () => {
     render(<SettingsPage />);
 
     expect(screen.getByText('Current Plan')).toBeInTheDocument();
@@ -116,6 +140,9 @@ describe('/settings page', () => {
     expect(screen.getByLabelText('Feedback')).toBeInTheDocument();
     expect(screen.getByLabelText('Feedback message')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /submit feedback/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /blocked users/i })).toBeInTheDocument();
+    });
   });
 
   it('shows validation error for too-short feedback submission', async () => {
@@ -131,14 +158,11 @@ describe('/settings page', () => {
         'error',
       );
     });
-    expect((global as any).fetch).not.toHaveBeenCalled();
+    expect((global as any).fetch.mock.calls.some((call: any[]) => call[0] === '/api/feedback')).toBe(false);
   });
 
   it('submits valid feedback to the feedback api', async () => {
-    (global as any).fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ message: 'Thanks for your feedback.' }),
-    });
+    (global as any).fetch = createFetchMock();
 
     render(<SettingsPage />);
 
@@ -148,13 +172,14 @@ describe('/settings page', () => {
     fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
 
     await waitFor(() => {
-      expect((global as any).fetch).toHaveBeenCalledWith(
-        '/api/feedback',
-        expect.objectContaining({
-          method: 'POST',
-        }),
-      );
+      expect((global as any).fetch.mock.calls.some((call: any[]) => call[0] === '/api/feedback')).toBe(true);
     });
+    const feedbackCall = (global as any).fetch.mock.calls.find((call: any[]) => call[0] === '/api/feedback');
+    expect(feedbackCall[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
     expect(mockShowMessage).toHaveBeenCalledWith(
       'Thanks for your feedback.',
       'success',
@@ -162,10 +187,7 @@ describe('/settings page', () => {
   });
 
   it('submits selected feedback type in payload', async () => {
-    (global as any).fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ message: 'Thanks for your feedback.' }),
-    });
+    (global as any).fetch = createFetchMock();
 
     render(<SettingsPage />);
 
@@ -180,17 +202,44 @@ describe('/settings page', () => {
     fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
 
     await waitFor(() => {
-      expect((global as any).fetch).toHaveBeenCalledWith(
-        '/api/feedback',
-        expect.objectContaining({
-          method: 'POST',
-        }),
-      );
+      expect((global as any).fetch.mock.calls.some((call: any[]) => call[0] === '/api/feedback')).toBe(true);
     });
 
-    const [, requestOptions] = (global as any).fetch.mock.calls[0];
+    const feedbackCall = (global as any).fetch.mock.calls.find((call: any[]) => call[0] === '/api/feedback');
+    const [, requestOptions] = feedbackCall;
     const body = JSON.parse(requestOptions.body);
     expect(body.type).toBe('bug');
+  });
+
+  it('shows blocked users as a settings row and not an inline list', () => {
+    render(<SettingsPage />);
+
+    expect(screen.getByRole('button', { name: /blocked users/i })).toBeInTheDocument();
+    expect(screen.queryByText('You have not blocked anyone.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^unblock$/i })).not.toBeInTheDocument();
+  });
+
+  it('routes Help and Legal buttons to valid pages', () => {
+    render(<SettingsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /blocked users/i }));
+    expect(mockPush).toHaveBeenCalledWith('/settings/blocked-users');
+
+    fireEvent.click(screen.getByRole('button', { name: /contact support/i }));
+    expect(mockPush).toHaveBeenCalledWith('/contact?from=settings');
+
+    fireEvent.click(screen.getByRole('button', { name: /privacy policy/i }));
+    expect(mockPush).toHaveBeenCalledWith('/privacy?from=settings');
+
+    fireEvent.click(screen.getByRole('button', { name: /terms of service/i }));
+    expect(mockPush).toHaveBeenCalledWith('/terms?from=settings');
+  });
+
+  it('keeps account deletion action visible in settings', () => {
+    render(<SettingsPage />);
+
+    expect(screen.getByText(/your golfiq account data will be deleted/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /delete account/i })).toBeInTheDocument();
   });
 
   it('shows admin actions for admin user', () => {

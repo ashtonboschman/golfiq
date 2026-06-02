@@ -123,9 +123,14 @@ export default function Header() {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-    // On legal/info pages, always go to landing page
+    // On legal/info pages, return to settings when opened from settings
     if (pathname === '/about' || pathname === '/privacy' || pathname === '/terms' || pathname === '/contact') {
-      router.push('/');
+      const from = searchParams.get('from');
+      if (from === 'settings') {
+        router.push('/settings');
+      } else {
+        router.push('/');
+      }
     }
     // On reset-password page, always go to login
     else if (pathname === '/reset-password') {

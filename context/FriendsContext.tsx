@@ -24,6 +24,8 @@ export const useFriends = () => {
   return context;
 };
 
+export const useOptionalFriends = () => useContext(FriendsContext);
+
 export function FriendsProvider({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const { showMessage, clearMessage } = useMessage();

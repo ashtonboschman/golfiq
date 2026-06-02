@@ -62,6 +62,7 @@ export default function UserDetailsPage() {
   const user = data?.user;
   const stats = data?.stats;
   const permissions = data?.permissions;
+  const isBlockedRelationship = data?.relationship?.status === 'blocked';
 
   return (
     <div className="page-stack">
@@ -92,6 +93,12 @@ export default function UserDetailsPage() {
           <label className="form-label">Total Rounds</label>
           <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
         </div>
+      ) : permissions?.can_view_stats === false ? (
+        <div className="card">
+          <p className="secondary-text">
+            Profile stats are hidden while this user is blocked.
+          </p>
+        </div>
       ) : (
         <UserStatsCard stats={stats} />
       )}
@@ -101,7 +108,20 @@ export default function UserDetailsPage() {
           <SkeletonBlock className="skeleton-btn" height={41} />
         </div>
       ) : (
-        <UserActionsCard userId={user.id} permissions={permissions} />
+        <>
+          {isBlockedRelationship && (
+            <div className="card">
+              <p className="secondary-text">
+                This user is blocked. You can unblock them here if you want to restore normal social access.
+              </p>
+            </div>
+          )}
+          <UserActionsCard
+            userId={user.id}
+            permissions={permissions}
+            relationship={data?.relationship}
+          />
+        </>
       )}
     </div>
   );

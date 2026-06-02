@@ -23,6 +23,26 @@ export async function GET(request: NextRequest) {
               { profile: { lastName: { contains: query, mode: 'insensitive' } } },
             ],
           },
+          {
+            NOT: {
+              OR: [
+                {
+                  blocksInitiated: {
+                    some: {
+                      blockedUserId: userId,
+                    },
+                  },
+                },
+                {
+                  blocksReceived: {
+                    some: {
+                      blockerId: userId,
+                    },
+                  },
+                },
+              ],
+            },
+          },
         ],
       },
       select: {
