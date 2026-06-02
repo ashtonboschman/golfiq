@@ -6,6 +6,7 @@ import '@testing-library/jest-dom';
 import SettingsPage from '@/app/settings/page';
 import { useSession } from 'next-auth/react';
 import { useSubscription } from '@/hooks/useSubscription';
+import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -27,6 +28,12 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/hooks/useSubscription', () => ({
   useSubscription: jest.fn(),
+}));
+
+jest.mock('@/lib/platform', () => ({
+  getBillingPlatform: jest.fn(),
+  isNativeApp: jest.fn(),
+  isNativeIOS: jest.fn(),
 }));
 
 jest.mock('@/context/ThemeContext', () => ({
@@ -77,6 +84,9 @@ jest.mock('@/components/SubscriptionBadge', () => ({
 
 const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedUseSubscription = useSubscription as unknown as jest.Mock;
+const mockedGetBillingPlatform = getBillingPlatform as jest.Mock;
+const mockedIsNativeApp = isNativeApp as jest.Mock;
+const mockedIsNativeIOS = isNativeIOS as jest.Mock;
 
 function createFetchMock() {
   return jest.fn().mockImplementation((input: string) => {
@@ -113,11 +123,15 @@ describe('/settings page', () => {
     mockedUseSubscription.mockReturnValue({
       tier: 'premium',
       status: 'active',
+      provider: 'stripe',
       endsAt: null,
       cancelAtPeriodEnd: false,
       loading: false,
       isPremium: true,
     });
+    mockedGetBillingPlatform.mockReturnValue('web_stripe');
+    mockedIsNativeApp.mockReturnValue(false);
+    mockedIsNativeIOS.mockReturnValue(false);
   });
 
   it('does not render strokes gained preference controls', () => {
@@ -258,6 +272,7 @@ describe('/settings page', () => {
     mockedUseSubscription.mockReturnValue({
       tier: 'free',
       status: 'active',
+      provider: null,
       endsAt: null,
       cancelAtPeriodEnd: false,
       loading: false,
@@ -270,5 +285,40 @@ describe('/settings page', () => {
     expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export excel/i })).toBeInTheDocument();
     expect(screen.queryByText(/unlimited analytics history/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps Stripe manage subscription available on web', () => {
+    render(<SettingsPage />);
+
+    expect(screen.getByRole('button', { name: /manage subscription/i })).toBeInTheDocument();
+    expect(screen.getByText(/billing portal/i)).toBeInTheDocument();
+  });
+
+  it('hides Stripe portal access in native ios mode for Stripe subscriptions', () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/subscription was started on the web/i)).toBeInTheDocument();
+  });
+
+  it('shows manual premium copy without billing management actions', () => {
+    mockedUseSubscription.mockReturnValue({
+      tier: 'premium',
+      status: 'active',
+      provider: 'manual',
+      endsAt: null,
+      cancelAtPeriodEnd: false,
+      loading: false,
+      isPremium: true,
+    });
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Premium access is active on this account/i)).toBeInTheDocument();
   });
 });

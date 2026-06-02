@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
+import { getSubscriptionProvider } from '@/lib/subscription';
 import { stripe } from '@/lib/stripe';
 import type Stripe from 'stripe';
 
@@ -21,8 +22,11 @@ export async function GET() {
       where: { email: session.user.email },
       select: {
         id: true,
+        subscriptionProvider: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
+        appleOriginalTransactionId: true,
+        appleProductId: true,
         subscriptionTier: true,
         subscriptionStatus: true,
         subscriptionStartsAt: true,
@@ -40,11 +44,16 @@ export async function GET() {
     let startsAt = user.subscriptionStartsAt;
     let endsAt = user.subscriptionEndsAt;
     let cancelAtPeriodEnd = user.subscriptionCancelAtPeriodEnd;
+    let provider = getSubscriptionProvider(user);
 
     // Fallback sync: reconcile state from Stripe when webhook delivery is delayed/missed.
     let stripeSubscription: Stripe.Subscription | null = null;
+    const shouldSyncFromStripe =
+      provider !== 'apple' &&
+      provider !== 'manual' &&
+      Boolean(user.stripeSubscriptionId || user.stripeCustomerId);
 
-    if (user.stripeSubscriptionId) {
+    if (shouldSyncFromStripe && user.stripeSubscriptionId) {
       try {
         stripeSubscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
       } catch (syncError) {
@@ -52,7 +61,7 @@ export async function GET() {
       }
     }
 
-    if (!stripeSubscription && user.stripeCustomerId) {
+    if (shouldSyncFromStripe && !stripeSubscription && user.stripeCustomerId) {
       try {
         const listed = await stripe.subscriptions.list({
           customer: user.stripeCustomerId,
@@ -72,10 +81,12 @@ export async function GET() {
         const nextEndsAt = getSubscriptionPeriodEnd(stripeSubscription);
         const nextCancelAtPeriodEnd = isCancellationScheduled(stripeSubscription);
         const nextTier = nextStatus === 'cancelled' ? 'free' : 'premium';
+        const nextProvider = nextTier === 'premium' ? 'stripe' : null;
         const nextSubscriptionId = stripeSubscription.id;
         const subscriptionIdChanged = nextSubscriptionId !== user.stripeSubscriptionId;
 
         const hasChanged =
+          nextProvider !== provider ||
           nextStatus !== status ||
           nextTier !== tier ||
           nextCancelAtPeriodEnd !== cancelAtPeriodEnd ||
@@ -87,6 +98,7 @@ export async function GET() {
           const updated = await prisma.user.update({
             where: { id: user.id },
             data: {
+              subscriptionProvider: nextProvider,
               stripeSubscriptionId: nextSubscriptionId,
               subscriptionStatus: nextStatus,
               subscriptionTier: nextTier,
@@ -95,6 +107,7 @@ export async function GET() {
               subscriptionCancelAtPeriodEnd: nextCancelAtPeriodEnd,
             },
             select: {
+              subscriptionProvider: true,
               subscriptionTier: true,
               subscriptionStatus: true,
               subscriptionStartsAt: true,
@@ -103,6 +116,7 @@ export async function GET() {
             },
           });
 
+          provider = updated.subscriptionProvider;
           tier = updated.subscriptionTier;
           status = updated.subscriptionStatus;
           startsAt = updated.subscriptionStartsAt;
@@ -115,6 +129,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
+      provider,
       tier,
       status,
       startsAt,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
+import { getBillingPlatform } from '@/lib/platform';
 import { stripe } from '@/lib/stripe';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
@@ -19,7 +20,12 @@ export async function POST(req: NextRequest) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: 'anonymous',
-        properties: { failure_stage: 'auth', error_code: 'unauthorized' },
+        properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
+          failure_stage: 'auth',
+          error_code: 'unauthorized',
+        },
         context: { request: req, sourcePage: '/api/stripe/verify-session', isLoggedIn: false },
       });
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -31,7 +37,12 @@ export async function POST(req: NextRequest) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: session.user.id ?? session.user.email,
-        properties: { failure_stage: 'validation', error_code: 'missing_session_id' },
+        properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
+          failure_stage: 'validation',
+          error_code: 'missing_session_id',
+        },
         context: { request: req, sourcePage: '/api/stripe/verify-session', isLoggedIn: true },
       });
       return NextResponse.json(
@@ -112,6 +123,7 @@ export async function POST(req: NextRequest) {
     await prisma.user.update({
       where: { id: user.id },
       data: {
+        subscriptionProvider: 'stripe',
         stripeCustomerId: checkoutSession.customer as string,
         stripeSubscriptionId: subscriptionId,
         subscriptionTier: 'premium',
@@ -145,6 +157,9 @@ export async function POST(req: NextRequest) {
       event: ANALYTICS_EVENTS.checkoutCompleted,
       distinctId: user.id.toString(),
       properties: {
+        billing_platform: getBillingPlatform(),
+        billing_provider: 'stripe',
+        subscription_provider: 'stripe',
         plan_selected: checkoutSession.metadata?.interval === 'year' ? 'annual' : 'monthly',
         billing_period: checkoutSession.metadata?.interval ?? null,
         provider: 'verify_session',
@@ -172,6 +187,8 @@ export async function POST(req: NextRequest) {
       event: ANALYTICS_EVENTS.checkoutFailed,
       distinctId: 'anonymous',
       properties: {
+        billing_platform: getBillingPlatform(),
+        billing_provider: 'stripe',
         failure_stage: 'exception',
         error_code: error?.message ?? 'verify_session_exception',
       },

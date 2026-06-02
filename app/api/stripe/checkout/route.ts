@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
+import { getBillingPlatform } from '@/lib/platform';
+import { getSubscriptionProvider, hasPremiumEntitlement } from '@/lib/subscription';
 import { createCheckoutSession, createStripeCustomer } from '@/lib/stripe';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
@@ -19,6 +21,8 @@ export async function POST(req: NextRequest) {
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: 'anonymous',
         properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
           failure_stage: 'auth',
           error_code: 'unauthorized',
         },
@@ -47,6 +51,8 @@ export async function POST(req: NextRequest) {
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: session.user.id ?? session.user.email,
         properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
           failure_stage: 'validation',
           error_code: 'invalid_price_id',
         },
@@ -64,6 +70,8 @@ export async function POST(req: NextRequest) {
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: session.user.id ?? session.user.email,
         properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
           failure_stage: 'validation',
           error_code: 'invalid_interval',
         },
@@ -86,6 +94,8 @@ export async function POST(req: NextRequest) {
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: session.user.id ?? session.user.email,
         properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
           failure_stage: 'lookup',
           error_code: 'user_not_found',
         },
@@ -98,6 +108,8 @@ export async function POST(req: NextRequest) {
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: session.user.id ?? session.user.email,
         properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
           failure_stage: 'validation',
           error_code: 'invalid_price_id_allowlist',
         },
@@ -106,8 +118,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid price', message: 'Invalid price' }, { status: 400 });
     }
 
-    const subscriptionStatus = String(user.subscriptionStatus ?? '').toLowerCase();
-    const hasActivePremium = user.subscriptionTier === 'premium' && ['active', 'trialing'].includes(subscriptionStatus);
+    const subscriptionProvider = getSubscriptionProvider(user);
+    const hasActivePremium = hasPremiumEntitlement(user);
 
     // Check if user already has lifetime access
     if (user.subscriptionTier === 'lifetime') {
@@ -115,6 +127,9 @@ export async function POST(req: NextRequest) {
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: user.id.toString(),
         properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
+          subscription_provider: subscriptionProvider,
           failure_stage: 'business_rule',
           error_code: 'already_subscribed',
           plan_tier: user.subscriptionTier,
@@ -133,6 +148,9 @@ export async function POST(req: NextRequest) {
         event: ANALYTICS_EVENTS.checkoutFailed,
         distinctId: user.id.toString(),
         properties: {
+          billing_platform: getBillingPlatform(),
+          billing_provider: 'stripe',
+          subscription_provider: subscriptionProvider,
           failure_stage: 'business_rule',
           error_code: 'already_subscribed',
           plan_tier: user.subscriptionTier,
@@ -186,6 +204,9 @@ export async function POST(req: NextRequest) {
       event: ANALYTICS_EVENTS.checkoutStarted,
       distinctId: user.id.toString(),
       properties: {
+        billing_platform: getBillingPlatform(),
+        billing_provider: 'stripe',
+        subscription_provider: subscriptionProvider,
         plan_selected: interval === 'year' ? 'annual' : 'monthly',
         billing_period: interval,
         cta_location: 'pricing_page',
@@ -209,6 +230,8 @@ export async function POST(req: NextRequest) {
       event: ANALYTICS_EVENTS.checkoutFailed,
       distinctId: 'anonymous',
       properties: {
+        billing_platform: getBillingPlatform(),
+        billing_provider: 'stripe',
         failure_stage: 'exception',
         error_code: error?.message ?? 'checkout_exception',
       },

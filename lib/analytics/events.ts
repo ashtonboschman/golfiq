@@ -78,12 +78,16 @@ export type CommonAnalyticsProps = {
   user_first_name?: string;
   user_last_name?: string;
   subscription_status?: string;
+  subscription_provider?: string;
   user_city?: string;
   user_timezone?: string;
   plan_tier: PlanTier;
   auth_provider: AuthProvider;
   is_logged_in: boolean;
   app_surface: AppSurface;
+  billing_platform?: string;
+  is_native_app?: boolean;
+  is_native_ios?: boolean;
   environment: AnalyticsEnvironment;
   app_version: string;
 };

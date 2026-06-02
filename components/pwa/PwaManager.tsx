@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { isNativeApp, isNativeIOS } from '@/lib/platform';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -88,6 +89,8 @@ async function disableServiceWorkers() {
 
 export default function PwaManager() {
   const pathname = usePathname();
+  const nativeApp = isNativeApp();
+  const nativeIOS = isNativeIOS();
 
   const [config, setConfig] = useState<PwaConfig | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -121,6 +124,7 @@ export default function PwaManager() {
   const installPromptTrackedRef = useRef('');
 
   const installEligible = useMemo(() => {
+    if (nativeApp) return false;
     if (updateReady) return false;
     if (!TARGET_PATHS.has(pathname)) return false;
     if (isStandalone) return false;
@@ -139,9 +143,11 @@ export default function PwaManager() {
     deferredPrompt,
     supportsNativeInstallPrompt,
     isIosSafari,
+    nativeApp,
   ]);
 
   useEffect(() => {
+    if (nativeApp) return;
     if (!('serviceWorker' in navigator)) return;
     const handleControllerChange = () => {
       sessionStorage.removeItem(UPDATE_PENDING_KEY);
@@ -150,9 +156,10 @@ export default function PwaManager() {
     };
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     return () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
-  }, []);
+  }, [nativeApp]);
 
   useEffect(() => {
+    if (nativeApp) return;
     if (!config) return;
 
     if (!config.enabled) {
@@ -218,9 +225,11 @@ export default function PwaManager() {
     return () => {
       cancelled = true;
     };
-  }, [config, pathname, updatePending]);
+  }, [config, nativeApp, pathname, updatePending]);
 
   useEffect(() => {
+    if (nativeApp) return;
+
     const init = async () => {
       const cachedRaw = sessionStorage.getItem(PWA_CONFIG_CACHE_KEY);
       const cachedTs = parseIntSafe(sessionStorage.getItem(PWA_CONFIG_CACHE_TS_KEY));
@@ -250,9 +259,10 @@ export default function PwaManager() {
     };
 
     init();
-  }, []);
+  }, [nativeApp]);
 
   useEffect(() => {
+    if (nativeApp) return;
     const syncSessionCount = () => {
       const markedInstalled = localStorage.getItem(INSTALLED_KEY) === '1';
       if (markedInstalled) setIsStandalone(true);
@@ -293,15 +303,16 @@ export default function PwaManager() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleInstalled);
     };
-  }, [pathname]);
+  }, [nativeApp, pathname]);
 
   useEffect(() => {
+    if (nativeApp) return;
     const seen = parseSeenPages(localStorage.getItem(PAGES_KEY));
     seen.add(pathname);
     localStorage.setItem(PAGES_KEY, JSON.stringify(Array.from(seen)));
     const syncPageCount = () => setPageVisitCount(seen.size);
     syncPageCount();
-  }, [pathname]);
+  }, [nativeApp, pathname]);
 
   useEffect(() => {
     if (!installEligible) {
@@ -383,6 +394,10 @@ export default function PwaManager() {
     waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     window.setTimeout(reload, 1500);
   };
+
+  if (nativeApp || nativeIOS) {
+    return null;
+  }
 
   return (
     <>

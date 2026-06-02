@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
+import { getBillingPlatform } from '@/lib/platform';
 
 const FEEDBACK_MIN_LENGTH = 10;
 const FEEDBACK_MAX_LENGTH = 2000;
@@ -30,7 +31,7 @@ const FEEDBACK_TYPE_OPTIONS: FeedbackOption[] = [
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { tier, status: subscriptionStatus, endsAt, cancelAtPeriodEnd, loading, isPremium } = useSubscription();
+  const { tier, status: subscriptionStatus, endsAt, cancelAtPeriodEnd, loading, isPremium, provider } = useSubscription();
   const [managingSubscription, setManagingSubscription] = useState(false);
   const { showMessage, showConfirm } = useMessage();
   const [exporting, setExporting] = useState(false);
@@ -199,9 +200,19 @@ export default function SettingsPage() {
 
   const showSessionSkeleton = status === 'loading';
   const showSubscriptionSkeleton = showSessionSkeleton || loading;
+  const billingPlatform = getBillingPlatform();
+  const usesNativeBilling = billingPlatform === 'ios_iap';
+  const canManageStripeOnThisPlatform = provider === 'stripe' && !usesNativeBilling;
 
   const isCancelScheduled = subscriptionStatus === 'active' && cancelAtPeriodEnd;
   const isExpired = Boolean(endsAt && endsAt.getTime() <= Date.now());
+
+  const handleUpgrade = () => {
+    if (usesNativeBilling) {
+      showMessage('App Store subscriptions coming soon.', 'error');
+    }
+    router.push('/pricing');
+  };
 
   return (
     <div className="page-stack">
@@ -236,7 +247,7 @@ export default function SettingsPage() {
                         </p>
                         <button
                           className="btn-upgrade"
-                          onClick={() => router.push('/pricing')}
+                          onClick={handleUpgrade}
                         >
                           Upgrade to Premium
                         </button>
@@ -273,17 +284,36 @@ export default function SettingsPage() {
                             </p>
                           )}
                         </>
-                        <button
-                          className="btn-manage"
-                          onClick={handleManageSubscription}
-                          disabled={managingSubscription}
-                        >
-                          {managingSubscription ? 'Opening...' : 'Manage Subscription'}
-                        </button>
-                        <p className="subscription-note">
-                          You can update payment methods, view invoices, and cancel your
-                          subscription from the billing portal.
-                        </p>
+                        {canManageStripeOnThisPlatform && (
+                          <>
+                            <button
+                              className="btn-manage"
+                              onClick={handleManageSubscription}
+                              disabled={managingSubscription}
+                            >
+                              {managingSubscription ? 'Opening...' : 'Manage Subscription'}
+                            </button>
+                            <p className="subscription-note">
+                              You can update payment methods, view invoices, and cancel your
+                              subscription from the billing portal.
+                            </p>
+                          </>
+                        )}
+                        {provider === 'stripe' && usesNativeBilling && (
+                          <p className="subscription-note">
+                            This subscription was started on the web. Billing management is currently available on the web.
+                          </p>
+                        )}
+                        {provider === 'apple' && (
+                          <p className="subscription-note">
+                            Manage subscriptions through the App Store.
+                          </p>
+                        )}
+                        {provider === 'manual' && (
+                          <p className="subscription-note">
+                            Premium access is active on this account.
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -324,7 +354,7 @@ export default function SettingsPage() {
 
                       if (themeInfo?.premiumOnly && !showSubscriptionSkeleton && !isPremium) {
                         showMessage('This theme is only available for Premium users. Upgrade to unlock!', 'error');
-                        router.push('/pricing');
+                        handleUpgrade();
                         return;
                       }
 

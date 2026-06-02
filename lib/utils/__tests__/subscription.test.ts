@@ -1,4 +1,6 @@
 import {
+  getSubscriptionProvider,
+  hasPremiumEntitlement,
   isPremium,
   isPremiumUser,
   isLifetime,
@@ -17,6 +19,7 @@ import {
   getStatusDisplayName,
   getTierBadgeColor,
   getStatusBadgeColor,
+  isActivePremiumStatus,
 } from "../../subscription";
 
 describe("subscription utils", () => {
@@ -31,6 +34,7 @@ describe("subscription utils", () => {
 
   it("determines premium access", () => {
     expect(isPremium("premium", "active")).toBe(true);
+    expect(isPremium("premium", "trialing")).toBe(true);
     expect(isPremium("lifetime", "active")).toBe(true);
     expect(isPremium("premium", "cancelled")).toBe(false);
     expect(isPremium("free", "active")).toBe(false);
@@ -63,6 +67,56 @@ describe("subscription utils", () => {
     expect(isSubscriptionActive("active")).toBe(true);
     expect(isSubscriptionCancelled("cancelled")).toBe(true);
     expect(isSubscriptionPastDue("past_due")).toBe(true);
+    expect(isActivePremiumStatus("trialing")).toBe(true);
+    expect(isActivePremiumStatus("expired")).toBe(false);
+  });
+
+  it("evaluates provider-neutral entitlement state", () => {
+    expect(
+      hasPremiumEntitlement({
+        subscriptionTier: "premium",
+        subscriptionStatus: "active",
+        subscriptionProvider: "stripe",
+      })
+    ).toBe(true);
+
+    expect(
+      hasPremiumEntitlement({
+        subscriptionTier: "premium",
+        subscriptionStatus: "cancelled",
+        subscriptionProvider: "apple",
+      })
+    ).toBe(false);
+
+    expect(
+      hasPremiumEntitlement({
+        subscriptionTier: "lifetime",
+        subscriptionStatus: "cancelled",
+        subscriptionProvider: "manual",
+      })
+    ).toBe(true);
+  });
+
+  it("derives a provider when explicit provider is missing", () => {
+    expect(
+      getSubscriptionProvider({
+        subscriptionTier: "premium",
+        stripeCustomerId: "cus_123",
+      })
+    ).toBe("stripe");
+
+    expect(
+      getSubscriptionProvider({
+        subscriptionTier: "premium",
+        appleOriginalTransactionId: "orig_123",
+      })
+    ).toBe("apple");
+
+    expect(
+      getSubscriptionProvider({
+        subscriptionTier: "lifetime",
+      })
+    ).toBe("manual");
   });
 
   it("checks expiration", () => {

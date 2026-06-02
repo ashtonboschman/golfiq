@@ -8,6 +8,7 @@ import { Check, X } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { getBillingPlatform } from '@/lib/platform';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
 
@@ -19,9 +20,11 @@ function PricingContent() {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<PlanTab>('monthly');
-  const { isPremium, loading: subscriptionLoading } = useSubscription();
+  const { isPremium, loading: subscriptionLoading, provider } = useSubscription();
   const viewedRef = useRef(false);
   const checkoutCancelTrackedRef = useRef(false);
+  const billingPlatform = getBillingPlatform();
+  const usesNativeBilling = billingPlatform === 'ios_iap';
 
   useEffect(() => {
     if (status !== 'authenticated' || viewedRef.current) return;
@@ -30,18 +33,21 @@ function PricingContent() {
       ANALYTICS_EVENTS.pricingPageViewed,
       {
         source_page: pathname,
+        billing_platform: billingPlatform,
+        subscription_provider: provider,
       },
       {
         pathname,
         user: {
           id: session?.user?.id,
           subscription_tier: session?.user?.subscription_tier,
+          subscription_provider: provider,
           auth_provider: session?.user?.auth_provider,
         },
         isLoggedIn: true,
       },
     );
-  }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
+  }, [billingPlatform, pathname, provider, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -66,12 +72,15 @@ function PricingContent() {
           {
             failure_stage: 'user_cancelled',
             source_page: pathname,
+            billing_platform: billingPlatform,
+            subscription_provider: provider,
           },
           {
             pathname,
             user: {
               id: session?.user?.id,
               subscription_tier: session?.user?.subscription_tier,
+              subscription_provider: provider,
               auth_provider: session?.user?.auth_provider,
             },
             isLoggedIn: status === 'authenticated',
@@ -79,10 +88,14 @@ function PricingContent() {
         );
       }
     }
-  }, [pathname, searchParams, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
+  }, [billingPlatform, pathname, provider, searchParams, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   const handleSubscribe = async (priceId: string, interval: 'month' | 'year') => {
     if (loading !== null) return;
+    if (usesNativeBilling) {
+      setMessage({ text: 'App Store subscriptions coming soon.', type: 'error' });
+      return;
+    }
 
     setLoading(interval);
     setMessage(null);
@@ -92,12 +105,15 @@ function PricingContent() {
       {
         cta_location: `pricing_${interval}_button`,
         source_page: pathname,
+        billing_platform: billingPlatform,
+        subscription_provider: provider,
       },
       {
         pathname,
         user: {
           id: session?.user?.id,
           subscription_tier: session?.user?.subscription_tier,
+          subscription_provider: provider,
           auth_provider: session?.user?.auth_provider,
         },
         isLoggedIn: status === 'authenticated',
@@ -128,12 +144,14 @@ function PricingContent() {
             method: 'POST',
             status_code: res.status,
             feature_area: 'pricing',
+            billing_platform: billingPlatform,
           },
           {
             pathname,
             user: {
               id: session?.user?.id,
               subscription_tier: session?.user?.subscription_tier,
+              subscription_provider: provider,
               auth_provider: session?.user?.auth_provider,
             },
             isLoggedIn: status === 'authenticated',
@@ -168,6 +186,16 @@ function PricingContent() {
       {message && (
         <div className={message.type === 'success' ? 'text-green' : 'text-red'}>
           {message.text}
+        </div>
+      )}
+      {usesNativeBilling && (
+        <div className="card">
+          <p>
+            App Store subscriptions are coming soon. Premium purchases are not available in this native build yet.
+          </p>
+          <p className="secondary-text">
+            Existing premium access on your account still works after you sign in.
+          </p>
         </div>
       )}
       {/* Plan Tabs */}
@@ -218,13 +246,19 @@ function PricingContent() {
                 className="btn-upgrade"
                 aria-label="Subscribe monthly to Premium plan"
                 onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
-                disabled={loading !== null || status === 'loading' || subscriptionLoading}
+                disabled={usesNativeBilling || loading !== null || status === 'loading' || subscriptionLoading}
               >
-                {loading === 'month' ? 'Loading...' : "See What's Costing You Strokes"}
+                {usesNativeBilling
+                  ? 'App Store Subscriptions Coming Soon'
+                  : loading === 'month'
+                    ? 'Loading...'
+                    : "See What's Costing You Strokes"}
               </button>
               <div>
                 <p className="price-subtext">
-                  ${PRICING.monthly.price.toFixed(2)} CAD billed monthly. Cancel anytime.
+                  {usesNativeBilling
+                    ? 'Premium billing in the native app is not enabled yet.'
+                    : `$${PRICING.monthly.price.toFixed(2)} CAD billed monthly. Cancel anytime.`}
                 </p>
               </div>
             </div>
@@ -257,13 +291,19 @@ function PricingContent() {
                 className="btn-upgrade"
                 aria-label="Subscribe annually to Premium plan"
                 onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
-                disabled={loading !== null || status === 'loading' || subscriptionLoading}
+                disabled={usesNativeBilling || loading !== null || status === 'loading' || subscriptionLoading}
               >
-                {loading === 'year' ? 'Loading...' : "See What's Costing You Strokes"}
+                {usesNativeBilling
+                  ? 'App Store Subscriptions Coming Soon'
+                  : loading === 'year'
+                    ? 'Loading...'
+                    : "See What's Costing You Strokes"}
               </button>
               <div>
                 <p className="price-subtext">
-                  ${PRICING.annual.price.toFixed(2)} CAD billed yearly. Save {PRICING.annual.savings} vs monthly.
+                  {usesNativeBilling
+                    ? 'Annual App Store billing will be available in a future native release.'
+                    : `$${PRICING.annual.price.toFixed(2)} CAD billed yearly. Save ${PRICING.annual.savings} vs monthly.`}
                 </p>
               </div>
             </div>
@@ -318,8 +358,9 @@ function PricingContent() {
           <div className="card faq-item">
             <h3>What payment methods do you accept?</h3>
             <p>
-              We accept all major credit cards (Visa, MasterCard, American Express)
-              through our secure payment processor, Stripe.
+              {usesNativeBilling
+                ? 'Native billing is not available yet in this build. App Store subscriptions will be supported later.'
+                : 'We accept all major credit cards (Visa, MasterCard, American Express) through our secure payment processor, Stripe.'}
             </p>
           </div>
           <div className="card faq-item">
@@ -340,7 +381,9 @@ function PricingContent() {
             <h3>Is my data safe?</h3>
             <p>
               Absolutely. We use industry-standard encryption and never store your
-              payment information. All payments are securely processed by Stripe.
+              payment information. {usesNativeBilling
+                ? 'When native subscriptions are enabled, payment handling will follow App Store billing requirements.'
+                : 'All payments are securely processed by Stripe.'}
             </p>
           </div>
         </div>

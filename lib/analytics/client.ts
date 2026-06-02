@@ -1,6 +1,7 @@
 'use client';
 
 import posthog from 'posthog-js';
+import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
 import type { AnalyticsEventName, AppSurface, AuthProvider, CommonAnalyticsProps, PlanTier } from '@/lib/analytics/events';
 import {
   getAnalyticsAppVersion,
@@ -19,6 +20,7 @@ type ClientAnalyticsContext = {
     last_name?: string | null;
     subscription_tier?: string | null;
     subscription_status?: string | null;
+    subscription_provider?: string | null;
     auth_provider?: string | null;
     city?: string | null;
     timezone?: string | null;
@@ -52,6 +54,8 @@ function buildCommonProps(
     context.user?.auth_provider,
   );
   const isLoggedIn = context.isLoggedIn ?? Boolean(context.user?.id);
+  const nativeApp = isNativeApp();
+  const nativeIOS = isNativeIOS();
 
   return {
     source_page: sourcePage,
@@ -62,12 +66,18 @@ function buildCommonProps(
     ...(context.user?.subscription_status
       ? { subscription_status: String(context.user.subscription_status) }
       : {}),
+    ...(context.user?.subscription_provider
+      ? { subscription_provider: String(context.user.subscription_provider) }
+      : {}),
     ...(context.user?.city ? { user_city: String(context.user.city) } : {}),
     ...(context.user?.timezone ? { user_timezone: String(context.user.timezone) } : {}),
     plan_tier: planTier,
     auth_provider: authProvider,
     is_logged_in: isLoggedIn,
     app_surface: detectAppSurface(),
+    billing_platform: getBillingPlatform(),
+    is_native_app: nativeApp,
+    is_native_ios: nativeIOS,
     environment: getAnalyticsEnvironment(),
     app_version: getAnalyticsAppVersion(),
   };
@@ -97,6 +107,7 @@ export function identifyClientUser(
     last_name?: string | null;
     subscription_tier?: string | null;
     subscription_status?: string | null;
+    subscription_provider?: string | null;
     auth_provider?: string | null;
     city?: string | null;
     timezone?: string | null;
@@ -114,6 +125,9 @@ export function identifyClientUser(
       ...(user.last_name ? { last_name: user.last_name } : {}),
       plan_tier: normalizePlanTier(user.subscription_tier),
       ...(user.subscription_status ? { subscription_status: user.subscription_status } : {}),
+      ...(user.subscription_provider
+        ? { subscription_provider: user.subscription_provider }
+        : {}),
       auth_provider: normalizeAuthProvider(user.auth_provider),
       ...(user.city ? { city: user.city } : {}),
       ...(user.timezone ? { timezone: user.timezone } : {}),

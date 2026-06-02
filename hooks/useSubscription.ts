@@ -5,6 +5,7 @@ import { isPremium, isLifetime } from '@/lib/subscription';
 export interface SubscriptionData {
   tier: any;
   status: any;
+  provider: any;
   endsAt: Date | null;
   cancelAtPeriodEnd: boolean;
   loading: boolean;
@@ -19,6 +20,7 @@ function getDefaultSubscription(): CachedSubscription {
   return {
     tier: 'free',
     status: 'active',
+    provider: null,
     endsAt: null,
     cancelAtPeriodEnd: false,
   };
@@ -34,6 +36,7 @@ async function requestSubscription(): Promise<CachedSubscription> {
   return {
     tier: data.tier,
     status: data.status,
+    provider: data.provider ?? null,
     endsAt: data.endsAt ? new Date(data.endsAt) : null,
     cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
   };
@@ -59,6 +62,7 @@ export function useSubscription() {
   const [subscription, setSubscription] = useState<SubscriptionData>({
     tier: 'free',
     status: 'active',
+    provider: null,
     endsAt: null,
     cancelAtPeriodEnd: false,
     loading: true,

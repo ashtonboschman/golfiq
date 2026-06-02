@@ -6,6 +6,7 @@ import '@testing-library/jest-dom';
 import PricingPage from '@/app/pricing/page';
 import { useSession } from 'next-auth/react';
 import { useSubscription } from '@/hooks/useSubscription';
+import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
 
 const mockPush = jest.fn();
 const mockSearchParams = {
@@ -28,12 +29,21 @@ jest.mock('@/hooks/useSubscription', () => ({
   useSubscription: jest.fn(),
 }));
 
+jest.mock('@/lib/platform', () => ({
+  getBillingPlatform: jest.fn(),
+  isNativeApp: jest.fn(),
+  isNativeIOS: jest.fn(),
+}));
+
 jest.mock('@/lib/analytics/client', () => ({
   captureClientEvent: jest.fn(),
 }));
 
 const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedUseSubscription = useSubscription as unknown as jest.Mock;
+const mockedGetBillingPlatform = getBillingPlatform as jest.Mock;
+const mockedIsNativeApp = isNativeApp as jest.Mock;
+const mockedIsNativeIOS = isNativeIOS as jest.Mock;
 
 describe('/pricing page', () => {
   beforeEach(() => {
@@ -52,7 +62,11 @@ describe('/pricing page', () => {
     mockedUseSubscription.mockReturnValue({
       isPremium: false,
       loading: false,
+      provider: null,
     });
+    mockedGetBillingPlatform.mockReturnValue('web_stripe');
+    mockedIsNativeApp.mockReturnValue(false);
+    mockedIsNativeIOS.mockReturnValue(false);
     (global as any).fetch = jest.fn();
   });
 
@@ -181,5 +195,18 @@ describe('/pricing page', () => {
   it('does not include em dash characters in pricing copy', () => {
     const { container } = render(<PricingPage />);
     expect(container.textContent?.includes('\u2014')).toBe(false);
+  });
+
+  it('shows a native-safe placeholder and disables Stripe checkout in ios_iap mode', () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+
+    render(<PricingPage />);
+
+    expect(screen.getByText(/App Store subscriptions are coming soon/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subscribe monthly to Premium plan/i })).toBeDisabled();
+    expect(screen.getByText(/Premium billing in the native app is not enabled yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/Native billing is not available yet in this build/i)).toBeInTheDocument();
   });
 });

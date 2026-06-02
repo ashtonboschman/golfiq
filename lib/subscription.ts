@@ -1,4 +1,51 @@
-import { SubscriptionTier, SubscriptionStatus } from '@prisma/client';
+import {
+  SubscriptionProvider,
+  SubscriptionStatus,
+  SubscriptionTier,
+} from '@prisma/client';
+
+export type ExtendedSubscriptionStatus =
+  | SubscriptionStatus
+  | 'trialing'
+  | 'expired'
+  | null
+  | undefined;
+
+export type EntitlementLike = {
+  subscriptionTier: SubscriptionTier;
+  subscriptionStatus?: ExtendedSubscriptionStatus;
+  subscriptionProvider?: SubscriptionProvider | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  appleOriginalTransactionId?: string | null;
+  appleProductId?: string | null;
+};
+
+export function isActivePremiumStatus(
+  status: ExtendedSubscriptionStatus
+): boolean {
+  return status === 'active' || status === 'trialing';
+}
+
+export function getSubscriptionProvider(
+  user: Partial<EntitlementLike> | null | undefined
+): SubscriptionProvider | null {
+  if (!user) return null;
+  if (user.subscriptionProvider) return user.subscriptionProvider;
+  if (user.appleOriginalTransactionId || user.appleProductId) return 'apple';
+  if (user.stripeCustomerId || user.stripeSubscriptionId) return 'stripe';
+  if (user.subscriptionTier === 'lifetime') return 'manual';
+  return null;
+}
+
+export function hasPremiumEntitlement(
+  entitlement: Partial<EntitlementLike> | null | undefined
+): boolean {
+  if (!entitlement?.subscriptionTier) return false;
+  if (entitlement.subscriptionTier === 'lifetime') return true;
+  if (entitlement.subscriptionTier !== 'premium') return false;
+  return isActivePremiumStatus(entitlement.subscriptionStatus ?? 'active');
+}
 
 /**
  * Subscription System Utility Functions
@@ -15,12 +62,12 @@ import { SubscriptionTier, SubscriptionStatus } from '@prisma/client';
  */
 export function isPremium(
   tier: SubscriptionTier,
-  status: SubscriptionStatus
+  status: ExtendedSubscriptionStatus
 ): boolean {
-  return (
-    (tier === 'premium' || tier === 'lifetime') &&
-    status === 'active'
-  );
+  return hasPremiumEntitlement({
+    subscriptionTier: tier,
+    subscriptionStatus: status,
+  });
 }
 
 /**
@@ -29,10 +76,14 @@ export function isPremium(
  */
 export function isPremiumUser(user: {
   subscriptionTier: SubscriptionTier;
-  subscriptionStatus?: SubscriptionStatus;
+  subscriptionStatus?: ExtendedSubscriptionStatus;
+  subscriptionProvider?: SubscriptionProvider | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  appleOriginalTransactionId?: string | null;
+  appleProductId?: string | null;
 }): boolean {
-  const status = user.subscriptionStatus || 'active';
-  return isPremium(user.subscriptionTier, status);
+  return hasPremiumEntitlement(user);
 }
 
 /**

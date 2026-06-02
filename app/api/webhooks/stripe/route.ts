@@ -121,6 +121,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   await prisma.user.update({
     where: { id: BigInt(userId) },
     data: {
+      subscriptionProvider: 'stripe',
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: subscriptionId,
       subscriptionTier: 'premium',
@@ -153,6 +154,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     event: ANALYTICS_EVENTS.checkoutCompleted,
     distinctId: userId,
     properties: {
+      billing_platform: 'web_stripe',
+      billing_provider: 'stripe',
+      subscription_provider: 'stripe',
       plan_selected: session.metadata?.interval === 'year' ? 'annual' : 'monthly',
       billing_period: session.metadata?.interval ?? null,
       provider: 'stripe_webhook',
@@ -195,6 +199,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   await prisma.user.update({
     where: { id: BigInt(userId) },
     data: {
+      subscriptionProvider: 'stripe',
       stripeSubscriptionId: subscription.id,
       subscriptionTier: 'premium',
       subscriptionStatus: status,
@@ -246,6 +251,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
+      subscriptionProvider: tier === 'premium' ? 'stripe' : null,
       subscriptionStatus: status,
       subscriptionEndsAt: endsAt,
       subscriptionCancelAtPeriodEnd: cancellationScheduled,
@@ -289,6 +295,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
+      subscriptionProvider: null,
       subscriptionTier: 'free',
       subscriptionStatus: 'cancelled',
       subscriptionCancelAtPeriodEnd: false,
@@ -340,6 +347,7 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
+      subscriptionProvider: 'stripe',
       subscriptionStatus: 'active',
       subscriptionEndsAt: endsAt,
       subscriptionCancelAtPeriodEnd: isCancellationScheduled(subscription),
@@ -390,6 +398,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
+      subscriptionProvider: 'stripe',
       subscriptionStatus: 'past_due',
     },
   });
@@ -415,6 +424,9 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     event: ANALYTICS_EVENTS.checkoutFailed,
     distinctId: user.id.toString(),
     properties: {
+      billing_platform: 'web_stripe',
+      billing_provider: 'stripe',
+      subscription_provider: 'stripe',
       failure_stage: 'payment',
       error_code: 'invoice_payment_failed',
       invoice_id: invoice.id,

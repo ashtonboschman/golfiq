@@ -7,6 +7,7 @@ import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { generateAndStoreOverallInsights } from '@/app/api/insights/overall/route';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
+import { hasPremiumEntitlement } from '@/lib/subscription';
 import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
@@ -541,13 +542,20 @@ export async function POST(request: NextRequest) {
 
 // Helper to trigger insights generation for premium users
 async function triggerInsightsGeneration(roundId: bigint, userId: bigint): Promise<void> {
-  // Check if user is premium or lifetime
-  const user = await prisma.user.findUnique({
+  const entitlement = await prisma.user.findUnique({
     where: { id: userId },
-    select: { subscriptionTier: true },
+    select: {
+      subscriptionTier: true,
+      subscriptionStatus: true,
+      subscriptionProvider: true,
+      stripeCustomerId: true,
+      stripeSubscriptionId: true,
+      appleOriginalTransactionId: true,
+      appleProductId: true,
+    },
   });
 
-  if (user?.subscriptionTier === 'premium' || user?.subscriptionTier === 'lifetime') {
+  if (hasPremiumEntitlement(entitlement)) {
     try {
       await generateInsights(roundId, userId);
     } catch (error) {

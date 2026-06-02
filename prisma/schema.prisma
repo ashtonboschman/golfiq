@@ -15,8 +15,11 @@ model User {
   emailVerified           Boolean                  @default(false) @map("email_verified")
   createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  subscriptionProvider    SubscriptionProvider?    @map("subscription_provider")
   stripeCustomerId        String?                  @map("stripe_customer_id") @db.VarChar(255)
   stripeSubscriptionId    String?                  @map("stripe_subscription_id") @db.VarChar(255)
+  appleOriginalTransactionId String?               @map("apple_original_transaction_id") @db.VarChar(255)
+  appleProductId          String?                  @map("apple_product_id") @db.VarChar(255)
   subscriptionEndsAt      DateTime?                @map("subscription_ends_at") @db.Timestamptz(6)
   subscriptionStartsAt    DateTime?                @map("subscription_starts_at") @db.Timestamptz(6)
   subscriptionStatus      SubscriptionStatus       @default(active) @map("subscription_status")
@@ -614,6 +617,12 @@ enum SubscriptionTier {
   free
   premium
   lifetime
+}
+
+enum SubscriptionProvider {
+  stripe
+  apple
+  manual
 }
 
 enum SubscriptionStatus {

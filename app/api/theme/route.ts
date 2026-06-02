@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
+import { hasPremiumEntitlement } from '@/lib/subscription';
 import { z } from 'zod';
 
 const AVAILABLE_THEMES = [
@@ -40,12 +41,20 @@ export async function PUT(request: NextRequest) {
 
     // Check if theme requires premium
     if (PREMIUM_THEMES.includes(theme)) {
-      const user = await prisma.user.findUnique({
+      const entitlement = await prisma.user.findUnique({
         where: { id: userId },
-        select: { subscriptionTier: true },
+        select: {
+          subscriptionTier: true,
+          subscriptionStatus: true,
+          subscriptionProvider: true,
+          stripeCustomerId: true,
+          stripeSubscriptionId: true,
+          appleOriginalTransactionId: true,
+          appleProductId: true,
+        },
       });
 
-      if (!user || (user.subscriptionTier !== 'premium' && user.subscriptionTier !== 'lifetime')) {
+      if (!hasPremiumEntitlement(entitlement)) {
         return errorResponse('This theme requires a Premium subscription', 403);
       }
     }
