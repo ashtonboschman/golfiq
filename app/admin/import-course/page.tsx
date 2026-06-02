@@ -8,6 +8,7 @@ import ManualCourseForm from '@/components/ManualCourseForm';
 import { AdminPanelSkeleton } from '@/components/skeleton/PageSkeletons';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { isAdminUserId } from '@/lib/admin';
 
 export default function ImportCoursePage() {
   const { data: session, status } = useSession();
@@ -45,7 +46,7 @@ export default function ImportCoursePage() {
     if (status === 'loading') return;
 
     const userId = session?.user?.id;
-    if (userId !== '1') {
+    if (!isAdminUserId(userId)) {
       router.push('/');
       return;
     }
@@ -147,7 +148,7 @@ export default function ImportCoursePage() {
 
       // Admin users (ID = 1) stay on page and keep search results
       // Regular users get redirected immediately
-      if (session?.user?.id === '1') {
+      if (isAdminUserId(session?.user?.id)) {
         // Clear form but keep search results for batch importing
         setJsonInput('');
         setPreview(null);

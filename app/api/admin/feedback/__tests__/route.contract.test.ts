@@ -1,14 +1,10 @@
 import { GET, PATCH } from '@/app/api/admin/feedback/route';
-import { requireAuth } from '@/lib/api-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 import { prisma } from '@/lib/db';
 
-jest.mock('@/lib/api-auth', () => {
-  const actual = jest.requireActual('@/lib/api-auth');
-  return {
-    ...actual,
-    requireAuth: jest.fn(),
-  };
-});
+jest.mock('@/lib/admin-auth', () => ({
+  requireAdmin: jest.fn(),
+}));
 
 jest.mock('@/lib/db', () => ({
   prisma: {
@@ -26,7 +22,7 @@ type MockPrisma = {
   };
 };
 
-const mockedRequireAuth = requireAuth as jest.Mock;
+const mockedRequireAdmin = requireAdmin as jest.Mock;
 const mockedPrisma = prisma as unknown as MockPrisma;
 
 describe('/api/admin/feedback route contract', () => {
@@ -35,7 +31,7 @@ describe('/api/admin/feedback route contract', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    mockedRequireAuth.mockRejectedValue(new Error('Unauthorized'));
+    mockedRequireAdmin.mockRejectedValue(new Error('Unauthorized'));
 
     const request = new Request('http://localhost/api/admin/feedback');
     const response = await GET(request as any);
@@ -46,7 +42,7 @@ describe('/api/admin/feedback route contract', () => {
   });
 
   it('returns 403 when user is not admin', async () => {
-    mockedRequireAuth.mockResolvedValue(BigInt(2));
+    mockedRequireAdmin.mockRejectedValue(new Error('Forbidden'));
 
     const request = new Request('http://localhost/api/admin/feedback');
     const response = await GET(request as any);
@@ -57,7 +53,7 @@ describe('/api/admin/feedback route contract', () => {
   });
 
   it('returns serialized feedback list for admin', async () => {
-    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedRequireAdmin.mockResolvedValue(BigInt(1));
     mockedPrisma.userFeedback.findMany.mockResolvedValue([
       {
         id: BigInt(10),
@@ -105,7 +101,7 @@ describe('/api/admin/feedback route contract', () => {
   });
 
   it('builds search OR filters when search query is provided', async () => {
-    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedRequireAdmin.mockResolvedValue(BigInt(1));
     mockedPrisma.userFeedback.findMany.mockResolvedValue([]);
 
     const request = new Request('http://localhost/api/admin/feedback?search=ios');
@@ -138,7 +134,7 @@ describe('/api/admin/feedback route contract', () => {
   });
 
   it('updates feedback status for admin', async () => {
-    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedRequireAdmin.mockResolvedValue(BigInt(1));
     mockedPrisma.userFeedback.update.mockResolvedValue({
       id: BigInt(10),
       status: 'resolved',
@@ -171,7 +167,7 @@ describe('/api/admin/feedback route contract', () => {
   });
 
   it('rejects invalid status updates', async () => {
-    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedRequireAdmin.mockResolvedValue(BigInt(1));
 
     const request = new Request('http://localhost/api/admin/feedback', {
       method: 'PATCH',

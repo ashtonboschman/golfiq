@@ -12,6 +12,7 @@ import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 import { getBillingPlatform } from '@/lib/platform';
+import { isAdminUserId } from '@/lib/admin';
 
 const FEEDBACK_MIN_LENGTH = 10;
 const FEEDBACK_MAX_LENGTH = 2000;
@@ -463,12 +464,11 @@ export default function SettingsPage() {
           </section>
 
           {/* Admin Section */}
-          {session?.user?.id === '1' && (
+          {isAdminUserId(session?.user?.id) && (
           <section className="settings-section">
-            <div className="settings-card settings-admin-card">
-              <label className="form-label">Admin Tools</label>
-              <p className="settings-admin-helper">Only visible to your admin account.</p>
+            <div className="settings-card">
               <div className="settings-export-container">
+                <label className="form-label">Admin Tools</label>
                 <button
                   className="btn btn-secondary"
                   onClick={() => router.push('/admin/import-course')}

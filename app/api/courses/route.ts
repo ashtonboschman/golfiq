@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 import { z } from 'zod';
 
 type HoleData = {
@@ -407,7 +408,7 @@ function extractStreetAddress(fullAddress: string | null | undefined): string | 
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth(request);
+    await requireAdmin(request);
 
     let body: unknown;
     try {
@@ -560,6 +561,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return errorResponse('Unauthorized', 401);
+    }
+    if (error instanceof Error && error.message === 'Forbidden') {
+      return errorResponse('Forbidden', 403);
     }
 
     console.error('POST /api/courses error:', error);

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 import { checkRateLimit, logApiCall } from '@/lib/utils/apiRateLimit';
 
 export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
+
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query');
 
@@ -66,6 +69,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     console.error('Search error:', error);
     return NextResponse.json(
       { error: 'An error occurred while searching' },

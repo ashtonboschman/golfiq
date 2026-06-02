@@ -4290,17 +4290,6 @@ input[type='date'].form-input {
   min-width: 180px;
 }
 
-.settings-admin-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-small);
-}
-
-.settings-admin-helper {
-  margin: 0;
-  color: var(--color-secondary-text);
-}
-
 .settings-blocked-helper {
   margin: 0;
   color: var(--color-secondary-text);

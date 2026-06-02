@@ -1,5 +1,6 @@
-import { GET } from '@/app/api/courses/route';
+import { GET, POST } from '@/app/api/courses/route';
 import { requireAuth } from '@/lib/api-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 import { prisma } from '@/lib/db';
 
 jest.mock('@/lib/api-auth', () => {
@@ -10,11 +11,25 @@ jest.mock('@/lib/api-auth', () => {
   };
 });
 
+jest.mock('@/lib/admin-auth', () => ({
+  requireAdmin: jest.fn(),
+}));
+
 jest.mock('@/lib/db', () => ({
   prisma: {
     course: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    location: {
+      create: jest.fn(),
+    },
+    tee: {
+      create: jest.fn(),
+    },
+    hole: {
+      createMany: jest.fn(),
     },
     $queryRaw: jest.fn(),
   },
@@ -24,17 +39,29 @@ type MockPrisma = {
   course: {
     findMany: jest.Mock;
     findUnique: jest.Mock;
+    create: jest.Mock;
+  };
+  location: {
+    create: jest.Mock;
+  };
+  tee: {
+    create: jest.Mock;
+  };
+  hole: {
+    createMany: jest.Mock;
   };
   $queryRaw: jest.Mock;
 };
 
 const mockedRequireAuth = requireAuth as jest.Mock;
+const mockedRequireAdmin = requireAdmin as jest.Mock;
 const mockedPrisma = prisma as unknown as MockPrisma;
 
-describe('/api/courses GET search filters', () => {
+describe('/api/courses route', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedRequireAuth.mockResolvedValue(BigInt(7));
+    mockedRequireAdmin.mockResolvedValue(BigInt(1));
     mockedPrisma.$queryRaw.mockResolvedValue([]);
   });
 
@@ -93,5 +120,44 @@ describe('/api/courses GET search filters', () => {
     );
     expect(body.courses).toHaveLength(1);
     expect(body.courses[0].location.city).toBe('Winnipeg');
+  });
+
+  it('returns 403 for non-admin course imports', async () => {
+    mockedRequireAdmin.mockRejectedValue(new Error('Forbidden'));
+
+    const request = new Request('http://localhost/api/courses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 123,
+        club_name: 'Test Club',
+        course_name: 'Test Course',
+      }),
+    });
+
+    const response = await POST(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.message).toBe('Forbidden');
+    expect(mockedPrisma.course.create).not.toHaveBeenCalled();
+  });
+
+  it('validates admin import payload before writing', async () => {
+    const request = new Request('http://localhost/api/courses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        club_name: 'Test Club',
+        course_name: 'Test Course',
+      }),
+    });
+
+    const response = await POST(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.message).toMatch(/invalid/i);
+    expect(mockedPrisma.course.create).not.toHaveBeenCalled();
   });
 });

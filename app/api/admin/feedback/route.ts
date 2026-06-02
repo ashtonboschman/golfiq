@@ -1,18 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { NextRequest } from 'next/server';
-import { errorResponse, requireAuth, successResponse } from '@/lib/api-auth';
+import { errorResponse, successResponse } from '@/lib/api-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 import { prisma } from '@/lib/db';
 
-const ADMIN_USER_ID = BigInt(1);
 type FeedbackStatus = 'open' | 'in_review' | 'resolved' | 'closed';
 type FeedbackType = 'bug' | 'idea' | 'other';
 
 const ALLOWED_STATUS = new Set<FeedbackStatus>(['open', 'in_review', 'resolved', 'closed']);
 const ALLOWED_TYPES = new Set<FeedbackType>(['bug', 'idea', 'other']);
-
-function isAdmin(userId: bigint): boolean {
-  return userId === ADMIN_USER_ID;
-}
 
 function buildWhere(searchParams: URLSearchParams): Prisma.UserFeedbackWhereInput {
   const status = searchParams.get('status')?.trim().toLowerCase();
@@ -45,8 +41,7 @@ function buildWhere(searchParams: URLSearchParams): Prisma.UserFeedbackWhereInpu
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await requireAuth(request);
-    if (!isAdmin(userId)) return errorResponse('Forbidden', 403);
+    await requireAdmin(request);
 
     const where = buildWhere(new URL(request.url).searchParams);
 
@@ -96,6 +91,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     if (error?.message === 'Unauthorized') return errorResponse('Unauthorized', 401);
+    if (error?.message === 'Forbidden') return errorResponse('Forbidden', 403);
     console.error('GET /api/admin/feedback error:', error);
     return errorResponse('Failed to fetch feedback submissions', 500);
   }
@@ -103,8 +99,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = await requireAuth(request);
-    if (!isAdmin(userId)) return errorResponse('Forbidden', 403);
+    await requireAdmin(request);
 
     let body: { id?: string | number; status?: string };
     try {
@@ -151,6 +146,7 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error: any) {
     if (error?.message === 'Unauthorized') return errorResponse('Unauthorized', 401);
+    if (error?.message === 'Forbidden') return errorResponse('Forbidden', 403);
 
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return errorResponse('Feedback submission not found', 404);

@@ -8,6 +8,7 @@ import { useMessage } from '@/app/providers';
 import { AdminPanelSkeleton } from '@/components/skeleton/PageSkeletons';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
+import { isAdminUserId } from '@/lib/admin';
 
 type FeedbackStatus = 'open' | 'in_review' | 'resolved' | 'closed';
 type FeedbackType = 'bug' | 'idea' | 'other';
@@ -63,7 +64,7 @@ export default function AdminFeedbackPage() {
   useEffect(() => {
     if (status === 'loading') return;
 
-    if (session?.user?.id !== '1') {
+    if (!isAdminUserId(session?.user?.id)) {
       router.push('/');
       return;
     }
