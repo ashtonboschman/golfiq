@@ -3,11 +3,22 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import AboutPage from '@/app/about/page';
 import PrivacyPage from '@/app/privacy/page';
 import TermsPage from '@/app/terms/page';
 import ContactPage from '@/app/contact/page';
 
 describe('legal and support pages', () => {
+  it('renders the updated about page positioning', () => {
+    render(<AboutPage />);
+
+    expect(
+      screen.getByRole('heading', { name: /about golfiq/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/your scorecard tells you what you shot/i)).toBeInTheDocument();
+    expect(screen.getByText(/track rounds faster, understand your scores better/i)).toBeInTheDocument();
+  });
+
   it('renders privacy policy disclosures', () => {
     render(<PrivacyPage />);
 

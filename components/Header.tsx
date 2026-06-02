@@ -214,6 +214,7 @@ export default function Header() {
             className="left-button"
             onClick={handleBackClick}
             title="Go Back"
+            aria-label="Go back"
           >
             <ChevronLeft />
           </button>
@@ -294,10 +295,11 @@ export default function Header() {
     </header>
   );
 }
-  const clearThemeAuthMarker = () => {
-    try {
-      localStorage.removeItem('golfiq:auth');
-    } catch {
-      // noop
-    }
-  };
+
+const clearThemeAuthMarker = () => {
+  try {
+    localStorage.removeItem('golfiq:auth');
+  } catch {
+    // noop
+  }
+};

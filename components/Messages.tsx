@@ -41,7 +41,7 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
             <div className="modal-icon warning">
               <TriangleAlert size={50}/>
             </div>
-            <h3 className="modal-title">Confirm Action</h3>
+            <h3 className="modal-title">Are you sure?</h3>
             <p className="modal-message">{confirmDialog.message}</p>
             <div className="modal-buttons">
               <button
@@ -60,7 +60,7 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
                 }}
                 className="btn btn-save"
               >
-                {confirmDialog.confirmText || 'OK'}
+                {confirmDialog.confirmText || 'Continue'}
               </button>
             </div>
           </div>
@@ -95,7 +95,7 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
                 }}
                 className="btn btn-save btn-single"
               >
-                OK
+                Close
               </button>
             </div>
           </div>

@@ -1402,7 +1402,6 @@ describe('/dashboard Round Focus card', () => {
       const hasOpenWelcomeCall = mockUpgradeModal.mock.calls.some(
         ([props]) =>
           props.title === 'Welcome to GolfIQ' &&
-          props.titleBadge === 'Beta' &&
           props.isOpen === true &&
           props.analyticsMode === 'none' &&
           props.primaryButtonLabel === 'Got It' &&

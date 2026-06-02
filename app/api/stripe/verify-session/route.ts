@@ -174,8 +174,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(`Subscription activated via verify-session for user ${user.id}`);
-
     return NextResponse.json({
       message: 'Subscription activated successfully',
       status: 'activated',

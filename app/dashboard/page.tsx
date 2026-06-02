@@ -1864,16 +1864,15 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         isOpen={!loading && activeMilestoneModal === 'welcome' && status === 'authenticated'}
         onClose={handleCloseMilestoneModal}
         title="Welcome to GolfIQ"
-        titleBadge="Beta"
-        message="GolfIQ is currently in beta and focused on helping golfers understand where they are losing strokes."
+        message="Track your rounds, see what shaped your score, and build a clearer picture of your game over time."
         ctaLocation="dashboard_zero_rounds_beta_modal"
         milestoneRound={0}
         analyticsMode="none"
         primaryButtonLabel="Got It"
         showCloseButton={false}
         features={[
-          'Insights and features are actively being refined based on real rounds.',
-          'If anything feels off or confusing, submit feedback or report a bug from the Settings page.',
+          'Log rounds your way and keep your stats organized in one place.',
+          'Review post-round insights and trends as your round history grows.',
         ]}
       />
 

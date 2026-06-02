@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'About Us | GolfIQ',
-  description: 'Learn about GolfIQ and our mission to help golfers improve through deterministic performance analytics.',
+  description: 'Learn how GolfIQ helps golfers track rounds, understand scores, and spot performance trends over time.',
 };
 
 export default function AboutPage() {
@@ -13,80 +13,70 @@ export default function AboutPage() {
 
         <section className="legal-section">
           <p className="legal-intro">
-            GolfIQ was built to answer a simple question:<br />
-            <strong>Why do I shoot the scores I do?</strong>
+            Your scorecard tells you what you shot.<br />
+            <strong>GolfIQ helps explain why.</strong>
           </p>
 
           <p>
-            Like many competitive golfers, I tracked my rounds in spreadsheets for years. I wanted clear answers about my game, not cluttered GPS maps, buried stats, or features that got in the way of actually playing golf. Most apps tried to do everything at once. None focused purely on performance, clarity, and improvement.
+            GolfIQ was built for golfers who want fast round tracking, clearer feedback, and a better understanding of what shaped each score. The goal is simple: make it easier to log your golf, spot patterns, and know where to focus next.
           </p>
 
           <p>
-            So I built GolfIQ.
+            It started from the same frustration many golfers have. Scores alone do not show the full story, and most apps make it harder than it should be to understand what actually happened during a round.
           </p>
 
-          <h2 className="legal-subtitle">A Stats First Approach to Improvement</h2>
+          <h2 className="legal-subtitle">Built Around Real Rounds</h2>
 
           <p>
-            GolfIQ is a performance-focused golf analytics platform designed for golfers who care about getting better. Instead of relying on GPS or shot-by-shot mapping, GolfIQ uses simple on-course inputs and a smart, non-GPS strokes gained model to calculate real performance data.
-          </p>
-
-          <p>
-            The result is less time on your phone during a round and more time focused on the next shot. After the round, GolfIQ analyzes your data and turns it into insights that actually matter.
-          </p>
-
-          <h2 className="legal-subtitle">Built for Golfers Who Want an Edge</h2>
-
-          <p>
-            GolfIQ is for golfers of any skill level who want to understand their game honestly. It naturally resonates most with mid to low handicap players looking for a competitive edge, but anyone curious about their strengths, weaknesses, and trends can benefit.
+            GolfIQ keeps the focus on the round itself. You can log scores and stats without turning your phone into the center of the day, then come back after the round to review what influenced the result.
           </p>
 
           <p>
-            This is not a casual GPS scorecard. GolfIQ is built for players who want to improve through data, pattern recognition, and focused practice.
+            That means less friction while playing and more useful context after the round, whether you are checking score trends, short game performance, or the parts of your game that cost the most strokes.
           </p>
 
-          <h2 className="legal-subtitle">Turning Data Into Actionable Insights</h2>
+          <h2 className="legal-subtitle">Understand What Shaped Your Score</h2>
 
           <p>
-            GolfIQ compares your performance against expectations for your handicap and identifies where you are gaining or losing strokes. That data is processed through deterministic scoring and strokes-gained models that translate your stats into clear, actionable recommendations.
-          </p>
-
-          <p>
-            You are not just shown numbers. You are shown what they mean, why they matter, and where to focus next.
-          </p>
-
-          <h2 className="legal-subtitle">Why No GPS</h2>
-
-          <p>
-            GolfIQ intentionally avoids GPS. Many golf apps prioritize maps, distances, and visuals that distract from the game itself. GolfIQ prioritizes clean data and fast input so golfers can stay present during the round.
+            GolfIQ is designed to turn round data into practical feedback. Post-round insights, trends, and strokes gained tools help connect the numbers to the story of the round so you can see what is improving and what needs attention.
           </p>
 
           <p>
-            This stats-first philosophy creates better data, better insights, and ultimately better golf.
+            The aim is not to overwhelm you with stats. It is to help you understand your performance more clearly and make smarter practice decisions over time.
           </p>
 
-          <h2 className="legal-subtitle">Built in Public</h2>
+          <h2 className="legal-subtitle">Focused by Design</h2>
 
           <p>
-            GolfIQ is currently in beta and actively evolving. New features are being added, refined, and tested with real user feedback.
+            GolfIQ does not try to be everything at once. It is built around tracking rounds, reviewing trends, and helping golfers make sense of their scores without adding extra clutter to the experience.
           </p>
 
           <p>
-            GolfIQ is a solo-founded project and a mix of personal passion and professional engineering. User feedback plays a major role in shaping what comes next.
+            By keeping the product focused, GolfIQ can stay fast to use, easier to trust, and more useful after each round.
+          </p>
+
+          <h2 className="legal-subtitle">Built with Golfer Feedback</h2>
+
+          <p>
+            GolfIQ is a solo-founded product shaped by real golfers and real rounds. Feedback plays a direct role in what gets refined, simplified, or built next.
+          </p>
+
+          <p>
+            The product continues to evolve with the goal of giving golfers clearer answers, better tracking, and more confidence in what to work on.
           </p>
 
           <h2 className="legal-subtitle">Get Started</h2>
 
           <p>
-            If you believe understanding your game is the fastest way to improve it, GolfIQ was built for you.
+            If you want to track rounds faster, understand your scores better, and build a clearer picture of your game over time, GolfIQ was built for you.
           </p>
 
           <p>
-            Create a free account to start tracking rounds, explore insights, and help shape the next generation of golf analytics.
+            Create a free account to start logging rounds, exploring insights, and following your progress over time.
           </p>
 
           <p>
-            Follow GolfIQ on social media to stay up to date, and share feedback anytime from Settings to help improve the app.
+            You can share feedback anytime from Settings to help keep GolfIQ useful, focused, and improving with every release.
           </p>
         </section>
       </div>
