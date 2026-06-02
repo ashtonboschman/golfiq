@@ -4,7 +4,10 @@ export function isNativeApp(): boolean {
   if (typeof window === 'undefined') return false;
 
   const maybeCapacitor = (window as Window & {
-    Capacitor?: { isNativePlatform?: () => boolean };
+    Capacitor?: {
+      getPlatform?: () => string;
+      isNativePlatform?: () => boolean;
+    };
   }).Capacitor;
 
   if (typeof maybeCapacitor?.isNativePlatform === 'function') {
@@ -19,6 +22,23 @@ export function isNativeApp(): boolean {
 }
 
 export function isNativeIOS(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const maybeCapacitor = (window as Window & {
+    Capacitor?: {
+      getPlatform?: () => string;
+      isNativePlatform?: () => boolean;
+    };
+  }).Capacitor;
+
+  if (typeof maybeCapacitor?.getPlatform === 'function') {
+    try {
+      return maybeCapacitor.isNativePlatform?.() === true && maybeCapacitor.getPlatform() === 'ios';
+    } catch {
+      return false;
+    }
+  }
+
   if (!isNativeApp() || typeof navigator === 'undefined') return false;
   return /iPad|iPhone|iPod/i.test(navigator.userAgent);
 }
