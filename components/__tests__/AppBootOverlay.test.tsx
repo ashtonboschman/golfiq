@@ -24,6 +24,11 @@ jest.mock('next/image', () => ({
   ),
 }));
 
+jest.mock('@/components/AppBootVisual', () => ({
+  __esModule: true,
+  default: () => <div data-testid="app-boot-visual">Boot Visual</div>,
+}));
+
 const mockedUseSession = useSession as unknown as jest.Mock;
 
 describe('AppBootOverlay public route behavior', () => {
@@ -57,5 +62,6 @@ describe('AppBootOverlay public route behavior', () => {
     render(<AppBootOverlay />);
 
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.getByTestId('app-boot-visual')).toBeInTheDocument();
   });
 });

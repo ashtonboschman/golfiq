@@ -18,6 +18,11 @@ jest.mock('@/lib/platform', () => ({
   isNativeIOS: jest.fn(),
 }));
 
+jest.mock('@/components/AppBootVisual', () => ({
+  __esModule: true,
+  default: () => <div data-testid="app-boot-visual">Boot Visual</div>,
+}));
+
 const mockedIsNativeIOS = isNativeIOS as jest.Mock;
 
 describe('NativeRootEntryGate', () => {
@@ -26,14 +31,16 @@ describe('NativeRootEntryGate', () => {
     mockedIsNativeIOS.mockReturnValue(false);
   });
 
-  it('keeps landing content visible on web', () => {
+  it('keeps landing content visible on web after native detection resolves false', async () => {
     render(
       <NativeRootEntryGate>
         <div>Landing Content</div>
       </NativeRootEntryGate>,
     );
 
-    expect(screen.getByText('Landing Content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Landing Content')).toBeInTheDocument();
+    });
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
@@ -47,6 +54,7 @@ describe('NativeRootEntryGate', () => {
     );
 
     expect(screen.queryByText('Landing Content')).not.toBeInTheDocument();
+    expect(screen.getByTestId('app-boot-visual')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/onboarding');

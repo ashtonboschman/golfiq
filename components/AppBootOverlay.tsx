@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import AppBootVisual from './AppBootVisual';
 
 const PUBLIC_ROUTES = new Set([
   '/',
@@ -52,17 +52,7 @@ export default function AppBootOverlay() {
 
   return (
     <div className="app-boot-overlay" role="status" aria-live="polite" aria-label="Loading">
-      <div className="app-boot-loader">
-        <div className="app-boot-ring" aria-hidden="true" />
-        <Image
-          src="/logos/favicon/golfiq-icon-512-transparent.png"
-          alt="GolfIQ"
-          width={50}
-          height={50}
-          className="app-boot-logo"
-          priority
-        />
-      </div>
+      <AppBootVisual />
     </div>
   );
 }
