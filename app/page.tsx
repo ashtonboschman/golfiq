@@ -7,6 +7,7 @@ import Hero from '@/components/landing/Hero';
 import Features from '@/components/landing/Features';
 import InsightsCTA from '@/components/landing/InsightsCTA';
 import LandingFooter from '@/components/landing/LandingFooter';
+import NativeRootEntryGate from '@/components/NativeRootEntryGate';
 
 export const metadata: Metadata = {
   title: 'GolfIQ | Track Rounds. Unlock Insights. Score Lower.',
@@ -98,7 +99,7 @@ export default async function LandingPage() {
   };
 
   return (
-    <>
+    <NativeRootEntryGate>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
@@ -120,6 +121,6 @@ export default async function LandingPage() {
         </main>
         <LandingFooter />
       </div>
-    </>
+    </NativeRootEntryGate>
   );
 }
