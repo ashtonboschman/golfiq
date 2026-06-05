@@ -340,26 +340,13 @@ describe('/settings page', () => {
     expect(screen.getByText(/customer portal link included in your billing emails/i)).toBeInTheDocument();
   });
 
-  it('shows a success message after returning from RevenueCat checkout', async () => {
-    mockedUseSubscription.mockReturnValue({
-      tier: 'free',
-      status: 'active',
-      provider: null,
-      endsAt: null,
-      cancelAtPeriodEnd: false,
-      loading: false,
-      isPremium: false,
-    });
+  it('redirects RevenueCat success returns to the shared subscription success page', async () => {
     window.history.replaceState({}, '', '/settings?billing=success');
 
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(mockShowMessage).toHaveBeenCalledWith(
-        expect.stringMatching(/Purchase complete/i),
-        'success',
-      );
+      expect(mockReplace).toHaveBeenCalledWith('/subscription/success?billing=success');
     });
-    expect(screen.getByText(/Premium access should unlock shortly/i)).toBeInTheDocument();
   });
 });

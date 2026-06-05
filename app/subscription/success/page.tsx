@@ -10,6 +10,8 @@ function SubscriptionSuccessContent() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const sessionId = searchParams.get('session_id');
+  const billingSuccess = searchParams.get('billing') === 'success';
   const [countdown, setCountdown] = useState(5);
   const [verifying, setVerifying] = useState(true);
   const [verified, setVerified] = useState(false);
@@ -21,22 +23,13 @@ function SubscriptionSuccessContent() {
     }
   }, [status, router]);
 
-  // Verify the checkout session and activate subscription
   useEffect(() => {
-    const verifySession = async () => {
-      const sessionId = searchParams.get('session_id');
-
-      if (!sessionId) {
-        setError('No session ID found');
-        setVerifying(false);
-        return;
-      }
-
+    const verifyStripeSession = async (stripeSessionId: string) => {
       try {
         const res = await fetch('/api/stripe/verify-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId }),
+          body: JSON.stringify({ sessionId: stripeSessionId }),
         });
 
         const data = await res.json();
@@ -54,10 +47,22 @@ function SubscriptionSuccessContent() {
       }
     };
 
-    if (status === 'authenticated') {
-      verifySession();
+    if (status !== 'authenticated') return;
+
+    if (sessionId) {
+      verifyStripeSession(sessionId);
+      return;
     }
-  }, [status, searchParams]);
+
+    if (billingSuccess) {
+      setVerified(true);
+      setVerifying(false);
+      return;
+    }
+
+    setError('We could not confirm your subscription activation.');
+    setVerifying(false);
+  }, [billingSuccess, sessionId, status]);
 
   // Countdown timer - only start after verification
   useEffect(() => {
@@ -82,11 +87,11 @@ function SubscriptionSuccessContent() {
       <div className="login-stack">
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Loader2 size={50} className="spinning" /></div>
-            <h1 className="auth-title">Activating Subscription...</h1>
+          <div style={{ marginBottom: '16px' }}><Loader2 size={50} className="spinning" /></div>
+            <h1 className="auth-title">Activating Premium...</h1>
           </div>
           <p className="secondary-text" style={{ textAlign: 'center' }}>
-            Please wait while we activate your premium membership.
+            Please wait while we confirm your premium access.
           </p>
         </div>
       </div>
@@ -152,11 +157,11 @@ function SubscriptionSuccessContent() {
 
         <div style={{ marginBottom: '24px', textAlign: 'center' }}>
           <p className="secondary-text" style={{ marginBottom: '12px' }}>
-            Your subscription has been activated successfully.
+            Your premium access is active.
           </p>
           <p className="secondary-text" style={{ fontSize: '14px' }}>
-            You now have access to all premium features including Intelligent Insights,
-            full leaderboard access, and unlimited analytics history.
+            You now have access to premium insights, trends, deeper comparisons,
+            full leaderboard access, and longer analytics history.
           </p>
         </div>
 
