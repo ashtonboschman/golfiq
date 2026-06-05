@@ -7,6 +7,7 @@ import PricingPage from '@/app/pricing/page';
 import { useSession } from 'next-auth/react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
+import { redirectToUrl } from '@/lib/browser/redirect';
 
 const mockPush = jest.fn();
 const mockSearchParams = {
@@ -39,11 +40,16 @@ jest.mock('@/lib/analytics/client', () => ({
   captureClientEvent: jest.fn(),
 }));
 
+jest.mock('@/lib/browser/redirect', () => ({
+  redirectToUrl: jest.fn(),
+}));
+
 const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedUseSubscription = useSubscription as unknown as jest.Mock;
 const mockedGetBillingPlatform = getBillingPlatform as jest.Mock;
 const mockedIsNativeApp = isNativeApp as jest.Mock;
 const mockedIsNativeIOS = isNativeIOS as jest.Mock;
+const mockedRedirectToUrl = redirectToUrl as jest.Mock;
 
 describe('/pricing page', () => {
   beforeEach(() => {
@@ -67,7 +73,7 @@ describe('/pricing page', () => {
     mockedGetBillingPlatform.mockReturnValue('web_stripe');
     mockedIsNativeApp.mockReturnValue(false);
     mockedIsNativeIOS.mockReturnValue(false);
-    (global as any).fetch = jest.fn();
+    mockedRedirectToUrl.mockReset();
   });
 
   it('shows updated monthly and annual headlines', () => {
@@ -175,9 +181,7 @@ describe('/pricing page', () => {
     expect(message).toHaveClass('text-red');
   });
 
-  it('prevents duplicate checkout submissions while loading', async () => {
-    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
-
+  it('routes web checkout through the RevenueCat purchase-link endpoint', async () => {
     render(<PricingPage />);
 
     const button = screen.getByRole('button', { name: /Subscribe monthly to Premium plan/i });
@@ -185,11 +189,21 @@ describe('/pricing page', () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(mockedRedirectToUrl).toHaveBeenCalledTimes(1);
     });
 
+    expect(mockedRedirectToUrl).toHaveBeenCalledWith('/api/revenuecat/purchase-link?package=monthly');
     expect(screen.getByRole('button', { name: /subscribe monthly to premium plan/i })).toBeDisabled();
     expect(screen.getByText('Loading...')).toBeInTheDocument();
+  });
+
+  it('shows billing setup errors returned from the purchase-link route', () => {
+    mockSearchParams.get.mockImplementation((key: string) => (key === 'billing_error' ? 'billing_unavailable' : null));
+
+    render(<PricingPage />);
+
+    expect(screen.getByText(/Web checkout is not configured right now/i)).toBeInTheDocument();
+    expect(screen.getByText(/Web checkout is not configured right now/i)).toHaveClass('text-red');
   });
 
   it('does not include em dash characters in pricing copy', () => {

@@ -115,6 +115,7 @@ function createFetchMock() {
 describe('/settings page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.history.replaceState({}, '', '/settings');
     (global as any).fetch = createFetchMock();
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
@@ -320,5 +321,45 @@ describe('/settings page', () => {
 
     expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
     expect(screen.getByText(/Premium access is active on this account/i)).toBeInTheDocument();
+  });
+
+  it('shows RevenueCat web management guidance for revenuecat_web subscribers', () => {
+    mockedUseSubscription.mockReturnValue({
+      tier: 'premium',
+      status: 'active',
+      provider: 'revenuecat_web',
+      endsAt: null,
+      cancelAtPeriodEnd: false,
+      loading: false,
+      isPremium: true,
+    });
+
+    render(<SettingsPage />);
+
+    expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/customer portal link included in your billing emails/i)).toBeInTheDocument();
+  });
+
+  it('shows a success message after returning from RevenueCat checkout', async () => {
+    mockedUseSubscription.mockReturnValue({
+      tier: 'free',
+      status: 'active',
+      provider: null,
+      endsAt: null,
+      cancelAtPeriodEnd: false,
+      loading: false,
+      isPremium: false,
+    });
+    window.history.replaceState({}, '', '/settings?billing=success');
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(mockShowMessage).toHaveBeenCalledWith(
+        expect.stringMatching(/Purchase complete/i),
+        'success',
+      );
+    });
+    expect(screen.getByText(/Premium access should unlock shortly/i)).toBeInTheDocument();
   });
 });

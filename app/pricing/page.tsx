@@ -9,6 +9,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { getBillingPlatform } from '@/lib/platform';
+import { redirectToUrl } from '@/lib/browser/redirect';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
 
@@ -25,6 +26,22 @@ function PricingContent() {
   const checkoutCancelTrackedRef = useRef(false);
   const billingPlatform = getBillingPlatform();
   const usesNativeBilling = billingPlatform === 'ios_iap';
+  const billingError = searchParams.get('billing_error');
+  const cancelled = searchParams.get('cancelled');
+  const queryMessage = cancelled
+    ? { text: 'Checkout cancelled. No charges were made.', type: 'error' as const }
+    : billingError
+      ? {
+          text:
+            {
+              invalid_package: 'We could not open that plan. Please try again.',
+              user_not_found: 'We could not find your account for checkout. Please sign in again and retry.',
+              billing_unavailable: 'Web checkout is not configured right now. Please try again shortly.',
+            }[billingError] || 'We could not start checkout. Please try again.',
+          type: 'error' as const,
+        }
+      : null;
+  const displayMessage = message ?? queryMessage;
 
   useEffect(() => {
     if (status !== 'authenticated' || viewedRef.current) return;
@@ -63,8 +80,7 @@ function PricingContent() {
   }, [status, subscriptionLoading, isPremium, router]);
 
   useEffect(() => {
-    if (searchParams.get('cancelled')) {
-      setMessage({ text: 'Checkout cancelled. No charges were made.', type: 'error' });
+    if (cancelled) {
       if (!checkoutCancelTrackedRef.current) {
         checkoutCancelTrackedRef.current = true;
         captureClientEvent(
@@ -88,14 +104,16 @@ function PricingContent() {
         );
       }
     }
-  }, [billingPlatform, pathname, provider, searchParams, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
+  }, [billingPlatform, cancelled, pathname, provider, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
-  const handleSubscribe = async (priceId: string, interval: 'month' | 'year') => {
+  const handleSubscribe = (plan: 'monthly' | 'annual') => {
     if (loading !== null) return;
     if (usesNativeBilling) {
       setMessage({ text: 'App Store subscriptions coming soon.', type: 'error' });
       return;
     }
+
+    const interval = plan === 'annual' ? 'year' : 'month';
 
     setLoading(interval);
     setMessage(null);
@@ -120,56 +138,7 @@ function PricingContent() {
       },
     );
 
-    try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-source-page': pathname,
-        },
-        body: JSON.stringify({ priceId, interval }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (data?.portalUrl && typeof data.portalUrl === 'string') {
-          window.location.href = data.portalUrl;
-          return;
-        }
-        captureClientEvent(
-          ANALYTICS_EVENTS.apiRequestFailed,
-          {
-            endpoint: '/api/stripe/checkout',
-            method: 'POST',
-            status_code: res.status,
-            feature_area: 'pricing',
-            billing_platform: billingPlatform,
-          },
-          {
-            pathname,
-            user: {
-              id: session?.user?.id,
-              subscription_tier: session?.user?.subscription_tier,
-              subscription_provider: provider,
-              auth_provider: session?.user?.auth_provider,
-            },
-            isLoggedIn: status === 'authenticated',
-          },
-        );
-        throw new Error(data.message || 'Failed to create checkout session');
-      }
-
-      // Redirect to Stripe Checkout
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (error: any) {
-      console.error('Checkout error:', error);
-      setMessage({ text: error.message || 'Failed to start checkout', type: 'error' });
-
-      setLoading(null);
-    }
+    redirectToUrl(`/api/revenuecat/purchase-link?package=${plan}`);
   };
 
   if (status === 'unauthenticated') {
@@ -183,9 +152,9 @@ function PricingContent() {
 
   return (
     <div className="page-stack">
-      {message && (
-        <div className={message.type === 'success' ? 'text-green' : 'text-red'}>
-          {message.text}
+      {displayMessage && (
+        <div className={displayMessage.type === 'success' ? 'text-green' : 'text-red'}>
+          {displayMessage.text}
         </div>
       )}
       {usesNativeBilling && (
@@ -245,7 +214,7 @@ function PricingContent() {
               <button
                 className="btn-upgrade"
                 aria-label="Subscribe monthly to Premium plan"
-                onClick={() => handleSubscribe(PRICING.monthly.stripePriceId, 'month')}
+                onClick={() => handleSubscribe('monthly')}
                 disabled={usesNativeBilling || loading !== null || status === 'loading' || subscriptionLoading}
               >
                 {usesNativeBilling
@@ -290,7 +259,7 @@ function PricingContent() {
               <button
                 className="btn-upgrade"
                 aria-label="Subscribe annually to Premium plan"
-                onClick={() => handleSubscribe(PRICING.annual.stripePriceId, 'year')}
+                onClick={() => handleSubscribe('annual')}
                 disabled={usesNativeBilling || loading !== null || status === 'loading' || subscriptionLoading}
               >
                 {usesNativeBilling
@@ -360,7 +329,7 @@ function PricingContent() {
             <p>
               {usesNativeBilling
                 ? 'Native billing is not available yet in this build. App Store subscriptions will be supported later.'
-                : 'We accept all major credit cards (Visa, MasterCard, American Express) through our secure payment processor, Stripe.'}
+                : 'We accept major credit cards through our secure web billing checkout.'}
             </p>
           </div>
           <div className="card faq-item">
@@ -383,7 +352,7 @@ function PricingContent() {
               Absolutely. We use industry-standard encryption and never store your
               payment information. {usesNativeBilling
                 ? 'When native subscriptions are enabled, payment handling will follow App Store billing requirements.'
-                : 'All payments are securely processed by Stripe.'}
+                : 'All web payments are securely handled through our billing provider.'}
             </p>
           </div>
         </div>

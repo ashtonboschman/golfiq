@@ -2,7 +2,7 @@
 
 import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 import { useSubscription } from '@/hooks/useSubscription';
 import { Download, MessageSquare, PartyPopper } from 'lucide-react';
@@ -41,12 +41,25 @@ export default function SettingsPage() {
   const [feedbackType, setFeedbackType] = useState<FeedbackType>('other');
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [billingQueryState, setBillingQueryState] = useState<string | null>(null);
+  const billingSuccessShownRef = useRef(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login?redirect=/settings');
     }
   }, [status, router]);
+
+  useEffect(() => {
+    setBillingQueryState(new URLSearchParams(window.location.search).get('billing'));
+  }, []);
+
+  useEffect(() => {
+    if (billingQueryState !== 'success' || billingSuccessShownRef.current) return;
+
+    billingSuccessShownRef.current = true;
+    showMessage('Purchase complete. Premium access should appear shortly after billing confirms.', 'success');
+  }, [billingQueryState, showMessage]);
 
   const handleManageSubscription = async () => {
     setManagingSubscription(true);
@@ -204,6 +217,7 @@ export default function SettingsPage() {
   const billingPlatform = getBillingPlatform();
   const usesNativeBilling = billingPlatform === 'ios_iap';
   const canManageStripeOnThisPlatform = provider === 'stripe' && !usesNativeBilling;
+  const isAwaitingBillingSync = billingQueryState === 'success' && tier === 'free';
 
   const isCancelScheduled = subscriptionStatus === 'active' && cancelAtPeriodEnd;
   const isExpired = Boolean(endsAt && endsAt.getTime() <= Date.now());
@@ -241,6 +255,11 @@ export default function SettingsPage() {
                   <>
                     {tier === 'free' && (
                       <div className="subscription-detail-box">
+                        {isAwaitingBillingSync && (
+                          <p className="subscription-note">
+                            We received your purchase. Premium access should unlock shortly once billing sync finishes.
+                          </p>
+                        )}
                         <p>
                           You're currently on the free plan. Upgrade to Premium to unlock
                           full strokes gained breakdown, trends, deeper analytics history,
@@ -308,6 +327,11 @@ export default function SettingsPage() {
                         {provider === 'apple' && (
                           <p className="subscription-note">
                             Manage subscriptions through the App Store.
+                          </p>
+                        )}
+                        {provider === 'revenuecat_web' && (
+                          <p className="subscription-note">
+                            Your web subscription is managed through the GolfIQ customer portal link included in your billing emails.
                           </p>
                         )}
                         {provider === 'manual' && (
