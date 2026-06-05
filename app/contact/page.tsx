@@ -41,7 +41,7 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
 
           <h2 className="legal-subtitle">Billing and Subscriptions</h2>
           <ul>
-            <li>For web subscriptions, use Settings &gt; Manage Subscription to open billing management.</li>
+            <li>For RevenueCat web subscriptions, use the customer portal link in your billing emails to manage payment methods, cancellations, or plan changes.</li>
             <li>If billing support is needed, email support and include your account email.</li>
           </ul>
 

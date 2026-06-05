@@ -170,7 +170,7 @@ function SubscriptionSuccessContent() {
             Go to Dashboard
           </button>
           <button className="btn btn-toggle" onClick={() => router.push('/settings')}>
-            Manage Subscription
+            Go to Settings
           </button>
         </div>
 

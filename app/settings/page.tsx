@@ -322,7 +322,7 @@ export default function SettingsPage() {
                         )}
                         {provider === 'revenuecat_web' && (
                           <p className="subscription-note">
-                            Your web subscription is managed through the GolfIQ customer portal link included in your billing emails.
+                            Your web subscription is managed through the GolfIQ customer portal link included in your billing emails. Use that link to update payment details, cancel, or change plans.
                           </p>
                         )}
                         {provider === 'manual' && (

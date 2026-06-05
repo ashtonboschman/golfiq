@@ -48,6 +48,8 @@ describe('/subscription/success page', () => {
 
     expect(await screen.findByText('Welcome to Premium!')).toBeInTheDocument();
     expect(screen.getByText(/Your premium access is active/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /go to settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Activating Premium/i)).not.toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
   });
