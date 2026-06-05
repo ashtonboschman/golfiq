@@ -49,8 +49,7 @@ export async function GET() {
     // Fallback sync: reconcile state from Stripe when webhook delivery is delayed/missed.
     let stripeSubscription: Stripe.Subscription | null = null;
     const shouldSyncFromStripe =
-      provider !== 'apple' &&
-      provider !== 'manual' &&
+      provider === 'stripe' &&
       Boolean(user.stripeSubscriptionId || user.stripeCustomerId);
 
     if (shouldSyncFromStripe && user.stripeSubscriptionId) {

@@ -101,6 +101,13 @@ describe("subscription utils", () => {
     expect(
       getSubscriptionProvider({
         subscriptionTier: "premium",
+        subscriptionProvider: "revenuecat_web",
+      })
+    ).toBe("revenuecat_web");
+
+    expect(
+      getSubscriptionProvider({
+        subscriptionTier: "premium",
         stripeCustomerId: "cus_123",
       })
     ).toBe("stripe");

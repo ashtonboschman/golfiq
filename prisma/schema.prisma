@@ -365,6 +365,24 @@ model SubscriptionEvent {
   @@map("subscription_events")
 }
 
+model RevenueCatWebhookEvent {
+  id          BigInt    @id @default(autoincrement())
+  eventId     String    @unique @map("event_id") @db.VarChar(255)
+  eventType   String    @map("event_type") @db.VarChar(100)
+  appUserId   String?   @map("app_user_id") @db.VarChar(255)
+  productId   String?   @map("product_id") @db.VarChar(255)
+  store       String?   @db.VarChar(64)
+  environment String?   @db.VarChar(32)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  rawEvent    Json?     @map("raw_event")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([eventType], map: "idx_rc_webhook_events_type")
+  @@index([appUserId], map: "idx_rc_webhook_events_app_user")
+  @@index([createdAt], map: "idx_rc_webhook_events_created")
+  @@map("revenuecat_webhook_events")
+}
+
 model LifetimeGrant {
   id        BigInt   @id @default(autoincrement())
   userId    BigInt   @map("user_id")
@@ -622,6 +640,7 @@ enum SubscriptionTier {
 enum SubscriptionProvider {
   stripe
   apple
+  revenuecat_web
   manual
 }
 
