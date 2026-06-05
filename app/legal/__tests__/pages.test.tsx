@@ -37,7 +37,7 @@ describe('legal and support pages', () => {
       screen.getByRole('heading', { name: /golfiq terms of service/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/subscriptions and billing/i)).toBeInTheDocument();
-    expect(screen.getByText(/billing is processed by stripe/i)).toBeInTheDocument();
+    expect(screen.getByText(/RevenueCat and its payment partners/i)).toBeInTheDocument();
     expect(screen.getByText(/does not guarantee lower scores/i)).toBeInTheDocument();
   });
 

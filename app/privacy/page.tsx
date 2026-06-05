@@ -65,7 +65,7 @@ export default function PrivacyPage() {
 
           <h3 className="legal-subheading">Billing Data</h3>
           <ul>
-            <li>For web and PWA subscriptions, billing is processed by Stripe</li>
+            <li>Subscription billing may be processed through RevenueCat and its payment partners, depending on platform and purchase flow</li>
             <li>We store billing-related account status fields needed to provide subscription access</li>
             <li>We do not store full payment card numbers on GolfIQ servers</li>
           </ul>
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
           <p>We share data only as needed to run GolfIQ.</p>
           <ul>
             <li>Authentication providers for account sign-in</li>
-            <li>Stripe for billing and subscription management</li>
+            <li>RevenueCat and payment providers that support billing and subscription management</li>
             <li>PostHog for product analytics</li>
             <li>UploadThing for avatar uploads</li>
             <li>Email providers for account and support communications</li>

@@ -55,13 +55,31 @@ describe("apiRateLimit utils", () => {
     expect(result.canProceed).toBe(true);
   });
 
-  it("logs API calls with endpoint/user/ip", async () => {
+  it("logs API calls with endpoint, user, and search metadata", async () => {
     mockedPrisma.apiUsageLog.create.mockResolvedValue({});
 
-    await logApiCall("search", BigInt(1), "127.0.0.1");
+    await logApiCall({
+      endpoint: "search",
+      userId: BigInt(1),
+      provider: "golf_course_api",
+      searchQuery: "winnipeg",
+      usedLocation: true,
+      resultCount: 4,
+      status: "success",
+      errorCode: null,
+    });
 
     expect(mockedPrisma.apiUsageLog.create).toHaveBeenCalledWith({
-      data: { endpoint: "search", userId: BigInt(1), ipAddress: "127.0.0.1" },
+      data: {
+        endpoint: "search",
+        userId: BigInt(1),
+        provider: "golf_course_api",
+        searchQuery: "winnipeg",
+        usedLocation: true,
+        resultCount: 4,
+        status: "success",
+        errorCode: null,
+      },
     });
   });
 

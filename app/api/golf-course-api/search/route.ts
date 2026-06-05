@@ -2,14 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { checkRateLimit, logApiCall } from '@/lib/utils/apiRateLimit';
 
+const GOLF_COURSE_API_PROVIDER = 'golf_course_api';
+
+async function safeLogApiUsage(input: Parameters<typeof logApiCall>[0]) {
+  try {
+    await logApiCall(input);
+  } catch (error) {
+    console.error('Failed to write api_usage_logs entry:', error);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin(request);
+    const adminUserId = await requireAdmin(request);
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query');
+    const trimmedQuery = query?.trim() ?? '';
+    const usedLocation = searchParams.has('lat') || searchParams.has('lng');
 
-    if (!query || query.trim().length === 0) {
+    if (!trimmedQuery) {
       return NextResponse.json(
         { error: 'Search query is required' },
         { status: 400 }
@@ -41,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     // Call the Golf Course API
     // The API key format is "Key XXXXXXXXX" so we pass it directly as the Authorization header
-    const apiUrl = `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(query)}`;
+    const apiUrl = `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(trimmedQuery)}`;
     const response = await fetch(apiUrl, {
       headers: {
         'Authorization': apiKey, // API key already includes "Key " prefix
@@ -56,6 +68,18 @@ export async function GET(request: NextRequest) {
         body: errorText,
         headers: Object.fromEntries(response.headers.entries()),
       });
+
+      await safeLogApiUsage({
+        endpoint: 'golf-course-api-search',
+        userId: adminUserId,
+        provider: GOLF_COURSE_API_PROVIDER,
+        searchQuery: trimmedQuery,
+        usedLocation,
+        resultCount: null,
+        status: 'error',
+        errorCode: `upstream_${response.status}`,
+      });
+
       return NextResponse.json(
         { error: `Failed to search golf courses: ${response.status} ${response.statusText}` },
         { status: response.status }
@@ -63,9 +87,18 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
+    const resultCount = Array.isArray(data?.courses) ? data.courses.length : 0;
 
-    // Log the API call (only after successful external API call)
-    await logApiCall('golf-course-api-search');
+    await safeLogApiUsage({
+      endpoint: 'golf-course-api-search',
+      userId: adminUserId,
+      provider: GOLF_COURSE_API_PROVIDER,
+      searchQuery: trimmedQuery,
+      usedLocation,
+      resultCount,
+      status: 'success',
+      errorCode: null,
+    });
 
     return NextResponse.json(data);
   } catch (error) {

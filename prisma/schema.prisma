@@ -451,11 +451,17 @@ model CourseRequest {
 }
 
 model ApiUsageLog {
-  id        BigInt   @id @default(autoincrement())
-  endpoint  String   @db.VarChar(100)
-  userId    BigInt?  @map("user_id")
-  ipAddress String?  @map("ip_address") @db.VarChar(45)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id           BigInt   @id @default(autoincrement())
+  endpoint     String   @db.VarChar(100)
+  userId       BigInt?  @map("user_id")
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  provider     String?  @db.VarChar(50)
+  searchQuery  String?  @map("search_query") @db.VarChar(255)
+  usedLocation Boolean  @default(false) @map("used_location")
+  resultCount  Int?     @map("result_count")
+  status       String   @default("success") @db.VarChar(20)
+  errorCode    String?  @map("error_code") @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([endpoint, createdAt], map: "idx_api_usage_endpoint_date")
   @@index([userId, createdAt], map: "idx_api_usage_user_date")

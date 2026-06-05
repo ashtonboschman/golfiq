@@ -1,5 +1,18 @@
 import { prisma } from '@/lib/db';
 
+export type ApiUsageLogStatus = 'success' | 'error';
+
+export type LogApiCallInput = {
+  endpoint: string;
+  userId?: bigint | null;
+  provider?: string | null;
+  searchQuery?: string | null;
+  usedLocation?: boolean;
+  resultCount?: number | null;
+  status?: ApiUsageLogStatus;
+  errorCode?: string | null;
+};
+
 /**
  * Check if the global API rate limit has been exceeded for today
  * @param endpoint - The endpoint identifier (e.g., "golf-course-api-search")
@@ -31,21 +44,29 @@ export async function checkRateLimit(
 }
 
 /**
- * Log an API call to the usage tracking table
- * @param endpoint - The endpoint identifier
- * @param userId - Optional user ID (null for unauthenticated requests)
- * @param ipAddress - Optional IP address
+ * Log an API call to the usage tracking table.
+ * This is best used for actual upstream API attempts rather than local validation failures.
  */
-export async function logApiCall(
-  endpoint: string,
-  userId?: bigint | null,
-  ipAddress?: string | null
-): Promise<void> {
+export async function logApiCall({
+  endpoint,
+  userId = null,
+  provider = null,
+  searchQuery = null,
+  usedLocation = false,
+  resultCount = null,
+  status = 'success',
+  errorCode = null,
+}: LogApiCallInput): Promise<void> {
   await prisma.apiUsageLog.create({
     data: {
       endpoint,
       userId,
-      ipAddress,
+      provider,
+      searchQuery,
+      usedLocation,
+      resultCount,
+      status,
+      errorCode,
     },
   });
 }

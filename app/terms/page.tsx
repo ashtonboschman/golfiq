@@ -66,7 +66,7 @@ export default function TermsPage() {
           <h2 className="legal-subtitle">Subscriptions and Billing</h2>
           <ul>
             <li>GolfIQ offers free and paid features</li>
-            <li>For web and PWA plans, billing is processed by Stripe</li>
+            <li>Billing and subscription management may be handled through RevenueCat and its payment partners, depending on platform and purchase flow</li>
             <li>Pricing, feature access, and plan structure may change over time</li>
             <li>Unless required by law, fees are non-refundable</li>
           </ul>
