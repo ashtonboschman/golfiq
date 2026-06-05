@@ -1,9 +1,9 @@
 import { GET } from '@/app/api/golf-course-api/search/route';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit, logApiCall } from '@/lib/utils/apiRateLimit';
 
-jest.mock('@/lib/admin-auth', () => ({
-  requireAdmin: jest.fn(),
+jest.mock('@/lib/api-auth', () => ({
+  requireAuth: jest.fn(),
 }));
 
 jest.mock('@/lib/utils/apiRateLimit', () => ({
@@ -11,14 +11,14 @@ jest.mock('@/lib/utils/apiRateLimit', () => ({
   logApiCall: jest.fn(),
 }));
 
-const mockedRequireAdmin = requireAdmin as jest.Mock;
+const mockedRequireAuth = requireAuth as jest.Mock;
 const mockedCheckRateLimit = checkRateLimit as jest.Mock;
 const mockedLogApiCall = logApiCall as jest.Mock;
 
 describe('/api/golf-course-api/search route contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedRequireAdmin.mockResolvedValue(BigInt(1));
+    mockedRequireAuth.mockResolvedValue(BigInt(1));
     mockedCheckRateLimit.mockResolvedValue({
       canProceed: true,
       callsUsed: 0,
@@ -31,16 +31,25 @@ describe('/api/golf-course-api/search route contract', () => {
     });
   });
 
-  it('returns 403 for non-admin users', async () => {
-    mockedRequireAdmin.mockRejectedValue(new Error('Forbidden'));
+  it('returns 401 for unauthenticated users', async () => {
+    mockedRequireAuth.mockRejectedValue(new Error('Unauthorized'));
 
     const request = new Request('http://localhost/api/golf-course-api/search?query=test');
     const response = await GET(request as any);
     const body = await response.json();
 
-    expect(response.status).toBe(403);
-    expect(body.error).toBe('Forbidden');
+    expect(response.status).toBe(401);
+    expect(body.error).toBe('Unauthorized');
     expect(mockedCheckRateLimit).not.toHaveBeenCalled();
+  });
+
+  it('allows authenticated non-admin users to search', async () => {
+    const request = new Request('http://localhost/api/golf-course-api/search?query=test');
+    const response = await GET(request as any);
+
+    expect(response.status).toBe(200);
+    expect(mockedRequireAuth).toHaveBeenCalledWith(request);
+    expect(mockedCheckRateLimit).toHaveBeenCalledWith('golf-course-api-search', 200);
   });
 
   it('returns 400 when query is missing', async () => {

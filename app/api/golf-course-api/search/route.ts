@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAuth } from '@/lib/api-auth';
 import { checkRateLimit, logApiCall } from '@/lib/utils/apiRateLimit';
 
 const GOLF_COURSE_API_PROVIDER = 'golf_course_api';
@@ -14,7 +14,7 @@ async function safeLogApiUsage(input: Parameters<typeof logApiCall>[0]) {
 
 export async function GET(request: NextRequest) {
   try {
-    const adminUserId = await requireAdmin(request);
+    const userId = await requireAuth(request);
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query');
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
       await safeLogApiUsage({
         endpoint: 'golf-course-api-search',
-        userId: adminUserId,
+        userId,
         provider: GOLF_COURSE_API_PROVIDER,
         searchQuery: trimmedQuery,
         usedLocation,
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
 
     await safeLogApiUsage({
       endpoint: 'golf-course-api-search',
-      userId: adminUserId,
+      userId,
       provider: GOLF_COURSE_API_PROVIDER,
       searchQuery: trimmedQuery,
       usedLocation,
@@ -104,9 +104,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    if (error instanceof Error && error.message === 'Forbidden') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     console.error('Search error:', error);
     return NextResponse.json(
