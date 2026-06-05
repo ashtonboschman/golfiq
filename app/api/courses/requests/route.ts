@@ -28,6 +28,7 @@ function buildAdminCourseRequestTextEmail(args: {
   const locationParts = [args.city, args.province, args.country].filter(Boolean);
   const location = locationParts.length > 0 ? locationParts.join(', ') : 'Not provided';
   const displayUser = args.userName || args.userEmail || args.userId;
+  const userEmail = args.userEmail || 'Not provided';
 
   const subject = `[GolfIQ] Course request - ${args.courseName}`;
   const text = [
@@ -39,6 +40,7 @@ function buildAdminCourseRequestTextEmail(args: {
     `Source: ${args.source}`,
     '',
     `User: ${displayUser}`,
+    `User Email: ${userEmail}`,
     `User ID: ${args.userId}`,
   ].join('\n');
 
@@ -50,7 +52,7 @@ function buildAdminCourseRequestTextEmail(args: {
       <li><strong>Query:</strong> ${args.query || 'Not provided'}</li>
       <li><strong>Source:</strong> ${args.source}</li>
     </ul>
-    <p><strong>User:</strong> ${displayUser}<br /><strong>User ID:</strong> ${args.userId}</p>
+    <p><strong>User:</strong> ${displayUser}<br /><strong>User Email:</strong> ${userEmail}<br /><strong>User ID:</strong> ${args.userId}</p>
   `;
 
   return { subject, text, html };

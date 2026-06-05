@@ -133,6 +133,8 @@ describe('/api/courses/requests route contract', () => {
       }),
     );
     const emailCall = mockedSendAdminNotificationEmail.mock.calls[0]?.[0];
+    expect(emailCall?.text).toContain('User Email: user@example.com');
+    expect(emailCall?.html).toContain('<strong>User Email:</strong> user@example.com');
     expect(emailCall?.subject).not.toContain('â€“');
   });
 
