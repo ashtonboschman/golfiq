@@ -19,7 +19,7 @@ export default function Footer() {
   const user = session?.user;
   const router = useRouter();
   const pathname = usePathname();
-  const { incomingRequests } = useFriends();
+  const { incomingRequests, unreadAcceptedNotificationsCount } = useFriends();
   const { showConfirm } = useMessage();
   const hasInsightsNudge = useSyncExternalStore(
     (onStoreChange) => {
@@ -115,7 +115,8 @@ export default function Footer() {
     );
   };
 
-  const hasIncomingRequests = isInteractive && incomingRequests.length > 0;
+  const unreadFriendActivityCount = incomingRequests.length + unreadAcceptedNotificationsCount;
+  const hasUnreadFriendActivity = isInteractive && unreadFriendActivityCount > 0;
   const showInsightsBadge = hasInsightsNudge && !pathname.startsWith('/insights');
 
   useEffect(() => {
@@ -145,7 +146,7 @@ export default function Footer() {
           >
             <span className="icon relative">
               {icon}
-              {path === '/friends' && hasIncomingRequests && (
+              {path === '/friends' && hasUnreadFriendActivity && (
                 <span className="friend-badge" />
               )}
               {path === '/insights' && showInsightsBadge && (

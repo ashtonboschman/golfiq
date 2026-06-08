@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFriends } from '@/context/FriendsContext';
 import FriendCard from '@/components/FriendCard';
@@ -37,7 +37,17 @@ function FriendCardSkeleton({ request = false }: { request?: boolean }) {
 }
 
 export default function FriendsPage() {
-  const { friends, incomingRequests, outgoingRequests, loading, handleAction, fetchAll } = useFriends();
+  const {
+    friends,
+    incomingRequests,
+    outgoingRequests,
+    acceptedNotifications,
+    unreadAcceptedNotificationsCount,
+    loading,
+    handleAction,
+    fetchAll,
+    markAcceptedNotificationsRead,
+  } = useFriends();
   const [search, setSearch] = useState('');
   const router = useRouter();
 
@@ -60,6 +70,12 @@ export default function FriendsPage() {
   const handleRefresh = useCallback(async () => {
     await fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    if (unreadAcceptedNotificationsCount > 0) {
+      markAcceptedNotificationsRead().catch(() => undefined);
+    }
+  }, [markAcceptedNotificationsRead, unreadAcceptedNotificationsCount]);
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>

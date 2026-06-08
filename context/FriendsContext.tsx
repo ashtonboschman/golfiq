@@ -4,14 +4,18 @@ import { createContext, useContext, useState, useEffect, ReactNode, useRef, useC
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import { normalizeFriend, FriendUser } from '@/lib/friendUtils';
+import { FriendAcceptedNotification } from '@/lib/friendNotifications';
 
 interface FriendsContextType {
   friends: FriendUser[];
   incomingRequests: FriendUser[];
   outgoingRequests: FriendUser[];
+  acceptedNotifications: FriendAcceptedNotification[];
+  unreadAcceptedNotificationsCount: number;
   loading: boolean;
   handleAction: (id: number, action: string, extra?: any) => Promise<void>;
   fetchAll: () => Promise<void>;
+  markAcceptedNotificationsRead: () => Promise<void>;
 }
 
 const FriendsContext = createContext<FriendsContextType | undefined>(undefined);
@@ -33,6 +37,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<FriendUser[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendUser[]>([]);
+  const [acceptedNotifications, setAcceptedNotifications] = useState<FriendAcceptedNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedForUserRef = useRef<string | null>(null);
   const inFlightRef = useRef<Promise<void> | null>(null);
@@ -42,6 +47,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       setFriends([]);
       setIncomingRequests([]);
       setOutgoingRequests([]);
+      setAcceptedNotifications([]);
       setLoading(false);
       return;
     }
@@ -55,16 +61,18 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       clearMessage();
 
       try {
-        const [friendsRes, incomingRes, outgoingRes] = await Promise.all([
+        const [friendsRes, incomingRes, outgoingRes, notificationsRes] = await Promise.all([
           fetch('/api/friends'),
           fetch('/api/friends/incoming'),
           fetch('/api/friends/outgoing'),
+          fetch('/api/friends/notifications'),
         ]);
 
-        const [friendsData, incomingData, outgoingData] = await Promise.all([
+        const [friendsData, incomingData, outgoingData, notificationsData] = await Promise.all([
           friendsRes.json(),
           incomingRes.json(),
           outgoingRes.json(),
+          notificationsRes.json(),
         ]);
 
         if (friendsData.type === 'success') {
@@ -99,6 +107,17 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
           console.warn('Outgoing requests fetch failed:', outgoingData.message);
           setOutgoingRequests([]);
         }
+
+        if (notificationsData.type === 'success') {
+          setAcceptedNotifications(
+            notificationsData.results.map((notification: FriendAcceptedNotification) => ({
+              ...notification,
+            }))
+          );
+        } else {
+          console.warn('Friend notifications fetch failed:', notificationsData.message);
+          setAcceptedNotifications([]);
+        }
       } catch (err: any) {
         console.error(err);
         showMessage(err.message || 'Failed to fetch friends', 'error');
@@ -123,6 +142,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       setFriends([]);
       setIncomingRequests([]);
       setOutgoingRequests([]);
+      setAcceptedNotifications([]);
       setLoading(false);
       return;
     }
@@ -133,12 +153,46 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
       setFriends([]);
       setIncomingRequests([]);
       setOutgoingRequests([]);
+      setAcceptedNotifications([]);
       setLoading(true);
     }
 
     hasLoadedForUserRef.current = userId;
     fetchAll().catch(() => undefined);
   }, [status, userId, fetchAll]);
+
+  const markAcceptedNotificationsRead = useCallback(async () => {
+    const unreadIds = acceptedNotifications
+      .filter((notification) => notification.read_at === null)
+      .map((notification) => notification.id);
+
+    if (unreadIds.length === 0) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/friends/notifications', {
+        method: 'POST',
+      });
+      const data = await res.json();
+
+      if (data.type !== 'success') {
+        throw new Error(data.message || 'Failed to mark notifications as read');
+      }
+
+      const readAt = typeof data.readAt === 'string' ? data.readAt : new Date().toISOString();
+
+      setAcceptedNotifications((prev) =>
+        prev.map((notification) =>
+          unreadIds.includes(notification.id)
+            ? { ...notification, read_at: readAt }
+            : notification
+        )
+      );
+    } catch (error) {
+      console.error('Failed to mark friend notifications as read:', error);
+    }
+  }, [acceptedNotifications]);
 
   const handleAction = async (id: number, action: string, extra: any = {}) => {
     try {
@@ -244,15 +298,22 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const unreadAcceptedNotificationsCount = acceptedNotifications.filter(
+    (notification) => notification.read_at === null
+  ).length;
+
   return (
     <FriendsContext.Provider
       value={{
         friends,
         incomingRequests,
         outgoingRequests,
+        acceptedNotifications,
+        unreadAcceptedNotificationsCount,
         loading,
         handleAction,
         fetchAll,
+        markAcceptedNotificationsRead,
       }}
     >
       {children}

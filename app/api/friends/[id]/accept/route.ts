@@ -49,16 +49,25 @@ export async function POST(
     const [userId1, userId2] =
       userId < requesterId ? [userId, requesterId] : [requesterId, userId];
 
-    await prisma.friend.create({
-      data: {
-        userId: userId1,
-        friendId: userId2,
-      },
-    });
+    await prisma.$transaction(async (tx) => {
+      await tx.friend.create({
+        data: {
+          userId: userId1,
+          friendId: userId2,
+        },
+      });
 
-    // Delete the friend request
-    await prisma.friendRequest.delete({
-      where: { id: requestId },
+      await tx.friendRequest.delete({
+        where: { id: requestId },
+      });
+
+      await tx.friendNotification.create({
+        data: {
+          userId: requesterId,
+          actorUserId: userId,
+          type: 'friend_request_accepted',
+        },
+      });
     });
 
     // Fetch the new friend's details including leaderboard stats

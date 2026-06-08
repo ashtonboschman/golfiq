@@ -30,6 +30,8 @@ model User {
   feedbackSubmissions     UserFeedback[]
   friendRequestsReceived  FriendRequest[]          @relation("RecipientRelation")
   friendRequestsSent      FriendRequest[]          @relation("RequesterRelation")
+  friendNotificationsReceived FriendNotification[] @relation("FriendNotificationRecipient")
+  friendNotificationsActed FriendNotification[]    @relation("FriendNotificationActor")
   friendsReceived         Friend[]                 @relation("FriendOfUser")
   friendsInitiated        Friend[]                 @relation("UserFriends")
   lifetimeGrants          LifetimeGrant[]
@@ -344,6 +346,21 @@ model Friend {
   @@index([userId], map: "idx_friends_user")
   @@index([friendId], map: "fk_friends_friend")
   @@map("friends")
+}
+
+model FriendNotification {
+  id          BigInt                 @id @default(autoincrement())
+  userId      BigInt                 @map("user_id")
+  actorUserId BigInt                 @map("actor_user_id")
+  type        FriendNotificationType
+  readAt      DateTime?              @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  actorUser   User                   @relation("FriendNotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  user        User                   @relation("FriendNotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt], map: "idx_friend_notifications_user_read_created")
+  @@index([actorUserId], map: "idx_friend_notifications_actor")
+  @@map("friend_notifications")
 }
 
 model SubscriptionEvent {
@@ -746,4 +763,8 @@ enum UserReportStatus {
   in_review
   resolved
   dismissed
+}
+
+enum FriendNotificationType {
+  friend_request_accepted
 }
