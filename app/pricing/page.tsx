@@ -196,7 +196,7 @@ function PricingContent() {
             <div className="pricing-badge">Most Popular</div>
             <div className="pricing-card-header">
               <h2>Premium Monthly</h2>
-              <h4>See what&apos;s actually costing you strokes.</h4>
+              <h4>See what is costing you strokes.</h4>
               <div className="pricing-price">
                 <span className="price-amount">${PRICING.monthly.price.toFixed(2)}</span>
                 <span className="price-period">/month</span>
@@ -204,11 +204,11 @@ function PricingContent() {
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">
-                <li><Check color='green' size='20' className="feature-icon"/> Full strokes gained breakdown with component-level insights</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Post-round breakdowns and overall insights across your rounds</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Projection ranges and deeper comparisons</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Trends across all your rounds</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Premium themes and enhanced filtering</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Full strokes gained breakdown by part of the game</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Post-round breakdowns and game trends across your rounds</li>
+                <li><Check color='green' size='20' className="feature-icon"/> See where your scores and handicap may be heading</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Full-history trends across all your rounds</li>
+                <li><Check color='green' size='20' className="feature-icon"/> Premium themes and flexible filters</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Everything in Free</li>
               </ul>
               <button
@@ -221,7 +221,7 @@ function PricingContent() {
                   ? 'App Store Subscriptions Coming Soon'
                   : loading === 'month'
                     ? 'Loading...'
-                    : "See What's Costing You Strokes"}
+                    : 'See the Full Breakdown'}
               </button>
               <div>
                 <p className="price-subtext">
@@ -252,7 +252,7 @@ function PricingContent() {
               <ul className="pricing-features">
                 <li><Check color='green' size='20' className="feature-icon"/> <span>Save <strong>{PRICING.annual.savings}</strong> vs monthly</span></li>
                 <li><Check color='green' size='20' className="feature-icon"/> Track your improvement across the full season</li>
-                <li><Check color='green' size='20' className="feature-icon"/> See how your game evolves over time</li>
+                <li><Check color='green' size='20' className="feature-icon"/> See how your game changes as more rounds stack up</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Annual subscription, billed yearly</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Built for golfers who want to improve consistently</li>
               </ul>
@@ -266,7 +266,7 @@ function PricingContent() {
                   ? 'App Store Subscriptions Coming Soon'
                   : loading === 'year'
                     ? 'Loading...'
-                    : "See What's Costing You Strokes"}
+                    : 'See the Full Breakdown'}
               </button>
               <div>
                 <p className="price-subtext">
@@ -288,7 +288,7 @@ function PricingContent() {
                 <span className="price-period">/forever</span>
               </div>
               <p className="price-breakdown">
-                Free forever. Upgrade when you want deeper insight.
+                Free forever. Upgrade when you want a clearer breakdown.
               </p>
             </div>
             <div className="pricing-card-body">
@@ -296,12 +296,12 @@ function PricingContent() {
                 <li><Check color='green' size='20' className="feature-icon"/> Unlimited round tracking & storage</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Handicap & core scoring stats (last 20 rounds)</li>
                 <li><Check color='green' size='20' className="feature-icon"/> FIR%, GIR%, putts & basic performance stats</li>
-                <li><Check color='green' size='20' className="feature-icon"/> 9-hole & 18-hole support</li>
+                <li><Check color='green' size='20' className="feature-icon"/> 9 hole & 18 hole support</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Course search, scorecards, friends, & leaderboards</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Light & dark themes, multi-device sync</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Basic post-round insights</li>
-                <li><X color='red' size='20' className="feature-icon"/> Full strokes gained breakdown</li>
-                <li><X color='red' size='20' className="feature-icon"/> Advanced analytics, projections, and comparisons</li>
+                <li><X color='red' size='20' className="feature-icon"/> Full strokes gained breakdown by part of the game</li>
+                <li><X color='red' size='20' className="feature-icon"/> Score direction and extra comparison views</li>
               </ul>
               <button
                 className="pricing-button current"
@@ -320,8 +320,7 @@ function PricingContent() {
           <div className="card faq-item">
             <h3>Can I cancel anytime?</h3>
             <p>
-              Absolutely! You can cancel your subscription at any time from your settings page.
-              You'll continue to have access until the end of your billing period.
+              Yes. You can cancel your subscription at any time from your settings page.
             </p>
           </div>
           <div className="card faq-item">
@@ -335,8 +334,7 @@ function PricingContent() {
           <div className="card faq-item">
             <h3>Can I switch plans?</h3>
             <p>
-              Yes! You can upgrade or downgrade your plan at any time from your
-              settings page. Changes will be prorated automatically.
+              Yes. You can upgrade or downgrade your plan at any time from your settings page.
             </p>
           </div>
           <div className="card faq-item">
@@ -349,8 +347,7 @@ function PricingContent() {
           <div className="card faq-item">
             <h3>Is my data safe?</h3>
             <p>
-              Absolutely. We use industry-standard encryption and never store your
-              payment information. {usesNativeBilling
+              Yes. We use industry-standard encryption and never store your payment information. {usesNativeBilling
                 ? 'When native subscriptions are enabled, payment handling will follow App Store billing requirements.'
                 : 'All web payments are securely handled through our billing provider.'}
             </p>

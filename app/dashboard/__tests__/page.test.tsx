@@ -185,9 +185,9 @@ const SCORE_ONLY_WORSENING_NUDGES_UI = [
 ] as const;
 
 const VOLATILITY_HEADLINES_HIGH = [
-  'Scoring volatility is your top priority.',
-  'Large score swings are the main scoring issue.',
-  'Costly swings are the clearest focus right now.',
+  'Big score swings are the clearest focus right now.',
+  'The main issue right now is how much the scores jump around.',
+  'The scorecard is getting away on too many holes.',
 ] as const;
 
 const BALANCED_HEADLINES_MED = [
@@ -671,10 +671,10 @@ describe('/dashboard Round Focus card', () => {
     const pill = await screen.findByRole('button', { name: /Focus confidence: Moderate/i });
     fireEvent.click(pill);
     expect(await screen.findByText('Focus Confidence')).toBeInTheDocument();
-    expect(screen.getByText(/How reliable your Round Focus is based on available scoring patterns\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Building: early guidance while GolfIQ learns your game\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Moderate: trends are forming\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Strong: clear patterns are available\./i)).toBeInTheDocument();
+    expect(screen.getByText(/How reliable your Round Focus is based on the rounds GolfIQ has so far\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Building: early read while GolfIQ learns your game\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Moderate: useful signal, but still getting sharper\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Strong: enough history to trust the pattern more\./i)).toBeInTheDocument();
   });
 
   it('renders contradiction guard qualifier without a standalone timeframe line when latest identity is repeat+strong', async () => {
@@ -804,7 +804,7 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     const focusCard = await screen.findByTestId('dashboard-focus-card');
-    await screen.findByText('Approach is the biggest opportunity right now.');
+    await screen.findByText('Approach is the clearest focus right now.');
     expect(screen.getByText('That area is costing about 0.7 strokes per round.')).toBeInTheDocument();
     expectOneText(OPPORTUNITY_APPROACH_NUDGES_UI);
     expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
@@ -879,7 +879,7 @@ describe('/dashboard Round Focus card', () => {
     await screen.findByTestId('dashboard-focus-card');
     expectOneText(VOLATILITY_HEADLINES_HIGH);
     expectOneText(VOLATILITY_NUDGES_UI);
-    expect(screen.queryByText(/is the biggest opportunity right now/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/is the clearest focus right now/i)).not.toBeInTheDocument();
   });
 
   it('keeps balanced-state focus actionable at dashboard boundary with one clear next-round action', async () => {
@@ -1005,7 +1005,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('Score Trend');
     expect(
-      screen.getByText('Add your first round to start building your score trend.'),
+      screen.getByText('Add your first round to start seeing how your scores move.'),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('trend-Score Trend')).not.toBeInTheDocument();
     expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
@@ -1018,7 +1018,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('Score Trend');
     expect(
-      screen.getByText('Add another round to start seeing your score trend.'),
+      screen.getByText('Add another round to start building a clearer score pattern.'),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('trend-Score Trend')).not.toBeInTheDocument();
   });
@@ -1067,7 +1067,7 @@ describe('/dashboard Round Focus card', () => {
 
     await screen.findByText('FIR & GIR Trend');
     expect(
-      screen.getByText('Track fairways and greens to see accuracy trends over time.'),
+      screen.getByText('Track fairways and greens to see if your ball-striking is moving in the right direction.'),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('trend-FIR & GIR Trend')).not.toBeInTheDocument();
   });
@@ -1489,7 +1489,7 @@ describe('/dashboard Round Focus card', () => {
     await waitFor(() => {
       const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
         ([props]) =>
-          props.title === 'Handicap & SG Unlocked' &&
+          props.title === 'Handicap and Strokes Gained Unlocked' &&
           props.isOpen === true &&
           props.analyticsMode === 'none' &&
           props.primaryButtonLabel === 'View Insights' &&
@@ -1547,14 +1547,14 @@ describe('/dashboard Round Focus card', () => {
 
     await waitFor(() => {
       const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
-        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+        ([props]) => props.title === 'Handicap and Strokes Gained Unlocked' && props.isOpen === true,
       );
       expect(hasOpenUnlockCall).toBe(true);
     });
 
     const initialUnlockCall = [...mockUpgradeModal.mock.calls]
       .reverse()
-      .find(([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true);
+      .find(([props]) => props.title === 'Handicap and Strokes Gained Unlocked' && props.isOpen === true);
     expect(initialUnlockCall).toBeTruthy();
 
     await act(async () => {
@@ -1575,7 +1575,7 @@ describe('/dashboard Round Focus card', () => {
 
     await waitFor(() => {
       const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
-        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+        ([props]) => props.title === 'Handicap and Strokes Gained Unlocked' && props.isOpen === true,
       );
       expect(hasOpenUnlockCall).toBe(false);
     });
@@ -1598,7 +1598,7 @@ describe('/dashboard Round Focus card', () => {
     await waitFor(() => {
       const hasOpenUpgradeCall = mockUpgradeModal.mock.calls.some(
         ([props]) =>
-          props.title === 'Unlock Premium Insights' &&
+          props.title === 'Unlock Your Full Breakdown' &&
           props.isOpen === true &&
           props.ctaLocation === 'dashboard_round_milestone_modal' &&
           props.milestoneRound === 5 &&
@@ -1624,7 +1624,7 @@ describe('/dashboard Round Focus card', () => {
 
     await waitFor(() => {
       const upgradeCall = mockUpgradeModal.mock.calls.find(
-        ([props]) => props.title === 'Unlock Premium Insights',
+        ([props]) => props.title === 'Unlock Your Full Breakdown',
       );
       expect(upgradeCall).toBeTruthy();
       expect(upgradeCall[0]).toEqual(expect.objectContaining({ isOpen: false }));
@@ -1649,7 +1649,7 @@ describe('/dashboard Round Focus card', () => {
 
     await waitFor(() => {
       const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
-        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+        ([props]) => props.title === 'Handicap and Strokes Gained Unlocked' && props.isOpen === true,
       );
       expect(hasOpenUnlockCall).toBe(false);
     });
@@ -1690,7 +1690,7 @@ describe('/dashboard Round Focus card', () => {
 
     await waitFor(() => {
       const hasOpenUnlockCall = mockUpgradeModal.mock.calls.some(
-        ([props]) => props.title === 'Handicap & SG Unlocked' && props.isOpen === true,
+        ([props]) => props.title === 'Handicap and Strokes Gained Unlocked' && props.isOpen === true,
       );
       expect(hasOpenUnlockCall).toBe(true);
     });
@@ -1714,7 +1714,7 @@ describe('/dashboard Round Focus card', () => {
 
     await waitFor(() => {
       const hasOpenUpgradeCall = mockUpgradeModal.mock.calls.some(
-        ([props]) => props.title === 'Unlock Premium Insights' && props.isOpen === true,
+        ([props]) => props.title === 'Unlock Your Full Breakdown' && props.isOpen === true,
       );
       expect(hasOpenUpgradeCall).toBe(false);
     });
@@ -1755,7 +1755,7 @@ describe('/dashboard Round Focus card', () => {
 
     await waitFor(() => {
       const hasOpenUpgradeCall = mockUpgradeModal.mock.calls.some(
-        ([props]) => props.title === 'Unlock Premium Insights' && props.isOpen === true,
+        ([props]) => props.title === 'Unlock Your Full Breakdown' && props.isOpen === true,
       );
       expect(hasOpenUpgradeCall).toBe(true);
     });

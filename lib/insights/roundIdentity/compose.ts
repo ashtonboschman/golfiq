@@ -29,16 +29,16 @@ function confidenceLabel(confidence: RoundIdentity['confidence']): RoundIdentity
 }
 
 function confidenceText(identity: RoundIdentity): string {
-  if (identity.confidence === 'strong') return 'Strong support from this round profile.';
-  if (identity.confidence === 'moderate') return 'Useful support from this round profile.';
-  if (identity.evidenceLevel === 'score_only') return 'Early read: score is known, causes are still limited.';
-  return 'Early read while this pattern develops.';
+  if (identity.confidence === 'strong') return 'Enough history to trust this pattern more.';
+  if (identity.confidence === 'moderate') return 'Useful signal, but still getting sharper.';
+  if (identity.evidenceLevel === 'score_only') return 'Early read: the score is in, but GolfIQ needs more detail.';
+  return 'Early read: this pattern will get stronger with more rounds.';
 }
 
 function headlineFromPrimary(primary: RoundIdentityPrimaryKey): string {
   switch (primary) {
     case 'score_only_baseline':
-      return 'This round sets your baseline.';
+      return 'This round gives GolfIQ a starting point.';
     case 'breakthrough':
       return 'Your scoring upside showed up in this round.';
     case 'clean_control':
@@ -111,7 +111,7 @@ export function composeRoundIdentityDisplay(
   const display: RoundIdentityDisplay = {
     eyebrow: isFirstRound ? 'Round 1 Logged' : eyebrow,
     headline: headlineFromPrimary(identity.primaryKey),
-    subhead: identity.primaryKey === 'score_only_baseline' ? 'GolfIQ will get sharper as more detail is added.' : undefined,
+    subhead: identity.primaryKey === 'score_only_baseline' ? 'GolfIQ gets sharper as you add more detail.' : undefined,
     insights: [
       {
         kind: 'story',

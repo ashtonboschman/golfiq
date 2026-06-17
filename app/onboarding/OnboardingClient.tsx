@@ -404,9 +404,9 @@ function OnboardingContent() {
               >
                 <OnboardingInsightsPreview />
               </div>
-              <h1 className={styles.title}>Turn Your Rounds Into Insights</h1>
+              <h1 className={styles.title}>Track your rounds. Understand what shaped them.</h1>
               <p className={styles.copy}>
-                Understand the patterns behind your scores, not just the final number.
+                GolfIQ helps explain your score, not just record it.
               </p>
             </div>
             <div className={styles.actionZone}>
@@ -430,7 +430,7 @@ function OnboardingContent() {
         {step === 2 && (
           <div className={styles.screen}>
             <div className={styles.contentZone}>
-              <h1 className={styles.title}>What’s your current goal?</h1>
+              <h1 className={styles.title}>What's your current goal?</h1>
               <div className={styles.optionGrid}>
                 {ONBOARDING_GOALS.map((goal) => (
                   <button
@@ -493,7 +493,7 @@ function OnboardingContent() {
               >
                 <OnboardingTrendPreview />
               </div>
-              <h1 className={styles.title}>Your Game Becomes Clearer Over Time</h1>
+              <h1 className={styles.title}>Your game gets clearer as the rounds add up</h1>
               <div className={styles.progressionLadder} aria-label="Round progression milestones">
                 <div className={styles.progressionRow}>
                   <span className={styles.progressionBadge}>1 Round</span>
@@ -507,7 +507,7 @@ function OnboardingContent() {
                 <div className={styles.progressionConnector} aria-hidden="true" />
                 <div className={styles.progressionRow}>
                   <span className={styles.progressionBadge}>10 Rounds</span>
-                  <p>Unlock stronger trends and projections</p>
+                  <p>See stronger trends and clearer score patterns</p>
                 </div>
               </div>
             </div>
@@ -529,9 +529,9 @@ function OnboardingContent() {
         {step === 5 && (
           <div className={`${styles.screen} ${styles.screenFinal}`}>
             <div className={`${styles.contentZone} ${styles.contentZoneFinal}`}>
-              <h1 className={`${styles.title} ${styles.titleFinal}`}>Start Discovering Your Game</h1>
+              <h1 className={`${styles.title} ${styles.titleFinal}`}>Start Learning Your Game</h1>
               <p className={styles.copy}>
-                Create your account and start uncovering where your strokes are really going.
+                Create your account and start seeing what helped, what hurt, and what to work on next.
               </p>
             </div>
             <div className={`${styles.actionZone} ${styles.actionZoneFinal}`}>

@@ -102,14 +102,14 @@ function makeModePayload(overrides?: Partial<any>) {
 
 function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMode, Partial<any>>>) {
   const card2 = isPremium
-    ? "Approach is costing you strokes. You're losing about 0.8 strokes per round compared to your usual level."
-    : 'Approach is costing you strokes. This has been the biggest difference in your recent rounds. The full breakdown shows exactly how much.';
+    ? "Approach is starting to show up as the main area costing you strokes. You're losing about 0.8 strokes compared with your recent level."
+    : 'Approach is starting to show up as the main area holding scores back. The full breakdown shows exactly how much.';
   return {
     generated_at: '2026-02-12T10:00:00.000Z',
     cards: [
-      'Your recent rounds are close to your usual level. Your scoring is staying in its normal range.',
+      'Your recent scores are holding close to your normal range.',
       card2,
-      'Your scoring has some movement. Your scores are moving around, but not wildly from round to round.',
+      'Your scores have some movement to them, but the pattern is still forming.',
     ],
     cards_locked_count: 0,
     projection: {
@@ -247,7 +247,7 @@ describe('/insights page', () => {
 
     const { container } = render(<InsightsPage />);
 
-    await screen.findByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.');
+    await screen.findByText('Your recent scores are holding close to your normal range.');
     expect(screen.queryByText('Insights')).not.toBeInTheDocument();
     expect(
       screen.queryByText('See what is changing across your recent rounds and usual scoring patterns.'),
@@ -257,8 +257,8 @@ describe('/insights page', () => {
     expect(screen.queryByRole('button', { name: /Regenerate/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Overall Insights compares your recent rounds (up to 5) against your overall average to detect form trends.')).not.toBeInTheDocument();
     expect(screen.queryByText('Overall Insights compares your recent rounds (up to 5) against your last 20 rounds to detect form trends.')).not.toBeInTheDocument();
-    expect(screen.getByText('Approach is costing you strokes. This has been the biggest difference in your recent rounds. The full breakdown shows exactly how much.')).toBeInTheDocument();
-    expect(screen.getByText('Your scoring has some movement. Your scores are moving around, but not wildly from round to round.')).toBeInTheDocument();
+    expect(screen.getByText('Approach is starting to show up as the main area holding scores back. The full breakdown shows exactly how much.')).toBeInTheDocument();
+    expect(screen.getByText('Your scores have some movement to them, but the pattern is still forming.')).toBeInTheDocument();
     expect(screen.queryByText(/Last updated/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
@@ -266,7 +266,7 @@ describe('/insights page', () => {
     expect(container.querySelectorAll('.overall-insight-fake')).toHaveLength(0);
   });
 
-  it('renders Game Trends before Performance Trajectory', async () => {
+  it('renders Game Trends before Scoring Direction', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ insights: makeInsights(false) }),
@@ -275,7 +275,7 @@ describe('/insights page', () => {
     render(<InsightsPage />);
 
     const gameTrendsHeading = await screen.findByText('Game Trends');
-    const trajectoryHeading = await screen.findByText('Performance Trajectory');
+    const trajectoryHeading = await screen.findByText('Scoring Direction');
     expect(
       Boolean(gameTrendsHeading.compareDocumentPosition(trajectoryHeading) & Node.DOCUMENT_POSITION_FOLLOWING),
     ).toBe(true);
@@ -289,26 +289,26 @@ describe('/insights page', () => {
 
     const { container } = render(<InsightsPage />);
 
-    await screen.findByText("See exactly what's costing you strokes");
+    await screen.findByText('See what is really costing you strokes');
 
-    expect(screen.getByText("See exactly what's costing you strokes")).toBeInTheDocument();
-    expect(screen.getByText("Break down your game and see how many strokes each part is adding or losing per round.")).toBeInTheDocument();
-    expect(screen.getByText('SG Component Breakdown (Premium)')).toBeInTheDocument();
-    expect(screen.getByText('Performance Trajectory')).toBeInTheDocument();
+    expect(screen.getByText('See what is really costing you strokes')).toBeInTheDocument();
+    expect(screen.getByText('Get a clearer breakdown of what helped, what hurt, and where to focus next.')).toBeInTheDocument();
+    expect(screen.getAllByText('Strokes Gained by Area')[0]).toBeInTheDocument();
+    expect(screen.getByText('Scoring Direction')).toBeInTheDocument();
     expect(screen.getByText('Score Range')).toBeInTheDocument();
     expect(screen.getByText('Handicap Range')).toBeInTheDocument();
     expect(
-      screen.getByText('Upgrade to unlock projected score and handicap ranges.'),
+      screen.getByText('Upgrade to see projected score and handicap ranges.'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('Performance Trajectory (Premium)')).not.toBeInTheDocument();
-    expect(screen.getByText('SG Component Delta')).toBeInTheDocument();
+    expect(screen.queryByText('Scoring Direction (Premium)')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Strokes Gained by Area')[0]).toBeInTheDocument();
 
     expect(container.querySelectorAll('.locked-section')).toHaveLength(2);
     expect(container.querySelectorAll('.locked-blur-content')).toHaveLength(2);
     expect(container.querySelectorAll('.locked-overlay.has-cta')).toHaveLength(1);
     expect(container.querySelector('.trajectory-lock-section')).toBeNull();
 
-    const ctaButtons = screen.getAllByRole('button', { name: 'Unlock Premium Insights' });
+    const ctaButtons = screen.getAllByRole('button', { name: 'See Premium Plans' });
     expect(ctaButtons).toHaveLength(1);
   });
 
@@ -321,15 +321,15 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('Your scoring has some movement. Your scores are moving around, but not wildly from round to round.');
+    await screen.findByText('Your scores have some movement to them, but the pattern is still forming.');
     expect(screen.getByRole('button', { name: 'Overall insights confidence: Strong' })).toBeInTheDocument();
-    expect(screen.getByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.')).toBeInTheDocument();
-    expect(screen.getByText("Approach is costing you strokes. You're losing about 0.8 strokes per round compared to your usual level.")).toBeInTheDocument();
+    expect(screen.getByText('Your recent scores are holding close to your normal range.')).toBeInTheDocument();
+    expect(screen.getByText("Approach is starting to show up as the main area costing you strokes. You're losing about 0.8 strokes compared with your recent level.")).toBeInTheDocument();
     expect(screen.getByText('\u25BC -1.4 Short Game Shots')).toBeInTheDocument();
     expect(screen.queryByText(/The full breakdown shows exactly how much\./i)).not.toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Unlock Premium Insights' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'See Premium Plans' })).not.toBeInTheDocument();
 
     const sgLabels = Array.from(document.querySelectorAll('.sg-delta-row .sg-delta-label')).map((node) =>
       node.textContent?.trim() ?? '',
@@ -388,11 +388,11 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText("Approach is costing you strokes. You're losing about 0.8 strokes per round compared to your usual level.");
-    await screen.findByText('SG Component Delta');
+    await screen.findByText("Approach is starting to show up as the main area costing you strokes. You're losing about 0.8 strokes compared with your recent level.");
+    await screen.findAllByText('Strokes Gained by Area');
     expect(
       screen.getByText(
-        'Early sample: showing average SG per component from your last 5 rounds. Deltas vs baseline appear after 10 rounds.',
+        'Early sample: showing recent SG by area from your last 5 rounds. GolfIQ starts comparing it to your usual level after 10 rounds.',
       ),
     ).toBeInTheDocument();
 
@@ -419,7 +419,7 @@ describe('/insights page', () => {
     expect(screen.getByText('Insight Confidence')).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This shows how much data GolfIQ has behind your Overall Insights. Building means early trend guidance. Moderate means useful patterns are emerging. Strong means clearer patterns are available.",
+        "This shows how much data GolfIQ has behind your Overall Insights. Building means an early read. Moderate means useful signal, but still getting sharper. Strong means enough history to trust the pattern more.",
       ),
     ).toBeInTheDocument();
   });
@@ -510,7 +510,7 @@ describe('/insights page', () => {
     });
     const firstRender = render(<InsightsPage />);
     await screen.findByText(
-      'GolfIQ can spot early signals from your first rounds. Stronger trends form as more rounds are logged.',
+      'GolfIQ can spot early signals from your first rounds. A few more rounds will make the picture clearer.',
     );
     firstRender.unmount();
 
@@ -532,7 +532,7 @@ describe('/insights page', () => {
       json: async () => ({ insights: threeRoundSample }),
     });
     render(<InsightsPage />);
-    await screen.findByText('Trends are starting to form.');
+    await screen.findByText('Still early, but a pattern is starting to show.');
   });
 
   it('renders 0-round state safely with building confidence and still-building trajectory', async () => {
@@ -558,9 +558,9 @@ describe('/insights page', () => {
       },
     });
     zeroRoundInsights.cards = [
-      'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.',
-      'Score trends are forming, but the supporting stat detail is still light. A few more tracked rounds will sharpen this read.',
-      'Consistency signals are still forming. A few more rounds will clarify whether stability or volatility is your long-term trend.',
+      'Early read: your score pattern is starting to form. A few more rounds will make this stronger.',
+      'The score trend is still forming, and GolfIQ needs more tracked stats to explain it. A few more tracked rounds will sharpen it.',
+      'This is still taking shape. A few more rounds will show whether your scores are settling down or bouncing around.',
     ];
     zeroRoundInsights.projection.trajectory = 'unknown';
     zeroRoundInsights.projection_by_mode.combined.trajectory = 'unknown';
@@ -584,10 +584,10 @@ describe('/insights page', () => {
     render(<InsightsPage />);
 
     await screen.findByText(
-      'GolfIQ can spot early signals from your first rounds. Stronger trends form as more rounds are logged.',
+      'GolfIQ can spot early signals from your first rounds. A few more rounds will make the picture clearer.',
     );
     await screen.findByText(
-      'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.',
+      'Early read: your score pattern is starting to form. A few more rounds will make this stronger.',
     );
     expect(screen.getByRole('button', { name: 'Overall insights confidence: Building' })).toBeInTheDocument();
     expect(screen.getByText('Still Building')).toBeInTheDocument();
@@ -609,7 +609,7 @@ describe('/insights page', () => {
     });
 
     render(<InsightsPage />);
-    await screen.findByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.');
+    await screen.findByText('Your recent scores are holding close to your normal range.');
 
     const viewedCalls = mockedCaptureClientEvent.mock.calls.filter(
       (call) => call[0] === ANALYTICS_EVENTS.insightsViewed,
@@ -635,7 +635,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    const button = await screen.findByRole('button', { name: 'Unlock Premium Insights' });
+    const button = await screen.findByRole('button', { name: 'See Premium Plans' });
     fireEvent.click(button);
 
     expect(mockPush).toHaveBeenCalledWith('/pricing');
@@ -659,7 +659,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText("See exactly what's costing you strokes");
+    await screen.findByText('See what is really costing you strokes');
 
     const initialPaywallCalls = mockedCaptureClientEvent.mock.calls.filter(
       (call) => call[0] === ANALYTICS_EVENTS.paywallViewed,
@@ -708,7 +708,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('Your recent rounds are close to your usual level. Your scoring is staying in its normal range.');
+    await screen.findByText('Your recent scores are holding close to your normal range.');
 
     let cardCalls = mockedCaptureClientEvent.mock.calls.filter(
       (call) => call[0] === ANALYTICS_EVENTS.overallCardViewed,

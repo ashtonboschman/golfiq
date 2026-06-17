@@ -7,18 +7,18 @@ export default function InsightsCTA() {
   const insights = [
     {
       icon: <Sparkles size={24} />,
-      title: 'Intelligent Insights',
-      description: 'Post-round and overall analysis generated from your real round data, strokes-gained calculations, and scoring trends.',
+      title: 'Round Insights',
+      description: 'Get a plain-language read on what really shaped the score.',
     },
     {
       icon: <Target size={24} />,
-      title: 'Weakness Detection',
-      description: 'Automatically identify the parts of your game costing you the most strokes so you know exactly where to focus.',
+      title: 'Biggest Leak',
+      description: 'Spot the part of the game that is costing the most and needs attention first.',
     },
     {
       icon: <LineChart size={24} />,
-      title: 'Predictive Analytics',
-      description: 'See where your game is headed. Track improvement trends and receive guidance on what will lower your scores fastest.',
+      title: 'Next Focus',
+      description: 'Know what to work on next without overcomplicating the plan.',
     },
   ];
 
@@ -28,10 +28,10 @@ export default function InsightsCTA() {
         <div className="landing-insights-text">
           <span className="landing-premium-badge">Premium Feature</span>
           <h2 className="landing-insights-title">
-            Understand <span className="accent-text">Why</span> You Shoot the Scores You Do
+            See What Cost You Strokes and <span className="accent-text">What Held Up</span>
           </h2>
           <p className="landing-insights-subtitle">
-            GolfIQ goes beyond charts and numbers. Our Intelligent Insights are built from your real round stats and deterministic performance models, so every recommendation maps to measurable data.
+            GolfIQ turns your score, stats, and round patterns into a clear read you can use next time out.
           </p>
 
           <div className="landing-insights-list">

@@ -8,14 +8,14 @@ type AreaKey = NonNullable<RoundIdentityDisplayAreaEvidence['area']>;
 const DAMAGE_MODIFIERS = new Set(['one_hole_damage', 'blow_up_stretch']);
 
 const M1_SCORE_ONLY_BASELINE_VARIANTS = [
-  'This starts your baseline. Add one or two optional stats next round so GolfIQ can explain what shaped the number.',
-  'This starts your baseline. Even one extra stat next round gives GolfIQ a clearer read on why this score happened.',
-  'This starts your baseline. Add a couple of stats like putts or greens next round so GolfIQ can explain more than the final number.',
+  'This gives GolfIQ a starting point. Add one or two optional stats next round so it can explain what shaped the number.',
+  'This is the starting point. Even one extra stat next round gives GolfIQ a clearer read on why this score happened.',
+  'This starts the picture. Add a couple of stats like putts or greens next round so GolfIQ can explain more than the final number.',
 ] as const;
 
 const M1_BREAKTHROUGH_CLEAN_VARIANTS = [
   'This was a true breakthrough score that finished clearly above your usual range.',
-  'This round landed well outside your normal scoring range in the right direction.',
+  'This round landed well outside your usual scoring range in the right direction.',
   'This was the kind of score that shows real progress, not just a small step forward.',
   'This one clearly separated itself from your recent rounds.',
   'This was a true step forward compared with where your scores have been.',
@@ -168,7 +168,7 @@ const M1_EVERYTHING_LEAKED_VARIANTS = [
 const M2_SCORE_ONLY_BASELINE_VARIANTS = [
   'This round gives GolfIQ a starting point for future comparisons.',
   'This score gives you a starting point to compare against next time.',
-  'This one starts the baseline, and future rounds will make the pattern clearer.',
+  'This one starts the picture, and future rounds will make the pattern clearer.',
   'The score is logged. A few more details next round will make the why easier to explain.',
 ] as const;
 

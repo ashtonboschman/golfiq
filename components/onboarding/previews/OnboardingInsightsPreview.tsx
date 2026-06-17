@@ -3,9 +3,9 @@ import OverallInsightMessage from '@/components/insights/OverallInsightMessage';
 import styles from './OnboardingPreview.module.css';
 
 const previewCards = [
-  'Your recent rounds are averaging about 5 strokes better than your normal scoring range.',
-  'Putting is saving strokes consistently, while missed greens are trending right.',
-  'Your scoring patterns have become more stable over recent rounds.',
+  'Your recent scores are about 5 strokes better than your usual level.',
+  'Your putting has been helping, but missed greens are leaving extra work.',
+  'Your recent scores are starting to settle into a clearer pattern.',
 ];
 
 export default function OnboardingInsightsPreview() {

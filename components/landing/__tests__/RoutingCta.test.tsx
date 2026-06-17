@@ -23,12 +23,12 @@ describe('landing CTAs', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Master Your Game with Intelligent Golf Analytics',
+        name: 'Track your rounds. Understand what shaped them.',
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Track every round, uncover hidden weaknesses, and improve faster with Intelligent Insights built from your real performance data.',
+        'Your scorecard tells you what you shot. GolfIQ helps explain why.',
       ),
     ).toBeInTheDocument();
     const getStarted = screen.getByRole('link', { name: 'Get Started' });

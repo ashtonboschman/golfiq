@@ -1037,9 +1037,9 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const scoreTrendPointCount = trendData.length;
   const scoreTrendEmptyMessage =
     scoreTrendPointCount === 0
-      ? 'Add your first round to start building your score trend.'
+      ? 'Add your first round to start seeing how your scores move.'
       : scoreTrendPointCount === 1
-        ? 'Add another round to start seeing your score trend.'
+        ? 'Add another round to start building a clearer score pattern.'
         : null;
   const hasFirGirTrendData = trendData.some(
     (point) =>
@@ -1098,17 +1098,17 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const getUpgradeModalMessage = () => {
     const rounds = totalRoundsForModal;
     if (rounds === 5) {
-      return "5 rounds logged! Upgrade to Premium for deeper trends and full-scope performance insights.";
+      return "5 rounds logged. Premium shows a deeper breakdown across your recent rounds.";
     } else if (rounds === 10) {
-      return "10 rounds played! Premium gives you detailed trends and analytics to improve faster.";
+      return "10 rounds played. Premium helps you see longer trends and what to focus on next.";
     } else if (rounds === 15) {
-      return "15 rounds logged! Upgrade to Premium to see full insights beyond your recent rounds.";
+      return "15 rounds logged. Premium gives you a deeper look beyond your recent rounds.";
     } else if (rounds === 20) {
-      return "20 rounds reached - the free stats limit! Upgrade to Premium for unlimited history and advanced insights.";
+      return "20 rounds reached. Premium unlocks your full history and longer trends.";
     } else if (rounds > 20 && rounds % 5 === 0) {
-      return `${rounds} rounds logged! Unlock Premium to analyze all your rounds and track long-term performance.`;
+      return `${rounds} rounds logged. Premium helps you review your full history and spot longer-term patterns.`;
     } else {
-      return `You've logged ${rounds} rounds! Upgrade to Premium for unlimited analytics and Intelligent Insights.`;
+      return `You've logged ${rounds} rounds. Upgrade to Premium for the full breakdown across your game.`;
     }
   };
 
@@ -1493,14 +1493,14 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 <div className="info-tooltip-content center below ready dashboard-focus-confidence-popover">
                   <h4>Focus Confidence</h4>
                   <p>
-                    How reliable your Round Focus is based on available scoring patterns.
+                    How reliable your Round Focus is based on the rounds GolfIQ has so far.
                     <br />
                     <br />
-                    Building: early guidance while GolfIQ learns your game.
+                    Building: early read while GolfIQ learns your game.
                     <br />
-                    Moderate: trends are forming.
+                    Moderate: useful signal, but still getting sharper.
                     <br />
-                    Strong: clear patterns are available.
+                    Strong: enough history to trust the pattern more.
                   </p>
                   <div className="info-tooltip-arrow center below" />
                 </div>
@@ -1555,7 +1555,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             <div className="info-banner-text">
               <h4>Limited Stats View</h4>
               <p>
-                Stats are based on your most recent 20 of {stats.totalRoundsInDb} rounds. Upgrade to Premium for full-history insights.
+                Stats are based on your most recent 20 of {stats.totalRoundsInDb} rounds. Upgrade to see your full history.
               </p>
             </div>
             
@@ -1568,7 +1568,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               }}
               className="btn btn-upgrade"
             >
-              Unlock Full Stats
+              See Full History
             </button>
         </div>
       )}
@@ -1844,7 +1844,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             <div className="trend-card trend-card-empty trend-card-empty-score">
               <h3 className="insights-centered-title">FIR & GIR Trend</h3>
               <div className="trend-card-empty-body">
-                <p className="secondary-text text-center">Track fairways and greens to see accuracy trends over time.</p>
+                <p className="secondary-text text-center">Track fairways and greens to see if your ball-striking is moving in the right direction.</p>
               </div>
             </div>
           )}
@@ -1864,7 +1864,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         isOpen={!loading && activeMilestoneModal === 'welcome' && status === 'authenticated'}
         onClose={handleCloseMilestoneModal}
         title="Welcome to GolfIQ"
-        message="Track your rounds, see what shaped your score, and build a clearer picture of your game over time."
+        message="Track your rounds, see what shaped the score, and start learning what to focus on next."
         ctaLocation="dashboard_zero_rounds_beta_modal"
         milestoneRound={0}
         analyticsMode="none"
@@ -1879,8 +1879,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       <UpgradeModal
         isOpen={!loading && activeMilestoneModal === 'unlock' && status === 'authenticated'}
         onClose={handleCloseMilestoneModal}
-        title="Handicap & SG Unlocked"
-        message="You have logged 3 rounds. Handicap and Strokes Gained are now available as you keep tracking."
+        title="Handicap and Strokes Gained Unlocked"
+        message="You have logged 3 rounds. Handicap and strokes gained are now available as you keep tracking."
         ctaLocation="dashboard_round_three_unlock_modal"
         milestoneRound={totalRoundsForModal}
         analyticsMode="none"
@@ -1889,7 +1889,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         onPrimaryAction={() => router.push('/insights')}
         features={[
           'Handicap now updates as new rounds are logged',
-          'Strokes Gained unlocks when round stats are tracked',
+          'Strokes gained unlocks when round stats are tracked',
         ]}
       />
 
@@ -1897,17 +1897,17 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       <UpgradeModal
         isOpen={!loading && activeMilestoneModal === 'upgrade' && status === 'authenticated'}
         onClose={handleCloseMilestoneModal}
-        title="Unlock Premium Insights"
+        title="Unlock Your Full Breakdown"
         message={getUpgradeModalMessage()}
         ctaLocation="dashboard_round_milestone_modal"
         paywallContext="round_milestone_modal"
         milestoneRound={totalRoundsForModal}
         features={[
-          'All-time stat access beyond your last 20 rounds',
-          'Estimated strokes gained & core performance KPIs',
-          'Trend charts across your last 20 rounds (vs 5 on Free)',
-          'Intelligent Insights and personalized recommendations',
-          'Flexible date-based comparisons',
+          'See your full round history instead of just the last 20 rounds',
+          'Get the full strokes gained breakdown by part of your game',
+          'See longer score and stat trends across your rounds',
+          'Spot what is really costing you strokes and what to focus on next',
+          'Use flexible date filters to compare stretches of play',
           'Premium themes'
         ]}
       />

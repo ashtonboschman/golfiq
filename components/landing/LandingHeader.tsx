@@ -43,7 +43,7 @@ export default function LandingHeader() {
             }}
             className="landing-nav-link"
           >
-            Intelligent Insights
+            Round Insights
           </a>
         </nav>
 

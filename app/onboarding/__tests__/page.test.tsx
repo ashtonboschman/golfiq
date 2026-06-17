@@ -82,12 +82,12 @@ describe('/onboarding page', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Turn Your Rounds Into Insights',
+        name: 'Track your rounds. Understand what shaped them.',
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Overall Insights')).toBeInTheDocument();
     expect(screen.getByText('Strong')).toBeInTheDocument();
-    expect(screen.getByText(/averaging about 5 strokes better than your normal scoring range/i)).toBeInTheDocument();
+    expect(screen.getByText(/about 5 strokes better than your usual level/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
@@ -169,7 +169,7 @@ describe('/onboarding page', () => {
     mockQuery = new URLSearchParams('step=2&source=landing');
     render(<OnboardingPage />);
 
-    expect(screen.getByRole('button', { name: 'Find out where I’m losing strokes' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: "Find out where I'm losing strokes" })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Understand my game better' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Break 90' }));
@@ -221,7 +221,7 @@ describe('/onboarding page', () => {
     expect(screen.getByText('3 Rounds')).toBeInTheDocument();
     expect(screen.getByText('Start spotting real patterns')).toBeInTheDocument();
     expect(screen.getByText('10 Rounds')).toBeInTheDocument();
-    expect(screen.getByText('Unlock stronger trends and projections')).toBeInTheDocument();
+    expect(screen.getByText('See stronger trends and clearer score patterns')).toBeInTheDocument();
   });
 
   it('routes final CTAs to register/login with post-signup next intent', () => {

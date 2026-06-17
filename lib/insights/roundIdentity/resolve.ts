@@ -258,9 +258,9 @@ function summarizePrimary(
 ): string {
   const toPar = input.toPar;
   if (primary === 'score_only_baseline') {
-    return `Score recorded at ${input.score} (${toPar >= 0 ? `+${toPar}` : `${toPar}`}). This starts your baseline.`;
+    return `Score recorded at ${input.score} (${toPar >= 0 ? `+${toPar}` : `${toPar}`}). This gives GolfIQ a starting point.`;
   }
-  if (primary === 'breakthrough') return 'This score beat your recent baseline by a meaningful margin.';
+  if (primary === 'breakthrough') return "This score beat what you've been shooting lately by a meaningful margin.";
   if (primary === 'clean_control') return 'Damage stayed low all round, and that control protected the score.';
   if (primary === 'all_around_strong') return 'Multiple parts of your game helped at the same time.';
   if (primary === 'approach_carried') return 'Approach play created the biggest scoring edge this round.';
@@ -278,7 +278,7 @@ function summarizePrimary(
   if (primary === 'volatile_scoring') return 'The round had both scoring upside and concentrated damage.';
   if (primary === 'big_number') return 'A few doubles or worse shaped too much of the final score.';
   return evidence.evidenceLevel === 'hole_by_hole'
-    ? 'Multiple leaks appeared in the same round profile.'
+    ? 'Multiple leaks showed up in the same round.'
     : 'The available stats point to multiple areas leaking at once.';
 }
 

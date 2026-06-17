@@ -176,9 +176,9 @@ describe('/api/rounds/[id]/insights route contract', () => {
       { forceRegenerate: true, bumpVariant: false },
     );
 
-    expect(premium.messages[1]).toMatch(/Recorded GIR misses clustered right this round/i);
+    expect(premium.messages[1]).toMatch(/This round's GIR misses were mostly right/i);
     expect(premium.messages[1].toLowerCase()).not.toMatch(/swing|clubface|path|mechanic|slice/);
-    expect(free.messages[1]).not.toMatch(/Recorded GIR misses clustered right this round/i);
+    expect(free.messages[1]).not.toMatch(/This round's GIR misses were mostly right/i);
   });
 
   it('regenerates when stored round_identity_v1 hash is stale', async () => {
@@ -1075,7 +1075,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     expect(insights.messages[0]).toContain('You shot 46');
     expect(insights.messages[0]).toMatch(
-      /A solid starting point to build from\.|A good usual level to build from\.|This gives you a starting point for future rounds\./,
+      /A solid starting point to build from\.|That gives you a good recent level to build from\.|This gives you a starting point for future rounds\./,
     );
     expect(insights.message_levels[0]).toBe('success');
   });
@@ -1121,7 +1121,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     expect(insights.messages[0]).toContain('You shot 46');
     expect(insights.messages[0]).toMatch(
-      /A solid starting point to build from\.|A good usual level to build from\.|This gives you a starting point for future rounds\./,
+      /A solid starting point to build from\.|That gives you a good recent level to build from\.|This gives you a starting point for future rounds\./,
     );
     expect(insights.messages[0]).not.toBe('You shot 46 (+10).');
     expect(insights.message_levels[0]).toBe('success');
@@ -1400,7 +1400,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           residualDominant: false,
           weakSeparation: false,
         },
-        expectedText: 'Approach was the biggest source of lost strokes.',
+        expectedText: 'Approach was the main area costing strokes.',
         expectedLevel: 'warning',
       },
       {
@@ -1432,7 +1432,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           residualDominant: false,
           weakSeparation: false,
         },
-        expectedText: "Off The Tee didn't make much difference to your score.",
+        expectedText: 'Off The Tee was not a big factor in the score.',
         expectedLevel: 'info',
       },
     ] as const;

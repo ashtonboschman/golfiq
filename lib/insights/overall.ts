@@ -350,7 +350,7 @@ const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
   ],
 
   general: [
-    'Routine lock: Use the same pre-shot routine on every full swing for 18 holes. Track rushed swings. Goal: zero rushed swings and full commit on every shot.',
+    'Routine lock: Use the same pre-shot routine on every full swing for 18 holes. Track rushed swings. Goal: zero rushed swings and full commitment on every shot.',
     'Center targets only: Aim at center targets on every approach for 9 holes. Track short-side misses. Goal: zero short-side misses.',
     'Miss removal: Identify your biggest miss and choose targets that remove it for 18 holes. Track penalties from that miss. Goal: zero penalty strokes from that miss.',
     'Accuracy scoring: Pick a range target and hit 15 balls. Score 2 = inside 10 yards, 1 = inside 20. Goal: 18 points.',
@@ -358,7 +358,7 @@ const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
     'Par-3 rule: Aim center-green on every par 3. Goal: hit 50 percent of greens or finish pin-high on the safe side.',
     'Smart doubles: When out of position, play for bogey instead of forcing par. Goal: zero doubles from decision errors.',
     'One stat goal: Pick one stat goal for the round and write it down before teeing off. Goal: review it after and log the result.',
-    "Green-light only: Attack pins only on green-light numbers and send all others to center. Goal: zero forced carries when you're between clubs.",
+    "Green-light only: Attack pins only on green-light numbers and send all others to the center. Goal: zero forced carries when you're between clubs.",
     'Reset between shots: After every shot, take one full breath and re-commit to the next target. Goal: zero rushed next swings.',
   ],
 };
@@ -377,99 +377,99 @@ const OVERALL_COPY_BANNED_TOKENS = [
 ] as const;
 
 const OVERALL_EARLY_SCORE_TREND_VARIANTS = [
-  'Early score trends are forming. Keep logging rounds to confirm your long-term scoring direction.',
-  'Early scoring patterns are starting to form. More rounds will clarify the long-term direction.',
-  'Your long-term scoring trend is still forming. A few more rounds will make the direction clearer.',
+  'Early read: your score pattern is starting to form. A few more rounds will make the read stronger.',
+  'Your recent scores are starting to show a direction. More rounds will show if it holds.',
+  'This is still early, but the first scoring pattern is starting to show.',
 ] as const;
 
 const OVERALL_STABLE_SCORE_HIGH_VARIANTS = [
-  'Your recent rounds are close to your normal scoring range, and this looks stable over time.',
-  'Your recent rounds are staying close to your normal scoring range over time.',
-  'Your scoring has stayed near your normal range over recent rounds.',
+  'Your recent scores are holding steady around your normal range.',
+  'Your recent scores are staying close to the level you normally play to.',
+  'Your scoring has been steady lately.',
 ] as const;
 
 const OVERALL_STABLE_SCORE_MED_VARIANTS = [
-  'Your recent rounds are close to your normal scoring range. The trend is holding steady.',
-  'Your recent rounds are staying close to your normal scoring range.',
-  'Your scoring is holding near your normal range.',
+  'Your recent scores are holding close to your normal range.',
+  'Your recent scores are staying pretty steady.',
+  'Your scoring is sitting near your recent level.',
 ] as const;
 
 const OVERALL_STABLE_SCORE_LOW_VARIANTS = [
-  'Your recent rounds are close to your normal scoring range, though the sample is still small.',
-  'Your scoring is near your normal range, but a few more rounds will clarify the trend.',
-  'Your recent scores are close to normal, though the sample is still building.',
+  'Your recent scores are close to your normal range, but it is still early.',
+  'Your scoring is sitting near your recent level, though a few more rounds will sharpen the read.',
+  'Your recent scores are fairly steady, but the sample is still building.',
 ] as const;
 
 const OVERALL_BALANCED_PROFILE_HIGH_VARIANTS = [
-  'Your profile is balanced, so scoring ceiling gains will come from marginal improvements across multiple areas.',
-  'Your profile is fairly balanced, so small round-to-round swings are mattering more than one major weakness.',
-  'No single area clearly stands out as the main scoring issue right now.',
+  'No single part of the game is driving the scores right now.',
+  'Your game looks fairly balanced, so small misses across the round matter more than one major leak.',
+  'No one area is driving the whole pattern yet.',
 ] as const;
 
 const OVERALL_BALANCED_PROFILE_MED_VARIANTS = [
-  'Your components are fairly balanced, so scores are moving from small round-to-round changes rather than one clear leak.',
-  'Your profile is fairly balanced, so small changes across the round are shaping the scores.',
+  'Your game looks fairly balanced, so small changes across the round are moving the score.',
   'No single area is clearly separating from the rest right now.',
+  'Small mistakes across the round are shaping scores more than one big leak.',
 ] as const;
 
 const OVERALL_BALANCED_PROFILE_LOW_VARIANTS = [
-  'No single component clearly separates from the rest yet. Small gains across multiple areas can still move scoring.',
-  'No single area has separated clearly yet. Small gains across the round can still move scoring.',
-  'The profile is still fairly balanced, with scoring changes spread across multiple areas.',
+  'No single part of the game has separated yet. Small gains across the round can still move scoring.',
+  'No one area stands out clearly yet, but small improvements can still move the score.',
+  'The pattern is still spread across a few areas.',
 ] as const;
 
 const OVERALL_VOLATILITY_STRONG_HIGH_VARIANTS = [
-  'Your scoring is inconsistent: the ceiling is strong, but the floor is still low. Volatility is the clearest long-term pattern affecting your averages.',
-  'Round-to-round volatility is currently the clearest pattern affecting your scoring.',
-  'Large score swings are having more impact than one isolated weakness right now.',
+  'Your scores are jumping around from round to round. The good rounds are there, but the tougher ones are still pulling the average up.',
+  'The clearest pattern right now is how much the scores swing from round to round.',
+  'Big score swings are shaping your averages more than one isolated leak.',
 ] as const;
 
 const OVERALL_VOLATILITY_STRONG_MED_VARIANTS = [
-  'Your scoring is inconsistent, and this volatility is becoming a meaningful pattern across recent rounds.',
-  'Large score swings are starting to show up as a real scoring pattern.',
-  'Round-to-round movement is becoming one of the clearest scoring signals.',
+  'Your scores are bouncing around enough to become a real pattern.',
+  'Big score swings are starting to show up as one of the clearest themes in your recent rounds.',
+  'The score swings are starting to stand out.',
 ] as const;
 
 const OVERALL_VOLATILITY_STRONG_LOW_VARIANTS = [
-  'Your scoring is moving around more than usual. Keep logging rounds to confirm whether volatility is the main trend.',
-  'Your scores are moving around more than usual, but a few more rounds will confirm the pattern.',
-  'There are signs of scoring volatility, though the sample is still building.',
+  'Your scores are moving around more than usual, but a few more rounds will show if that holds.',
+  'There are early signs of bigger score swings, though the sample is still building.',
+  'This looks like an uneven scoring stretch, but it needs a few more rounds.',
 ] as const;
 
 const OVERALL_VOLATILITY_MODERATE_HIGH_VARIANTS = [
-  'Your scoring still has enough movement to cap average gains, even without extreme volatility.',
-  'Your scoring has enough round-to-round movement to keep average gains limited.',
-  'Moderate score movement is still affecting the overall scoring picture.',
+  'Your scoring still has enough movement to hold back the average.',
+  'There is still enough round-to-round movement to keep the average from improving much.',
+  'Some score swings are still part of the picture.',
 ] as const;
 
 const OVERALL_VOLATILITY_MODERATE_MED_VARIANTS = [
-  'Your scoring has moderate movement from round to round, and that is becoming part of the overall pattern.',
-  'Round-to-round movement is starting to show up in the overall scoring picture.',
-  'Moderate scoring movement is becoming part of the recent pattern.',
+  'Your scores are moving around a bit, and that is becoming part of the pattern.',
+  'Round-to-round movement is starting to show up in a real way.',
+  'Some score movement is becoming part of the recent pattern.',
 ] as const;
 
 const OVERALL_VOLATILITY_MODERATE_LOW_VARIANTS = [
-  'Your scoring has some movement from round to round, and this pattern is still forming.',
-  'Your scores are moving around a bit, but the long-term pattern is still forming.',
-  'There is some scoring movement, though a few more rounds will clarify the trend.',
+  'Your scores have some movement to them, but the pattern is still forming.',
+  'There is some score movement right now, though a few more rounds will clarify it.',
+  'Your scores are moving around a bit, but it is still early.',
 ] as const;
 
 const OVERALL_LOW_COVERAGE_HIGH_VARIANTS = [
-  'Score trends are clearer than supporting stat detail right now. Logging fairways, greens, putts, and penalties will sharpen the long-term read.',
-  'The score trend is clearer than the supporting stats right now. More tracked rounds will sharpen the read.',
-  'Scoring direction is clearer than the stat detail right now. More tracked rounds will tighten the long-term read.',
+  'GolfIQ can see the score trend, but needs more tracked stats to explain it.',
+  'GolfIQ can see where scores are going, but more tracked stats will make the reason clearer.',
+  'The score trend is there, and more tracked rounds will make the reason clearer.',
 ] as const;
 
 const OVERALL_LOW_COVERAGE_MED_VARIANTS = [
-  'Score trends are emerging, but the supporting stat detail is still limited. Logging fairways, greens, putts, and penalties will sharpen this read.',
-  'Score trends are starting to form, but the supporting stats are still limited.',
-  'The scoring direction is starting to show, but more tracked stats will make the read stronger.',
+  'The score trend is starting to show, but GolfIQ needs more detail to explain it.',
+  'The scoring direction is starting to show, but more tracked stats will make this read stronger.',
+  'You can see the first signal in the scores, but GolfIQ still needs more detail.',
 ] as const;
 
 const OVERALL_LOW_COVERAGE_LOW_VARIANTS = [
-  'Score trends are forming, but the supporting stat detail is still light. A few more tracked rounds will sharpen this read.',
-  'Score trends are still forming, and a few more tracked rounds will make the read clearer.',
-  'The scoring read is still building. More tracked rounds will make the pattern clearer.',
+  'The score trend is still forming, and GolfIQ needs more tracked stats to explain it. A few more tracked rounds will sharpen it.',
+  'This is still early. A few more tracked rounds will make the read clearer.',
+  'The scoring picture is still building. More tracked rounds will make the pattern clearer.',
 ] as const;
 
 function stableIndex(seed: string, count: number): number {
@@ -741,9 +741,9 @@ function buildOverallDirectionalQualifier(args: {
   const direction = formatDirectionalDirection(pattern.dominantDirection);
   if (confidence === 'high') {
     if (isPremium) {
-      return `Recent ${area} misses are consistently skewing ${direction} (${pattern.count}/${pattern.totalDirectionalMisses} recorded misses).`;
+      return `Recent ${area} misses are mostly ${direction} (${pattern.count}/${pattern.totalDirectionalMisses} recorded misses).`;
     }
-    return `Recent ${area} misses are consistently skewing ${direction}.`;
+    return `Recent ${area} misses are mostly ${direction}.`;
   }
 
   if (pattern.confidence === 'high' && isPremium) {
@@ -1708,25 +1708,25 @@ export function buildDeterministicOverallCards(args: {
     if (delta < 0) {
       if (confidence === 'high') {
         if (args.isPremium) {
-          return `Your recent rounds are outperforming your normal scoring range by about ${formatOneDecimal(Math.abs(delta))} strokes, and this has become a persistent trend.`;
+          return `Your recent rounds are about ${formatOneDecimal(Math.abs(delta))} strokes better than your normal range, and that pattern is holding up.`;
         }
-        return 'Your recent rounds are outperforming your normal scoring range, and this improvement is holding steady.';
+        return 'Your recent rounds are better than your normal range, and that pattern is holding up.';
       }
       if (confidence === 'medium') {
-      return 'Your recent rounds are trending better than your normal scoring range, and the improvement is becoming more reliable.';
+      return 'Your recent scores are moving in the right direction, and the pattern is getting clearer.';
       }
-    return 'Your recent rounds are trending better than your normal scoring range, though the sample is still small.';
+    return 'Your recent scores are moving in the right direction, but it is still early.';
     }
     if (confidence === 'high') {
       if (args.isPremium) {
-        return `Your recent rounds are above your normal scoring range by about ${formatOneDecimal(delta)} strokes, and this has become a persistent trend.`;
+        return `Your recent rounds are about ${formatOneDecimal(delta)} strokes higher than your normal range, and that pattern is holding up.`;
       }
-      return 'Your recent rounds are above your normal scoring range, and this pattern is holding steady.';
+      return 'Your recent rounds are coming in higher than normal, and the pattern is holding up.';
     }
     if (confidence === 'medium') {
-      return 'Your recent rounds are trending above your normal scoring range, and the pattern is becoming more reliable.';
+      return 'Your recent scores are trending higher, and the pattern is getting clearer.';
     }
-    return 'Your recent rounds are trending above your normal scoring range, though the sample is still small.';
+    return 'Your recent scores are trending higher, but it is still early.';
   })();
 
   const card2 = (() => {
@@ -1800,23 +1800,23 @@ export function buildDeterministicOverallCards(args: {
       if (weakBalancedProfile) {
         if (moderateRelativeWeakness) {
           if (confidence === 'high') {
-            return `${weakestLabel} is still your weakest relative area, even though your overall profile remains fairly balanced.`;
+            return `${weakestLabel} is still the weakest area compared with the rest of your game, even though your overall profile remains fairly balanced.`;
           }
           if (confidence === 'medium') {
             return `${weakestLabel} looks slightly weaker than the rest, though your overall profile is still fairly balanced.`;
           }
-          return `${weakestLabel} may be a slight relative weakness, but this pattern is still early.`;
+          return `${weakestLabel} looks like a slight weak spot, but this pattern is still early.`;
         }
         return pickBalancedProfileVariant('weakness_balanced_profile');
       }
       if (confidence === 'low') {
-        return `${weakestLabel} may be quietly limiting scoring recently, but this pattern is still early.`;
+        return `GolfIQ needs a few more rounds before calling ${weakestLabel} a clear pattern.`;
       }
       if (confidence === 'medium') {
         if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue) && weakestAbs != null && weakestAbs >= 0.3) {
-          return `${weakestLabel} is emerging as the main area holding scores back. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your usual level.`;
+          return `${weakestLabel} is starting to show up as the main area costing you strokes. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes compared with your usual level.`;
         }
-        return `${weakestLabel} is emerging as the clearest area limiting recent scoring.`;
+        return `${weakestLabel} is starting to show up as the main area holding scores back.`;
       }
       const effectivePersistenceTier = downgradePersistenceTierForWeakness({
         tier: persistenceTier,
@@ -1825,14 +1825,14 @@ export function buildDeterministicOverallCards(args: {
       });
       if (effectivePersistenceTier === 'persistent') {
         if (args.isPremium && weakestValue != null && Number.isFinite(weakestValue) && weakestAbs != null && weakestAbs >= 0.3) {
-          return `${weakestLabel} has been the most persistent scoring weakness over recent rounds. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes versus your usual level.`;
+          return `${weakestLabel} has been the main area costing you strokes in recent rounds. You're losing about ${formatOneDecimal(Math.abs(weakestValue))} strokes compared with your usual level.`;
         }
-        return `${weakestLabel} has been the most persistent scoring weakness over recent rounds.`;
+        return `${weakestLabel} has been the main area holding scores back in recent rounds.`;
       }
       if (effectivePersistenceTier === 'emerging') {
-        return `${weakestLabel} is emerging as the clearest scoring leak across recent rounds.`;
+        return `${weakestLabel} is starting to show up as the clearest leak across recent rounds.`;
       }
-      return `${weakestLabel} is the current weak spot, but it has not repeated enough to call it persistent.`;
+      return `${weakestLabel} looks like the current weak spot, but it needs a few more rounds before it becomes a clear pattern.`;
     }
 
     if (strongestLabel && strongestValue != null && Number.isFinite(strongestValue) && strongestValue > 0.15) {
@@ -1843,12 +1843,12 @@ export function buildDeterministicOverallCards(args: {
         return `${strongestLabel} is helping your score recently, but this pattern is still early.`;
       }
       if (confidence === 'medium') {
-        return `${strongestLabel} is helping your score and starting to show up as a reliable trend.`;
+        return `${strongestLabel} is helping your score and starting to show up more often.`;
       }
       if (args.isPremium) {
-        return `${strongestLabel} is helping your score and has become a stable long-term strength. You're gaining about ${formatOneDecimal(Math.abs(strongestValue))} strokes versus your usual level.`;
+        return `${strongestLabel} is helping your score more often now. You're gaining about ${formatOneDecimal(Math.abs(strongestValue))} strokes compared with your usual level.`;
       }
-      return `${strongestLabel} is helping your score and has become a stable long-term strength.`;
+      return `${strongestLabel} is helping your score more often now.`;
     }
 
     return pickBalancedProfileVariant('fallback_balanced_profile');
@@ -1952,25 +1952,25 @@ export function buildDeterministicOverallCards(args: {
 
     if (stdDev != null && Number.isFinite(stdDev) && stdDev <= 1.5) {
       if (confidence === 'high') {
-        return 'Your scoring is consistent, and that stability has become a reliable base for long-term improvement.';
+        return 'Your scoring has been steady lately, which gives you a good base to build from.';
       }
       if (confidence === 'medium') {
-        return 'Your scoring is becoming more consistent, which gives your improvement a steadier base.';
+        return 'Your scoring is getting steadier, which gives you a clearer base to build from.';
       }
-      return 'Your scoring is showing early signs of consistency, but this pattern is still forming.';
+      return 'Your scoring is starting to settle down, but it is still early.';
     }
 
     if (consistency.label === 'stable') {
       if (confidence === 'high') {
-        return 'Your scoring is consistent, and that stability has become a reliable base for long-term improvement.';
+        return 'Your scoring has been steady lately, which gives you a good base to build from.';
       }
       if (confidence === 'medium') {
-        return 'Your scoring is becoming more consistent, which gives your improvement a steadier base.';
+        return 'Your scoring is getting steadier, which gives you a clearer base to build from.';
       }
-      return 'Your scoring is showing early signs of consistency, but this pattern is still forming.';
+      return 'Your scoring is starting to settle down, but it is still early.';
     }
 
-    return 'Consistency signals are still forming. A few more rounds will clarify whether stability or volatility is your long-term trend.';
+    return 'This is still taking shape. A few more rounds will show whether your scores are settling down or bouncing around.';
   })();
 
   return [card1, card2WithDirection, card3].map((card, index) => {

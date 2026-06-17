@@ -6,7 +6,7 @@ export const ONBOARDING_GOALS = [
   'Break 90',
   'Break 80',
   'Play more consistently',
-  'Find out where I’m losing strokes',
+  "Find out where I'm losing strokes",
 ] as const;
 
 export type OnboardingGoal = (typeof ONBOARDING_GOALS)[number];

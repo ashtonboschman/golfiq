@@ -117,7 +117,7 @@ describe('RoundInsights confidence pill UI', () => {
       />,
     );
 
-    await screen.findByText('Performance Insights');
+    await screen.findByText('Round Insights');
     expect(screen.getByRole('button', { name: /Insight confidence: Building/i })).toBeInTheDocument();
     expect(screen.queryByText(/^Free$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Premium$/)).not.toBeInTheDocument();
@@ -189,7 +189,7 @@ describe('RoundInsights confidence pill UI', () => {
       />,
     );
 
-    await screen.findByText('Performance Insights');
+    await screen.findByText('Round Insights');
     const icons = container.querySelectorAll('.insight-message-icon');
     expect(icons.length).toBeGreaterThanOrEqual(1);
     expect(icons[0]).toHaveClass('insight-level-warning');
@@ -204,15 +204,15 @@ describe('RoundInsights confidence pill UI', () => {
       />,
     );
 
-    await screen.findByText('Performance Insights');
+    await screen.findByText('Round Insights');
     expect(screen.getByText('You shot 79 (+9), which is 2.8 strokes better than your recent average of 81.8.')).toBeInTheDocument();
     expect(screen.getByText('Approach was the biggest source of lost strokes.')).toBeInTheDocument();
     expect(screen.getByText('Next round: Play to the center of the green.')).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: "Unlock exactly what's costing you strokes" })).toBeInTheDocument();
-    expect(screen.getByText("See your biggest weakness and how many strokes it's costing per round.")).toBeInTheDocument();
-    expect(screen.getByText('Your full breakdown is ready.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Unlock Full Breakdown' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'See what really cost you strokes' })).toBeInTheDocument();
+    expect(screen.getByText('Find the part of the game that hurt the score most and what to focus on next.')).toBeInTheDocument();
+    expect(screen.getByText('Your full round breakdown is ready.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'See the Full Breakdown' })).toBeInTheDocument();
 
     expect(container.querySelector('.locked-section.round-insights-lock-section')).toBeInTheDocument();
     expect(container.querySelector('.locked-overlay.has-cta')).toBeInTheDocument();
@@ -228,11 +228,11 @@ describe('RoundInsights confidence pill UI', () => {
       />,
     );
 
-    await screen.findByText('Performance Insights');
-    expect(screen.queryByRole('heading', { name: "Unlock exactly what's costing you strokes" })).not.toBeInTheDocument();
-    expect(screen.queryByText("See your biggest weakness and how many strokes it's costing per round.")).not.toBeInTheDocument();
-    expect(screen.queryByText('Your full breakdown is ready.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Unlock Full Breakdown' })).not.toBeInTheDocument();
+    await screen.findByText('Round Insights');
+    expect(screen.queryByRole('heading', { name: 'See what really cost you strokes' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Find the part of the game that hurt the score most and what to focus on next.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your full round breakdown is ready.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'See the Full Breakdown' })).not.toBeInTheDocument();
   });
 
   it('renders composed identity insights as exactly three legacy-style cards when identity is present', async () => {

@@ -691,7 +691,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.messages[0]).toContain('You shot 46 (+10).');
     expect(out.messages[0]).toMatch(
-      /A solid starting point to build from\.|A good usual level to build from\.|This gives you a starting point for future rounds\./,
+      /A solid starting point to build from\.|That gives you a good recent level to build from\.|This gives you a starting point for future rounds\./,
     );
   });
 
@@ -712,7 +712,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.messages[0]).toContain('recent average');
     expect(out.messages[0]).not.toContain('A solid starting point to build from.');
-    expect(out.messages[0]).not.toContain('A good usual level to build from.');
+    expect(out.messages[0]).not.toContain('That gives you a good recent level to build from.');
     expect(out.messages[0]).not.toContain('This gives you a starting point for future rounds.');
   });
 

@@ -8,11 +8,11 @@ export default function Hero() {
     <section className="landing-hero">
       <div className="landing-hero-content">
         <h1 className="landing-hero-title">
-          Master Your Game with <span className="accent-text">Intelligent</span> Golf Analytics
+          Track your rounds. <span className="accent-text">Understand</span> what shaped them.
         </h1>
 
         <p className="landing-hero-subtitle">
-          Track every round, uncover hidden weaknesses, and improve faster with Intelligent Insights built from your real performance data.
+          Your scorecard tells you what you shot. GolfIQ helps explain why.
         </p>
         <div className="landing-hero-actions">
           <Link href="/onboarding?source=landing" className="btn btn-accent btn-large">

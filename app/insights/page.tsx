@@ -1061,8 +1061,8 @@ export default function InsightsPage() {
   const sgComponentDeltaTooltip = useMemo(
     () =>
       sgUseRecentAbsolute
-        ? `Early sample: showing average SG per component from your last ${sgRecentWindowRounds} rounds. Deltas vs baseline appear after ${SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS} rounds.`
-        : `Shows SG component deltas from your last ${sgRecentWindowRounds} rounds versus your ${sgBaselineWindowRounds}-round baseline.`,
+        ? `Early sample: showing recent SG by area from your last ${sgRecentWindowRounds} rounds. GolfIQ starts comparing it to your usual level after ${SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS} rounds.`
+        : `Shows how each part of your game compares over your last ${sgRecentWindowRounds} rounds versus your usual level.`,
     [sgBaselineWindowRounds, sgRecentWindowRounds, sgUseRecentAbsolute],
   );
   const sgTrendData = useMemo(() => {
@@ -1329,7 +1329,7 @@ export default function InsightsPage() {
   const trajectorySection = showSkeletonContent ? (
     <div className="card dashboard-stat-card trajectory-card">
       <div className="trajectory-header">
-        <h3>Performance Trajectory</h3>
+        <h3>Scoring Direction</h3>
       </div>
       <div className="trajectory-status-row">
         <span className="skeleton" style={{ display: 'inline-block', width: 140, height: 32, borderRadius: 999 }} />
@@ -1348,8 +1348,8 @@ export default function InsightsPage() {
   ) : insights ? (
     <div className="card dashboard-stat-card trajectory-card">
       <div className="trajectory-header">
-        <h3>Performance Trajectory</h3>
-        <InfoTooltip text="Projects your scoring trend using recent rounds. More rounds improve projection confidence." />
+        <h3>Scoring Direction</h3>
+        <InfoTooltip text="Shows where your scoring is trending based on recent rounds. More rounds make this read stronger." />
       </div>
       <div className="trajectory-status-row">
         <span
@@ -1389,13 +1389,13 @@ export default function InsightsPage() {
             </div>
             {!premiumHandicapProjectionUnlocked && (
               <span className="secondary-text insights-subtle-note insights-centered-title">
-                Not enough handicap history yet for a reliable handicap projection.
+                GolfIQ needs a little more handicap history before showing a handicap outlook.
               </span>
             )}
           </>
         ) : (
           <span className="secondary-text insights-subtle-note insights-centered-title">
-            Projections unlock after 10 rounds logged.
+            GolfIQ starts showing where your scores and handicap are heading after 10 rounds.
           </span>
         )
       ) : (
@@ -1415,7 +1415,7 @@ export default function InsightsPage() {
             </div>
           </div>
           <span className="secondary-text insights-subtle-note insights-centered-title trajectory-free-note">
-            Upgrade to unlock projected score and handicap ranges.
+            Upgrade to see projected score and handicap ranges.
           </span>
         </>
       )}
@@ -1508,7 +1508,7 @@ export default function InsightsPage() {
                   >
                     <h4>Insight Confidence</h4>
                     <p>
-                      This shows how much data GolfIQ has behind your Overall Insights. Building means early trend guidance. Moderate means useful patterns are emerging. Strong means clearer patterns are available.
+                      This shows how much data GolfIQ has behind your Overall Insights. Building means an early read. Moderate means useful signal, but still getting sharper. Strong means enough history to trust the pattern more.
                     </p>
                     <div className={`info-tooltip-arrow ${overallConfidenceTooltipPosition} ${overallConfidenceTooltipVertical}`} />
                   </div>
@@ -1587,7 +1587,7 @@ export default function InsightsPage() {
             </div>
             <div className="card dashboard-stat-card sg-delta-card">
               <div className="comparison-bar-header">
-                <h3 className="insights-centered-title">SG Component Delta</h3>
+                <h3 className="insights-centered-title">Strokes Gained by Area</h3>
               </div>
               <div className="sg-delta-list">
                 {Array.from({ length: 6 }).map((_, idx) => {
@@ -1714,10 +1714,10 @@ export default function InsightsPage() {
       <section className="insights-sg-section">
         <LockedSection
           locked={!isPremiumContext}
-          title="See exactly what's costing you strokes"
-          subtitle="Break down your game and see how many strokes each part is adding or losing per round."
+          title="See what is really costing you strokes"
+          subtitle="Get a clearer breakdown of what helped, what hurt, and where to focus next."
           showCta={!isPremiumContext}
-          ctaLabel="Unlock Premium Insights"
+          ctaLabel="See Premium Plans"
           onCtaClick={() => {
             trackSgTrendUpgradeCtaClick();
             router.push('/pricing');
@@ -1737,15 +1737,15 @@ export default function InsightsPage() {
           ) : (
             <div className="card dashboard-stat-card">
               <h3 className="insights-centered-title">Strokes Gained Trend</h3>
-              <p className="secondary-text insights-subtle-note">No SG data yet. Log rounds after getting a handicap to populate this section.</p>
+              <p className="secondary-text insights-subtle-note">No strokes gained yet. Once you have a handicap and a few tracked rounds, this section will fill in.</p>
             </div>
           )}
         </LockedSection>
 
         <LockedSection
           locked={!isPremiumContext}
-          title="SG Component Breakdown (Premium)"
-          subtitle="Compare Off The Tee, Approach, Short Game, Putting, Penalties, and Untracked deltas vs your average to find your biggest leak."
+          title="Strokes Gained by Area"
+          subtitle="See which part of the game is helping and which part is costing you the most."
         >
           <div
             className="card dashboard-stat-card sg-delta-card"
@@ -1755,11 +1755,11 @@ export default function InsightsPage() {
             } as any}
           >
             <div className="comparison-bar-header">
-              <h3 className="insights-centered-title">SG Component Delta</h3>
+              <h3 className="insights-centered-title">Strokes Gained by Area</h3>
               <InfoTooltip text={sgComponentDeltaTooltip} />
             </div>
             {!sgHasComponentData && (
-              <p className="secondary-text insights-subtle-note insights-centered-title">No SG component data yet. Log rounds with advanced stats to populate this section.</p>
+              <p className="secondary-text insights-subtle-note insights-centered-title">No area breakdown yet. Track fairways, greens, putts, penalties, and short-game stats to fill this in.</p>
             )}
             <div className="sg-delta-list">
               {sgDisplayRows.map((row) => {

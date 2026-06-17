@@ -12,10 +12,23 @@ function stripOverallCardPrefix(message: string): string {
 function getOverallCardMeta(index: number, card: string): { icon: ReactNode } {
   const text = card.toLowerCase();
   if (index === 0) {
-    if (text.includes('outperforming your usual level') || text.includes('better than your usual level')) {
+    if (
+      text.includes('better than your usual level') ||
+      text.includes('better than your normal range') ||
+      text.includes('moving in the right direction') ||
+      text.includes('holding up')
+    ) {
       return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-great" /> };
     }
-    if (text.includes('above your usual level')) {
+    if (
+      text.includes('higher than your usual level') ||
+      text.includes('higher than your recent level') ||
+      text.includes('higher than your normal range') ||
+      text.includes('coming in higher than normal') ||
+      text.includes('trending higher') ||
+      text.includes('moving the wrong direction') ||
+      text.includes('above your usual level')
+    ) {
       return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-warning" /> };
     }
     return { icon: <BarChart3 size={18} className="insight-message-icon insight-level-info" /> };
@@ -29,10 +42,10 @@ function getOverallCardMeta(index: number, card: string): { icon: ReactNode } {
     }
     return { icon: <Info size={18} className="insight-message-icon insight-level-info" /> };
   }
-  if (text.includes('inconsistent')) {
+  if (text.includes('bouncing around') || text.includes('wide spread') || text.includes('jump from round to round')) {
     return { icon: <CircleAlert size={18} className="insight-message-icon insight-level-warning" /> };
   }
-  if (text.includes('consistent')) {
+  if (text.includes('steady') || text.includes('steadier') || text.includes('settle')) {
     return { icon: <CircleCheck size={18} className="insight-message-icon insight-level-success" /> };
   }
   return { icon: <Info size={18} className="insight-message-icon insight-level-info" /> };

@@ -46,8 +46,8 @@ describe('/subscription/success page', () => {
 
     render(<SubscriptionSuccessPage />);
 
-    expect(await screen.findByText('Welcome to Premium!')).toBeInTheDocument();
-    expect(screen.getByText(/Your premium access is active/i)).toBeInTheDocument();
+    expect(await screen.findByText('Premium Is Active')).toBeInTheDocument();
+    expect(screen.getByText('Your Premium access is active.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /go to settings/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Activating Premium/i)).not.toBeInTheDocument();
@@ -65,7 +65,7 @@ describe('/subscription/success page', () => {
       }));
     });
 
-    expect(await screen.findByText('Welcome to Premium!')).toBeInTheDocument();
+    expect(await screen.findByText('Premium Is Active')).toBeInTheDocument();
   });
 
   it('redirects unauthenticated users to login', async () => {

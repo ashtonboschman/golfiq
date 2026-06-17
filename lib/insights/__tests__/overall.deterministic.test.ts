@@ -97,8 +97,8 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, true);
     expect(payload.confidence).toBe('medium');
-    expect(cards[0].toLowerCase()).toMatch(/normal scoring range|normal range/);
-    expect(cards[1].toLowerCase()).toMatch(/emerging|balanced|no single area/);
+    expect(cards[0].toLowerCase()).toMatch(/usual level|normal range|recent level|steady/);
+    expect(cards[1].toLowerCase()).toMatch(/small mistakes|balanced|no single area/);
   });
 
   it('high confidence produces stronger persistent-pattern framing', () => {
@@ -118,7 +118,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, true);
     expect(payload.confidence).toBe('high');
-    expect(cards[1]).toContain('most persistent scoring weakness');
+    expect(cards[1]).toContain('main area costing you strokes in recent rounds');
     expect(cards[1]).toContain("You're losing about");
   });
 
@@ -139,8 +139,8 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, true);
     expect(payload.confidence).toBe('high');
-    expect(cards[1].toLowerCase()).toMatch(/emerging|balanced/);
-    expect(cards[1]).not.toContain('most persistent scoring weakness');
+    expect(cards[1].toLowerCase()).toMatch(/balanced|no single part/);
+    expect(cards[1]).not.toContain('main area costing you strokes in recent rounds');
   });
 
   it('balanced golfer still receives useful interpretation instead of a dead-end', () => {
@@ -157,7 +157,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { cards } = buildCards(rounds, true);
     const card2 = cards[1].toLowerCase();
-    expect(card2).toMatch(/balanced|stands out as the main scoring issue/);
+    expect(card2).toMatch(/balanced|no single part|main scoring issue/);
     expect(card2).not.toContain('nothing stands out');
     expect(card2).not.toContain('no clear reason yet');
   });
@@ -222,7 +222,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
       mode: 'combined',
     });
 
-    expect(cards[1]).toContain('weakest relative area');
+    expect(cards[1]).toContain('weakest area compared with the rest of your game');
     expect(cards[1]).toContain('Approach');
     expect(cards[1]).toContain('fairly balanced');
   });
@@ -239,7 +239,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, true);
     expect(payload.confidence).toBe('high');
-    expect(cards[2].toLowerCase()).toMatch(/volatility|score swings|round-to-round volatility/);
+    expect(cards[2].toLowerCase()).toMatch(/score swings|jumping around from round to round|bouncing around|wide spread/);
   });
 
   it('does not emit volatility copy when consistency is stable despite a wide recent score range', () => {
@@ -255,8 +255,8 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
     const { payload, cards } = buildCards(rounds, true);
     expect(payload.confidence).toBe('high');
     expect(payload.consistency.label).toBe('stable');
-    expect(cards[2].toLowerCase()).not.toMatch(/volatility|score swings|round-to-round volatility/);
-    expect(cards[2].toLowerCase()).toMatch(/consistent|stability/);
+    expect(cards[2].toLowerCase()).not.toMatch(/score swings|jump from round to round|bouncing around|wide spread/);
+    expect(cards[2].toLowerCase()).toMatch(/steady lately|consistent|stability/);
   });
 
   it('score-only golfer still gets useful but cautious overall interpretation', () => {
@@ -279,7 +279,7 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
 
     const { payload, cards } = buildCards(rounds, false);
     expect(payload.confidence).toBe('medium');
-    expect(cards[1].toLowerCase()).toMatch(/supporting stat detail|supporting stats|tracked stats/);
+    expect(cards[1].toLowerCase()).toMatch(/tracked stats|more detail|make the why clearer|needs more detail/);
   });
 
   it('premium is sharper than free and not only longer', () => {
@@ -299,8 +299,8 @@ describe('deterministic overall cards phase-2 confidence-depth behavior', () => 
     const free = buildCards(rounds, false).cards[1];
 
     expect(premium).toContain("You're losing about");
-    expect(premium).toMatch(/persistent|emerging/);
-    expect(free).toMatch(/persistent|emerging/);
+    expect(premium).toMatch(/has been the main area|starting to show up|persistent|emerging/);
+    expect(free).toMatch(/has been the main area|starting to show up|persistent|emerging/);
     expect(free).not.toContain("You're losing about");
   });
 

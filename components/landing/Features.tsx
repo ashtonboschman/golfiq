@@ -6,13 +6,13 @@ export default function Features() {
   const features = [
     {
       icon: <Brain size={32} />,
-      title: 'Intelligent Insights',
-      description: 'Transform real round data into clear, actionable explanations. GolfIQ uses deterministic strokes-gained and trend models to show what is costing strokes and where to focus next.',
+      title: 'Round Insights',
+      description: 'See what cost you strokes, what held up, and what deserves your attention next time out.',
     },
     {
       icon: <BarChart3 size={32} />,
-      title: 'Performance Dashboards',
-      description: 'See your game clearly through interactive dashboards, trends, and detailed breakdowns. Track every stat that matters, from scoring consistency to long-term progress.',
+      title: 'Game Dashboard',
+      description: 'Keep your score trends, core stats, and round history in one place.',
     },
     ...(SHOW_ACHIEVEMENTS_STREAKS
       ? [
@@ -26,21 +26,21 @@ export default function Features() {
     {
       icon: <Users2 size={32} />,
       title: 'Social Leaderboards',
-      description: 'Compete with friends and golfers worldwide. Compare performance, track rankings, and stay motivated through friendly competition.',
+      description: 'Play with friends, compare scores, and keep the competitive side of the game fun.',
     },
     {
       icon: <TrendingUp size={32} />,
-      title: 'Trend Analysis',
-      description: 'Reveal patterns in your game over time. Understand what is improving, what needs attention, and where focused practice will deliver results.',
+      title: 'Score Trends',
+      description: 'See whether your scores are settling down, moving the right way, or getting away from you.',
     },
   ];
 
   return (
     <section id="features" className="landing-features">
       <div className="landing-section-header">
-        <h2 className="landing-section-title">Everything You Need to Improve</h2>
+        <h2 className="landing-section-title">Built for the Round After the Round</h2>
         <p className="landing-section-subtitle">
-          Powerful tools designed for golfers who want clarity, direction, and measurable improvement.
+          Clear tools for golfers who want honest answers, better habits, and a smarter next round.
         </p>
       </div>
 

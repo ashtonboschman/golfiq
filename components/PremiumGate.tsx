@@ -82,12 +82,12 @@ export default function PremiumGate({
       return (
         <div className="inline-flex items-center gap-2 text-sm text-gray-600">
           <span className="text-yellow-600"><Lock/></span>
-          <span>{featureName} is premium only.</span>
+          <span>{featureName} is part of Premium.</span>
           <button
             className="text-blue-600 hover:text-blue-700 underline font-medium"
             onClick={handleUpgradeClick}
           >
-            Upgrade to Premium
+            See Premium Plans
           </button>
         </div>
       );
@@ -98,13 +98,13 @@ export default function PremiumGate({
       <div className="premium-gate">
         <div className="premium-gate-top">
           <Lock size={50} />
-          <p>{featureName} is available exclusively for Premium members.</p>
+          <p>{featureName} is part of Premium.</p>
         </div>          
         <button
           className="btn btn-upgrade"
           onClick={handleUpgradeClick}
         >
-          Upgrade to Premium
+          See Premium Plans
         </button>
       </div>
     );

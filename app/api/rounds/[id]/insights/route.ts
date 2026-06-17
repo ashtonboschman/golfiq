@@ -157,15 +157,15 @@ function buildPostRoundDirectionalQualifier(input: {
   const direction = pattern.dominantDirection;
   if (confidence === 'HIGH') {
     if (isPremium) {
-      return `Recorded ${area} misses clustered ${direction} this round (${pattern.count}/${pattern.totalDirectionalMisses} misses).`;
+      return `This round's ${area} misses were mostly ${direction} (${pattern.count}/${pattern.totalDirectionalMisses}).`;
     }
-    return `Recorded ${area} misses clustered ${direction} this round.`;
+    return `This round's ${area} misses were mostly ${direction}.`;
   }
 
   if (isPremium && pattern.confidence === 'high') {
-    return `Recorded ${area} misses trended ${direction} this round (${pattern.count}/${pattern.totalDirectionalMisses} misses).`;
+    return `This round's ${area} misses leaned ${direction} (${pattern.count}/${pattern.totalDirectionalMisses}).`;
   }
-  return `Recorded ${area} misses trended ${direction} this round.`;
+  return `This round's ${area} misses leaned ${direction}.`;
 }
 
 function hasNoBaselineHistory(insights: any): boolean {
@@ -198,13 +198,13 @@ function buildFreeMessage2(
   if (confidence === 'LOW') return sanitizeWhitespace(currentMessage);
 
   if (outcome === 'M2-D') {
-    return `${worstLabel} was the biggest source of lost strokes.`;
+    return `${worstLabel} was the main area costing you strokes.`;
   }
   if (outcome === 'M2-E') {
     return `${worstLabel} was the strongest part of the round.`;
   }
   if (outcome === 'M2-C') {
-    return `${worstLabel} didn't make much difference to your score.`;
+    return `${worstLabel} was not a big factor in the score.`;
   }
   return sanitizeWhitespace(currentMessage);
 }

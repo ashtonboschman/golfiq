@@ -662,7 +662,7 @@ export default function RoundInsights({
     <div className="insights-header">
       <div className="insights-title">
         <Sparkles size={20} />
-        <h3>Performance Insights</h3>
+        <h3>Round Insights</h3>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {SHOW_POST_ROUND_REGENERATE && (
@@ -694,7 +694,7 @@ export default function RoundInsights({
               >
                 <h4>Insight Confidence</h4>
                 <p>
-                  This shows how much data GolfIQ has behind this round&apos;s insights. Building means early guidance with limited detail. Moderate means useful stats and trends are available. Strong means clearer patterns are available.
+                  This shows how much data GolfIQ has behind this round's insights. Building means an early read. Moderate means useful signal, but still getting sharper. Strong means enough history to trust the pattern more.
                 </p>
                 <div className={`info-tooltip-arrow ${confidenceTooltipPosition} ${confidenceTooltipVertical}`} />
               </div>
@@ -789,9 +789,9 @@ export default function RoundInsights({
           <div className="locked-overlay has-cta">
             <div className="locked-overlay-card">
               <Lock size={50} className="locked-overlay-icon" />
-              <h4>Unlock exactly what&apos;s costing you strokes</h4>
-              <p>See your biggest weakness and how many strokes it&apos;s costing per round.</p>
-              <p className="round-insights-lock-bridge">Your full breakdown is ready.</p>
+              <h4>See what really cost you strokes</h4>
+              <p>Find the part of the game that hurt the score most and what to focus on next.</p>
+              <p className="round-insights-lock-bridge">Your full round breakdown is ready.</p>
               <button
                 className="btn btn-upgrade"
                 onClick={() => {
@@ -816,7 +816,7 @@ export default function RoundInsights({
                   router.push('/pricing');
                 }}
               >
-                Unlock Full Breakdown
+                See the Full Breakdown
               </button>
             </div>
           </div>

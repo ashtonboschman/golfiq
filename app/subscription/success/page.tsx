@@ -88,7 +88,7 @@ function SubscriptionSuccessContent() {
         <div className="card login-card">
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{ marginBottom: '16px' }}><Loader2 size={50} className="spinning" /></div>
-            <h1 className="auth-title">Activating Premium...</h1>
+            <h1 className="auth-title">Setting up Premium...</h1>
           </div>
           <p className="secondary-text" style={{ textAlign: 'center' }}>
             Please wait while we confirm your premium access.
@@ -121,7 +121,7 @@ function SubscriptionSuccessContent() {
           </p>
           <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center', fontSize: '14px' }}>
             {isWrongUser
-              ? 'Please log out and sign in with the account that initiated the subscription purchase.'
+              ? 'Please sign out and sign in with the account that started the subscription purchase.'
               : 'Your payment may have been processed. Please check your settings page or contact support.'
             }
           </p>
@@ -152,16 +152,16 @@ function SubscriptionSuccessContent() {
       <div className="card login-card">
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{ marginBottom: '16px' }}><Check size={50} color="var(--color-success)" /></div>
-          <h1 className="auth-title">Welcome to Premium!</h1>
+          <h1 className="auth-title">Premium Is Active</h1>
         </div>
 
         <div style={{ marginBottom: '24px', textAlign: 'center' }}>
           <p className="secondary-text" style={{ marginBottom: '12px' }}>
-            Your premium access is active.
+            Your Premium access is active.
           </p>
           <p className="secondary-text" style={{ fontSize: '14px' }}>
-            You now have access to premium insights, trends, deeper comparisons,
-            full leaderboard access, and longer analytics history.
+            You now have the full round breakdown, full-history trends, and a clearer view of
+            where your scores and handicap may be heading.
           </p>
         </div>
 

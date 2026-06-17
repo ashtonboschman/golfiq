@@ -177,7 +177,7 @@ describe('/api/insights/overall contract', () => {
     expect(premiumCardsText).not.toContain('priority first');
     expect(premiumCardsText).not.toContain('on-course strategy');
     expect(premiumCardsText).not.toContain('projection:');
-    expect(premiumCardsText).toMatch(/normal scoring range|normal range|volatility|supporting stat detail|balanced/);
+    expect(premiumCardsText).toMatch(/usual level|normal range|recent level|normally play to|what you've been shooting lately|score swings|tracked stats|more detail|balanced/);
     expect(premiumCardsText).not.toContain('not enough data');
   });
 

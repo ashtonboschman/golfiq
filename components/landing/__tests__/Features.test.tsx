@@ -9,9 +9,8 @@ describe('landing Features section', () => {
   it('does not render stale Course-Specific Insights claim', () => {
     render(<Features />);
 
-    expect(screen.getByText('Everything You Need to Improve')).toBeInTheDocument();
-    expect(screen.getByText('Intelligent Insights')).toBeInTheDocument();
+    expect(screen.getByText('Built for the Round After the Round')).toBeInTheDocument();
+    expect(screen.getByText('Round Insights')).toBeInTheDocument();
     expect(screen.queryByText('Course-Specific Insights')).not.toBeInTheDocument();
   });
 });
-

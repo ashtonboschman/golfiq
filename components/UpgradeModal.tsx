@@ -40,9 +40,9 @@ interface UpgradeModalProps {
  * <UpgradeModal
  *   isOpen={showModal}
  *   onClose={() => setShowModal(false)}
- *   title="Unlock Intelligent Insights"
- *   message="You've logged 3 rounds! Upgrade to Premium for advanced trends and deeper analysis."
- *   features={['Intelligent Insights', 'Unlimited Analytics']}
+ *   title="See the Full Breakdown"
+ *   message="You've logged 3 rounds. Premium gives you a clearer look at your game."
+ *   features={['Full round breakdown', 'Longer score trends']}
  * />
  * ```
  */
@@ -58,7 +58,7 @@ export default function UpgradeModal({
   paywallContext = 'upgrade_modal',
   milestoneRound = null,
   analyticsMode = 'upgrade',
-  primaryButtonLabel = 'Upgrade to Premium',
+  primaryButtonLabel = 'See Premium Plans',
   secondaryButtonLabel = 'Maybe Later',
   onPrimaryAction,
   icon,

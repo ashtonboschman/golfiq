@@ -284,15 +284,15 @@ const SCORE_ONLY_STABLE_HEADLINES = [
 ] as const;
 
 const SCORE_ONLY_STABLE_BODIES_PREMIUM = [
-  'Your scoring is in line with your usual level.',
-  'Your recent scoring is staying close to your usual range.',
-  'Your scores are holding near your current baseline.',
+  'Your scores are sitting close to your normal range.',
+  'Your recent scores are staying close to your normal range.',
+  'Your scores have been holding steady lately.',
 ] as const;
 
 const SCORE_ONLY_STABLE_BODIES_FREE_MED = [
-  'Your scoring trend is established, but detail stats are still limited.',
-  'Your score trend is forming, but the stat detail is still light.',
-  'Your recent scoring has a pattern, but the details are still building.',
+  'GolfIQ can see the score trend, but needs more tracked stats to explain it.',
+  'The score trend is starting to show, but GolfIQ needs more detail to explain it.',
+  'Your recent scoring has a pattern, but more tracked stats will make the reason clearer.',
 ] as const;
 
 const SCORE_ONLY_STABLE_BODIES_FREE_LOW = [
@@ -332,68 +332,68 @@ const SCORE_ONLY_WORSENING_BODIES_FREE_LOW = [
 ] as const;
 
 const BALANCED_HEADLINES_HIGH = [
-  'No single stat is your main scoring limiter.',
-  'No single area is driving the scoring pattern.',
-  'Your scoring is not coming from one obvious leak.',
+  'No single area is the clear focus right now.',
+  'No one part of the game is driving the whole score pattern.',
+  'Your scores are not coming from one obvious leak.',
 ] as const;
 
 const BALANCED_HEADLINES_MED = [
-  'No single area clearly dominates right now.',
   'No single area stands out clearly yet.',
-  'The scoring pattern is spread across a few areas.',
+  'The clearest focus is still spread across a few areas.',
+  'No one part of the game has separated from the rest yet.',
 ] as const;
 
 const BALANCED_BODIES_PREMIUM_VOLATILE = [
-  'Lower scores now depend on reducing costly swings from hole to hole.',
-  'Bigger score swings are doing more damage than one small stat gap.',
-  'Stabilizing the costly holes matters more than chasing one category.',
+  'Lower scores now depend on cutting down the holes that get away from you.',
+  'The bigger issue right now is the messy stretch, not one small leak.',
+  'Settling the scorecard matters more than chasing one stat.',
 ] as const;
 
 const BALANCED_BODIES_PREMIUM_STABLE = [
   'Managing the round matters more than chasing one stat fix.',
-  'Small decisions across the round likely matter more than one stat fix.',
-  'Keeping misses playable matters more than forcing one category right now.',
+  'Small decisions across the round likely matter more than one stat category.',
+  'Keeping misses playable matters more than forcing one part of the game.',
 ] as const;
 
 const BALANCED_BODIES_FREE_VOLATILE = [
-  'Small misses across holes are adding up more than one obvious leak.',
-  'Costly stretches are adding more pressure than one clear stat issue.',
-  'A few messy holes are doing more damage than one single area.',
+  'Small mistakes across a few holes are adding up more than one obvious leak.',
+  'Costly stretches are doing more damage than one clear issue.',
+  'A few messy holes are hurting scores more than one single area.',
 ] as const;
 
 const BALANCED_BODIES_FREE_STABLE = [
   'Managing the round likely matters more than forcing one stat fix.',
-  'Keeping the round simple matters more than chasing one stat right now.',
+  'Keeping the round simple matters more than chasing one number right now.',
   'Safer targets across the round are the best focus for now.',
 ] as const;
 
 const VOLATILITY_HEADLINES_HIGH = [
-  'Scoring volatility is your top priority.',
-  'Large score swings are the main scoring issue.',
-  'Costly swings are the clearest focus right now.',
+  'Big score swings are the clearest focus right now.',
+  'The main issue right now is how much the scores jump around.',
+  'The scorecard is getting away on too many holes.',
 ] as const;
 
 const VOLATILITY_HEADLINES_MED = [
-  'Scoring volatility is likely holding scores back.',
-  'Large score swings are likely limiting progress.',
-  'Costly swings are likely the main scoring issue.',
+  'Big score swings are likely holding scores back.',
+  'The scores are jumping around enough to slow progress.',
+  'Costly stretches are likely the clearest focus.',
 ] as const;
 
 const VOLATILITY_BODIES_PREMIUM_HIGH = [
-  'Round-to-round swings are costing more than any mild single-area leak right now.',
-  'Large score swings are doing more damage than one modest stat gap.',
-  'Stabilizing the costly holes matters more than chasing one mild leak.',
+  'The score is getting hurt more by big swings than by one small leak.',
+  'The bigger problem right now is the costly stretch, not one area of the game.',
+  'Settling the messy holes matters more than chasing a small leak.',
 ] as const;
 
 const VOLATILITY_BODIES_PREMIUM_MED = [
-  'Large score swings are limiting improvement more than one small stat gap.',
-  'Costly swings are likely holding back progress more than one small leak.',
-  'The round-to-round swings matter more than one mild category gap right now.',
+  'Big score swings are limiting improvement more than one small leak.',
+  'Costly stretches are likely holding back progress more than one area.',
+  'The scores are jumping around more than one small gap would explain.',
 ] as const;
 
 const VOLATILITY_BODIES_FREE = [
-  'Large score swings are adding strokes faster than one mild stat leak.',
-  'Costly stretches are doing more damage than one small stat gap.',
+  'Big score swings are adding strokes faster than one small leak.',
+  'Costly stretches are doing more damage than one small gap.',
   'A few big-number stretches are adding strokes quickly.',
 ] as const;
 
@@ -1117,7 +1117,7 @@ function buildSgDrivenFocus(
         ? isRecurring
           ? `${componentLabel} is the clearest recurring scoring focus right now.`
           : `${componentLabel} is the clearest scoring focus right now.`
-        : `${componentLabel} is the biggest opportunity right now.`;
+        : `${componentLabel} is the clearest focus right now.`;
     }
     return scoreOutcome === 'score_only_worsening'
       ? `${componentLabel} is your strongest area.`
@@ -1129,7 +1129,7 @@ function buildSgDrivenFocus(
       if (isPremium) {
         if (tinyDelta) {
           if (selected.component === 'penalties') {
-            return 'Avoiding one high-cost mistake per round could lower scoring variance.';
+            return 'Avoiding one high-cost mistake per round could smooth out your scores.';
           }
           return isRecurring
             ? `${componentLabel} has been a small but recurring scoring leak.`
@@ -1151,7 +1151,7 @@ function buildSgDrivenFocus(
     }
 
     if (isPremium) {
-      if (tinyDelta) return `${componentLabel} is a modest scoring strength right now.`;
+      if (tinyDelta) return `${componentLabel} is giving your scores a small lift right now.`;
       return decisive
         ? `${componentLabel} is reliably gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`
         : `${componentLabel} is gaining about ${formatAboutSg(selected.sgDelta)} strokes per round.`;

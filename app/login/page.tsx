@@ -66,7 +66,7 @@ function LoginContent() {
 
   const authSubcopy = isRegister
     ? isOnboardingIntent
-      ? 'Track your rounds and uncover what’s shaping your scores.'
+      ? "Track your rounds and uncover what's shaping your scores."
       : 'Create your account to start tracking rounds and insights.'
     : isOnboardingIntent
       ? 'Pick up where you left off.'

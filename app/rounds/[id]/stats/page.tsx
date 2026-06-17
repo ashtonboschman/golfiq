@@ -340,7 +340,7 @@ export default function RoundStatsPage() {
         : null;
 
   const sgTooltipText =
-    'Strokes Gained compares this round to expected performance for golfers in your handicap range on this course and tee. Off Tee, Approach, Short Game, Putting, and Penalties use the stats you logged. Untracked is strokes not explained by the stats you tracked this round. Track more details like FIR, GIR, chips, bunkers, penalties, and putts to reduce this category.';
+    'Strokes Gained compares this round to golfers around your level on this course and tee. Off Tee, Approach, Short Game, Putting, and Penalties use the stats you tracked. Untracked means GolfIQ cannot confidently place those strokes in one area yet. The more stats you log, the clearer this breakdown gets.';
 
   const parBreakdownRows: ParBreakdownChartRow[] = [...stats.scoring_by_par]
     .map((item) => {
@@ -505,7 +505,7 @@ export default function RoundStatsPage() {
           </div>
         </div>
 
-        {/* Intelligent Insights */}
+        {/* Round Insights */}
         <RoundInsights
           roundId={roundId}
           isPremium={isPremium}
@@ -589,7 +589,7 @@ export default function RoundStatsPage() {
                   <div className="info-banner-text">
                     <h4>Handicap Required</h4>
                     <p>
-                      Log at least 3 rounds to establish your handicap and unlock Strokes Gained. Your handicap updates automatically as you keep playing.
+                      Log 3 rounds to establish your handicap and unlock Strokes Gained. GolfIQ updates it automatically as you keep playing.
                     </p>
                   </div>
                 </div>

@@ -79,7 +79,7 @@ describe('/pricing page', () => {
   it('shows updated monthly and annual headlines', () => {
     render(<PricingPage />);
 
-    expect(screen.getByText("See what's actually costing you strokes.")).toBeInTheDocument();
+    expect(screen.getByText('See what is costing you strokes.')).toBeInTheDocument();
     expect(screen.queryByText('And what to fix next.')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Annual' }));
@@ -116,20 +116,21 @@ describe('/pricing page', () => {
     render(<PricingPage />);
 
     expect(screen.queryByText("Know exactly what's costing you strokes")).not.toBeInTheDocument();
-    expect(screen.getByText('Full strokes gained breakdown with component-level insights')).toBeInTheDocument();
-    expect(screen.getByText('Post-round breakdowns and overall insights across your rounds')).toBeInTheDocument();
-    expect(screen.getByText('Trends across all your rounds')).toBeInTheDocument();
-    expect(screen.getByText('Premium themes and enhanced filtering')).toBeInTheDocument();
+    expect(screen.getByText('Full strokes gained breakdown by part of the game')).toBeInTheDocument();
+    expect(screen.getByText('Post-round breakdowns and game trends across your rounds')).toBeInTheDocument();
+    expect(screen.getByText('See where your scores and handicap may be heading')).toBeInTheDocument();
+    expect(screen.getByText('Full-history trends across all your rounds')).toBeInTheDocument();
+    expect(screen.getByText('Premium themes and flexible filters')).toBeInTheDocument();
     expect(screen.getByText('Everything in Free')).toBeInTheDocument();
     const monthlyFeatures = screen.getAllByRole('listitem');
-    expect(monthlyFeatures[0]).toHaveTextContent('Full strokes gained breakdown with component-level insights');
+    expect(monthlyFeatures[0]).toHaveTextContent('Full strokes gained breakdown by part of the game');
     expect(screen.queryByText('Strokes gained precision, SG trends, and component-level insights')).not.toBeInTheDocument();
     expect(screen.queryByText('Full post-round breakdown and overall insights')).not.toBeInTheDocument();
     expect(screen.queryByText('Deeper trends across all your rounds')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Annual' }));
     expect(screen.getByText('Track your improvement across the full season')).toBeInTheDocument();
-    expect(screen.getByText('See how your game evolves over time')).toBeInTheDocument();
+    expect(screen.getByText('See how your game changes as more rounds stack up')).toBeInTheDocument();
     expect(screen.getByText('Annual subscription, billed yearly')).toBeInTheDocument();
     expect(screen.getByText('Built for golfers who want to improve consistently')).toBeInTheDocument();
     expect(screen.getByText('Save 40%')).toBeInTheDocument();
@@ -147,29 +148,30 @@ describe('/pricing page', () => {
     expect(screen.getByText('Unlimited round tracking & storage')).toBeInTheDocument();
     expect(screen.getByText('Handicap & core scoring stats (last 20 rounds)')).toBeInTheDocument();
     expect(screen.getByText('FIR%, GIR%, putts & basic performance stats')).toBeInTheDocument();
-    expect(screen.getByText('9-hole & 18-hole support')).toBeInTheDocument();
+    expect(screen.getByText('9 hole & 18 hole support')).toBeInTheDocument();
     expect(screen.getByText('Course search, scorecards, friends, & leaderboards')).toBeInTheDocument();
     expect(screen.getByText('Light & dark themes, multi-device sync')).toBeInTheDocument();
     expect(screen.getByText('Basic post-round insights')).toBeInTheDocument();
-    expect(screen.getByText('Full strokes gained breakdown')).toBeInTheDocument();
+    expect(screen.getByText('Full strokes gained breakdown by part of the game')).toBeInTheDocument();
     expect(screen.queryByText('Full strokes gained breakdown and trends')).not.toBeInTheDocument();
-    expect(screen.getByText('Advanced analytics, projections, and comparisons')).toBeInTheDocument();
+    expect(screen.getByText('Score direction and extra comparison views')).toBeInTheDocument();
+    expect(screen.queryByText('Projected trends and extra comparison views')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced analytics & predictions')).not.toBeInTheDocument();
 
-    const lockedSg = screen.getByText('Full strokes gained breakdown').closest('li');
-    const lockedAdvanced = screen.getByText('Advanced analytics, projections, and comparisons').closest('li');
+    const lockedSg = screen.getByText('Full strokes gained breakdown by part of the game').closest('li');
+    const lockedAdvanced = screen.getByText('Score direction and extra comparison views').closest('li');
     expect(lockedSg?.querySelector('svg.lucide-x')).toBeTruthy();
     expect(lockedAdvanced?.querySelector('svg.lucide-x')).toBeTruthy();
 
-    expect(screen.getByText('Free forever. Upgrade when you want deeper insight.')).toBeInTheDocument();
+    expect(screen.getByText('Free forever. Upgrade when you want a clearer breakdown.')).toBeInTheDocument();
   });
 
   it('uses updated CTA text', () => {
     render(<PricingPage />);
-    expect(screen.getByText("See What's Costing You Strokes")).toBeInTheDocument();
+    expect(screen.getByText('See the Full Breakdown')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Annual' }));
-    expect(screen.getByText("See What's Costing You Strokes")).toBeInTheDocument();
+    expect(screen.getByText('See the Full Breakdown')).toBeInTheDocument();
   });
 
   it('styles error messages in red when message type is error', () => {

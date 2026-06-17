@@ -66,7 +66,7 @@ describe('/login page mode + next handling', () => {
 
     expect(screen.getByRole('heading', { name: 'Create Your Account' })).toBeInTheDocument();
     expect(
-      screen.getByText('Track your rounds and uncover what’s shaping your scores.'),
+      screen.getByText("Track your rounds and uncover what's shaping your scores."),
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText('First Name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Last Name')).toBeInTheDocument();

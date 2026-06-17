@@ -77,7 +77,7 @@ describe('composeRoundIdentityDisplay', () => {
 
     expect(display.insights).toHaveLength(3);
     expect(display.insights[0].body).toMatch(/you shot 90 \(\+18\)/i);
-    expect(display.insights[0].body).toMatch(/baseline/i);
+    expect(display.insights[0].body).toMatch(/starting point/i);
     expect(display.insights[2].body).toMatch(/optional stats|extra stat|putts or greens/i);
     expect(display.insights[0].body.toLowerCase()).not.toMatch(/approach|putting|off the tee|penalty strokes were/i);
   });
@@ -644,7 +644,7 @@ describe('composeRoundIdentityDisplay', () => {
       }),
     );
     const copy = allCopy(display);
-    expect(copy).toMatch(/baseline/);
+    expect(copy).toMatch(/starting point/);
     expect(copy).toMatch(/optional stats|extra stat|putts or greens/);
     expect(copy).not.toMatch(/approach carried|putting was the clearest leak|tee shots made/i);
   });

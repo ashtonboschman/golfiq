@@ -41,8 +41,9 @@ const SCORE_ONLY_STABLE_HEADLINES = [
 
 const SCORE_ONLY_STABLE_BODIES_FREE_MED = [
   'Your scoring trend is established, but detail stats are still limited.',
-  'Your score trend is forming, but the stat detail is still light.',
-  'Your recent scoring has a pattern, but the details are still building.',
+  'GolfIQ can see the score trend, but needs more tracked stats to explain it.',
+  'The score trend is starting to show, but GolfIQ needs more detail to explain it.',
+  'Your recent scoring has a pattern, but more tracked stats will make the why clearer.',
 ] as const;
 
 const SCORE_ONLY_STABLE_NUDGES = [
@@ -760,7 +761,7 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('component_opportunity');
-    expect(state.focus.headline).toBe('Approach is the biggest opportunity right now.');
+    expect(state.focus.headline).toBe('Approach is the clearest focus right now.');
     expect(state.focus.body).toBe('Approach is costing you the most strokes.');
     expectOneOf(state.focus.nextRound, OPPORTUNITY_APPROACH_NUDGES);
     expect(state.focus.component).toBe('approach');
@@ -808,7 +809,7 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_balanced');
-    expect(state.focus.headline).toBe('No single area clearly dominates right now.');
+    expect(state.focus.headline).toBe('No single area stands out clearly yet.');
     expect(state.focus.body).toBe('Managing the round matters more than chasing one stat fix.');
     expectOneOf(state.focus.nextRound, BALANCED_STABLE_NUDGES);
   });
@@ -831,7 +832,7 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_PREMIUM');
     if (state.kind !== 'READY_PREMIUM') return;
     expect(state.focus.outcome).toBe('component_balanced');
-    expect(state.focus.headline).toBe('No single area clearly dominates right now.');
+    expect(state.focus.headline).toBe('No single area stands out clearly yet.');
     expect(state.focus.body).toBe('Managing the round matters more than chasing one stat fix.');
     expectOneOf(state.focus.nextRound, BALANCED_STABLE_NUDGES);
     expect(state.focus.component).toBeNull();
@@ -861,7 +862,7 @@ describe('dashboardFocus state output', () => {
     expect(state.kind).toBe('READY_FREE');
     if (state.kind !== 'READY_FREE') return;
     expect(state.focus.outcome).toBe('component_opportunity');
-    expect(state.focus.headline).toBe('Putting is the biggest opportunity right now.');
+    expect(state.focus.headline).toBe('Putting is the clearest focus right now.');
     expect(state.focus.body).toBe('Putting is costing you the most strokes.');
     expect(state.focus.nextRound).toBe('Focus on lag speed.');
     expect(state.focus.component).toBe('putting');
@@ -883,7 +884,7 @@ describe('dashboardFocus state output', () => {
     );
     expect(opportunityBoundary.kind).toBe('READY_FREE');
     if (opportunityBoundary.kind !== 'READY_FREE') return;
-    expect(opportunityBoundary.focus.headline).toBe('Off the Tee is the biggest opportunity right now.');
+    expect(opportunityBoundary.focus.headline).toBe('Off the Tee is the clearest focus right now.');
 
     const strengthBoundary = buildRoundFocusState(
       makeSummary({
@@ -1304,7 +1305,7 @@ describe('dashboardFocus state output', () => {
     expect(mediumState.kind).toBe('READY_PREMIUM');
     expect(highState.kind).toBe('READY_PREMIUM');
     if (mediumState.kind !== 'READY_PREMIUM' || highState.kind !== 'READY_PREMIUM') return;
-    expect(mediumState.focus.headline).toBe('Approach is the biggest opportunity right now.');
+    expect(mediumState.focus.headline).toBe('Approach is the clearest focus right now.');
     expect(highState.focus.headline).toBe('Approach is the clearest scoring focus right now.');
     expect(highState.focus.body).toContain('Approach is');
     expect(highState.focus.body).toContain('costing about');

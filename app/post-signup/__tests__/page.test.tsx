@@ -60,7 +60,7 @@ describe('/post-signup route', () => {
 
     expect(screen.getByRole('heading', { name: 'Your GolfIQ Starts With Your First Round' })).toBeInTheDocument();
     expect(
-      screen.getByText('Track your rounds and start uncovering what’s shaping your scores.'),
+      screen.getByText("Track your rounds and start uncovering what's shaping your scores."),
     ).toBeInTheDocument();
     expect(
       screen.queryByText('Already played? You can add a round after the fact too.'),

@@ -54,7 +54,7 @@ export default function PostSignupPage() {
       <section className={styles.cardShell}>
         <div className={styles.contentZone}>
           <h1 className={styles.title}>Your GolfIQ Starts With Your First Round</h1>
-          <p className={styles.copy}>Track your rounds and start uncovering what’s shaping your scores.</p>
+          <p className={styles.copy}>Track your rounds and start uncovering what's shaping your scores.</p>
         </div>
         <div className={styles.actionZone}>
           <button
