@@ -1149,10 +1149,16 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const focusTimeframeBasis = focusPayload?.timeframeBasis ?? null;
   const earlySampleMessage = getEarlySampleMessage(roundsLifetime);
   const scoreImprovingThreshold = statsMode === '9' ? -0.5 : -1.0;
+  const positiveBridgeCopyByTone: Record<NonNullable<typeof focusTone>, string> = {
+    fix: 'Your scores are improving, so this is the next area to clean up.',
+    build: 'Your scores are improving, so this is the next area to build on.',
+    repeat: 'Your scores are improving, and this is one part worth repeating.',
+    explain: 'Your scores are improving, so this is the next area to build on.',
+  };
   const positiveBridgeCopy =
     focusTone === 'fix' &&
     (focusSummary?.scoreTrendDelta ?? 0) <= scoreImprovingThreshold
-      ? 'You are scoring better lately. This is the next area to build.'
+      ? positiveBridgeCopyByTone[focusTone]
       : null;
 
   const parseTimestamp = (value: string | null | undefined): number | null => {
@@ -1512,28 +1518,30 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           <RoundFocusSkeletonBody />
         ) : (
           <>
-            {positiveBridgeCopy && (
-              <p className="dashboard-focus-body dashboard-focus-positive-bridge">{positiveBridgeCopy}</p>
-            )}
-            <p className="dashboard-focus-headline">{focusPayload.headline}</p>
-            {focusPayload.qualifierText && (
-              <p className="dashboard-focus-body dashboard-focus-qualifier">{focusPayload.qualifierText}</p>
-            )}
-            {focusPayload.body && (
-              <p className="dashboard-focus-body">{focusPayload.body}</p>
-            )}
-            {earlySampleMessage && (
-              <p className="dashboard-focus-body dashboard-focus-sample-note">{earlySampleMessage}</p>
-            )}
-            {focusPayload.nextRound && (
-              <p className="dashboard-focus-body dashboard-focus-next-round">
-                <span className="dashboard-focus-next-round-label">Next round:</span>{' '}
-                {focusPayload.nextRound}
-              </p>
-            )}
-            {showFocusUpdatingNote && (
-              <p className="dashboard-focus-updating">Updating focus...</p>
-            )}
+            <div className="dashboard-focus-content">
+              <p className="dashboard-focus-headline">{focusPayload.headline}</p>
+              {focusPayload.qualifierText && (
+                <p className="dashboard-focus-body dashboard-focus-qualifier">{focusPayload.qualifierText}</p>
+              )}
+              {focusPayload.body && (
+                <p className="dashboard-focus-body">{focusPayload.body}</p>
+              )}
+              {positiveBridgeCopy && (
+                <p className="dashboard-focus-body dashboard-focus-positive-bridge">{positiveBridgeCopy}</p>
+              )}
+              {earlySampleMessage && (
+                <p className="dashboard-focus-body dashboard-focus-sample-note">{earlySampleMessage}</p>
+              )}
+              {focusPayload.nextRound && (
+                <p className="dashboard-focus-body dashboard-focus-next-round">
+                  <span className="dashboard-focus-next-round-label">Next round:</span>{' '}
+                  {focusPayload.nextRound}
+                </p>
+              )}
+              {showFocusUpdatingNote && (
+                <p className="dashboard-focus-updating">Updating focus...</p>
+              )}
+            </div>
             <div className="dashboard-focus-actions">
               <button
                 type="button"

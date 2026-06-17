@@ -848,6 +848,51 @@ describe('/dashboard Round Focus card', () => {
     expectOneText(OPPORTUNITY_APPROACH_NUDGES_UI);
   });
 
+  it('renders improving-score bridge copy after the main Round Focus body so the headline stays primary', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          overallInsightsSummary: {
+            ...makeDashboardPayload().overallInsightsSummary,
+            confidence: 'high',
+            scoreTrendDelta: -1.2,
+            sgComponentDelta: {
+              offTee: -0.08,
+              approach: -0.28,
+              putting: -0.12,
+              penalties: -0.04,
+              residual: -0.1,
+            },
+            persistenceSignal: null,
+          },
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    const focusCard = await screen.findByTestId('dashboard-focus-card');
+    const headline = await screen.findByText('Approach is the clearest scoring focus right now.');
+    const body = await screen.findByText('Approach is costing about 0.3 strokes per round.');
+    const bridge = await screen.findByText(
+      'Your scores are improving, so this is the next area to clean up.',
+    );
+    const nextRound = focusCard.querySelector('.dashboard-focus-next-round');
+
+    expect(nextRound).toBeTruthy();
+    expect(
+      Boolean(headline.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+    expect(
+      Boolean(body.compareDocumentPosition(bridge) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+    expect(
+      Boolean(bridge.compareDocumentPosition(nextRound as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+  });
+
   it('shows volatility-priority focus on dashboard when volatility outweighs mild component leaks', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -877,8 +922,15 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByTestId('dashboard-focus-card');
-    expectOneText(VOLATILITY_HEADLINES_HIGH);
-    expectOneText(VOLATILITY_NUDGES_UI);
+    expect(
+      await screen.findByText('The main issue right now is how much the scores jump around.'),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText((_, element) =>
+        (element?.textContent ?? '').replace(/\s+/g, ' ').trim() ===
+        'Next round: Play to center-green targets.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/is the clearest focus right now/i)).not.toBeInTheDocument();
   });
 
