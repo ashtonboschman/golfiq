@@ -11,7 +11,19 @@ function joinClassNames(...classNames: Array<string | undefined | false>) {
 function dimensionClass(prefix: 'u-w' | 'u-h' | 'u-mt', value?: Dimension): string | undefined {
   if (value == null) return undefined;
   if (typeof value === 'number') return `${prefix}-${value}`;
-  const normalized = value.trim().replace('%', 'pct-').replace(/\./g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+
+  const trimmed = value.trim();
+  const percentMatch = trimmed.match(/^(\d+(?:\.\d+)?)%$/);
+  if (percentMatch) {
+    return `${prefix}-pct-${percentMatch[1].replace(/\./g, '-')}`;
+  }
+
+  const pixelMatch = trimmed.match(/^(\d+(?:\.\d+)?)px$/);
+  if (pixelMatch) {
+    return `${prefix}-${pixelMatch[1].replace(/\./g, '-')}`;
+  }
+
+  const normalized = trimmed.replace(/\./g, '-').replace(/[^a-zA-Z0-9-]/g, '');
   return normalized ? `${prefix}-${normalized}` : undefined;
 }
 
@@ -96,3 +108,4 @@ type SkeletonCardProps = {
 export function SkeletonCard({ className, children }: SkeletonCardProps) {
   return <div className={joinClassNames('card skeleton-card', className)}>{children}</div>;
 }
+
