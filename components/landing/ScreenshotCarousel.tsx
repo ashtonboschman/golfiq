@@ -100,33 +100,20 @@ export default function ScreenshotCarousel() {
             const isCurrent = index === currentIndex;
             const isPrevious = index === previousIndex;
             const isVisible = isCurrent || (isTransitioning && isPrevious);
-
-            let transform = 'translateX(0)';
-            let opacity = 0;
+            let slideStateClass = 'is-offscreen-left';
 
             if (isCurrent) {
-              transform = 'translateX(0)';
-              opacity = 1;
+              slideStateClass = 'is-current';
             } else if (isPrevious && isTransitioning) {
-              transform = direction === 'left' ? 'translateX(-100%)' : 'translateX(100%)';
-              opacity = 0;
+              slideStateClass = direction === 'left' ? 'is-previous-left' : 'is-previous-right';
             } else {
-              transform = index > currentIndex ? 'translateX(100%)' : 'translateX(-100%)';
-              opacity = 0;
+              slideStateClass = index > currentIndex ? 'is-offscreen-right' : 'is-offscreen-left';
             }
 
             return (
               <div
                 key={index}
-                className="carousel-slide"
-                style={{
-                  transform,
-                  opacity,
-                  visibility: isVisible ? 'visible' : 'hidden',
-                  transition: isTransitioning
-                    ? 'transform 0.3s ease-in-out, opacity 0.3s ease-in-out'
-                    : 'none',
-                }}
+                className={`carousel-slide ${slideStateClass}${isVisible ? ' is-visible' : ''}${isTransitioning ? ' is-transitioning' : ''}`}
               >
                 <Image
                   src={screenshot.src}

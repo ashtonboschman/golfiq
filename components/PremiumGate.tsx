@@ -80,11 +80,11 @@ export default function PremiumGate({
     // Inline compact version
     if (inline) {
       return (
-        <div className="inline-flex items-center gap-2 text-sm text-gray-600">
-          <span className="text-yellow-600"><Lock/></span>
+        <div className="premium-gate-inline">
+          <span className="premium-gate-inline-icon"><Lock /></span>
           <span>{featureName} is part of Premium.</span>
           <button
-            className="text-blue-600 hover:text-blue-700 underline font-medium"
+            className="premium-gate-inline-link"
             onClick={handleUpgradeClick}
           >
             See Premium Plans
@@ -111,3 +111,4 @@ export default function PremiumGate({
   }  
   return <>{children}</>;
 }
+

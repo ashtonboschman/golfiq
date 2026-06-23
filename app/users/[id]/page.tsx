@@ -72,11 +72,11 @@ export default function UserDetailsPage() {
             <SkeletonCircle size={202} />
           </div>
           <label className="form-label">Name</label>
-          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-input" height={42} />
           <label className="form-label">Bio</label>
           <SkeletonBlock width="100%" height={80} />
           <label className="form-label">Favorite Course</label>
-          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-input" height={42} />
         </div>
       ) : (
         <UserHeaderCard user={user} />
@@ -85,13 +85,13 @@ export default function UserDetailsPage() {
       {showDataSkeleton ? (
         <div className="card">
           <label className="form-label">Handicap</label>
-          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-input" height={42} />
           <label className="form-label">Average To Par</label>
-          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-input" height={42} />
           <label className="form-label">Best To Par</label>
-          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-input" height={42} />
           <label className="form-label">Total Rounds</label>
-          <SkeletonBlock className="skeleton-input" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-input" height={42} />
         </div>
       ) : permissions?.can_view_stats === false ? (
         <div className="card">

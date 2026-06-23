@@ -1368,8 +1368,8 @@ function AddRoundContent() {
 
           <div className="form-row">
             <label className="form-label">Course</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
-              <div style={{ flex: 1 }}>
+            <div className="round-form-course-row">
+              <div className="round-form-course-select">
                 <AsyncPaginate
                   value={selectedCourse}
                   loadOptions={loadCourseOptions}

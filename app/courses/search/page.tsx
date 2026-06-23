@@ -293,18 +293,17 @@ export default function CourseSearchPage() {
           <button
             type="button"
             onClick={handleSearch}
-            className="btn btn-add"
+            className="btn btn-add u-minw-120"
             disabled={searchLoading || !searchQuery.trim()}
-            style={{ minWidth: '120px' }}
           >
             {searchLoading ? 'Searching...' : 'Search'}
           </button>
         </div>
 
         {searchResults.length > 0 && (
-          <div style={{ marginTop: '16px' }}>
-            <h3 style={{ marginBottom: '12px' }}>Search Results</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="course-search-results-block">
+            <h3 className="course-search-results-title">Search Results</h3>
+            <div className="course-search-results-list">
               {searchResults.map((course) => {
                 const validTees = getValidTees(course.tees);
 
@@ -313,14 +312,14 @@ export default function CourseSearchPage() {
                     key={course.id}
                     className="card border-color"
                   >
-                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }} className='primary-text'>
+                    <div className="primary-text u-font-bold u-fs-11">
                       {course.course_name}
                     </div>
-                    <div style={{ fontSize: '0.9rem' }} className='secondary-text'>
+                    <div className="secondary-text u-fs-09">
                       {course.club_name}
                     </div>
                     {course.location && (
-                      <div style={{ fontSize: '0.85rem' }} className='secondary-text'>
+                      <div className="secondary-text u-fs-085">
                         {course.location.city && `${course.location.city}, `}
                         {course.location.state && `${course.location.state}, `}
                         {course.location.country}
@@ -329,8 +328,8 @@ export default function CourseSearchPage() {
 
                     {validTees.male.length > 0 && (
                       <div>
-                        <span style={{ fontWeight: '600', fontSize: '0.85rem' }} className='secondary-text'>Male Tees: </span>
-                        <span style={{ fontSize: '0.85rem', color: '#3498db' }}>
+                        <span className="secondary-text u-font-semibold u-fs-085">Male Tees: </span>
+                        <span className="u-fs-085 u-color-blue">
                           {validTees.male.join(', ')}
                         </span>
                       </div>
@@ -338,8 +337,8 @@ export default function CourseSearchPage() {
 
                     {validTees.female.length > 0 && (
                       <div>
-                        <span style={{ fontWeight: '600', fontSize: '0.85rem' }} className='secondary-text'>Female Tees: </span>
-                        <span style={{ fontSize: '0.85rem', color: '#e91e63' }}>
+                        <span className="secondary-text u-font-semibold u-fs-085">Female Tees: </span>
+                        <span className="u-fs-085 u-color-pink">
                           {validTees.female.join(', ')}
                         </span>
                       </div>
@@ -349,8 +348,7 @@ export default function CourseSearchPage() {
                       type="button"
                       onClick={() => handleAddCourse(course)}
                       disabled={importingCourseId !== null}
-                      className="btn btn-add"
-                      style={{ width: '100%' }}
+                      className="btn btn-add u-w-full"
                     >
                       {importingCourseId === course.id ? 'Adding...' : 'Add Course'}
                     </button>

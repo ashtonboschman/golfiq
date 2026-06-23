@@ -162,16 +162,16 @@ export default function TrendCard({
 
   return (
     <div
-      className="trend-card flex flex-col items-center p-6 bg-white rounded-xl shadow-lg w-full max-w-2xl mx-auto"
-      style={{ height: height ?? 250 }}
+      className={`trend-card trend-card-chart ${height === 300 ? 'trend-card-h-300' : height === 320 ? 'trend-card-h-320' : 'trend-card-h-250'}`}
     >
-      <h3 className="mb-4 text-center w-full" style={{ color: textColor }}>
+      <h3 className="trend-card-chart-title">
         {label}
       </h3>
 
-      <div className="w-full h-full" style={{ minWidth: 0 }}>
+      <div className="trend-card-chart-body">
         <Line data={trendData} options={options} />
       </div>
     </div>
   );
 }
+

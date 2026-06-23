@@ -262,9 +262,8 @@ const HoleCard = memo(({
     <div className={`accordion-hole-card ${isExpanded ? 'expanded' : 'collapsed'} ${isCompleted ? 'completed' : ''}`}>
       {/* Header - always visible */}
       <div
-        className="accordion-hole-header"
+        className={`accordion-hole-header ${onToggleExpand ? 'hole-header-clickable' : 'hole-header-static'}`}
         onClick={handleHeaderClick}
-        style={{ cursor: onToggleExpand ? 'pointer' : 'default' }}
       >
         <div className="accordion-hole-header-left">
           {isCompleted && <Check className="completion-check" />}

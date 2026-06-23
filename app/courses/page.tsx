@@ -247,7 +247,7 @@ export default function CoursesPage() {
       {showInitialListSkeleton ? (
         <CourseListSkeleton count={16} />
       ) : courses.length === 0 && !loading ? (
-        <div style={{ textAlign: 'center'}}>
+        <div className="empty-state-center">
           <p className='secondary-text'>
             No courses found{search ? ' matching your search' : ''}.
           </p>

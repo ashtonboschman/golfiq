@@ -63,12 +63,12 @@ function VerifyEmailForm() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Loader2 size={50} className="spinning" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><Loader2 size={50} className="spinning" /></div>
             <h1 className="auth-title">Verifying Email...</h1>
           </div>
 
-          <p className="secondary-text" style={{ textAlign: 'center' }}>
+          <p className="secondary-text u-text-center">
             Please wait while we verify your email address.
           </p>
         </div>
@@ -80,12 +80,12 @@ function VerifyEmailForm() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><TriangleAlert size={50} color="var(--color-warning)" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><TriangleAlert size={50} color="var(--color-warning)" /></div>
             <h1 className="auth-title">Invalid Verification Link</h1>
           </div>
 
-          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center' }}>
+          <p className="secondary-text auth-copy-block">
             This email verification link is invalid. Please check your email for the correct link.
           </p>
 
@@ -101,12 +101,12 @@ function VerifyEmailForm() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Check size={50} color="var(--color-success)" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><Check size={50} color="var(--color-success)" /></div>
             <h1 className="auth-title">Email Verified!</h1>
           </div>
 
-          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center' }}>
+          <p className="secondary-text auth-copy-block">
             Your email has been successfully verified. You can now access all features of GolfIQ.
           </p>
 
@@ -122,16 +122,16 @@ function VerifyEmailForm() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><X size={50} color="var(--color-red)" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><X size={50} color="var(--color-red)" /></div>
             <h1 className="auth-title">Verification Failed</h1>
           </div>
 
-          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center' }}>
+          <p className="secondary-text auth-copy-block">
             {error}
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="auth-actions-stack-wide">
             <button onClick={() => router.push('/dashboard')} className="btn btn-accent">
               Go to Dashboard
             </button>

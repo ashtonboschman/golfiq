@@ -46,10 +46,6 @@ yarn-error.log*
 *.swp
 *~
 
-# AI assistants
-.claude/
-CLAUDE.md
-
 # documentation
 /docs
 

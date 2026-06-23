@@ -24,7 +24,7 @@ function GoogleIcon() {
       viewBox="0 0 48 48"
       width="18"
       height="18"
-      style={{ display: 'block', flexShrink: 0 }}
+      className="login-google-icon"
     >
       <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
       <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
@@ -74,10 +74,9 @@ function LoginContent() {
 
   // Lock scroll while on login page
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    document.body.classList.add('auth-lock-scroll');
     return () => {
-      document.body.style.overflow = originalOverflow;
+      document.body.classList.remove('auth-lock-scroll');
     };
   }, []);
 
@@ -333,7 +332,7 @@ function LoginContent() {
             }}
             enterKeyHint="done"
           />
-          <div style={{ position: 'relative' }}>
+          <div className="auth-input-wrap">
             <input
               name="password"
               type={showPassword ? 'text' : 'password'}
@@ -341,8 +340,7 @@ function LoginContent() {
               value={form.password}
               onChange={handleChange}
               required
-              className="form-input"
-              style={{ paddingRight: '45px' }}
+              className="form-input auth-input-control"
               max={100}
               onFocus={(e) => {
                 moveCaretToEndIfSupported(e.target);
@@ -357,25 +355,14 @@ function LoginContent() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '1.2rem',
-                padding: '0',
-                color: '#9AA3B2',
-              }}
+              className="auth-input-toggle"
               aria-label="Toggle password visibility"
             >
               {showPassword ? <Eye size={20}/> : <EyeOff size={20}/>}
             </button>
           </div>
           {isRegister && (
-            <div style={{ position: 'relative' }}>
+            <div className="auth-input-wrap">
               <input
                 name="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
@@ -383,25 +370,13 @@ function LoginContent() {
                 value={form.confirmPassword}
                 onChange={handleChange}
                 required
-                className="form-input"
-                style={{ paddingRight: '45px' }}
+                className="form-input auth-input-control"
                 max={100}
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '1.2rem',
-                  padding: '0',
-                  color: '#9AA3B2',
-                }}
+                className="auth-input-toggle"
                 aria-label="Toggle confirm password visibility"
               >
                 {showConfirmPassword ? <Eye size={20}/> : <EyeOff size={20}/>}
@@ -420,37 +395,20 @@ function LoginContent() {
         </form>
 
         {hasOauthEnabled && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--gap)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                marginTop: 'var(--gap-small)',
-                marginBottom: 'var(--gap-small)',
-                color: '#9AA3B2',
-                fontSize: 12,
-              }}
-            >
-              <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+          <div className="oauth-stack">
+            <div className="oauth-divider" aria-hidden="true">
+              <span className="oauth-divider-line" />
               <span>or</span>
-              <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+              <span className="oauth-divider-line" />
             </div>
             {isGoogleEnabled && (
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-secondary u-w-full"
                 disabled={loading || !!oauthLoadingProvider}
                 onClick={() => handleOauthSignIn('google')}
-                style={{ width: '100%' }}
               >
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                <span className="oauth-provider-content">
                   <GoogleIcon />
                   <span>
                     {oauthLoadingProvider === 'google'
@@ -465,10 +423,9 @@ function LoginContent() {
             {isAppleEnabled && (
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-secondary u-w-full"
                 disabled={loading || !!oauthLoadingProvider}
                 onClick={() => handleOauthSignIn('apple')}
-                style={{ width: '100%' }}
               >
                 {oauthLoadingProvider === 'apple'
                   ? 'Redirecting to Apple...'
@@ -481,14 +438,8 @@ function LoginContent() {
         )}
 
         {!isRegister && (
-          <div
-            style={{
-              textAlign: 'center',
-              marginTop: 'var(--gap-small)',
-              marginBottom: 'var(--gap-small)',
-            }}
-          >
-            <Link href="/forgot-password" style={{ color: '#9AA3B2', fontSize: '14px', textDecoration: 'none' }}>
+          <div className="login-secondary-link-wrap">
+            <Link href="/forgot-password" className="login-secondary-link">
               Forgot Password?
             </Link>
           </div>
@@ -509,3 +460,4 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+

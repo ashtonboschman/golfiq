@@ -6,30 +6,31 @@ import { useFriends } from '@/context/FriendsContext';
 import FriendCard from '@/components/FriendCard';
 import PullToRefresh from '@/components/PullToRefresh';
 import { Plus } from 'lucide-react';
+import { SkeletonBlock, SkeletonCircle } from '@/components/skeleton/Skeleton';
 
 function FriendCardSkeleton({ request = false }: { request?: boolean }) {
   return (
     <div className="friend-card" aria-hidden="true">
       <div className="friend-info">
-        <span className="skeleton" style={{ width: 48, height: 48, borderRadius: 999 }} />
+        <SkeletonCircle size={48} />
         <div className="friend-details">
-          <span className="skeleton" style={{ display: 'inline-block', width: '44%', height: 16 }} />
+          <SkeletonBlock width="44%" height={16} inline />
           <div className="friend-stats">
-            <span className="skeleton" style={{ display: 'inline-block', width: 62, height: 12 }} />
-            <span className="skeleton" style={{ display: 'inline-block', width: 62, height: 12 }} />
-            <span className="skeleton" style={{ display: 'inline-block', width: 62, height: 12 }} />
-            <span className="skeleton" style={{ display: 'inline-block', width: 62, height: 12 }} />
+            <SkeletonBlock width={62} height={12} inline />
+            <SkeletonBlock width={62} height={12} inline />
+            <SkeletonBlock width={62} height={12} inline />
+            <SkeletonBlock width={62} height={12} inline />
           </div>
         </div>
       </div>
       <div className="friend-actions">
         {request ? (
           <>
-            <span className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }} />
-            <span className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }} />
+            <SkeletonBlock width={36} height={36} className="u-rounded-8" />
+            <SkeletonBlock width={36} height={36} className="u-rounded-8" />
           </>
         ) : (
-          <span className="skeleton" style={{ width: 20, height: 20, borderRadius: 999 }} />
+          <SkeletonBlock width={20} height={20} rounded="pill" />
         )}
       </div>
     </div>

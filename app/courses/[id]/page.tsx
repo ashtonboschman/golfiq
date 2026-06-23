@@ -235,7 +235,7 @@ export default function CourseDetailsPage() {
         <div className="course-club">
           <strong><Landmark size='14'/></strong>{' '}
           {showDataSkeleton ? (
-            <SkeletonBlock width="34%" height={14} style={{ display: 'inline-block' }} />
+            <SkeletonBlock width="34%" height={14} inline />
           ) : (
             course?.club_name ?? ''
           )}
@@ -243,7 +243,7 @@ export default function CourseDetailsPage() {
         <div className="course-location">
           <strong><MapPin size='14'/></strong>{' '}
           {showDataSkeleton ? (
-            <SkeletonBlock width="56%" height={14} style={{ display: 'inline-block' }} />
+            <SkeletonBlock width="56%" height={14} inline />
           ) : (
             `${course?.location.address ?? ''}, ${course?.location.city ?? ''}, ${course?.location.state ?? ''}, ${course?.location.country ?? ''}`
           )}
@@ -256,7 +256,7 @@ export default function CourseDetailsPage() {
         </label>
 
         {showDataSkeleton ? (
-          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-select" height={42} />
         ) : allTees.length > 0 ? (
           <Select
             value={
@@ -286,16 +286,16 @@ export default function CourseDetailsPage() {
         <div className="card course-scorecard-meta">
           <div>
             <strong className='form-label'>Par</strong>{' '}
-            {showDataSkeleton ? <SkeletonBlock width={32} height={14} style={{ display: 'inline-block' }} /> : selectedTee?.par_total}
+            {showDataSkeleton ? <SkeletonBlock width={32} height={14} inline /> : selectedTee?.par_total}
           </div>
           <div>
             <strong className='form-label'>Yards</strong>{' '}
-            {showDataSkeleton ? <SkeletonBlock width={48} height={14} style={{ display: 'inline-block' }} /> : selectedTee?.total_yards}
+            {showDataSkeleton ? <SkeletonBlock width={48} height={14} inline /> : selectedTee?.total_yards}
           </div>
           <div>
             <strong className='form-label'>Rating / Slope</strong>{' '}
             {showDataSkeleton ? (
-              <SkeletonBlock width={72} height={14} style={{ display: 'inline-block' }} />
+              <SkeletonBlock width={72} height={14} inline />
             ) : (
               `${selectedTee?.course_rating} / ${selectedTee?.slope_rating}`
             )}

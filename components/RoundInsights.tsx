@@ -664,7 +664,7 @@ export default function RoundInsights({
         <Sparkles size={20} />
         <h3>Round Insights</h3>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="u-flex u-items-center admin-course-inline-actions">
         {SHOW_POST_ROUND_REGENERATE && (
           <button
             type="button"
@@ -676,7 +676,7 @@ export default function RoundInsights({
           </button>
         )}
         {isPremiumLoading ? (
-          <span className="skeleton" style={{ display: 'inline-block', width: 78, height: 24, borderRadius: 999 }} />
+          <span className="skeleton u-inline-block u-w-78 u-h-24 u-rounded-pill" />
         ) : (
           <div ref={confidenceTooltipRef} className="info-tooltip-container insights-confidence-tooltip">
             <button
@@ -825,5 +825,6 @@ export default function RoundInsights({
     </div>
   );
 }
+
 
 

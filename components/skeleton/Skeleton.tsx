@@ -1,46 +1,60 @@
-import type { CSSProperties, ReactNode } from 'react';
+'use client';
+
+import type { ReactNode } from 'react';
 
 type Dimension = number | string;
 
-function toStyleValue(value?: Dimension): string | undefined {
-  if (value == null) return undefined;
-  return typeof value === 'number' ? `${value}px` : value;
+function joinClassNames(...classNames: Array<string | undefined | false>) {
+  return classNames.filter(Boolean).join(' ');
 }
 
-function joinClassNames(...classNames: Array<string | undefined>): string {
-  return classNames.filter(Boolean).join(' ');
+function dimensionClass(prefix: 'u-w' | 'u-h' | 'u-mt', value?: Dimension): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === 'number') return `${prefix}-${value}`;
+  const normalized = value.trim().replace('%', 'pct-').replace(/\./g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+  return normalized ? `${prefix}-${normalized}` : undefined;
 }
 
 type SkeletonBlockProps = {
   className?: string;
   width?: Dimension;
   height?: Dimension;
-  style?: CSSProperties;
+  inline?: boolean;
+  center?: boolean;
+  rounded?: 'pill';
+  mt?: Dimension;
 };
 
-export function SkeletonBlock({ className, width, height, style }: SkeletonBlockProps) {
-  const inlineStyle: CSSProperties = {
-    width: toStyleValue(width),
-    height: toStyleValue(height),
-    ...style,
-  };
-
-  return <div aria-hidden="true" className={joinClassNames('skeleton', className)} style={inlineStyle} />;
+export function SkeletonBlock({ className, width, height, inline, center, rounded, mt }: SkeletonBlockProps) {
+  return (
+    <div
+      aria-hidden="true"
+      className={joinClassNames(
+        'skeleton',
+        className,
+        dimensionClass('u-w', width),
+        dimensionClass('u-h', height),
+        dimensionClass('u-mt', mt),
+        inline ? 'u-inline-block' : undefined,
+        center ? 'u-mx-auto' : undefined,
+        rounded === 'pill' ? 'u-rounded-pill' : undefined,
+      )}
+    />
+  );
 }
 
 type SkeletonCircleProps = {
   className?: string;
   size?: Dimension;
-  style?: CSSProperties;
 };
 
-export function SkeletonCircle({ className, size = 36, style }: SkeletonCircleProps) {
+export function SkeletonCircle({ className, size = 36 }: SkeletonCircleProps) {
   return (
     <SkeletonBlock
       className={joinClassNames('skeleton-circle', className)}
       width={size}
       height={size}
-      style={{ borderRadius: '999px', ...style }}
+      rounded="pill"
     />
   );
 }
@@ -67,7 +81,7 @@ export function SkeletonText({
           key={`line-${index}`}
           height={lineHeight}
           width={index === lines - 1 ? lastLineWidth : '100%'}
-          style={{ marginTop: index === 0 ? 0 : toStyleValue(gap) }}
+          mt={index === 0 ? undefined : gap}
         />
       ))}
     </div>

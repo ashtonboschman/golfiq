@@ -291,7 +291,7 @@ export default function ImportCoursePage() {
           Search for a course by name or city using the Golf Course API
         </p>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="admin-course-search-actions">
           <input
             type="text"
             value={searchQuery}
@@ -304,9 +304,8 @@ export default function ImportCoursePage() {
           <button
             type="button"
             onClick={handleSearch}
-            className="btn btn-save"
+            className="btn btn-save u-minw-120"
             disabled={searchLoading || !searchQuery.trim()}
-            style={{ minWidth: '120px' }}
           >
             {searchLoading ? 'Searching...' : 'Search API'}
           </button>
@@ -315,32 +314,23 @@ export default function ImportCoursePage() {
         {searchResults.length > 0 && (
           <div>
             <h3>Search Results ({searchResults.length})</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="admin-course-search-results">
               {searchResults.map((course: any) => (
                 <div
                   key={course.id}
-                  className="card"
-                  style={{
-                    backgroundColor: '#1E242F',
-                    cursor: 'pointer',
-                    border: '1px solid #2A313D',
-                    padding: '10px',
-                    transition: 'background-color 0.2s',
-                  }}
+                  className="card admin-course-search-card"
                   onClick={() => handleSelectCourse(course)}
-                  onMouseEnter={(e: any) => (e.currentTarget.style.backgroundColor = '#2A313D')}
-                  onMouseLeave={(e: any) => (e.currentTarget.style.backgroundColor = '#1E242F')}
                 >
-                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color:'#EDEFF2' }}>{course.course_name}</div>
-                  <div style={{ color: '#9AA3B2', fontSize: '0.9rem' }}>{course.club_name}</div>
+                  <div className="u-font-bold u-fs-11 u-color-primary">{course.course_name}</div>
+                  <div className="u-color-secondary u-fs-09">{course.club_name}</div>
                   {course.location && (
-                    <div style={{ color: '#9AA3B2', fontSize: '0.85rem' }}>
+                    <div className="u-color-secondary u-fs-085">
                       {course.location.city && `${course.location.city}, `}
                       {course.location.state && `${course.location.state}, `}
                       {course.location.country}
                     </div>
                   )}
-                  <div style={{ color: '#3498db', fontSize: '0.85rem' }}>
+                  <div className="admin-course-search-meta u-fs-085">
                     {course.tees?.male?.length || 0} male tees, {course.tees?.female?.length || 0} female tees
                   </div>
                 </div>
@@ -351,13 +341,12 @@ export default function ImportCoursePage() {
       </div>
 
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="u-flex u-space-between u-items-center">
           <h2 >Manual Course Entry</h2>
           <button
             type="button"
             onClick={() => setShowManualEntry(!showManualEntry)}
-            className="btn btn-toggle"
-            style={{ width: 'auto', padding: '10px' }}
+            className="btn btn-toggle u-p-10"
           >
             {showManualEntry ? 'Hide Form' : 'Show Form'}
           </button>
@@ -406,8 +395,7 @@ export default function ImportCoursePage() {
           onChange={(e: any) => setJsonInput(e.target.value)}
           placeholder='Paste GolfCourseAPI.com JSON here...'
           rows={15}
-          className="form-input"
-          style={{ fontFamily: 'monospace', fontSize: '12px' }}
+          className="form-input u-textarea-code"
         />
 
         <div className="form-actions">
@@ -463,22 +451,20 @@ export default function ImportCoursePage() {
 
           {preview.tees && (
             <>
-              <div style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#EDEFF2' }}>
+              <div className="admin-course-section-header">
                 <strong>Select Tees to Import:</strong>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="admin-course-inline-actions">
                   <button
                     type="button"
                     onClick={handleSelectAllTees}
-                    className="btn btn-toggle"
-                    style={{ padding: '6px 12px', fontSize: '0.85rem', width: 'auto' }}
+                    className="btn btn-toggle u-px-12-py-6 u-fs-085"
                   >
                     Select All
                   </button>
                   <button
                     type="button"
                     onClick={handleDeselectAllTees}
-                    className="btn btn-cancel"
-                    style={{ padding: '6px 12px', fontSize: '0.85rem', width: 'auto' }}
+                    className="btn btn-cancel u-px-12-py-6 u-fs-085"
                   >
                     Deselect All
                   </button>
@@ -486,30 +472,21 @@ export default function ImportCoursePage() {
               </div>
 
               {preview.tees.male && preview.tees.male.length > 0 && (
-                <div style={{ marginBottom: '12px' }}>
-                  <em style={{ fontWeight: 'bold', color: '#3498db' }}>Male Tees ({preview.tees.male.length}):</em>
-                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="admin-course-tee-group">
+                  <em className="u-font-bold admin-course-tee-label is-male">Male Tees ({preview.tees.male.length}):</em>
+                  <div className="admin-course-tee-list">
                     {preview.tees.male.map((tee: any, idx: number) => (
                       <label
                         key={idx}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '8px',
-                          backgroundColor: '#1E242F',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          border: selectedTees[`male-${idx}`] ? '2px solid #2196f3' : '1px solid #2A313D',
-                        }}
+                        className={`admin-course-tee-item ${selectedTees[`male-${idx}`] ? 'is-selected-male' : ''}`}
                       >
                         <input
                           type="checkbox"
                           checked={selectedTees[`male-${idx}`] || false}
                           onChange={() => handleToggleTee(`male-${idx}`)}
-                          style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                          className="admin-course-tee-checkbox"
                         />
-                        <span style={{ flex: 1, color: '#9AA3B2' }}>
+                        <span className="admin-course-tee-text">
                           <strong>{tee.tee_name}</strong> - {tee.total_yards} yds (Rating: {tee.course_rating}
                           /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes
                         </span>
@@ -520,30 +497,21 @@ export default function ImportCoursePage() {
               )}
 
               {preview.tees.female && preview.tees.female.length > 0 && (
-                <div style={{ marginBottom: '12px' }}>
-                  <em style={{ fontWeight: 'bold', color: '#e74c3c' }}>Female Tees ({preview.tees.female.length}):</em>
-                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="admin-course-tee-group">
+                  <em className="u-font-bold admin-course-tee-label is-female">Female Tees ({preview.tees.female.length}):</em>
+                  <div className="admin-course-tee-list">
                     {preview.tees.female.map((tee: any, idx: number) => (
                       <label
                         key={idx}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '8px',
-                          backgroundColor: '#1E242F',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          border: selectedTees[`female-${idx}`] ? '2px solid #e91e63' : '1px solid #2A313D',
-                        }}
+                        className={`admin-course-tee-item ${selectedTees[`female-${idx}`] ? 'is-selected-female' : ''}`}
                       >
                         <input
                           type="checkbox"
                           checked={selectedTees[`female-${idx}`] || false}
                           onChange={() => handleToggleTee(`female-${idx}`)}
-                          style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                          className="admin-course-tee-checkbox"
                         />
-                        <span style={{ flex: 1, color: '#9AA3B2' }}>
+                        <span className="admin-course-tee-text">
                           <strong>{tee.tee_name}</strong> - {tee.total_yards} yds (Rating: {tee.course_rating}
                           /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes
                         </span>
@@ -555,9 +523,9 @@ export default function ImportCoursePage() {
             </>
           )}
 
-          <div style={{ marginTop: '24px', padding: '12px', background: '#1E242F', borderRadius: '4px' }}>
+          <div className="admin-course-summary-box">
             <strong className='secondary-text'>Selected Tees Summary:</strong>
-            <div style={{ fontSize: '14px', marginTop: '8px', color: '#9AA3B2' }}>
+            <div className="admin-course-summary-copy">
               {(() => {
                 let selectedMaleCount = 0;
                 let selectedFemaleCount = 0;
@@ -592,7 +560,7 @@ export default function ImportCoursePage() {
 
       <div className="card">
         <h3>Instructions</h3>
-        <div style={{ marginBottom: '16px' }}>
+        <div className="u-mb-16">
           <strong className='form-label'>Option 1: Use the Search Feature (Recommended)</strong>
           <ol className='secondary-text'>
             <li>Enter a course name or city in the search box above</li>
@@ -603,7 +571,7 @@ export default function ImportCoursePage() {
           </ol>
         </div>
 
-        <div style={{ marginBottom: '16px' }}>
+        <div className="u-mb-16">
           <strong className='form-label'>Option 2: Manual Course Entry</strong>
           <ol className='secondary-text'>
             <li>Click "Show Form" in the Manual Course Entry section</li>
@@ -617,7 +585,7 @@ export default function ImportCoursePage() {
         <div>
           <strong className='form-label'>Option 3: Paste JSON Manually</strong>
           <ol className='secondary-text'>
-            <li>Go to <a href="https://golfcourseapi.com" target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc' }}>golfcourseapi.com</a></li>
+            <li>Go to <a href="https://golfcourseapi.com" target="_blank" rel="noopener noreferrer" className="u-link-blue">golfcourseapi.com</a></li>
             <li>Search for a course and get the detailed JSON response</li>
             <li>Copy the entire JSON response</li>
             <li>Paste it into the "Or Paste JSON Manually" text area</li>
@@ -626,14 +594,14 @@ export default function ImportCoursePage() {
           </ol>
         </div>
 
-        <div style={{ marginTop: '16px', padding: '12px', background: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+        <div className="u-note-box-warning">
           <strong>Note:</strong> Each API search uses one of your daily API calls. You have 200 free calls per day with GolfCourseAPI.com.
         </div>
       </div>
 
       <div className="card">
         <h3>Example JSON Structure</h3>
-        <pre style={{ background: '#171C26', padding: '12px', borderRadius: '4px', overflow: 'auto', fontSize: '12px', color: '#9AA3B2' }}>
+        <pre className="u-pre-code-block">
           {`{
             "id": 123456,
             "club_name": "Example Golf Club",
@@ -670,3 +638,5 @@ export default function ImportCoursePage() {
     </div>
   );
 }
+
+

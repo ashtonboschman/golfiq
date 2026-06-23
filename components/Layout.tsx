@@ -9,7 +9,7 @@ function HeaderFallback() {
   return (
     <header className="header" aria-hidden="true">
       <div className="header-inner">
-        <div style={{ width: '40px' }} />
+        <div className="u-icon-spacer-40" />
         <div className="logo-wrap">
           <img src="/logos/wordmark/golfiq-wordmark.png" alt="GolfIQ" height="40" className="logo logo-theme-dark" draggable={false} />
           <img src="/logos/wordmark/golfiq-wordmark-light.png" alt="GolfIQ" height="40" className="logo logo-theme-light" draggable={false} />

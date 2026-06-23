@@ -160,11 +160,11 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div className="manual-course-form">
       {/* Course Information */}
       <div>
         <h3>Course Information</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+        <div className="manual-course-grid-2">
           <div>
             <label className="form-label">Course Name *</label>
             <input
@@ -237,10 +237,10 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
       </div>
 
       {/* Tee Builder */}
-      <div style={{ padding: '10px', borderRadius: '8px', background: '#1E242F' }}>
+      <div className="manual-course-section">
         <h3>Add Tee Box</h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+        <div className="manual-course-grid-3">
           <div>
             <label className="form-label">Gender *</label>
             <select
@@ -315,8 +315,8 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
         ) : (
           <>
             <h4>Hole Details</h4>
-            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '10px' }}>
-              <table className="table">
+            <div className="manual-course-holes-wrap">
+              <table className="table manual-course-holes-table">
                 <thead>
                   <tr>
                     <th>Hole</th>
@@ -336,7 +336,7 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                           max="6"
                           value={hole.par}
                           onChange={(e) => updateHole(idx, 'par', e.target.value)}
-                          style={{ width: '60px', textAlign: 'center' }}
+                          className="manual-course-input-sm"
                         />
                       </td>
                       <td>
@@ -344,7 +344,7 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                           type="number"
                           value={hole.yardage}
                           onChange={(e) => updateHole(idx, 'yardage', e.target.value)}
-                          style={{ width: '80px', textAlign: 'center' }}
+                          className="manual-course-input-md"
                           max={999}
                         />
                       </td>
@@ -355,12 +355,12 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                           max="18"
                           value={hole.handicap}
                           onChange={(e) => updateHole(idx, 'handicap', e.target.value)}
-                          style={{ width: '60px', textAlign: 'center' }}
+                          className="manual-course-input-sm"
                         />
                       </td>
                     </tr>
                   ))}
-                  <tr style={{ fontWeight: 'bold', backgroundColor: '#f0f0f0' }}>
+                  <tr className="manual-course-total-row">
                     <td>Total</td>
                     <td>{holes.reduce((sum, hole) => sum + (hole.par || 0), 0)}</td>
                     <td>{holes.reduce((sum, hole) => sum + (hole.yardage || 0), 0)}</td>
@@ -369,7 +369,7 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                 </tbody>
               </table>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="manual-course-inline-actions">
               <button
                 type="button"
                 onClick={() => setHoles([])}
@@ -392,41 +392,32 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
       {/* Added Tees List */}
       {tees.length > 0 && (
         <div>
-          <h3 style={{ marginBottom: '10px' }}>Added Tees ({tees.length})</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <h3 className="manual-course-added-title">Added Tees ({tees.length})</h3>
+          <div className="manual-course-tees-list">
             {tees.map((tee, idx) => (
               <div
                 key={idx}
-                style={{
-                  padding: '10px',
-                  background: tee.gender === 'male' ? '#e3f2fd' : '#fce4ec',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
+                className={`manual-course-tee-card ${tee.gender === 'male' ? 'is-male' : 'is-female'}`}
               >
                 <div>
                   <strong>{tee.tee_name}</strong> ({tee.gender}) - {tee.total_yards} yds,
                   Par {tee.par_total}, Rating: {tee.course_rating}, Slope: {tee.slope_rating}
-                  <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                  <div className="manual-course-tee-meta">
                     {tee.number_of_holes} holes
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="manual-course-inline-actions">
                   <button
                     type="button"
                     onClick={() => duplicateTee(idx)}
-                    className="btn btn-toggle"
-                    style={{ width: 'auto', padding: '10px' }}
+                    className="btn btn-toggle u-p-10"
                   >
                     Duplicate
                   </button>
                   <button
                     type="button"
                     onClick={() => removeTee(idx)}
-                    className="btn btn-cancel"
-                    style={{ width: 'auto', padding: '10px' }}
+                    className="btn btn-cancel u-p-10"
                   >
                     Remove
                   </button>
@@ -438,7 +429,7 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
       )}
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+      <div className="manual-course-actions">
         <button
           type="button"
           onClick={onCancel}
@@ -458,3 +449,5 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
     </div>
   );
 }
+
+

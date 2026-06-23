@@ -88,16 +88,16 @@ function ResetPasswordForm() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><TriangleAlert size={50} color="var(--color-warning)" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><TriangleAlert size={50} color="var(--color-warning)" /></div>
             <h1 className="auth-title">Invalid Reset Link</h1>
           </div>
 
-          <p className='secondary-text' style={{ marginBottom: '24px', textAlign: 'center' }}>
+          <p className="secondary-text auth-copy-block">
             This password reset link is invalid or has expired. Please request a new one.
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="auth-actions-stack">
             <button onClick={() => router.push('/forgot-password')} className="btn btn-accent">
               Request New Reset Link
             </button>
@@ -114,12 +114,12 @@ function ResetPasswordForm() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Check size={50} color="var(--color-success)" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><Check size={50} color="var(--color-success)" /></div>
             <h1 className="auth-title">Password Reset Successful</h1>
           </div>
 
-          <p className='secondary-text' style={{ marginBottom: '24px', textAlign: 'center' }}>
+          <p className="secondary-text auth-copy-block">
             Your password has been successfully reset. You will be redirected to the login page shortly.
           </p>
 
@@ -134,7 +134,7 @@ function ResetPasswordForm() {
   return (
     <div className="login-stack">
       <div className="card login-card">
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div className="auth-status-header">
           <h1 className="auth-title">Reset Password</h1>
           <p className='secondary-text'>
             Enter your new password below.
@@ -142,18 +142,17 @@ function ResetPasswordForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="form">
-          <div style={{ position: 'relative' }}>
+          <div className="auth-input-wrap">
             <input
               type={showPassword ? 'text' : 'password'}
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="form-input"
+              className="form-input auth-input-control"
               placeholder="Enter new password (min 8 characters)"
               minLength={8}
               required
               disabled={loading}
-              style={{ paddingRight: '45px' }}
               max={100}
               onFocus={(e) => {
                 const len = e.target.value.length;
@@ -169,36 +168,24 @@ function ResetPasswordForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '1.2rem',
-                padding: '0',
-                color: '#9AA3B2',
-              }}
+              className="auth-input-toggle"
               aria-label="Toggle password visibility"
             >
               {showPassword ? <Eye size={20}/> : <EyeOff size={20}/>}
             </button>
           </div>
 
-          <div style={{ position: 'relative' }}>
+          <div className="auth-input-wrap">
             <input
               type={showConfirmPassword ? 'text' : 'password'}
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="form-input"
+              className="form-input auth-input-control"
               placeholder="Confirm new password"
               minLength={8}
               required
               disabled={loading}
-              style={{ paddingRight: '45px' }}
               max={100}
               onFocus={(e) => {
                 const len = e.target.value.length;
@@ -214,18 +201,7 @@ function ResetPasswordForm() {
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '1.2rem',
-                padding: '0',
-                color: '#9AA3B2',
-              }}
+              className="auth-input-toggle"
               aria-label="Toggle confirm password visibility"
             >
               {showConfirmPassword ? <Eye size={20}/> : <EyeOff size={20}/>}

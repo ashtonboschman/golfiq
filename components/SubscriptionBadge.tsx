@@ -4,7 +4,6 @@ import { useSubscription } from '@/hooks/useSubscription';
 import {
   getTierDisplayName,
   getStatusDisplayName,
-  getStatusBadgeColor,
 } from '@/lib/subscription';
 
 interface SubscriptionBadgeProps {
@@ -12,9 +11,6 @@ interface SubscriptionBadgeProps {
   size?: 'small' | 'medium' | 'large';
 }
 
-/**
- * Badge component to display subscription tier (and optionally status)
- */
 export default function SubscriptionBadge({
   showStatus = false,
   size = 'medium',
@@ -40,17 +36,14 @@ export default function SubscriptionBadge({
   }
 
   const statusName = getStatusDisplayName(status);
-  const statusColor = getStatusBadgeColor(status);
+  const statusClass = status === 'active' ? 'is-active' : status === 'past_due' ? 'is-past-due' : 'is-cancelled';
 
   return (
     <div className="subscription-badge-group">
       <span className={`insights-badge ${getInsightsTierClass(tier)} ${size}`}>
         {tierName}
       </span>
-      <span
-        className={`subscription-badge ${size}`}
-        style={{ backgroundColor: statusColor }}
-      >
+      <span className={`subscription-badge ${size} ${statusClass}`}>
         {statusName}
       </span>
     </div>

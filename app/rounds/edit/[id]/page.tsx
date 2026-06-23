@@ -1118,7 +1118,7 @@ function EditRoundContent() {
           <div className="form-row">
             <label className="form-label">Date</label>
             {showDataSkeleton ? (
-              <SkeletonBlock className="skeleton-input" style={{ height: 44 }} />
+              <SkeletonBlock className="skeleton-input" height={44} />
             ) : (
               <input
                 type="date"
@@ -1134,10 +1134,10 @@ function EditRoundContent() {
 
           <div className="form-row">
             <label className="form-label">Course</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
-              <div style={{ flex: 1 }}>
+            <div className="round-form-course-row">
+              <div className="round-form-course-select">
                 {showDataSkeleton ? (
-                  <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+                  <SkeletonBlock className="skeleton-select" height={42} />
                 ) : (
                   <AsyncPaginate
                     value={selectedCourse}
@@ -1177,7 +1177,7 @@ function EditRoundContent() {
           <div className="form-row">
             <label className="form-label">Tee</label>
             {showDataSkeleton ? (
-              <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+              <SkeletonBlock className="skeleton-select" height={42} />
             ) : (
               <AsyncPaginate
                 key={selectedCourse?.value || 'no-course'}
@@ -1215,7 +1215,7 @@ function EditRoundContent() {
             <div className="form-row">
               <label className="form-label">Round Type</label>
               {showDataSkeleton ? (
-                <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+                <SkeletonBlock className="skeleton-select" height={42} />
               ) : (
                 <Select
                   value={segmentOptions.find(o => o.value === round.tee_segment) || segmentOptions[0]}
@@ -1422,7 +1422,7 @@ function EditRoundContent() {
           <div className="form-row">
             <label className="form-label">Notes</label>
             {showDataSkeleton ? (
-              <SkeletonBlock className="skeleton-input" style={{ height: 84 }} />
+              <SkeletonBlock className="skeleton-input" height={84} />
             ) : (
               <textarea
                 name="notes"

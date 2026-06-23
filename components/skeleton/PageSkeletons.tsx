@@ -1,4 +1,5 @@
 import { Edit, Info, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronRight, MapPin } from 'lucide-react';
 import { SkeletonBlock, SkeletonCard, SkeletonCircle, SkeletonText } from '@/components/skeleton/Skeleton';
 
 type RoundListSkeletonProps = {
@@ -80,14 +81,14 @@ export function DashboardSkeleton() {
         ))}
       </div>
 
-      <div className="trend-card" style={{ height: 300 }}>
+      <div className="trend-card trend-card-h-300">
         <SkeletonBlock className="skeleton-trend-title" height={18} />
         <SkeletonBlock className="skeleton-chart-area" />
       </div>
 
       <div className="section">
         <SkeletonCard className="last-five-rounds-card">
-          <SkeletonBlock width={120} height={22} style={{ marginInline: 'auto' }} />
+          <SkeletonBlock width={120} height={22} center />
         </SkeletonCard>
         <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
       </div>
@@ -140,12 +141,12 @@ export function InsightsSkeleton() {
         ))}
       </div>
 
-      <div className="trend-card" style={{ height: 300 }}>
+      <div className="trend-card trend-card-h-300">
         <SkeletonBlock className="skeleton-trend-title" height={18} />
         <SkeletonBlock className="skeleton-chart-area" />
       </div>
 
-      <div className="trend-card" style={{ height: 300 }}>
+      <div className="trend-card trend-card-h-300">
         <SkeletonBlock className="skeleton-trend-title" height={18} />
         <SkeletonBlock className="skeleton-chart-area" />
       </div>
@@ -190,7 +191,7 @@ export function RoundInsightsSkeleton() {
           <Sparkles size={20} />
           <h3>Performance Insights</h3>
         </div>
-        <SkeletonBlock width={78} height={24} style={{ borderRadius: 999 }} />
+        <SkeletonBlock width={78} height={24} rounded="pill" />
       </div>
       <div className="insights-content">
         {Array.from({ length: 3 }).map((_, index) => (
@@ -220,16 +221,23 @@ export function CourseListSkeleton({ count = 3 }: { count?: number }) {
       {Array.from({ length: count }).map((_, index) => (
         <SkeletonCard key={`course-skeleton-${index}`} className="course-card skeleton-course-card">
           <div className="course-card-top">
-            <SkeletonBlock width="62%" height={20} />
-            <SkeletonBlock className="skeleton-holes-tag" height={22} />
+            <div className="course-name skeleton-course-title-wrap">
+              <span className="skeleton skeleton-course-title" aria-hidden="true" />
+            </div>
+            <span className="course-holes-tag skeleton skeleton-holes-tag skeleton-course-holes-pill" aria-hidden="true" />
           </div>
-          <SkeletonBlock width="44%" height={14} />
           <div className="course-card-bottom">
             <div className="course-card-bottom-left">
-              <SkeletonBlock width="15%" height={12} />
+              <div className="course-location skeleton-course-location-row">
+                <MapPin size={14} aria-hidden="true" />
+                <span className="skeleton skeleton-course-location-copy" aria-hidden="true" />
+              </div>
+              <p className="course-distance">
+                <span className="skeleton skeleton-course-distance-copy" aria-hidden="true" />
+              </p>
             </div>
             <div className="course-card-bottom-right">
-              <SkeletonCircle size={18} />
+              <ChevronRight className="primary-text" aria-hidden="true" />
             </div>
           </div>
         </SkeletonCard>
@@ -254,13 +262,13 @@ export function LeaderboardSkeleton() {
             <SkeletonBlock width={56} height={14} />
           </div>
           <div className="leaderboard-cell">
-            <SkeletonBlock width={28} height={14} style={{ marginInline: 'auto' }} />
+            <SkeletonBlock width={28} height={14} center />
           </div>
           <div className="leaderboard-cell">
-            <SkeletonBlock width={28} height={14} style={{ marginInline: 'auto' }} />
+            <SkeletonBlock width={28} height={14} center />
           </div>
           <div className="leaderboard-cell">
-            <SkeletonBlock width={28} height={14} style={{ marginInline: 'auto' }} />
+            <SkeletonBlock width={28} height={14} center />
           </div>
         </div>
       </SkeletonCard>
@@ -288,13 +296,13 @@ export function LeaderboardRowsSkeleton({ count = 25 }: { count?: number }) {
               </div>
             </div>
             <div className="leaderboard-cell centered">
-              <SkeletonBlock width={36} height={14} style={{ marginInline: 'auto' }} />
+              <SkeletonBlock width={36} height={14} center />
             </div>
             <div className="leaderboard-cell centered">
-              <SkeletonBlock width={36} height={14} style={{ marginInline: 'auto' }} />
+              <SkeletonBlock width={36} height={14} center />
             </div>
             <div className="leaderboard-cell centered">
-              <SkeletonBlock width={36} height={14} style={{ marginInline: 'auto' }} />
+              <SkeletonBlock width={36} height={14} center />
             </div>
           </div>
         </SkeletonCard>
@@ -313,7 +321,7 @@ export function FriendsSkeleton() {
           {Array.from({ length: 4 }).map((__, rowIndex) => (
             <div key={`friends-row-${cardIndex}-${rowIndex}`} className="skeleton-row">
               <SkeletonCircle size={34} />
-              <div style={{ flex: 1 }}>
+              <div className="u-flex-1">
                 <SkeletonBlock width="44%" height={14} />
               </div>
               <SkeletonBlock width={78} height={30} />
@@ -331,7 +339,7 @@ export function FriendsAddSkeleton() {
       <SkeletonBlock className="skeleton-input" />
       {Array.from({ length: 8 }).map((_, index) => (
         <SkeletonCard key={`friends-add-row-${index}`}>
-          <div className="skeleton-row" style={{ justifyContent: 'space-between' }}>
+          <div className="skeleton-row u-space-between">
             <div className="skeleton-row">
               <SkeletonCircle size={34} />
               <SkeletonBlock width={140} height={14} />
@@ -384,7 +392,7 @@ export function CoursesSearchSkeleton() {
         <SkeletonBlock width="92%" height={12} />
         <SkeletonBlock width="88%" height={12} />
         <div className="skeleton-row">
-          <div style={{ flex: 1 }}>
+          <div className="u-flex-1">
             <SkeletonBlock className="skeleton-input" />
           </div>
           <SkeletonBlock width={120} height={42} />
@@ -398,13 +406,13 @@ export function ProfileSkeleton() {
   return (
     <div className="page-stack skeleton-stack" aria-busy="true">
       <SkeletonCard>
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className="u-flex-center">
           <SkeletonCircle size={180} />
         </div>
         {Array.from({ length: 8 }).map((_, index) => (
           <div key={`profile-field-${index}`}>
             <SkeletonBlock width="26%" height={12} />
-            <SkeletonBlock className="skeleton-input" style={{ marginTop: 6 }} />
+            <SkeletonBlock className="skeleton-input" mt={6} />
           </div>
         ))}
         <div className="grid grid-2">
@@ -459,9 +467,9 @@ export function UserDetailsSkeleton() {
       <SkeletonCard>
         <div className="skeleton-row">
           <SkeletonCircle size={64} />
-          <div style={{ flex: 1 }}>
+          <div className="u-flex-1">
             <SkeletonBlock width="42%" height={16} />
-            <SkeletonBlock width="28%" height={12} style={{ marginTop: 8 }} />
+            <SkeletonBlock width="28%" height={12} mt={8} />
           </div>
         </div>
       </SkeletonCard>
@@ -486,7 +494,7 @@ export function RoundFormSkeleton() {
         {Array.from({ length: 8 }).map((_, index) => (
           <div key={`round-form-field-${index}`}>
             <SkeletonBlock width="22%" height={12} />
-            <SkeletonBlock className={index < 5 ? 'skeleton-select' : 'skeleton-input'} style={{ marginTop: 6 }} />
+            <SkeletonBlock className={index < 5 ? 'skeleton-select' : 'skeleton-input'} mt={6} />
           </div>
         ))}
         <SkeletonBlock width="100%" height={72} />
@@ -518,17 +526,17 @@ export function RoundStatsPageSkeleton({
       <SkeletonCard>
         <div className="stats-header">
           <div className="stats-header-container">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 420, minWidth: 0 }}>
+            <div className="u-minw-0 u-w-pct-100">
               <SkeletonBlock width="78%" height={28} />
               <SkeletonBlock width="50%" height={14} />
             </div>
             <div className="stats-holes-tees-container">
               <SkeletonBlock className="skeleton-holes-tag" height={22} />
               <SkeletonBlock className="skeleton-tee-tag" height={22} />
-              <SkeletonBlock width={62} height={22} style={{ borderRadius: 999 }} />
+              <SkeletonBlock width={62} height={22} rounded="pill" />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div className="admin-course-search-actions">
             <button className="btn btn-edit" disabled>
               <Edit />
             </button>
@@ -545,12 +553,12 @@ export function RoundStatsPageSkeleton({
           <div className="stats-score-grid">
             {['Total Score', 'vs Par', 'FIR', 'GIR', 'Putts/Hole', 'Penalties'].map((label, index) => (
               <div key={`round-score-summary-${index}`}>
-                <SkeletonBlock width="44%" height={29} style={{ marginInline: 'auto' }} />
-                <div className="stats-score-label" style={{ marginTop: 6 }}>
+                <SkeletonBlock width="44%" height={29} center />
+                <div className="stats-score-label u-mt-6">
                   {label}
                 </div>
                 {(index === 1 || index === 4) && (
-                  <SkeletonBlock width="26%" height={12} style={{ marginInline: 'auto', marginTop: 4 }} />
+                  <SkeletonBlock width="26%" height={12} center mt={4} />
                 )}
               </div>
             ))}
@@ -572,8 +580,8 @@ export function RoundStatsPageSkeleton({
             <div className="stats-score-grid">
               {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Untracked'].map((label, index) => (
                 <div key={`round-sg-summary-${index}`}>
-                  <SkeletonBlock width="44%" height={29} style={{ marginInline: 'auto' }} />
-                  <div className="stats-score-label" style={{ marginTop: 6 }}>
+                  <SkeletonBlock width="44%" height={29} center />
+                  <div className="stats-score-label u-mt-6">
                     {label}
                   </div>
                 </div>
@@ -616,12 +624,13 @@ export function AuthCardSkeleton() {
   return (
     <div className="login-stack skeleton-stack" aria-busy="true">
       <SkeletonCard className="login-card">
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className="u-flex-center">
           <SkeletonCircle size={56} />
         </div>
-        <SkeletonBlock width="42%" height={18} style={{ marginInline: 'auto' }} />
-        <SkeletonBlock width="72%" height={12} style={{ marginInline: 'auto' }} />
+        <SkeletonBlock width="42%" height={18} center />
+        <SkeletonBlock width="72%" height={12} center />
       </SkeletonCard>
     </div>
   );
 }
+

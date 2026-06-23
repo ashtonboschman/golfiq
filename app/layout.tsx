@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from 'react';
-import "./globals.css";
 import "./app.css";
 import { Providers, PostHogProvider } from "./providers";
 import Layout from "@/components/Layout";

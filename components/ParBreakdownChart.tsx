@@ -45,6 +45,13 @@ export default function ParBreakdownChart({
         const deltaWidth = isEvenDelta ? 0 : Math.max(normalizedWidth, 1.5);
         const deltaLeft = safeDelta < 0 ? 50 - deltaWidth : 50;
         const pointLeft = safeDelta < 0 ? 50 - deltaWidth : safeDelta > 0 ? 50 + deltaWidth : 50;
+        const isEdgeMin = hasDelta && clampedDelta <= -PAR_DELTA_PER_HOLE_LIMIT + PAR_DELTA_EPSILON;
+        const isEdgeMax = hasDelta && clampedDelta >= PAR_DELTA_PER_HOLE_LIMIT - PAR_DELTA_EPSILON;
+        const pointPositionClass = isEdgeMin
+          ? 'is-edge-min'
+          : isEdgeMax
+            ? 'is-edge-max'
+            : `u-left-pct-${Math.max(0, Math.min(100, Math.round(pointLeft)))}`;
         const trendClass =
           row.trendClassName ??
           (!hasDelta
@@ -66,15 +73,11 @@ export default function ParBreakdownChart({
               <div className="stats-par-chart-track">
                 {hasDelta && !isEvenDelta && (
                   <div
-                    className={`stats-par-chart-delta ${trendClass}`}
-                    style={{
-                      left: `${deltaLeft}%`,
-                      width: `${deltaWidth}%`,
-                    }}
+                    className={`stats-par-chart-delta ${trendClass} u-left-pct-${Math.max(0, Math.min(100, Math.round(deltaLeft)))} u-w-pct-${Math.max(0, Math.min(100, Math.round(deltaWidth)))}`}
                   />
                 )}
                 <div className="stats-par-chart-center" />
-                <div className={`stats-par-chart-point ${trendClass}`} style={{ left: `${pointLeft}%` }} />
+                <div className={`stats-par-chart-point ${trendClass} ${pointPositionClass}`} />
               </div>
             </div>
 
@@ -93,3 +96,5 @@ export default function ParBreakdownChart({
 }
 
 export type { ParBreakdownChartRow };
+
+

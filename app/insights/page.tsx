@@ -489,8 +489,6 @@ function ComparisonBarCard({
   accentHighlight,
   dangerColor,
 }: ComparisonBarCardProps) {
-  const deltaColor =
-    deltaTone === 'up' ? accentHighlight : deltaTone === 'down' ? dangerColor : 'var(--color-secondary-text)';
   const tooltipWithCoverage = coverageText
     ? `${tooltipText}${tooltipText.trim().endsWith('.') ? '' : '.'} ${coverageText}.`
     : tooltipText;
@@ -510,8 +508,8 @@ function ComparisonBarCard({
       ? (typicalRawValue as number) > (recentRawValue as number) + epsilon
       : (typicalRawValue as number) < (recentRawValue as number) - epsilon
     : false;
-  const recentFillColor = recentBetter ? accentHighlight : typicalBetter ? dangerColor : accentColor;
-  const typicalFillColor = typicalBetter ? accentHighlight : recentBetter ? dangerColor : accentColor;
+  const recentFillToneClass = recentBetter ? 'is-positive' : typicalBetter ? 'is-negative' : 'is-neutral';
+  const typicalFillToneClass = typicalBetter ? 'is-positive' : recentBetter ? 'is-negative' : 'is-neutral';
 
   return (
     <div className="card dashboard-stat-card comparison-bar-card">
@@ -525,8 +523,7 @@ function ComparisonBarCard({
         <div className="comparison-bar-track">
           {hasData && recentBarWidth > 0 && (
             <span
-              className="comparison-bar-fill"
-              style={{ width: `${recentBarWidth}%`, backgroundColor: recentFillColor }}
+              className={`comparison-bar-fill ${recentFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(recentBarWidth)))}`}
             />
           )}
         </div>
@@ -538,8 +535,7 @@ function ComparisonBarCard({
         <div className="comparison-bar-track">
           {hasData && typicalBarWidth > 0 && (
             <span
-              className="comparison-bar-fill"
-              style={{ width: `${typicalBarWidth}%`, backgroundColor: typicalFillColor }}
+              className={`comparison-bar-fill ${typicalFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(typicalBarWidth)))}`}
             />
           )}
         </div>
@@ -548,7 +544,6 @@ function ComparisonBarCard({
 
       <span
         className={`comparison-bar-delta ${getDeltaToneClass(deltaTone)}`}
-        style={{ color: deltaColor }}
       >
         {deltaText}
       </span>
@@ -1332,16 +1327,16 @@ export default function InsightsPage() {
         <h3>Scoring Direction</h3>
       </div>
       <div className="trajectory-status-row">
-        <span className="skeleton" style={{ display: 'inline-block', width: 140, height: 32, borderRadius: 999 }} />
+        <span className="skeleton u-inline-block u-w-140 u-h-32 u-rounded-pill" />
       </div>
       <div className="trajectory-pill-grid">
         <div className="trajectory-pill">
           <span className="trajectory-pill-label">Score Range</span>
-          <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+          <span className="skeleton u-inline-block u-w-pct-58 u-h-20" />
         </div>
         <div className="trajectory-pill">
           <span className="trajectory-pill-label">Handicap Range</span>
-          <span className="skeleton" style={{ display: 'inline-block', width: '58%', height: 20 }} />
+          <span className="skeleton u-inline-block u-w-pct-58 u-h-20" />
         </div>
       </div>
     </div>
@@ -1354,7 +1349,7 @@ export default function InsightsPage() {
       <div className="trajectory-status-row">
         <span
           className={`trajectory-label trajectory-chip is-${trajectoryChipTone}`}
-          style={{ color: trajectoryChipColor, borderColor: trajectoryChipColor }}
+
         >
           {trajectoryLabel}
         </span>
@@ -1490,7 +1485,7 @@ export default function InsightsPage() {
           </div>
           <div className="overall-insights-actions">
             {showSkeletonContent ? (
-              <span className="skeleton" style={{ display: 'inline-block', width: 78, height: 24, borderRadius: 999 }} />
+              <span className="skeleton u-inline-block u-w-78 u-h-24 u-rounded-pill" />
             ) : (
               <div ref={overallConfidenceTooltipRef} className="info-tooltip-container insights-confidence-tooltip">
                 <button
@@ -1547,41 +1542,41 @@ export default function InsightsPage() {
               <div className="comparison-bar-row">
                 <span className="comparison-bar-label">Recent</span>
                 <div className="comparison-bar-track">
-                  <span className="comparison-bar-fill skeleton" style={{ width: '62%' }} />
+                  <span className="comparison-bar-fill skeleton u-w-pct-62" />
                 </div>
                 <span className="comparison-bar-value">
-                  <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                  <span className="skeleton u-inline-block u-w-34 u-h-14" />
                 </span>
               </div>
               <div className="comparison-bar-row">
                 <span className="comparison-bar-label">Average</span>
                 <div className="comparison-bar-track">
-                  <span className="comparison-bar-fill skeleton" style={{ width: '55%' }} />
+                  <span className="comparison-bar-fill skeleton u-w-pct-55" />
                 </div>
                 <span className="comparison-bar-value">
-                  <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                  <span className="skeleton u-inline-block u-w-34 u-h-14" />
                 </span>
               </div>
               <span className="comparison-bar-delta">
-                <span className="skeleton" style={{ display: 'inline-block', width: 110, height: 14 }} />
+                <span className="skeleton u-inline-block u-w-110 u-h-14" />
               </span>
             </div>
             <div className="card dashboard-stat-card comparison-bar-card consistency-card">
               <div className="comparison-bar-header">
                 <h3>Scoring Consistency</h3>
               </div>
-              <span className="skeleton" style={{ display: 'block', width: '40%', height: 28, borderRadius: 999, marginInline: 'auto' }} />
-              <span className="skeleton" style={{ display: 'block', width: '50%', height: 14, marginInline: 'auto' }} />
+              <span className="skeleton u-block u-w-pct-40 u-h-28 u-rounded-pill u-mx-auto" />
+              <span className="skeleton u-block u-w-pct-50 u-h-14 u-mx-auto" />
             </div>
           </div>
 
-          <div className="trend-card" style={{ height: 300 }}>
+          <div className="trend-card trend-card-h-300">
             <h3 className="insights-centered-title">Handicap Trend</h3>
             <div className="skeleton skeleton-chart-area" />
           </div>
 
           <section className="insights-sg-section">
-            <div className="trend-card" style={{ height: 300 }}>
+            <div className="trend-card trend-card-h-300">
               <h3 className="insights-centered-title">Strokes Gained Trend</h3>
               <div className="skeleton skeleton-chart-area" />
             </div>
@@ -1603,25 +1598,16 @@ export default function InsightsPage() {
                   return (
                     <div key={`sg-skeleton-${idx}`} className="sg-delta-row">
                       <span className="sg-delta-label">
-                        <span className="skeleton" style={{ display: 'inline-block', width: 88, height: 14 }} />
+                        <span className="skeleton u-inline-block u-w-88 u-h-14" />
                       </span>
                       <div className="sg-delta-track">
                         <span className="sg-delta-midline" />
                         <span
-                          className="skeleton"
-                          style={{
-                            display: 'block',
-                            position: 'absolute',
-                            left: barLeft,
-                            top: 0,
-                            width: barWidth,
-                            height: '100%',
-                            borderRadius: 999,
-                          }}
+                          className={`skeleton sg-skeleton-bar ${isNeutral ? 'is-neutral' : isNegative ? (idx === 4 ? 'is-negative-sm' : 'is-negative') : (idx === 4 ? 'is-positive-sm' : 'is-positive')}`}
                         />
                       </div>
                       <span className="sg-delta-value">
-                        <span className="skeleton" style={{ display: 'inline-block', width: 52, height: 14 }} />
+                        <span className="skeleton u-inline-block u-w-52 u-h-14" />
                       </span>
                     </div>
                   );
@@ -1639,23 +1625,23 @@ export default function InsightsPage() {
                 <div className="comparison-bar-row">
                   <span className="comparison-bar-label">Recent</span>
                   <div className="comparison-bar-track">
-                    <span className="comparison-bar-fill skeleton" style={{ width: '58%' }} />
+                    <span className="comparison-bar-fill skeleton u-w-pct-58" />
                   </div>
                   <span className="comparison-bar-value">
-                    <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                    <span className="skeleton u-inline-block u-w-34 u-h-14" />
                   </span>
                 </div>
                 <div className="comparison-bar-row">
                   <span className="comparison-bar-label">Average</span>
                   <div className="comparison-bar-track">
-                    <span className="comparison-bar-fill skeleton" style={{ width: '52%' }} />
+                    <span className="comparison-bar-fill skeleton u-w-pct-52" />
                   </div>
                   <span className="comparison-bar-value">
-                    <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 14 }} />
+                    <span className="skeleton u-inline-block u-w-34 u-h-14" />
                   </span>
                 </div>
                 <span className="comparison-bar-delta">
-                  <span className="skeleton" style={{ display: 'inline-block', width: 100, height: 14 }} />
+                  <span className="skeleton u-inline-block u-w-pct-100 u-h-14" />
                 </span>
               </div>
             ))}
@@ -1749,10 +1735,6 @@ export default function InsightsPage() {
         >
           <div
             className="card dashboard-stat-card sg-delta-card"
-            style={{
-              ['--sg-positive-color' as any]: INSIGHTS_POSITIVE_COLOR,
-              ['--sg-negative-color' as any]: INSIGHTS_NEGATIVE_COLOR,
-            } as any}
           >
             <div className="comparison-bar-header">
               <h3 className="insights-centered-title">Strokes Gained by Area</h3>
@@ -1921,3 +1903,5 @@ export default function InsightsPage() {
     </div>
   );
 }
+
+

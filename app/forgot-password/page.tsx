@@ -49,21 +49,21 @@ export default function ForgotPasswordPage() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><Mail size={50} color="var(--color-accent)" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><Mail size={50} color="var(--color-accent)" /></div>
             <h1 className="auth-title">Check Your Email</h1>
           </div>
 
-          <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-            <p className="secondary-text" style={{ marginBottom: '12px' }}>
+          <div className="auth-copy-block">
+            <p className="secondary-text auth-copy-tight">
               If an account exists for <strong>{email}</strong>, you will receive a password reset link shortly.
             </p>
-            <p className="secondary-text" style={{ fontSize: '14px' }}>
+            <p className="secondary-text auth-copy-small">
               The link will expire in 1 hour. Check your spam folder if you don't see it.
             </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="auth-actions-stack">
             <button onClick={() => router.push('/login')} className="btn btn-accent">
               Return to Login
             </button>
@@ -86,7 +86,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="login-stack">
       <div className="card login-card">
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div className="auth-status-header">
           <h1 className="auth-title">Forgot Password</h1>
           <p className='secondary-text'>
             Enter your email address and we'll send you a link to reset your password.

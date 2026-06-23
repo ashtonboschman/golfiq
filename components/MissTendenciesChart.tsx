@@ -146,11 +146,12 @@ export default function MissTendenciesChart({
   }
 
   return (
-    <div className="trend-card" style={{ height: 320, justifyContent: 'flex-start' }}>
+    <div className="trend-card trend-card-h-320 trend-card-chart">
       <h3 className="insights-centered-title">FIR & GIR Miss Tendencies</h3>
-      <div className="w-full h-full" style={{ minWidth: 0 }}>
+      <div className="trend-card-chart-body">
         <Bar data={chartData} options={options} />
       </div>
     </div>
   );
 }
+

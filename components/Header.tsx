@@ -219,7 +219,7 @@ export default function Header() {
             <ChevronLeft />
           </button>
         ) : (
-          <div style={{ width: '40px' }} /> // Spacer to keep logo centered
+          <div className="u-icon-spacer-40" /> // Spacer to keep logo centered
         )}
 
         <div

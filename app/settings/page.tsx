@@ -234,7 +234,7 @@ export default function SettingsPage() {
                 <div className="subscription-info-row">
                   <span className="subscription-label">Current Plan</span>
                   {showSubscriptionSkeleton ? (
-                    <SkeletonBlock width={78} height={24} style={{ borderRadius: 999 }} />
+                    <SkeletonBlock width={78} height={24} rounded="pill" />
                   ) : (
                     <SubscriptionBadge size="medium" />
                   )}
@@ -245,7 +245,7 @@ export default function SettingsPage() {
                     <SkeletonBlock width="80%" height={14} />
                     <SkeletonBlock width="65%" height={14} />
                     <SkeletonBlock width="88%" height={14} />
-                    <SkeletonBlock className="skeleton-btn" height={44} style={{ marginTop: 8 }} />
+                    <SkeletonBlock className="skeleton-btn" height={44} mt={8} />
                   </div>
                 ) : (
                   <>
@@ -358,7 +358,7 @@ export default function SettingsPage() {
                   </span>
                 )}
                 {showSessionSkeleton ? (
-                  <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+                  <SkeletonBlock className="skeleton-select" height={42} />
                 ) : (
                   <Select
                     inputId="theme-select"
@@ -435,7 +435,7 @@ export default function SettingsPage() {
                   Found a bug or have an idea? Submit it here and we will review it.
                 </p>
                 {showSessionSkeleton ? (
-                  <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+                  <SkeletonBlock className="skeleton-select" height={42} />
                 ) : (
                   <Select<FeedbackOption, false>
                     inputId="feedback-type"

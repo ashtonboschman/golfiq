@@ -163,8 +163,8 @@ function DashboardFallback() {
       </button>
 
       <div className="dashboard-filters">
-        <div className="skeleton skeleton-select" style={{ height: 44 }} />
-        <div className="skeleton skeleton-select" style={{ height: 44 }} />
+        <div className="skeleton skeleton-select u-h-44" />
+        <div className="skeleton skeleton-select u-h-44" />
       </div>
 
       <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
@@ -215,7 +215,7 @@ function DashboardFallback() {
         </div>
       </div>
 
-      <div className="trend-card" style={{ height: 300 }}>
+      <div className="trend-card trend-card-h-300">
         <h3 className="insights-centered-title">Score Trend</h3>
         <div className="skeleton skeleton-chart-area" />
       </div>
@@ -1626,7 +1626,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               </div>
             </div>
           </div>
-          <div className="trend-card" style={{ height: 300 }}>
+          <div className="trend-card trend-card-h-300">
             <h3 className="insights-centered-title">Score Trend</h3>
             <div className="skeleton skeleton-chart-area" />
           </div>
@@ -1800,8 +1800,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                     >
                       <div className="scoring-profile-legend-label-wrap">
                         <span
-                          className="scoring-profile-legend-dot"
-                          style={{ backgroundColor: item.color }}
+                          className={`scoring-profile-legend-dot scoring-profile-dot-${item.key}`}
                           aria-hidden="true"
                         />
                         <span>{item.label}</span>
@@ -1827,7 +1826,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               ['Up & Down', stats.upAndDownPct, '%', 'How often you save par or better after one short-game shot and one putt or fewer. Higher is better.'],
               ['Sand Saves', stats.sandSavePct, '%', 'How often you make par or better after a greenside bunker shot. Higher is better.'],
             ].map(([label, val, isPercent, tooltip]) => (
-              <div className="card dashboard-stat-card" key={label as string} style={{ position: 'relative' }}>
+              <div className="card dashboard-stat-card u-relative" key={label as string}>
                 {tooltip && <InfoTooltip text={tooltip as string} />}
                 <h3>{label}</h3>
                 <p>{isPercent ? formatWholePercent(val as number | null) : formatNumber(val as number | null)}</p>
@@ -1930,3 +1929,5 @@ export default function DashboardPage({ userId }: { userId?: number }) {
     </Suspense>
   );
 }
+
+

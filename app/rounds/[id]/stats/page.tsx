@@ -398,7 +398,7 @@ export default function RoundStatsPage() {
               )}
             </div>
           </div>          
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="admin-course-search-actions">
             <Link
               href={`/rounds/edit/${roundId}?from=stats`}
               className="btn btn-edit"

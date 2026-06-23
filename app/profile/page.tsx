@@ -572,7 +572,7 @@ export default function ProfilePage() {
                 id="avatar-upload"
                 accept="image/*"
                 onChange={handleAvatarUpload}
-                style={{ display: 'none' }}
+                className="u-hidden"
                 disabled={uploadingAvatar || disableActions}
               />
               <label
@@ -652,7 +652,7 @@ export default function ProfilePage() {
 
         <label className="form-label">Bio</label>
         {showDataSkeleton ? (
-          <SkeletonBlock className="skeleton-input" style={{ height: 102 }} />
+          <SkeletonBlock className="skeleton-input" height={102} />
         ) : (
           <textarea
             name="bio"
@@ -684,7 +684,7 @@ export default function ProfilePage() {
 
         <label className="form-label">Gender</label>
         {showDataSkeleton ? (
-          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-select" height={42} />
         ) : (
           <Select
             value={{ value: profile.gender || 'unspecified', label: profile.gender === 'male' ? 'Male' : profile.gender === 'female' ? 'Female' : 'Unspecified' }}
@@ -702,7 +702,7 @@ export default function ProfilePage() {
 
         <label className="form-label">Default Tee</label>
         {showDataSkeleton ? (
-          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-select" height={42} />
         ) : (
           <Select
             value={{ value: profile.default_tee || 'blue', label: (profile.default_tee || 'blue').charAt(0).toUpperCase() + (profile.default_tee || 'blue').slice(1) }}
@@ -722,7 +722,7 @@ export default function ProfilePage() {
 
         <label className="form-label">Favorite Course</label>
         {showDataSkeleton ? (
-          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-select" height={42} />
         ) : (
           <AsyncPaginate
             value={favoriteCourseOption}
@@ -745,7 +745,7 @@ export default function ProfilePage() {
 
         <label className="form-label">Dashboard Visibility</label>
         {showDataSkeleton ? (
-          <SkeletonBlock className="skeleton-select" style={{ height: 42 }} />
+          <SkeletonBlock className="skeleton-select" height={42} />
         ) : (
           <Select
             value={{ value: profile.dashboard_visibility || 'private', label: (profile.dashboard_visibility || 'private').charAt(0).toUpperCase() + (profile.dashboard_visibility || 'private').slice(1) }}
@@ -781,7 +781,7 @@ export default function ProfilePage() {
       {showPasswordForm ? (
         <form onSubmit={handlePasswordChange} className="card">
           <label className="form-label">Current Password</label>
-          <div style={{ position: 'relative' }}>
+          <div className="auth-input-wrap">
             <input
               type={showCurrentPassword ? 'text' : 'password'}
               value={passwords.currentPassword}
@@ -804,26 +804,14 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                color: 'var(--color-secondary-text)',
-              }}
+              className="auth-input-toggle padded"
               aria-label="Toggle current password visibility"
             >
               {showCurrentPassword ? <Eye size={20} /> : <EyeOff size={20} />}
             </button>
           </div>
           <label className="form-label">New Password</label>
-          <div style={{ position: 'relative' }}>
+          <div className="auth-input-wrap">
             <input
               type={showNewPassword ? 'text' : 'password'}
               value={passwords.newPassword}
@@ -846,26 +834,14 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setShowNewPassword(!showNewPassword)}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                color: 'var(--color-secondary-text)',
-              }}
+              className="auth-input-toggle padded"
               aria-label="Toggle new password visibility"
             >
               {showNewPassword ? <Eye size={20} /> : <EyeOff size={20} />}
             </button>
           </div>
           <label className="form-label">Confirm New Password</label>
-          <div style={{ position: 'relative' }}>
+          <div className="auth-input-wrap">
             <input
               type={showConfirmPassword ? 'text' : 'password'}
               value={passwords.confirmPassword}
@@ -888,19 +864,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                color: 'var(--color-secondary-text)',
-              }}
+              className="auth-input-toggle padded"
               aria-label="Toggle confirm password visibility"
             >
               {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}

@@ -26,7 +26,6 @@ export default function PullToRefresh({ onRefresh, children }: PullToRefreshProp
       if (result instanceof Promise) {
         await result;
       } else {
-        // If onRefresh is synchronous (e.g., state setter), show spinner briefly
         await new Promise(resolve => setTimeout(resolve, SPINNER_DURATION));
       }
     } finally {
@@ -84,21 +83,17 @@ export default function PullToRefresh({ onRefresh, children }: PullToRefreshProp
 
   const progress = Math.min(pullDistance / THRESHOLD, 1);
   const showIndicator = pullDistance > 5 || refreshing;
+  const pullHeightClass = `u-h-dyn-${Math.max(0, Math.min(100, Math.round(pullDistance)))}`;
+  const opacityClass = `u-opacity-${Math.max(0, Math.min(100, Math.round(progress * 100)))}`;
+  const rotationClass = `u-rotate-${Math.max(0, Math.min(360, Math.round(progress * 360)))}`;
 
   return (
     <>
       {showIndicator && (
-        <div
-          className="pull-to-refresh-indicator"
-          style={{ height: `${pullDistance}px` }}
-        >
+        <div className={`pull-to-refresh-indicator ${pullHeightClass}`}>
           <RefreshCw
             size={20}
-            className={refreshing ? 'ptr-spinning' : ''}
-            style={{
-              opacity: progress,
-              transform: `rotate(${progress * 360}deg)`,
-            }}
+            className={`${refreshing ? 'ptr-spinning' : ''} ${opacityClass} ${rotationClass}`.trim()}
           />
         </div>
       )}

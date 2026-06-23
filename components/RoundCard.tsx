@@ -141,14 +141,14 @@ export default function RoundCard({
 
   if (disableClick) {
     return (
-      <div className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+      <div className="card u-link-reset">
         {cardContent}
       </div>
     );
   }
 
   return (
-    <Link href={`/rounds/${round.id}/stats`} className="card clickable" style={{ textDecoration: 'none', color: 'inherit' }}>
+    <Link href={`/rounds/${round.id}/stats`} className="card clickable u-link-reset">
       {cardContent}
     </Link>
   );

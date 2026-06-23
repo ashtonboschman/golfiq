@@ -86,11 +86,11 @@ function SubscriptionSuccessContent() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ marginBottom: '16px' }}><Loader2 size={50} className="spinning" /></div>
+          <div className="auth-status-header">
+          <div className="auth-status-icon"><Loader2 size={50} className="spinning" /></div>
             <h1 className="auth-title">Setting up Premium...</h1>
           </div>
-          <p className="secondary-text" style={{ textAlign: 'center' }}>
+          <p className="secondary-text u-text-center">
             Please wait while we confirm your premium access.
           </p>
         </div>
@@ -108,25 +108,25 @@ function SubscriptionSuccessContent() {
     return (
       <div className="login-stack">
         <div className="card login-card">
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ marginBottom: '16px' }}><AlertCircle size={50} color="var(--color-red)" /></div>
+          <div className="auth-status-header">
+            <div className="auth-status-icon"><AlertCircle size={50} color="var(--color-red)" /></div>
             <h1 className="auth-title">{isWrongUser ? 'Wrong Account' : 'Something Went Wrong'}</h1>
           </div>
 
-          <p className="secondary-text" style={{ marginBottom: '12px', textAlign: 'center' }}>
+          <p className="secondary-text auth-copy-tight u-text-center">
             {isWrongUser
               ? 'You are logged in with a different account than the one that started this checkout.'
               : error
             }
           </p>
-          <p className="secondary-text" style={{ marginBottom: '24px', textAlign: 'center', fontSize: '14px' }}>
+          <p className="secondary-text auth-copy-block auth-copy-small">
             {isWrongUser
               ? 'Please sign out and sign in with the account that started the subscription purchase.'
               : 'Your payment may have been processed. Please check your settings page or contact support.'
             }
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="auth-actions-stack">
             {isWrongUser ? (
               <button className="btn btn-primary" onClick={() => router.push('/api/auth/signout')}>
                 Sign Out & Switch Account
@@ -150,22 +150,22 @@ function SubscriptionSuccessContent() {
   return (
     <div className="login-stack">
       <div className="card login-card">
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ marginBottom: '16px' }}><Check size={50} color="var(--color-success)" /></div>
+        <div className="auth-status-header">
+          <div className="auth-status-icon"><Check size={50} color="var(--color-success)" /></div>
           <h1 className="auth-title">Premium Is Active</h1>
         </div>
 
-        <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-          <p className="secondary-text" style={{ marginBottom: '12px' }}>
+        <div className="auth-copy-block">
+          <p className="secondary-text auth-copy-tight">
             Your Premium access is active.
           </p>
-          <p className="secondary-text" style={{ fontSize: '14px' }}>
+          <p className="secondary-text auth-copy-small">
             You now have the full round breakdown, full-history trends, and a clearer view of
             where your scores and handicap may be heading.
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="auth-actions-stack">
           <button className="btn btn-toggle" onClick={() => router.push('/dashboard')}>
             Go to Dashboard
           </button>
@@ -174,7 +174,7 @@ function SubscriptionSuccessContent() {
           </button>
         </div>
 
-        <p className="secondary-text" style={{ marginTop: '16px', textAlign: 'center', fontSize: '14px' }}>
+        <p className="secondary-text auth-copy-small u-text-center">
           Redirecting to dashboard in {countdown} seconds...
         </p>
       </div>
