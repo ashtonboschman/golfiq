@@ -15,6 +15,7 @@ import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { useLiveRoundHoleScroll } from '@/lib/rounds/useLiveRoundHoleScroll';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -207,6 +208,12 @@ function EditRoundContent() {
   }, []);
 
   const isHBH = round.hole_by_hole === 1;
+
+  useLiveRoundHoleScroll({
+    enabled: isHBH && initialized,
+    expandedHole,
+    holeCardRefs,
+  });
 
   useEffect(() => {
     if (status !== 'unauthenticated') {
@@ -1491,5 +1498,3 @@ export default function EditRoundPage() {
     </Suspense>
   );
 }
-
-

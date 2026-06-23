@@ -16,6 +16,7 @@ import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { getRoundAddDraftKey } from '@/lib/rounds/addDraft';
+import { useLiveRoundHoleScroll } from '@/lib/rounds/useLiveRoundHoleScroll';
 import {
   buildLiveRoundContextFromDraft,
   clearDashboardResumeCtaSnooze,
@@ -217,6 +218,12 @@ function AddRoundContent() {
   }, []);
 
   const isHBH = round.hole_by_hole === 1;
+
+  useLiveRoundHoleScroll({
+    enabled: isHBH && initialized,
+    expandedHole,
+    holeCardRefs,
+  });
 
   useEffect(() => {
     if (status !== 'unauthenticated') {
