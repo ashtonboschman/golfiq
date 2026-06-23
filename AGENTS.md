@@ -29,6 +29,9 @@ GolfIQ is not a GPS-first golf app. Prioritize fast round entry, clear stats, de
 * Prisma models/fields use camelCase in code and map to snake_case database names with `@map` / `@@map`.
 * Do not rename mapped Prisma fields casually.
 * Treat `prisma/schema.prisma`, existing migrations, and Supabase SQL workflows as high-risk.
+* For Prisma-managed database changes, follow the repo's historical pattern: create tracked Prisma migration folders under `prisma/migrations` instead of standalone manual SQL files whenever feasible.
+* Use Prisma migrations as the source of truth for schema evolution. In this repo, prefer `npx prisma migrate deploy` for applying committed migrations because there is no separate dev migration environment yet.
+* Do not auto-run `npx prisma migrate deploy`. Prepare the migration files, but leave the actual deploy command for the user to review, authorize, and run manually.
 * Assume Supabase is the Postgres host.
 * Do not introduce a new app-wide Supabase client pattern unless explicitly requested.
 

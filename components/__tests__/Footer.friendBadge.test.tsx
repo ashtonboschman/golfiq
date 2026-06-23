@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import Footer from '@/components/Footer';
 
 let mockPathname = '/dashboard';
+let mockHasInsightsNudgePending = false;
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
@@ -35,7 +36,7 @@ jest.mock('@/context/FriendsContext', () => ({
 jest.mock('@/lib/insights/insightsNudge', () => ({
   INSIGHTS_NUDGE_EVENT: 'insights-nudge-event',
   clearInsightsNudgePending: jest.fn(),
-  hasInsightsNudgePending: () => false,
+  hasInsightsNudgePending: () => mockHasInsightsNudgePending,
 }));
 
 const mockedUseSession = useSession as unknown as jest.Mock;
@@ -44,6 +45,7 @@ describe('Footer friend badge', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPathname = '/dashboard';
+    mockHasInsightsNudgePending = false;
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: {
@@ -56,7 +58,19 @@ describe('Footer friend badge', () => {
 
   it('shows the friends badge when unread accepted notifications exist', () => {
     const { container } = render(<Footer />);
+    const badge = container.querySelector('.friend-badge');
 
-    expect(container.querySelector('.friend-badge')).toBeInTheDocument();
+    expect(badge).toBeInTheDocument();
+    expect(badge?.parentElement).toHaveClass('footer-icon');
+  });
+
+  it('shows the insights badge inside the footer icon wrapper when a nudge is pending', () => {
+    mockHasInsightsNudgePending = true;
+
+    const { container } = render(<Footer />);
+    const badge = container.querySelector('.friend-badge');
+
+    expect(badge).toBeInTheDocument();
+    expect(badge?.parentElement).toHaveClass('footer-icon');
   });
 });

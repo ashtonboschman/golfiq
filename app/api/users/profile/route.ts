@@ -18,6 +18,12 @@ const profileUpdateSchema = z.object({
   email: z.string().trim().email().toLowerCase().optional(),
   username: z.string().trim().min(1).max(100).regex(USERNAME_REGEX, 'Username can only include letters, numbers, and underscores').optional(),
   show_strokes_gained: z.boolean().optional(),
+  live_round_track_fir: z.boolean().optional(),
+  live_round_track_gir: z.boolean().optional(),
+  live_round_track_chips: z.boolean().optional(),
+  live_round_track_greenside_bunker_shots: z.boolean().optional(),
+  live_round_track_putts: z.boolean().optional(),
+  live_round_track_penalties: z.boolean().optional(),
 }).strict();
 
 function normalizeProfileUpdateInput(body: Record<string, unknown>) {
@@ -34,6 +40,12 @@ function normalizeProfileUpdateInput(body: Record<string, unknown>) {
     email: body.email,
     username: body.username,
     show_strokes_gained: body.show_strokes_gained,
+    live_round_track_fir: body.live_round_track_fir,
+    live_round_track_gir: body.live_round_track_gir,
+    live_round_track_chips: body.live_round_track_chips,
+    live_round_track_greenside_bunker_shots: body.live_round_track_greenside_bunker_shots,
+    live_round_track_putts: body.live_round_track_putts,
+    live_round_track_penalties: body.live_round_track_penalties,
   };
 }
 
@@ -61,7 +73,13 @@ export async function GET(request: NextRequest) {
             favoriteCourseId: true,
             dashboardVisibility: true,
             theme: true,
-            showStrokesGained: true
+            showStrokesGained: true,
+            liveRoundTrackFir: true,
+            liveRoundTrackGir: true,
+            liveRoundTrackChips: true,
+            liveRoundTrackGreensideBunkerShots: true,
+            liveRoundTrackPutts: true,
+            liveRoundTrackPenalties: true,
           },
         },
       },
@@ -90,6 +108,12 @@ export async function GET(request: NextRequest) {
       dashboard_visibility: user.profile.dashboardVisibility,
       theme: user.profile.theme || 'dark',
       showStrokesGained: user.profile.showStrokesGained,
+      live_round_track_fir: user.profile.liveRoundTrackFir,
+      live_round_track_gir: user.profile.liveRoundTrackGir,
+      live_round_track_chips: user.profile.liveRoundTrackChips,
+      live_round_track_greenside_bunker_shots: user.profile.liveRoundTrackGreensideBunkerShots,
+      live_round_track_putts: user.profile.liveRoundTrackPutts,
+      live_round_track_penalties: user.profile.liveRoundTrackPenalties,
     };
 
     return successResponse({ profile: response });
@@ -136,6 +160,12 @@ export async function PUT(request: NextRequest) {
       email,
       username,
       show_strokes_gained,
+      live_round_track_fir,
+      live_round_track_gir,
+      live_round_track_chips,
+      live_round_track_greenside_bunker_shots,
+      live_round_track_putts,
+      live_round_track_penalties,
     } = parsed.data;
 
     let favoriteCourseId: bigint | null | undefined = undefined;
@@ -165,6 +195,12 @@ export async function PUT(request: NextRequest) {
         dashboardVisibility: dashboard_visibility,
         theme,
         showStrokesGained: show_strokes_gained,
+        liveRoundTrackFir: live_round_track_fir,
+        liveRoundTrackGir: live_round_track_gir,
+        liveRoundTrackChips: live_round_track_chips,
+        liveRoundTrackGreensideBunkerShots: live_round_track_greenside_bunker_shots,
+        liveRoundTrackPutts: live_round_track_putts,
+        liveRoundTrackPenalties: live_round_track_penalties,
       },
     });
 
@@ -197,6 +233,12 @@ export async function PUT(request: NextRequest) {
         dashboard_visibility: updatedProfile.dashboardVisibility,
         theme: updatedProfile.theme || 'dark',
         show_strokes_gained: updatedProfile.showStrokesGained,
+        live_round_track_fir: updatedProfile.liveRoundTrackFir,
+        live_round_track_gir: updatedProfile.liveRoundTrackGir,
+        live_round_track_chips: updatedProfile.liveRoundTrackChips,
+        live_round_track_greenside_bunker_shots: updatedProfile.liveRoundTrackGreensideBunkerShots,
+        live_round_track_putts: updatedProfile.liveRoundTrackPutts,
+        live_round_track_penalties: updatedProfile.liveRoundTrackPenalties,
       },
     });
   } catch (error) {

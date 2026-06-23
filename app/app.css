@@ -747,6 +747,13 @@ select option {
   color: var(--color-accent);
 }
 
+.footer-menu-inner button .footer-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .footer-menu-inner button .icon {
   font-size: 1.8rem;
   line-height: 1;

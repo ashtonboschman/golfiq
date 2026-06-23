@@ -144,7 +144,7 @@ export default function Footer() {
             }}
             disabled={!isInteractive}
           >
-            <span className="icon relative">
+            <span className="icon footer-icon">
               {icon}
               {path === '/friends' && hasUnreadFriendActivity && (
                 <span className="friend-badge" />

@@ -8,6 +8,14 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { Download, MessageSquare, PartyPopper } from 'lucide-react';
 import { useMessage } from '@/app/providers';
 import { useTheme } from '@/context/ThemeContext';
+import {
+  DEFAULT_LIVE_ROUND_TRACKING_PREFS,
+  LIVE_ROUND_TRACKING_SETTINGS,
+  liveRoundTrackingPrefsToProfileFields,
+  normalizeLiveRoundTrackingPrefs,
+  profileFieldsToLiveRoundTrackingPrefs,
+  type LiveRoundTrackingPrefs,
+} from '@/lib/rounds/liveRoundTracking';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
@@ -42,6 +50,14 @@ export default function SettingsPage() {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [billingQueryState, setBillingQueryState] = useState<string | null>(null);
+  const [liveRoundTracking, setLiveRoundTracking] = useState<LiveRoundTrackingPrefs>(
+    DEFAULT_LIVE_ROUND_TRACKING_PREFS,
+  );
+  const [savedLiveRoundTracking, setSavedLiveRoundTracking] = useState<LiveRoundTrackingPrefs>(
+    DEFAULT_LIVE_ROUND_TRACKING_PREFS,
+  );
+  const [loadingLiveRoundTracking, setLoadingLiveRoundTracking] = useState(true);
+  const [savingLiveRoundTracking, setSavingLiveRoundTracking] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -57,6 +73,39 @@ export default function SettingsPage() {
   useEffect(() => {
     setBillingQueryState(new URLSearchParams(window.location.search).get('billing'));
   }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+
+    const fetchProfile = async () => {
+      setLoadingLiveRoundTracking(true);
+      try {
+        const response = await fetch('/api/users/profile');
+        if ([401, 403].includes(response.status)) {
+          router.push('/login?redirect=/settings');
+          return;
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to load settings');
+        }
+
+        const nextPrefs = profileFieldsToLiveRoundTrackingPrefs(data.profile);
+        setLiveRoundTracking(nextPrefs);
+        setSavedLiveRoundTracking(nextPrefs);
+      } catch (error: any) {
+        console.error('Live round tracking settings error:', error);
+        showMessage(error.message || 'Failed to load live round tracking settings.', 'error');
+      } finally {
+        setLoadingLiveRoundTracking(false);
+      }
+    };
+
+    fetchProfile();
+  }, [router, showMessage, status]);
+
+  const liveRoundTrackingChanged = JSON.stringify(liveRoundTracking) !== JSON.stringify(savedLiveRoundTracking);
 
   const handleManageSubscription = async () => {
     setManagingSubscription(true);
@@ -123,6 +172,45 @@ export default function SettingsPage() {
       showMessage(error.message || 'Export failed', 'error');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleLiveRoundTrackingChange = (
+    key: keyof LiveRoundTrackingPrefs,
+    checked: boolean,
+  ) => {
+    setLiveRoundTracking((prev) => ({
+      ...prev,
+      [key]: checked,
+    }));
+  };
+
+  const handleSaveLiveRoundTracking = async () => {
+    setSavingLiveRoundTracking(true);
+
+    try {
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(liveRoundTrackingPrefsToProfileFields(liveRoundTracking)),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to save live round tracking settings.');
+      }
+
+      const nextPrefs = normalizeLiveRoundTrackingPrefs(liveRoundTracking);
+      setLiveRoundTracking(nextPrefs);
+      setSavedLiveRoundTracking(nextPrefs);
+      showMessage(data.message || 'Live round tracking updated successfully!', 'success');
+    } catch (error: any) {
+      console.error('Save live round tracking error:', error);
+      showMessage(error.message || 'Failed to save live round tracking settings.', 'error');
+    } finally {
+      setSavingLiveRoundTracking(false);
     }
   };
 
@@ -211,6 +299,8 @@ export default function SettingsPage() {
 
   const showSessionSkeleton = status === 'loading';
   const showSubscriptionSkeleton = showSessionSkeleton || loading;
+  const liveRoundTrackingInputsDisabled =
+    loadingLiveRoundTracking || savingLiveRoundTracking || showSessionSkeleton;
   const billingPlatform = getBillingPlatform();
   const usesNativeBilling = billingPlatform === 'ios_iap';
   const canManageStripeOnThisPlatform = provider === 'stripe' && !usesNativeBilling;
@@ -386,6 +476,48 @@ export default function SettingsPage() {
                     styles={selectStyles}
                     className="settings-theme-select"
                   />
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <div className="settings-card">
+              <div className="preferences-container">
+                <label className="form-label">Live Round Tracking</label>
+                <p className="settings-feedback-helper">
+                  Choose which stats GolfIQ shows while you track a live round.
+                </p>
+                {LIVE_ROUND_TRACKING_SETTINGS.map((setting) => (
+                  <div key={setting.key} className="preference-row">
+                    <div className="preference-info">
+                      <div className="preference-title">{setting.label}</div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        aria-label={setting.label}
+                        checked={liveRoundTracking[setting.key]}
+                        onChange={(event) =>
+                          handleLiveRoundTrackingChange(setting.key, event.target.checked)
+                        }
+                        disabled={liveRoundTrackingInputsDisabled}
+                      />
+                      <span className="toggle-slider" />
+                    </label>
+                  </div>
+                ))}
+                {!loadingLiveRoundTracking && liveRoundTrackingChanged && (
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="btn btn-save"
+                      onClick={handleSaveLiveRoundTracking}
+                      disabled={liveRoundTrackingInputsDisabled}
+                    >
+                      {savingLiveRoundTracking ? 'Saving...' : 'Save Live Round Tracking'}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

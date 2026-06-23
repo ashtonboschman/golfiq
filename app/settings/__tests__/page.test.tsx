@@ -7,12 +7,17 @@ import SettingsPage from '@/app/settings/page';
 import { useSession } from 'next-auth/react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
+import { liveRoundTrackingPrefsToProfileFields } from '@/lib/rounds/liveRoundTracking';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockSetTheme = jest.fn();
 const mockShowMessage = jest.fn();
 const mockShowConfirm = jest.fn();
+const mockRouter = {
+  push: mockPush,
+  replace: mockReplace,
+};
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
@@ -20,10 +25,7 @@ jest.mock('next-auth/react', () => ({
 }));
 
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-    replace: mockReplace,
-  }),
+  useRouter: () => mockRouter,
 }));
 
 jest.mock('@/hooks/useSubscription', () => ({
@@ -90,6 +92,24 @@ const mockedIsNativeIOS = isNativeIOS as jest.Mock;
 
 function createFetchMock() {
   return jest.fn().mockImplementation((input: string) => {
+    if (input === '/api/users/profile') {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          profile: {
+            ...liveRoundTrackingPrefsToProfileFields({
+              fir: true,
+              gir: true,
+              chips: true,
+              greensideBunkerShots: true,
+              putts: true,
+              penalties: true,
+            }),
+          },
+        }),
+      });
+    }
+
     if (input === '/api/feedback') {
       return Promise.resolve({
         ok: true,
@@ -110,6 +130,11 @@ function createFetchMock() {
       blob: async () => new Blob(),
     });
   });
+}
+
+async function renderSettingsPage() {
+  render(<SettingsPage />);
+  await screen.findByLabelText('Chips');
 }
 
 describe('/settings page', () => {
@@ -135,19 +160,20 @@ describe('/settings page', () => {
     mockedIsNativeIOS.mockReturnValue(false);
   });
 
-  it('does not render strokes gained preference controls', () => {
-    render(<SettingsPage />);
+  it('does not render strokes gained preference controls', async () => {
+    await renderSettingsPage();
 
     expect(screen.queryByText(/show strokes gained/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/preferences/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/live round tracking/i)).toBeInTheDocument();
   });
 
   it('renders current settings sections with theme and export controls', async () => {
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     expect(screen.getByText('Current Plan')).toBeInTheDocument();
     expect(screen.getByText('Theme')).toBeInTheDocument();
     expect(screen.getByTestId('theme-select')).toBeInTheDocument();
+    expect(screen.getByText('Live Round Tracking')).toBeInTheDocument();
     expect(screen.getByText('Export')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
@@ -161,7 +187,7 @@ describe('/settings page', () => {
   });
 
   it('shows validation error for too-short feedback submission', async () => {
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     const messageInput = screen.getByLabelText('Feedback message');
     fireEvent.change(messageInput, { target: { value: 'short' } });
@@ -179,7 +205,7 @@ describe('/settings page', () => {
   it('submits valid feedback to the feedback api', async () => {
     (global as any).fetch = createFetchMock();
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     fireEvent.change(screen.getByLabelText('Feedback message'), {
       target: { value: 'This is a valid feedback message with enough detail.' },
@@ -204,7 +230,7 @@ describe('/settings page', () => {
   it('submits selected feedback type in payload', async () => {
     (global as any).fetch = createFetchMock();
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     fireEvent.change(screen.getByTestId('feedback-type'), {
       target: { value: 'bug' },
@@ -226,16 +252,39 @@ describe('/settings page', () => {
     expect(body.type).toBe('bug');
   });
 
-  it('shows blocked users as a settings row and not an inline list', () => {
-    render(<SettingsPage />);
+  it('saves live round tracking preferences', async () => {
+    await renderSettingsPage();
+
+    const chipsToggle = await screen.findByLabelText('Chips');
+    fireEvent.click(chipsToggle);
+
+    const saveButton = await screen.findByRole('button', { name: /save live round tracking/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect((global as any).fetch.mock.calls.some((call: any[]) => call[0] === '/api/users/profile' && call[1]?.method === 'PUT')).toBe(true);
+    });
+
+    const profilePutCall = (global as any).fetch.mock.calls.find(
+      (call: any[]) => call[0] === '/api/users/profile' && call[1]?.method === 'PUT',
+    );
+    const [, requestOptions] = profilePutCall;
+    const body = JSON.parse(requestOptions.body);
+
+    expect(body.live_round_track_chips).toBe(false);
+    expect(body.live_round_track_fir).toBe(true);
+  });
+
+  it('shows blocked users as a settings row and not an inline list', async () => {
+    await renderSettingsPage();
 
     expect(screen.getByRole('button', { name: /blocked users/i })).toBeInTheDocument();
     expect(screen.queryByText('You have not blocked anyone.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^unblock$/i })).not.toBeInTheDocument();
   });
 
-  it('routes Help and Legal buttons to valid pages', () => {
-    render(<SettingsPage />);
+  it('routes Help and Legal buttons to valid pages', async () => {
+    await renderSettingsPage();
 
     fireEvent.click(screen.getByRole('button', { name: /blocked users/i }));
     expect(mockPush).toHaveBeenCalledWith('/settings/blocked-users');
@@ -250,26 +299,26 @@ describe('/settings page', () => {
     expect(mockPush).toHaveBeenCalledWith('/terms?from=settings');
   });
 
-  it('keeps account deletion action visible in settings', () => {
-    render(<SettingsPage />);
+  it('keeps account deletion action visible in settings', async () => {
+    await renderSettingsPage();
 
     expect(screen.getByText(/your golfiq account data will be deleted/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /delete account/i })).toBeInTheDocument();
   });
 
-  it('shows admin actions for admin user', () => {
+  it('shows admin actions for admin user', async () => {
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: { user: { id: '1', email: 'admin@test.ca' } },
     });
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     expect(screen.getByRole('button', { name: /import course data/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /manage feedback/i })).toBeInTheDocument();
   });
 
-  it('uses deeper analytics history copy for free plan upsell', () => {
+  it('uses deeper analytics history copy for free plan upsell', async () => {
     mockedUseSubscription.mockReturnValue({
       tier: 'free',
       status: 'active',
@@ -280,7 +329,7 @@ describe('/settings page', () => {
       isPremium: false,
     });
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     expect(screen.getByText(/deeper analytics history/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
@@ -288,25 +337,25 @@ describe('/settings page', () => {
     expect(screen.queryByText(/unlimited analytics history/i)).not.toBeInTheDocument();
   });
 
-  it('keeps Stripe manage subscription available on web', () => {
-    render(<SettingsPage />);
+  it('keeps Stripe manage subscription available on web', async () => {
+    await renderSettingsPage();
 
     expect(screen.getByRole('button', { name: /manage subscription/i })).toBeInTheDocument();
     expect(screen.getByText(/billing portal/i)).toBeInTheDocument();
   });
 
-  it('hides Stripe portal access in native ios mode for Stripe subscriptions', () => {
+  it('hides Stripe portal access in native ios mode for Stripe subscriptions', async () => {
     mockedGetBillingPlatform.mockReturnValue('ios_iap');
     mockedIsNativeApp.mockReturnValue(true);
     mockedIsNativeIOS.mockReturnValue(true);
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
     expect(screen.getByText(/subscription was started on the web/i)).toBeInTheDocument();
   });
 
-  it('shows manual premium copy without billing management actions', () => {
+  it('shows manual premium copy without billing management actions', async () => {
     mockedUseSubscription.mockReturnValue({
       tier: 'premium',
       status: 'active',
@@ -317,13 +366,13 @@ describe('/settings page', () => {
       isPremium: true,
     });
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
     expect(screen.getByText(/Premium access is active on this account/i)).toBeInTheDocument();
   });
 
-  it('shows RevenueCat web management guidance for revenuecat_web subscribers', () => {
+  it('shows RevenueCat web management guidance for revenuecat_web subscribers', async () => {
     mockedUseSubscription.mockReturnValue({
       tier: 'premium',
       status: 'active',
@@ -334,7 +383,7 @@ describe('/settings page', () => {
       isPremium: true,
     });
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
     expect(screen.getByText(/customer portal link included in your billing emails/i)).toBeInTheDocument();
@@ -343,7 +392,7 @@ describe('/settings page', () => {
   it('redirects RevenueCat success returns to the shared subscription success page', async () => {
     window.history.replaceState({}, '', '/settings?billing=success');
 
-    render(<SettingsPage />);
+    await renderSettingsPage();
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/subscription/success?billing=success');

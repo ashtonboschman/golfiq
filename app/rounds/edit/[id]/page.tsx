@@ -15,6 +15,7 @@ import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { LIVE_ROUND_AGGREGATE_FIELDS, sumTrackedLiveRoundField } from '@/lib/rounds/liveRoundTracking';
 import { useLiveRoundHoleScroll } from '@/lib/rounds/useLiveRoundHoleScroll';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
@@ -412,17 +413,9 @@ function EditRoundContent() {
         greenside_bunker_shots: h.greenside_bunker_shots,
       }));
       payload.score = getTotalScore(filteredHoleScores);
-      ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(
-        (f) =>
-          (payload[f] = filteredHoleScores.reduce(
-            (s, h) => s + ((h[f as keyof HoleScore] as number) ?? 0),
-            0
-          ))
-      );
-      const chipsTracked = filteredHoleScores.some((h) => h.chips != null);
-      const bunkerTracked = filteredHoleScores.some((h) => h.greenside_bunker_shots != null);
-      payload.chips = chipsTracked ? payload.chips : null;
-      payload.greenside_bunker_shots = bunkerTracked ? payload.greenside_bunker_shots : null;
+      LIVE_ROUND_AGGREGATE_FIELDS.forEach((field) => {
+        payload[field] = sumTrackedLiveRoundField(filteredHoleScores, field);
+      });
       payload.short_game_shots = deriveShortGameShots(payload.chips, payload.greenside_bunker_shots);
     } else {
       ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(

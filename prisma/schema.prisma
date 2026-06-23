@@ -123,6 +123,12 @@ model UserProfile {
   theme               String              @default("dark") @db.VarChar(50)
   timezone            String?             @db.VarChar(100)
   showStrokesGained   Boolean             @default(true) @map("show_strokes_gained")
+  liveRoundTrackFir   Boolean             @default(true) @map("live_round_track_fir")
+  liveRoundTrackGir   Boolean             @default(true) @map("live_round_track_gir")
+  liveRoundTrackChips Boolean             @default(true) @map("live_round_track_chips")
+  liveRoundTrackGreensideBunkerShots Boolean @default(true) @map("live_round_track_greenside_bunker_shots")
+  liveRoundTrackPutts Boolean             @default(true) @map("live_round_track_putts")
+  liveRoundTrackPenalties Boolean         @default(true) @map("live_round_track_penalties")
   favoriteCourse      Course?             @relation(fields: [favoriteCourseId], references: [id])
   user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 

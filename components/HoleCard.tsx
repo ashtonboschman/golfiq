@@ -1,5 +1,10 @@
 import { memo, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import {
+  DEFAULT_LIVE_ROUND_TRACKING_PREFS,
+  normalizeLiveRoundTrackingPrefs,
+  type LiveRoundTrackingPrefs,
+} from '@/lib/rounds/liveRoundTracking';
 
 type MissDirection = 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long';
 type DirectionalResult = 'untracked' | 'hit' | MissDirection;
@@ -19,6 +24,7 @@ interface HoleCardProps {
   greenside_bunker_shots?: number | null;
   isExpanded?: boolean;
   isCompleted?: boolean;
+  trackingPrefs?: Partial<LiveRoundTrackingPrefs>;
   onChange: (hole: number, field: string, value: any) => void;
   onToggleExpand?: (hole: number) => void;
   onNext?: () => void;
@@ -38,10 +44,12 @@ const HoleCard = memo(({
   greenside_bunker_shots = null,
   isExpanded = true,
   isCompleted = false,
+  trackingPrefs = DEFAULT_LIVE_ROUND_TRACKING_PREFS,
   onChange,
   onToggleExpand,
   onNext,
 }: HoleCardProps) => {
+  const visibleStats = normalizeLiveRoundTrackingPrefs(trackingPrefs);
   // Local state for uncommitted changes
   const [localScore, setLocalScore] = useState<number | null>(score ?? par);
   const [localFirHit, setLocalFirHit] = useState<number | null>(fir_hit);
@@ -309,121 +317,127 @@ const HoleCard = memo(({
             </div>
           </div>
 
-          {/* FIR */}
-          <div className="stepper-field">
-            <label className="stepper-label">Fairway In Regulation</label>
-            {par === 3 ? (
-              <div className="directional-result-na">Not tracked on par 3s</div>
-            ) : (
-              renderDirectionalResultControl({
-                area: 'fir',
-                hit: localFirHit,
-                direction: localFirDirection,
-              })
-            )}
-          </div>
-
-          {/* GIR */}
-          <div className="stepper-field">
-            <label className="stepper-label">Green In Regulation</label>
-            {renderDirectionalResultControl({
-              area: 'gir',
-              hit: localGirHit,
-              direction: localGirDirection,
-            })}
-          </div>
-
-          {/* Chips */}
-          <div className="stepper-field">
-            <label className="stepper-label">Chips</label>
-            <div className="stepper-controls">
-              <button
-                type="button"
-                className="stepper-btn stepper-minus"
-                onClick={() => handleStepperChange('chips', -1)}
-              >
-                -
-              </button>
-              <div className="stepper-value">{displayValue(localChips)}</div>
-              <button
-                type="button"
-                className="stepper-btn stepper-plus"
-                onClick={() => handleStepperChange('chips', 1)}
-                disabled={localChips !== null && localChips >= 6}
-              >
-                +
-              </button>
+          {visibleStats.fir && (
+            <div className="stepper-field">
+              <label className="stepper-label">Fairway In Regulation</label>
+              {par === 3 ? (
+                <div className="directional-result-na">Not tracked on par 3s</div>
+              ) : (
+                renderDirectionalResultControl({
+                  area: 'fir',
+                  hit: localFirHit,
+                  direction: localFirDirection,
+                })
+              )}
             </div>
-          </div>
+          )}
 
-          {/* Greenside Bunker Shots */}
-          <div className="stepper-field">
-            <label className="stepper-label">Greenside Bunker Shots</label>
-            <div className="stepper-controls">
-              <button
-                type="button"
-                className="stepper-btn stepper-minus"
-                onClick={() => handleStepperChange('greenside_bunker_shots', -1)}
-              >
-                -
-              </button>
-              <div className="stepper-value">{displayValue(localGreensideBunkerShots)}</div>
-              <button
-                type="button"
-                className="stepper-btn stepper-plus"
-                onClick={() => handleStepperChange('greenside_bunker_shots', 1)}
-                disabled={localGreensideBunkerShots !== null && localGreensideBunkerShots >= 6}
-              >
-                +
-              </button>
+          {visibleStats.gir && (
+            <div className="stepper-field">
+              <label className="stepper-label">Green In Regulation</label>
+              {renderDirectionalResultControl({
+                area: 'gir',
+                hit: localGirHit,
+                direction: localGirDirection,
+              })}
             </div>
-          </div>
+          )}
 
-          {/* Putts */}
-          <div className="stepper-field">
-            <label className="stepper-label">Putts</label>
-            <div className="stepper-controls">
-              <button
-                type="button"
-                className="stepper-btn stepper-minus"
-                onClick={() => handleStepperChange('putts', -1)}
-              >
-                -
-              </button>
-              <div className="stepper-value">{displayValue(localPutts)}</div>
-              <button
-                type="button"
-                className="stepper-btn stepper-plus"
-                onClick={() => handleStepperChange('putts', 1)}
-                disabled={localPutts !== null && localPutts >= 6}
-              >
-                +
-              </button>
+          {visibleStats.chips && (
+            <div className="stepper-field">
+              <label className="stepper-label">Chips</label>
+              <div className="stepper-controls">
+                <button
+                  type="button"
+                  className="stepper-btn stepper-minus"
+                  onClick={() => handleStepperChange('chips', -1)}
+                >
+                  -
+                </button>
+                <div className="stepper-value">{displayValue(localChips)}</div>
+                <button
+                  type="button"
+                  className="stepper-btn stepper-plus"
+                  onClick={() => handleStepperChange('chips', 1)}
+                  disabled={localChips !== null && localChips >= 6}
+                >
+                  +
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Penalties */}
-          <div className="stepper-field">
-            <label className="stepper-label">Penalties</label>
-            <div className="stepper-controls">
-              <button
-                type="button"
-                className="stepper-btn stepper-minus"
-                onClick={() => handleStepperChange('penalties', -1)}
-              >
-                -
-              </button>
-              <div className="stepper-value">{displayValue(localPenalties)}</div>
-              <button
-                type="button"
-                className="stepper-btn stepper-plus"
-                onClick={() => handleStepperChange('penalties', 1)}
-                disabled={localPenalties !== null && localPenalties >= 4}
-              >
-                +
-              </button>
+          {visibleStats.greensideBunkerShots && (
+            <div className="stepper-field">
+              <label className="stepper-label">Greenside Bunker Shots</label>
+              <div className="stepper-controls">
+                <button
+                  type="button"
+                  className="stepper-btn stepper-minus"
+                  onClick={() => handleStepperChange('greenside_bunker_shots', -1)}
+                >
+                  -
+                </button>
+                <div className="stepper-value">{displayValue(localGreensideBunkerShots)}</div>
+                <button
+                  type="button"
+                  className="stepper-btn stepper-plus"
+                  onClick={() => handleStepperChange('greenside_bunker_shots', 1)}
+                  disabled={localGreensideBunkerShots !== null && localGreensideBunkerShots >= 6}
+                >
+                  +
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {visibleStats.putts && (
+            <div className="stepper-field">
+              <label className="stepper-label">Putts</label>
+              <div className="stepper-controls">
+                <button
+                  type="button"
+                  className="stepper-btn stepper-minus"
+                  onClick={() => handleStepperChange('putts', -1)}
+                >
+                  -
+                </button>
+                <div className="stepper-value">{displayValue(localPutts)}</div>
+                <button
+                  type="button"
+                  className="stepper-btn stepper-plus"
+                  onClick={() => handleStepperChange('putts', 1)}
+                  disabled={localPutts !== null && localPutts >= 6}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+
+          {visibleStats.penalties && (
+            <div className="stepper-field">
+              <label className="stepper-label">Penalties</label>
+              <div className="stepper-controls">
+                <button
+                  type="button"
+                  className="stepper-btn stepper-minus"
+                  onClick={() => handleStepperChange('penalties', -1)}
+                >
+                  -
+                </button>
+                <div className="stepper-value">{displayValue(localPenalties)}</div>
+                <button
+                  type="button"
+                  className="stepper-btn stepper-plus"
+                  onClick={() => handleStepperChange('penalties', 1)}
+                  disabled={localPenalties !== null && localPenalties >= 4}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Next Button - only show if onNext is provided */}
           {onNext && (

@@ -1,4 +1,5 @@
 import { clearRoundAddDraft, getRoundAddDraftKey } from '@/lib/rounds/addDraft';
+import type { LiveRoundTrackingPrefs } from '@/lib/rounds/liveRoundTracking';
 
 export const LIVE_ROUND_CONTEXT_VERSION = 1;
 export const LIVE_ROUND_RESUME_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -34,6 +35,7 @@ export type AddRoundDraftLike = {
   selectedTee?: { value?: number | string | null; label?: string | null } | null;
   completedHoles?: number[] | null;
   expandedHole?: number | null;
+  liveRoundTracking?: LiveRoundTrackingPrefs | null;
 };
 
 export type LiveRoundContextV1 = {
@@ -337,4 +339,3 @@ export function decideAddRoundEntry(args: {
     startNewTarget: args.startNewTarget,
   };
 }
-

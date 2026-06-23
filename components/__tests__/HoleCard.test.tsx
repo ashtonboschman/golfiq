@@ -52,4 +52,40 @@ describe('HoleCard short-game controls', () => {
     expect(onChange).toHaveBeenCalledWith(1, 'chips', 1);
     expect(onChange).toHaveBeenCalledWith(1, 'greenside_bunker_shots', 1);
   });
+
+  it('hides disabled live-round stat controls while keeping score entry available', () => {
+    render(
+      <HoleCard
+        hole={1}
+        par={4}
+        score={4}
+        fir_hit={null}
+        fir_direction={null}
+        gir_hit={null}
+        gir_direction={null}
+        putts={2}
+        penalties={0}
+        chips={null}
+        greenside_bunker_shots={null}
+        trackingPrefs={{
+          fir: false,
+          gir: false,
+          chips: false,
+          greensideBunkerShots: false,
+          putts: false,
+          penalties: false,
+        }}
+        onChange={jest.fn()}
+        onNext={() => {}}
+      />,
+    );
+
+    expect(screen.getByText('Score')).toBeInTheDocument();
+    expect(screen.queryByText('Fairway In Regulation')).not.toBeInTheDocument();
+    expect(screen.queryByText('Green In Regulation')).not.toBeInTheDocument();
+    expect(screen.queryByText('Chips')).not.toBeInTheDocument();
+    expect(screen.queryByText('Greenside Bunker Shots')).not.toBeInTheDocument();
+    expect(screen.queryByText('Putts')).not.toBeInTheDocument();
+    expect(screen.queryByText('Penalties')).not.toBeInTheDocument();
+  });
 });

@@ -16,6 +16,15 @@ import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { getRoundAddDraftKey } from '@/lib/rounds/addDraft';
+import {
+  DEFAULT_LIVE_ROUND_TRACKING_PREFS,
+  LIVE_ROUND_AGGREGATE_FIELDS,
+  normalizeLiveRoundTrackingPrefs,
+  profileFieldsToLiveRoundTrackingPrefs,
+  sumTrackedLiveRoundField,
+  type LiveRoundTrackingPrefs,
+  type LiveRoundTrackingProfileFields,
+} from '@/lib/rounds/liveRoundTracking';
 import { useLiveRoundHoleScroll } from '@/lib/rounds/useLiveRoundHoleScroll';
 import {
   buildLiveRoundContextFromDraft,
@@ -110,6 +119,7 @@ type AddRoundDraft = {
   selectedTee: TeeOption | null;
   completedHoles: number[];
   expandedHole: number;
+  liveRoundTracking: LiveRoundTrackingPrefs;
 };
 
 function AddRoundContent() {
@@ -165,10 +175,16 @@ function AddRoundContent() {
   const [selectedCourse, setSelectedCourse] = useState<CourseOption | null>(null);
   const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
   const [showRoundTagPicker, setShowRoundTagPicker] = useState(false);
-  const userProfileRef = useRef<{ default_tee?: string; gender?: string } | null>(null);
+  const userProfileRef = useRef<({
+    default_tee?: string;
+    gender?: string;
+  } & LiveRoundTrackingProfileFields) | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [expandedHole, setExpandedHole] = useState<number>(1); // Track which hole is currently expanded
   const [completedHoles, setCompletedHoles] = useState<Set<number>>(new Set()); // Track holes where Next was clicked
+  const [liveRoundTracking, setLiveRoundTracking] = useState<LiveRoundTrackingPrefs>(
+    DEFAULT_LIVE_ROUND_TRACKING_PREFS,
+  );
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const holeScoresRef = useRef<HoleScore[]>([]);
   const hasSubmittedRef = useRef(false);
@@ -179,6 +195,7 @@ function AddRoundContent() {
   const unauthDraftWarningShownRef = useRef(false);
   const latestModeRef = useRef<'live_round' | 'after_round'>('after_round');
   const latestStepRef = useRef<'initial' | 'course_selected' | 'tee_selected'>('initial');
+  const liveRoundTrackingReadyRef = useRef(false);
   const roundAddDraftKey = useMemo(
     () => getRoundAddDraftKey(session?.user?.id),
     [session?.user?.id],
@@ -325,6 +342,10 @@ function AddRoundContent() {
         : [];
       setCompletedHoles(new Set(completed));
       setExpandedHole(Number.isFinite(parsed.expandedHole) ? parsed.expandedHole : 1);
+      if (parsed.liveRoundTracking) {
+        setLiveRoundTracking(normalizeLiveRoundTrackingPrefs(parsed.liveRoundTracking));
+        liveRoundTrackingReadyRef.current = true;
+      }
 
       if (parsed.selectedTee?.teeObj) {
         updateSegmentOptions(parsed.selectedTee.teeObj, parsed.round.tee_segment);
@@ -359,10 +380,12 @@ function AddRoundContent() {
     selectedTee,
     completedHoles: Array.from(completedHoles),
     expandedHole,
+    liveRoundTracking,
   }), [
     completedHoles,
     expandedHole,
     holeScores,
+    liveRoundTracking,
     round,
     selectedCourse,
     selectedTee,
@@ -525,7 +548,17 @@ function AddRoundContent() {
             userProfileRef.current = {
               default_tee: data.profile.default_tee,
               gender: data.profile.gender,
+              live_round_track_fir: data.profile.live_round_track_fir,
+              live_round_track_gir: data.profile.live_round_track_gir,
+              live_round_track_chips: data.profile.live_round_track_chips,
+              live_round_track_greenside_bunker_shots: data.profile.live_round_track_greenside_bunker_shots,
+              live_round_track_putts: data.profile.live_round_track_putts,
+              live_round_track_penalties: data.profile.live_round_track_penalties,
             };
+            if (!liveRoundTrackingReadyRef.current) {
+              setLiveRoundTracking(profileFieldsToLiveRoundTrackingPrefs(data.profile));
+              liveRoundTrackingReadyRef.current = true;
+            }
           }
         } catch (err) {
           console.error('Error fetching user profile:', err);
@@ -579,13 +612,9 @@ function AddRoundContent() {
         greenside_bunker_shots: h.greenside_bunker_shots,
       }));
       payload.score = getTotalScore(filteredHoleScores);
-      ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(
-        (f) => (payload[f] = filteredHoleScores.reduce((s, h) => s + (h[f as keyof HoleScore] as number ?? 0), 0))
-      );
-      const chipsTracked = filteredHoleScores.some((h) => h.chips != null);
-      const bunkerTracked = filteredHoleScores.some((h) => h.greenside_bunker_shots != null);
-      payload.chips = chipsTracked ? payload.chips : null;
-      payload.greenside_bunker_shots = bunkerTracked ? payload.greenside_bunker_shots : null;
+      LIVE_ROUND_AGGREGATE_FIELDS.forEach((field) => {
+        payload[field] = sumTrackedLiveRoundField(filteredHoleScores, field);
+      });
       payload.short_game_shots = deriveShortGameShots(payload.chips, payload.greenside_bunker_shots);
     } else {
       ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(
@@ -1133,6 +1162,7 @@ function AddRoundContent() {
         }
         setHoleScores(fresh);
       }
+      liveRoundTrackingReadyRef.current = true;
       // Keep the current score when switching to HBH mode instead of nulling it
       setRound((prev) => ({ ...prev, hole_by_hole: 1 }));
     } else {
@@ -1307,6 +1337,7 @@ function AddRoundContent() {
                 penalties={h.penalties}
                 chips={h.chips}
                 greenside_bunker_shots={h.greenside_bunker_shots}
+                trackingPrefs={liveRoundTracking}
                 isExpanded={isExpanded}
                 isCompleted={isCompleted}
                 onChange={(_, field, value) => handleHoleScoreChange(actualIdx, field, value)}
@@ -1327,27 +1358,41 @@ function AddRoundContent() {
               <div className="hole-field">
                 <strong>Score</strong> {show(totals.score)}
               </div>
-              <div className="hole-field">
-                <strong>FIR</strong> {show(totals.fir_hit)}
-              </div>
-              <div className="hole-field">
-                <strong>GIR</strong> {show(totals.gir_hit)}
-              </div>
-              <div className="hole-field">
-                <strong>Chips</strong> {show(totals.chips)}
-              </div>
-              <div className="hole-field">
-                <strong>Bunker</strong> {show(totals.greenside_bunker_shots)}
-              </div>
-              <div className="hole-field">
-                <strong>Putts</strong> {show(totals.putts)}
-              </div>
-              <div className="hole-field">
-                <strong>Penalties</strong> {show(totals.penalties)}
-              </div>
-              <div className="hole-field">
-                <strong>Short Game</strong> {show(totals.short_game_shots)}
-              </div>
+              {liveRoundTracking.fir && (
+                <div className="hole-field">
+                  <strong>FIR</strong> {show(totals.fir_hit)}
+                </div>
+              )}
+              {liveRoundTracking.gir && (
+                <div className="hole-field">
+                  <strong>GIR</strong> {show(totals.gir_hit)}
+                </div>
+              )}
+              {liveRoundTracking.chips && (
+                <div className="hole-field">
+                  <strong>Chips</strong> {show(totals.chips)}
+                </div>
+              )}
+              {liveRoundTracking.greensideBunkerShots && (
+                <div className="hole-field">
+                  <strong>Bunker</strong> {show(totals.greenside_bunker_shots)}
+                </div>
+              )}
+              {liveRoundTracking.putts && (
+                <div className="hole-field">
+                  <strong>Putts</strong> {show(totals.putts)}
+                </div>
+              )}
+              {liveRoundTracking.penalties && (
+                <div className="hole-field">
+                  <strong>Penalties</strong> {show(totals.penalties)}
+                </div>
+              )}
+              {(liveRoundTracking.chips || liveRoundTracking.greensideBunkerShots) && (
+                <div className="hole-field">
+                  <strong>Short Game</strong> {show(totals.short_game_shots)}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1502,6 +1547,9 @@ function AddRoundContent() {
               <p className="combined-note">
                 {isHBH ? 'Track each hole as you play.' : 'Enter totals after your round.'}
               </p>
+              {isHBH && (
+                <p className="combined-note">Live round fields follow your Settings preferences.</p>
+              )}
             </>
           )}
 
