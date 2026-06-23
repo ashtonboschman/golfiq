@@ -1,6 +1,6 @@
-import { type RefObject, useEffect } from 'react';
+import { type RefObject, useEffect, useRef } from 'react';
 
-export const LIVE_ROUND_SCROLL_TOP_OFFSET = 96;
+export const LIVE_ROUND_SCROLL_TOP_OFFSET = 88;
 
 type HoleCardRefs = Record<number, HTMLDivElement | null>;
 
@@ -22,9 +22,22 @@ export function useLiveRoundHoleScroll(args: {
   holeCardRefs: RefObject<HoleCardRefs>;
 }) {
   const { enabled, expandedHole, holeCardRefs } = args;
+  const hasHandledEnabledStateRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || expandedHole < 1 || typeof window === 'undefined') {
+    if (!enabled) {
+      hasHandledEnabledStateRef.current = false;
+      return;
+    }
+
+    if (expandedHole < 1 || typeof window === 'undefined') {
+      return;
+    }
+
+    const isInitialHoleOneOpen = !hasHandledEnabledStateRef.current && expandedHole === 1;
+    hasHandledEnabledStateRef.current = true;
+
+    if (isInitialHoleOneOpen) {
       return;
     }
 

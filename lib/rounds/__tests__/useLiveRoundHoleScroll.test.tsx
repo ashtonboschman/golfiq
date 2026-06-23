@@ -68,6 +68,59 @@ describe('useLiveRoundHoleScroll', () => {
     window.scrollTo = originalScrollTo;
   });
 
+  it('does not scroll when live round first opens on hole 1', async () => {
+    render(<TestHarness enabled expandedHole={1} />);
+
+    await waitFor(() => {
+      expect(window.scrollTo).not.toHaveBeenCalled();
+    });
+  });
+
+  it('scrolls on initial render when resuming on a later hole', async () => {
+    const getBoundingClientRectSpy = jest
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.dataset.testid === 'hole-2') {
+          return {
+            bottom: 360,
+            height: 120,
+            left: 0,
+            right: 320,
+            toJSON: () => ({}),
+            top: 240,
+            width: 320,
+            x: 0,
+            y: 240,
+          };
+        }
+
+        return {
+          bottom: 0,
+          height: 0,
+          left: 0,
+          right: 0,
+          toJSON: () => ({}),
+          top: 0,
+          width: 0,
+          x: 0,
+          y: 0,
+        };
+      });
+
+    try {
+      render(<TestHarness enabled expandedHole={2} />);
+
+      await waitFor(() => {
+        expect(window.scrollTo).toHaveBeenCalledWith({
+          top: 400 + 240 - LIVE_ROUND_SCROLL_TOP_OFFSET,
+          behavior: 'auto',
+        });
+      });
+    } finally {
+      getBoundingClientRectSpy.mockRestore();
+    }
+  });
+
   it('scrolls the newly expanded live-round hole below the fixed header offset', async () => {
     const { getByTestId, rerender } = render(<TestHarness enabled expandedHole={1} />);
     const holeTwo = getByTestId('hole-2');
