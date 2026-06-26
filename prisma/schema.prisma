@@ -191,12 +191,67 @@ model Course {
   updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   verified           Boolean       @default(false)
   location           Location?
+  mappedCourse       MappedCourse?
   rounds             Round[]
   tees               Tee[]
   favoriteByProfiles UserProfile[]
 
   @@index([verified], map: "idx_course_verified")
   @@map("courses")
+}
+
+model MappedCourse {
+  id            BigInt           @id @default(autoincrement())
+  courseId      BigInt           @unique @map("course_id")
+  boundsNorth   Decimal?         @map("bounds_north") @db.Decimal(10, 7)
+  boundsSouth   Decimal?         @map("bounds_south") @db.Decimal(10, 7)
+  boundsEast    Decimal?         @map("bounds_east") @db.Decimal(10, 7)
+  boundsWest    Decimal?         @map("bounds_west") @db.Decimal(10, 7)
+  minZoom       Decimal?         @map("min_zoom") @db.Decimal(5, 2)
+  maxZoom       Decimal?         @map("max_zoom") @db.Decimal(5, 2)
+  mappingStatus GpsMappingStatus @default(DRAFT) @map("mapping_status")
+  source        GpsMappingSource @default(UNKNOWN)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  course        Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  holes         MappedHole[]
+
+  @@index([mappingStatus], map: "idx_mapped_courses_status")
+  @@index([source], map: "idx_mapped_courses_source")
+  @@map("mapped_courses")
+}
+
+model MappedHole {
+  id             BigInt           @id @default(autoincrement())
+  mappedCourseId BigInt           @map("mapped_course_id")
+  holeNumber     Int              @map("hole_number")
+  teeLat         Decimal?         @map("tee_lat") @db.Decimal(10, 7)
+  teeLng         Decimal?         @map("tee_lng") @db.Decimal(10, 7)
+  target1Lat     Decimal?         @map("target1_lat") @db.Decimal(10, 7)
+  target1Lng     Decimal?         @map("target1_lng") @db.Decimal(10, 7)
+  target1Label   String?          @map("target1_label") @db.VarChar(100)
+  target2Lat     Decimal?         @map("target2_lat") @db.Decimal(10, 7)
+  target2Lng     Decimal?         @map("target2_lng") @db.Decimal(10, 7)
+  target2Label   String?          @map("target2_label") @db.VarChar(100)
+  greenFrontLat  Decimal?         @map("green_front_lat") @db.Decimal(10, 7)
+  greenFrontLng  Decimal?         @map("green_front_lng") @db.Decimal(10, 7)
+  greenCenterLat Decimal?         @map("green_center_lat") @db.Decimal(10, 7)
+  greenCenterLng Decimal?         @map("green_center_lng") @db.Decimal(10, 7)
+  greenBackLat   Decimal?         @map("green_back_lat") @db.Decimal(10, 7)
+  greenBackLng   Decimal?         @map("green_back_lng") @db.Decimal(10, 7)
+  mappingStatus  GpsMappingStatus @default(DRAFT) @map("mapping_status")
+  source         GpsMappingSource @default(UNKNOWN)
+  verifiedAt     DateTime?        @map("verified_at") @db.Timestamptz(6)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  mappedCourse   MappedCourse     @relation(fields: [mappedCourseId], references: [id], onDelete: Cascade)
+
+  @@unique([mappedCourseId, holeNumber], map: "uq_mapped_holes_course_hole")
+  @@index([mappedCourseId], map: "idx_mapped_holes_mapped_course_id")
+  @@index([mappedCourseId, mappingStatus], map: "idx_mapped_holes_course_status")
+  @@index([mappingStatus], map: "idx_mapped_holes_status")
+  @@index([source], map: "idx_mapped_holes_source")
+  @@map("mapped_holes")
 }
 
 model Location {
@@ -773,4 +828,18 @@ enum UserReportStatus {
 
 enum FriendNotificationType {
   friend_request_accepted
+}
+
+enum GpsMappingStatus {
+  DRAFT
+  READY
+  VERIFIED
+  DISABLED
+}
+
+enum GpsMappingSource {
+  MANUAL_ADMIN_GOOGLE
+  ON_COURSE_VERIFIED
+  IMPORTED
+  UNKNOWN
 }

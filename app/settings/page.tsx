@@ -628,6 +628,18 @@ export default function SettingsPage() {
                 >
                   Manage Feedback
                 </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => router.push('/admin/gps-hole-prototype')}
+                >
+                  GPS Prototype
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => router.push('/admin/gps-mapping')}
+                >
+                  GPS Mapping
+                </button>
               </div>
             </div>
           </section>

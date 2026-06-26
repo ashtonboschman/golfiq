@@ -316,6 +316,11 @@ describe('/settings page', () => {
 
     expect(screen.getByRole('button', { name: /import course data/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /manage feedback/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /gps prototype/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /gps mapping/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /gps mapping/i }));
+    expect(mockPush).toHaveBeenCalledWith('/admin/gps-mapping');
   });
 
   it('uses deeper analytics history copy for free plan upsell', async () => {
