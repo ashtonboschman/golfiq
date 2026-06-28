@@ -8,6 +8,12 @@ import { ChevronLeft } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useMessage } from '@/app/providers';
 import { clearLiveRoundRecoveryState } from '@/lib/rounds/liveRoundResume';
+import {
+  isLiveRoundPath,
+  requestLiveRoundNavigation,
+} from '@/lib/rounds/liveRoundNavigation';
+
+const ADD_ROUND_DIRTY_KEY = 'golfiq-add-round-dirty';
 
 const LOGO_BY_THEME: Record<string, string> = {
   dark: '/logos/wordmark/golfiq-wordmark.png',
@@ -38,25 +44,52 @@ export default function Header() {
   const isViewingOthersDashboard = pathname === '/dashboard' && searchParams.has('user_id');
 
   // Check if on add/edit round pages
-  const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
+  const isOnAddRoundPage = pathname === '/rounds/add';
+  const isOnEditRoundPage = Boolean(pathname?.match(/^\/rounds\/edit\/\d+$/));
+  const isOnLiveRoundPage = isLiveRoundPath(pathname);
   const shouldShowAvatarSlot = !!user && pathname !== '/post-signup';
+
+  const hasAddRoundUnsavedChanges = () => (
+    isOnAddRoundPage &&
+    typeof window !== 'undefined' &&
+    sessionStorage.getItem(ADD_ROUND_DIRTY_KEY) === 'true'
+  );
+
+  const showAddRoundDiscardConfirm = (onDiscard: () => void) => {
+    showConfirm({
+      title: 'Discard changes?',
+      message: 'You have unsaved round details.',
+      cancelText: 'Stay',
+      confirmText: 'Discard',
+      variant: 'warning',
+      confirmVariant: 'danger',
+      onConfirm: () => {
+        clearLiveRoundRecoveryState(user?.id);
+        sessionStorage.removeItem(ADD_ROUND_DIRTY_KEY);
+        onDiscard();
+      },
+    });
+  };
 
   // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-    if (isOnAddEditPage || hasUnsavedChanges) {
+    if (isOnLiveRoundPage && requestLiveRoundNavigation({ path })) {
+      return;
+    }
+
+    if (hasAddRoundUnsavedChanges()) {
+      showAddRoundDiscardConfirm(() => router.push(path));
+    } else if (isOnEditRoundPage || hasUnsavedChanges) {
       showConfirm({
-        message: isOnAddEditPage
+        message: isOnEditRoundPage
           ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
           : 'You have unsaved changes. Are you sure you want to leave?',
         onConfirm: () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
-          }
-          if (pathname === '/rounds/add') {
-            clearLiveRoundRecoveryState(user?.id);
           }
           router.push(path);
         }
@@ -83,17 +116,21 @@ export default function Header() {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-    if (isOnAddEditPage || hasUnsavedChanges) {
+    if (hasAddRoundUnsavedChanges()) {
+      showAddRoundDiscardConfirm(async () => {
+        setDropdownOpen(false);
+        clearThemeAuthMarker();
+        await signOut({ redirect: false });
+        router.replace('/login');
+      });
+    } else if (isOnEditRoundPage || hasUnsavedChanges) {
       showConfirm({
-        message: isOnAddEditPage
+        message: isOnEditRoundPage
           ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
           : 'You have unsaved changes. Are you sure you want to leave?',
         onConfirm: async () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
-          }
-          if (pathname === '/rounds/add') {
-            clearLiveRoundRecoveryState(user?.id);
           }
           setDropdownOpen(false);
           clearThemeAuthMarker();
@@ -123,6 +160,10 @@ export default function Header() {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
+    if (isOnLiveRoundPage && requestLiveRoundNavigation({ back: true })) {
+      return;
+    }
+
     // On legal/info pages, return to settings when opened from settings
     if (pathname === '/about' || pathname === '/privacy' || pathname === '/terms' || pathname === '/contact') {
       const from = searchParams.get('from');
@@ -137,24 +178,25 @@ export default function Header() {
       router.push('/login');
     }
     // On round add page, warn before navigating away (same as cancel button)
-    else if (pathname === '/rounds/add') {
+    else if (isOnAddRoundPage) {
       const from = searchParams.get('from') || 'rounds';
-
-      showConfirm({
-        message: 'Are you sure you want to leave? Any unsaved changes will be lost.',
-        onConfirm: () => {
-          clearLiveRoundRecoveryState(user?.id);
-          if (from.startsWith('/')) {
-            router.replace(from);
-          } else if (from === 'dashboard') {
-            router.replace('/dashboard');
-          } else if (from === 'onboarding') {
-            router.replace('/post-signup');
-          } else {
-            router.replace('/rounds');
-          }
+      const leaveAddRound = () => {
+        if (from.startsWith('/')) {
+          router.replace(from);
+        } else if (from === 'dashboard') {
+          router.replace('/dashboard');
+        } else if (from === 'onboarding') {
+          router.replace('/post-signup');
+        } else {
+          router.replace('/rounds');
         }
-      });
+      };
+
+      if (hasAddRoundUnsavedChanges()) {
+        showAddRoundDiscardConfirm(leaveAddRound);
+      } else {
+        leaveAddRound();
+      }
     }
     // On round edit page, warn before navigating away (same as cancel button)
     else if (pathname?.match(/^\/rounds\/edit\/\d+$/)) {

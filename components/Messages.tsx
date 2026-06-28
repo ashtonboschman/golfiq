@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useMessage } from '@/app/providers';
-import { SquareCheck, TriangleAlert } from 'lucide-react';
+import { CircleAlert, CircleHelp, SquareCheck, TriangleAlert } from 'lucide-react';
 
 export default function Messages({ duration = 2000, mode = 'toast' }: { duration?: number; mode?: 'toast' | 'modal' }) {
   const { message, type, clearMessage, confirmDialog, clearConfirm } = useMessage();
@@ -26,6 +26,13 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
 
   // Render confirm dialog if present
   if (confirmDialog) {
+    const modalVariant = confirmDialog.variant || 'warning';
+    const confirmButtonClass = confirmDialog.confirmVariant === 'danger'
+      ? 'btn-cancel'
+      : confirmDialog.confirmVariant === 'neutral'
+        ? 'btn-secondary'
+        : 'btn-save';
+
     return (
       <>
         <div
@@ -38,10 +45,16 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
 
         <div className="modal-container">
           <div className="modal-content">
-            <div className="modal-icon warning">
-              <TriangleAlert size={50}/>
+            <div className={`modal-icon ${modalVariant}`}>
+              {modalVariant === 'neutral' ? (
+                <CircleHelp size={34} />
+              ) : modalVariant === 'danger' ? (
+                <TriangleAlert size={34} />
+              ) : (
+                <CircleAlert size={34} />
+              )}
             </div>
-            <h3 className="modal-title">Are you sure?</h3>
+            <h3 className="modal-title">{confirmDialog.title || 'Are you sure?'}</h3>
             <p className="modal-message">{confirmDialog.message}</p>
             <div className="modal-buttons">
               <button
@@ -49,7 +62,7 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
                   confirmDialog.onCancel?.();
                   clearConfirm();
                 }}
-                className="btn btn-cancel"
+                className="btn btn-secondary"
               >
                 {confirmDialog.cancelText || 'Cancel'}
               </button>
@@ -58,7 +71,7 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
                   confirmDialog.onConfirm();
                   clearConfirm();
                 }}
-                className="btn btn-save"
+                className={`btn ${confirmButtonClass}`}
               >
                 {confirmDialog.confirmText || 'Continue'}
               </button>

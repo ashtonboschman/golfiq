@@ -45,6 +45,7 @@ describe('Header unsaved navigation warning', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
+    sessionStorage.clear();
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: {
@@ -56,21 +57,36 @@ describe('Header unsaved navigation warning', () => {
   });
 
   it('shows unsaved warning when navigating away from round add via logo', () => {
+    sessionStorage.setItem('golfiq-add-round-dirty', 'true');
     render(<Header />);
 
     fireEvent.click(screen.getByTitle('Dashboard'));
 
     expect(mockShowConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'Are you sure you want to leave? Any unsaved changes will be lost.',
+        title: 'Discard changes?',
+        message: 'You have unsaved round details.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        confirmVariant: 'danger',
         onConfirm: expect.any(Function),
       }),
     );
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it('navigates from clean round add without an unsaved warning', () => {
+    render(<Header />);
+
+    fireEvent.click(screen.getByTitle('Dashboard'));
+
+    expect(mockShowConfirm).not.toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/dashboard');
+  });
+
   it('clears add-round draft only after confirmed navigation', () => {
     const draftKey = 'golfiq:round:add:draft:v1:1';
+    sessionStorage.setItem('golfiq-add-round-dirty', 'true');
     localStorage.setItem(draftKey, JSON.stringify({ savedAt: 'now' }));
 
     render(<Header />);

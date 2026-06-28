@@ -1,5 +1,4 @@
 import { Edit, Info, Sparkles, Trash2 } from 'lucide-react';
-import { ChevronRight, MapPin } from 'lucide-react';
 import { SkeletonBlock, SkeletonCard, SkeletonCircle, SkeletonText } from '@/components/skeleton/Skeleton';
 
 type RoundListSkeletonProps = {
@@ -229,7 +228,7 @@ export function CourseListSkeleton({ count = 3 }: { count?: number }) {
           <div className="course-card-bottom">
             <div className="course-card-bottom-left">
               <div className="course-location skeleton-course-location-row">
-                <MapPin size={14} aria-hidden="true" />
+                <SkeletonCircle size={14} />
                 <span className="skeleton skeleton-course-location-copy" aria-hidden="true" />
               </div>
               <p className="course-distance">
@@ -237,7 +236,7 @@ export function CourseListSkeleton({ count = 3 }: { count?: number }) {
               </p>
             </div>
             <div className="course-card-bottom-right">
-              <ChevronRight className="primary-text" aria-hidden="true" />
+              <SkeletonCircle size={18} />
             </div>
           </div>
         </SkeletonCard>

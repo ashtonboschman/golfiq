@@ -385,7 +385,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     expect(insights.message_outcomes[1]).toBe('M2-E');
     expect(insights.messages[1]).toMatch(
-      /Several areas contributed positively|No measured area clearly held the round back|The round stayed stable because scoring pressure never built|Multiple areas helped the score/,
+      /Several areas contributed positively|No measured area clearly held the round back|The round stayed steady because no major measured area added much pressure|Multiple areas helped the score/,
     );
     expect(insights.messages[1]).not.toMatch(/Off The Tee likely helped|Off Tee likely helped|Off The Tee/i);
     expect(insights.message_outcomes[2]).toBe('M3-E');
@@ -766,7 +766,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     );
 
     expect(dominant.messages[1].toLowerCase()).toMatch(
-      /part of the round slipped away through overlapping mistakes across multiple areas|a few scoring leaks came from in-between situations across the round|several costly holes came from situations that crossed multiple parts of the game|some strokes slipped away through connected mistakes rather than one clear area|a few scoring boosts came from in-between situations across the round|several positive swings came from connected moments across multiple parts of the game|part of the scoring came from situations that overlapped rather than one clear area|some gains came from holes that played out across connected parts of the game/,
+      /part of the round slipped away through overlapping mistakes across multiple areas|a few scoring leaks came from in-between situations across the round|several costly holes came from situations that crossed multiple parts of the game|some strokes slipped away through connected mistakes rather than one clear area|a few scoring boosts came from in-between situations across the round|several positive swings came from connected moments across multiple parts of the game|part of the scoring came from situations that overlapped rather than one clear area|some gains came from holes where multiple parts of the game worked together/,
     );
     expect(dominant.messages.join(' ').toLowerCase()).not.toContain('residual');
 
@@ -1400,7 +1400,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           residualDominant: false,
           weakSeparation: false,
         },
-        expectedText: 'Approach was the main area costing strokes.',
+        expectedText: 'Approach was the main area costing you strokes.',
         expectedLevel: 'warning',
       },
       {

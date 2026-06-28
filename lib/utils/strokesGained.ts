@@ -27,7 +27,7 @@ const round1 = (num: number) => Math.round(num * 10) / 10;
 // Allow injection of Prisma client (for testing)
 export async function calculateStrokesGained(
   { userId, roundId }: SGInputs,
-  prisma: PrismaClient
+  prisma: PrismaClient | Prisma.TransactionClient
 ): Promise<SGComponents> {
   // Fetch round data
   const round = await prisma.round.findUnique({

@@ -66,7 +66,7 @@ const cases: OutcomeCase[] = [
     key: 'M1-D',
     messageIndex: 0,
     expectedOutcome: 'M1-D',
-    expectedMessageFragment: 'finished close to baseline at 0.0 strokes',
+    expectedMessageFragment: 'finished close to even at 0.0 strokes',
     input: {
       ...baseInput,
       bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0 },

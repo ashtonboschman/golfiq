@@ -7,49 +7,50 @@ datasource db {
 }
 
 model User {
-  id                      BigInt                   @id @default(autoincrement())
-  username                String                   @unique @db.VarChar(100)
-  email                   String                   @unique @db.VarChar(100)
-  passwordHash            String                   @map("password_hash") @db.VarChar(255)
-  active                  Boolean                  @default(true)
-  emailVerified           Boolean                  @default(false) @map("email_verified")
-  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
-  subscriptionProvider    SubscriptionProvider?    @map("subscription_provider")
-  stripeCustomerId        String?                  @map("stripe_customer_id") @db.VarChar(255)
-  stripeSubscriptionId    String?                  @map("stripe_subscription_id") @db.VarChar(255)
-  appleOriginalTransactionId String?               @map("apple_original_transaction_id") @db.VarChar(255)
-  appleProductId          String?                  @map("apple_product_id") @db.VarChar(255)
-  subscriptionEndsAt      DateTime?                @map("subscription_ends_at") @db.Timestamptz(6)
-  subscriptionStartsAt    DateTime?                @map("subscription_starts_at") @db.Timestamptz(6)
-  subscriptionStatus      SubscriptionStatus       @default(active) @map("subscription_status")
-  subscriptionCancelAtPeriodEnd Boolean            @default(false) @map("subscription_cancel_at_period_end")
-  subscriptionTier        SubscriptionTier         @default(free) @map("subscription_tier")
-  dataExports             DataExport[]
-  courseRequests          CourseRequest[]
-  feedbackSubmissions     UserFeedback[]
-  friendRequestsReceived  FriendRequest[]          @relation("RecipientRelation")
-  friendRequestsSent      FriendRequest[]          @relation("RequesterRelation")
-  friendNotificationsReceived FriendNotification[] @relation("FriendNotificationRecipient")
-  friendNotificationsActed FriendNotification[]    @relation("FriendNotificationActor")
-  friendsReceived         Friend[]                 @relation("FriendOfUser")
-  friendsInitiated        Friend[]                 @relation("UserFriends")
-  lifetimeGrants          LifetimeGrant[]
-  overallInsight          OverallInsight?
-  RoundInsights           RoundInsight[]
-  roundStrokesGaineds     RoundStrokesGained[]
-  rounds                  Round[]
-  subscriptionEvents      SubscriptionEvent[]
-  userAchievementEvents   UserAchievementEvent[]
-  userAchievementProgress UserAchievementProgress?
-  userAchievements        UserAchievement[]
-  leaderboardStats        UserLeaderboardStats?
-  profile                 UserProfile?
-  oauthAccounts          OAuthAccount[]
-  reportsFiled            UserReport[]             @relation("ReportsFiled")
-  reportsReceived         UserReport[]             @relation("ReportsReceived")
-  blocksInitiated         UserBlock[]              @relation("BlocksInitiated")
-  blocksReceived          UserBlock[]              @relation("BlocksReceived")
+  id                            BigInt                   @id @default(autoincrement())
+  username                      String                   @unique @db.VarChar(100)
+  email                         String                   @unique @db.VarChar(100)
+  passwordHash                  String                   @map("password_hash") @db.VarChar(255)
+  active                        Boolean                  @default(true)
+  emailVerified                 Boolean                  @default(false) @map("email_verified")
+  createdAt                     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  subscriptionProvider          SubscriptionProvider?    @map("subscription_provider")
+  stripeCustomerId              String?                  @map("stripe_customer_id") @db.VarChar(255)
+  stripeSubscriptionId          String?                  @map("stripe_subscription_id") @db.VarChar(255)
+  appleOriginalTransactionId    String?                  @map("apple_original_transaction_id") @db.VarChar(255)
+  appleProductId                String?                  @map("apple_product_id") @db.VarChar(255)
+  subscriptionEndsAt            DateTime?                @map("subscription_ends_at") @db.Timestamptz(6)
+  subscriptionStartsAt          DateTime?                @map("subscription_starts_at") @db.Timestamptz(6)
+  subscriptionStatus            SubscriptionStatus       @default(active) @map("subscription_status")
+  subscriptionCancelAtPeriodEnd Boolean                  @default(false) @map("subscription_cancel_at_period_end")
+  subscriptionTier              SubscriptionTier         @default(free) @map("subscription_tier")
+  dataExports                   DataExport[]
+  courseRequests                CourseRequest[]
+  feedbackSubmissions           UserFeedback[]
+  friendRequestsReceived        FriendRequest[]          @relation("RecipientRelation")
+  friendRequestsSent            FriendRequest[]          @relation("RequesterRelation")
+  friendNotificationsReceived   FriendNotification[]     @relation("FriendNotificationRecipient")
+  friendNotificationsActed      FriendNotification[]     @relation("FriendNotificationActor")
+  friendsReceived               Friend[]                 @relation("FriendOfUser")
+  friendsInitiated              Friend[]                 @relation("UserFriends")
+  lifetimeGrants                LifetimeGrant[]
+  overallInsight                OverallInsight?
+  RoundInsights                 RoundInsight[]
+  roundStrokesGaineds           RoundStrokesGained[]
+  rounds                        Round[]
+  liveRoundSessions             LiveRoundSession[]
+  subscriptionEvents            SubscriptionEvent[]
+  userAchievementEvents         UserAchievementEvent[]
+  userAchievementProgress       UserAchievementProgress?
+  userAchievements              UserAchievement[]
+  leaderboardStats              UserLeaderboardStats?
+  profile                       UserProfile?
+  oauthAccounts                 OAuthAccount[]
+  reportsFiled                  UserReport[]             @relation("ReportsFiled")
+  reportsReceived               UserReport[]             @relation("ReportsReceived")
+  blocksInitiated               UserBlock[]              @relation("BlocksInitiated")
+  blocksReceived                UserBlock[]              @relation("BlocksReceived")
 
   @@index([subscriptionTier, subscriptionStatus], map: "idx_users_subscription")
   @@index([stripeCustomerId], map: "idx_users_stripe_customer")
@@ -93,13 +94,13 @@ model UserBlock {
 
 model OAuthAccount {
   id                BigInt   @id @default(autoincrement())
-  userId             BigInt   @map("user_id")
-  provider           String   @db.VarChar(32)
-  providerAccountId  String   @map("provider_account_id") @db.VarChar(255)
-  email              String?  @db.VarChar(255)
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            BigInt   @map("user_id")
+  provider          String   @db.VarChar(32)
+  providerAccountId String   @map("provider_account_id") @db.VarChar(255)
+  email             String?  @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId], map: "oauth_accounts_provider_provider_account_key")
   @@index([userId], map: "idx_oauth_accounts_user_id")
@@ -108,29 +109,29 @@ model OAuthAccount {
 }
 
 model UserProfile {
-  id                  BigInt              @id @default(autoincrement())
-  userId              BigInt              @unique @map("user_id")
-  firstName           String?             @map("first_name") @db.VarChar(100)
-  lastName            String?             @map("last_name") @db.VarChar(100)
-  avatarUrl           String              @default("/avatars/default.png") @map("avatar_url") @db.VarChar(255)
-  bio                 String?
-  gender              Gender              @default(unspecified)
-  defaultTee          DefaultTee          @default(white) @map("default_tee")
-  favoriteCourseId    BigInt?             @map("favorite_course_id")
-  dashboardVisibility DashboardVisibility @default(friends) @map("dashboard_visibility")
-  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  theme               String              @default("dark") @db.VarChar(50)
-  timezone            String?             @db.VarChar(100)
-  showStrokesGained   Boolean             @default(true) @map("show_strokes_gained")
-  liveRoundTrackFir   Boolean             @default(true) @map("live_round_track_fir")
-  liveRoundTrackGir   Boolean             @default(true) @map("live_round_track_gir")
-  liveRoundTrackChips Boolean             @default(true) @map("live_round_track_chips")
-  liveRoundTrackGreensideBunkerShots Boolean @default(true) @map("live_round_track_greenside_bunker_shots")
-  liveRoundTrackPutts Boolean             @default(true) @map("live_round_track_putts")
-  liveRoundTrackPenalties Boolean         @default(true) @map("live_round_track_penalties")
-  favoriteCourse      Course?             @relation(fields: [favoriteCourseId], references: [id])
-  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                                 BigInt              @id @default(autoincrement())
+  userId                             BigInt              @unique @map("user_id")
+  firstName                          String?             @map("first_name") @db.VarChar(100)
+  lastName                           String?             @map("last_name") @db.VarChar(100)
+  avatarUrl                          String              @default("/avatars/default.png") @map("avatar_url") @db.VarChar(255)
+  bio                                String?
+  gender                             Gender              @default(unspecified)
+  defaultTee                         DefaultTee          @default(white) @map("default_tee")
+  favoriteCourseId                   BigInt?             @map("favorite_course_id")
+  dashboardVisibility                DashboardVisibility @default(friends) @map("dashboard_visibility")
+  createdAt                          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  theme                              String              @default("dark") @db.VarChar(50)
+  timezone                           String?             @db.VarChar(100)
+  showStrokesGained                  Boolean             @default(true) @map("show_strokes_gained")
+  liveRoundTrackFir                  Boolean             @default(true) @map("live_round_track_fir")
+  liveRoundTrackGir                  Boolean             @default(true) @map("live_round_track_gir")
+  liveRoundTrackChips                Boolean             @default(true) @map("live_round_track_chips")
+  liveRoundTrackGreensideBunkerShots Boolean             @default(true) @map("live_round_track_greenside_bunker_shots")
+  liveRoundTrackPutts                Boolean             @default(true) @map("live_round_track_putts")
+  liveRoundTrackPenalties            Boolean             @default(true) @map("live_round_track_penalties")
+  favoriteCourse                     Course?             @relation(fields: [favoriteCourseId], references: [id])
+  user                               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([dashboardVisibility], map: "idx_dashboard_visibility")
   @@map("user_profiles")
@@ -184,15 +185,16 @@ model EmailVerificationToken {
 }
 
 model Course {
-  id                 BigInt        @id @default(autoincrement())
-  clubName           String        @map("club_name") @db.VarChar(255)
-  courseName         String        @map("course_name") @db.VarChar(255)
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  verified           Boolean       @default(false)
+  id                 BigInt             @id @default(autoincrement())
+  clubName           String             @map("club_name") @db.VarChar(255)
+  courseName         String             @map("course_name") @db.VarChar(255)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  verified           Boolean            @default(false)
   location           Location?
   mappedCourse       MappedCourse?
   rounds             Round[]
+  liveRoundSessions  LiveRoundSession[]
   tees               Tee[]
   favoriteByProfiles UserProfile[]
 
@@ -272,82 +274,85 @@ model Location {
 }
 
 model Tee {
-  id                BigInt    @id @default(autoincrement())
-  courseId          BigInt    @map("course_id")
+  id                BigInt             @id @default(autoincrement())
+  courseId          BigInt             @map("course_id")
   gender            TeeGender
-  teeName           String    @map("tee_name") @db.VarChar(100)
-  courseRating      Decimal?  @map("course_rating") @db.Decimal(5, 2)
-  slopeRating       Int?      @map("slope_rating")
-  bogeyRating       Decimal?  @map("bogey_rating") @db.Decimal(5, 2)
-  totalYards        Int?      @map("total_yards")
-  totalMeters       Int?      @map("total_meters")
-  numberOfHoles     Int?      @map("number_of_holes")
-  parTotal          Int?      @map("par_total")
-  frontCourseRating Decimal?  @map("front_course_rating") @db.Decimal(5, 2)
-  frontSlopeRating  Int?      @map("front_slope_rating")
-  frontBogeyRating  Decimal?  @map("front_bogey_rating") @db.Decimal(5, 2)
-  backCourseRating  Decimal?  @map("back_course_rating") @db.Decimal(5, 2)
-  backSlopeRating   Int?      @map("back_slope_rating")
-  backBogeyRating   Decimal?  @map("back_bogey_rating") @db.Decimal(5, 2)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  nonPar3Holes      Int       @map("non_par3_holes")
+  teeName           String             @map("tee_name") @db.VarChar(100)
+  courseRating      Decimal?           @map("course_rating") @db.Decimal(5, 2)
+  slopeRating       Int?               @map("slope_rating")
+  bogeyRating       Decimal?           @map("bogey_rating") @db.Decimal(5, 2)
+  totalYards        Int?               @map("total_yards")
+  totalMeters       Int?               @map("total_meters")
+  numberOfHoles     Int?               @map("number_of_holes")
+  parTotal          Int?               @map("par_total")
+  frontCourseRating Decimal?           @map("front_course_rating") @db.Decimal(5, 2)
+  frontSlopeRating  Int?               @map("front_slope_rating")
+  frontBogeyRating  Decimal?           @map("front_bogey_rating") @db.Decimal(5, 2)
+  backCourseRating  Decimal?           @map("back_course_rating") @db.Decimal(5, 2)
+  backSlopeRating   Int?               @map("back_slope_rating")
+  backBogeyRating   Decimal?           @map("back_bogey_rating") @db.Decimal(5, 2)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  nonPar3Holes      Int                @map("non_par3_holes")
   holes             Hole[]
   rounds            Round[]
-  course            Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  liveRoundSessions LiveRoundSession[]
+  course            Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@index([courseId], map: "idx_tee_course_id")
   @@map("tees")
 }
 
 model Hole {
-  id         BigInt      @id @default(autoincrement())
-  teeId      BigInt      @map("tee_id")
-  holeNumber Int         @map("hole_number")
-  par        Int
-  yardage    Int
-  handicap   Int?
-  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tee        Tee         @relation(fields: [teeId], references: [id], onDelete: Cascade)
-  roundHoles RoundHole[]
+  id                  BigInt               @id @default(autoincrement())
+  teeId               BigInt               @map("tee_id")
+  holeNumber          Int                  @map("hole_number")
+  par                 Int
+  yardage             Int
+  handicap            Int?
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tee                 Tee                  @relation(fields: [teeId], references: [id], onDelete: Cascade)
+  roundHoles          RoundHole[]
+  liveRoundHoleDrafts LiveRoundHoleDraft[]
 
   @@index([teeId], map: "idx_hole_tee_id")
   @@map("holes")
 }
 
 model Round {
-  id                    BigInt                 @id @default(autoincrement())
-  userId                BigInt                 @map("user_id")
-  courseId              BigInt                 @map("course_id")
-  teeId                 BigInt                 @map("tee_id")
-  holeByHole            Boolean                @default(false) @map("hole_by_hole")
-  date                  DateTime               @db.Timestamptz(6)
-  score                 Int
-  netScore              Int?                   @map("net_score")
-  firHit                Int?                   @map("fir_hit")
-  girHit                Int?                   @map("gir_hit")
-  putts                 Int?
-  penalties             Int?
-  chips                 Int?
-  greensideBunkerShots  Int?                   @map("greenside_bunker_shots")
-  shortGameShots        Int?                   @map("short_game_shots")
-  notes                 String?
-  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  toPar                 Int?                   @map("to_par") @db.SmallInt
-  netToPar              Int?                   @map("net_to_par") @db.SmallInt
-  handicapAtRound       Decimal?               @map("handicap_at_round") @db.Decimal(4, 1)
-  teeSegment            String                 @default("full") @map("tee_segment")
-  holesPlayed           Int                    @default(18) @map("holes_played")
-  roundContext          RoundContext           @default(real) @map("round_context")
-  roundHoles            RoundHole[]
-  RoundInsight          RoundInsight?
-  roundStrokesGained    RoundStrokesGained?
-  course                Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  tee                   Tee                    @relation(fields: [teeId], references: [id])
-  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userAchievementEvents UserAchievementEvent[]
+  id                        BigInt                 @id @default(autoincrement())
+  userId                    BigInt                 @map("user_id")
+  courseId                  BigInt                 @map("course_id")
+  teeId                     BigInt                 @map("tee_id")
+  holeByHole                Boolean                @default(false) @map("hole_by_hole")
+  date                      DateTime               @db.Timestamptz(6)
+  score                     Int
+  netScore                  Int?                   @map("net_score")
+  firHit                    Int?                   @map("fir_hit")
+  girHit                    Int?                   @map("gir_hit")
+  putts                     Int?
+  penalties                 Int?
+  chips                     Int?
+  greensideBunkerShots      Int?                   @map("greenside_bunker_shots")
+  shortGameShots            Int?                   @map("short_game_shots")
+  notes                     String?
+  createdAt                 DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  toPar                     Int?                   @map("to_par") @db.SmallInt
+  netToPar                  Int?                   @map("net_to_par") @db.SmallInt
+  handicapAtRound           Decimal?               @map("handicap_at_round") @db.Decimal(4, 1)
+  teeSegment                String                 @default("full") @map("tee_segment")
+  holesPlayed               Int                    @default(18) @map("holes_played")
+  roundContext              RoundContext           @default(real) @map("round_context")
+  roundHoles                RoundHole[]
+  RoundInsight              RoundInsight?
+  roundStrokesGained        RoundStrokesGained?
+  finalizedLiveRoundSession LiveRoundSession?      @relation("FinalizedLiveRound")
+  course                    Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  tee                       Tee                    @relation(fields: [teeId], references: [id])
+  user                      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAchievementEvents     UserAchievementEvent[]
 
   @@index([userId], map: "idx_user_id")
   @@index([userId, roundContext], map: "idx_round_user_context")
@@ -357,28 +362,97 @@ model Round {
 }
 
 model RoundHole {
-  id        BigInt   @id @default(autoincrement())
-  roundId   BigInt   @map("round_id")
-  holeId    BigInt   @map("hole_id")
-  pass      Int      @default(1) @map("pass") @db.SmallInt
-  score     Int
-  firHit    Int?     @map("fir_hit")
-  firDirection RoundMissDirection? @map("fir_direction")
-  girHit    Int?     @map("gir_hit")
-  girDirection RoundMissDirection? @map("gir_direction")
-  putts     Int?
-  penalties Int?
-  chips     Int?
-  greensideBunkerShots Int? @map("greenside_bunker_shots")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  hole      Hole     @relation(fields: [holeId], references: [id], onDelete: Cascade)
-  round     Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  id                   BigInt              @id @default(autoincrement())
+  roundId              BigInt              @map("round_id")
+  holeId               BigInt              @map("hole_id")
+  pass                 Int                 @default(1) @map("pass") @db.SmallInt
+  score                Int
+  firHit               Int?                @map("fir_hit")
+  firDirection         RoundMissDirection? @map("fir_direction")
+  girHit               Int?                @map("gir_hit")
+  girDirection         RoundMissDirection? @map("gir_direction")
+  putts                Int?
+  penalties            Int?
+  chips                Int?
+  greensideBunkerShots Int?                @map("greenside_bunker_shots")
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  hole                 Hole                @relation(fields: [holeId], references: [id], onDelete: Cascade)
+  round                Round               @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   @@unique([roundId, holeId, pass], name: "unique_round_hole_pass")
   @@index([roundId], map: "idx_round_id")
   @@index([holeId], map: "idx_hole_id")
   @@map("round_holes")
+}
+
+model LiveRoundSession {
+  id                                 BigInt                 @id @default(autoincrement())
+  userId                             BigInt                 @map("user_id")
+  courseId                           BigInt                 @map("course_id")
+  teeId                              BigInt                 @map("tee_id")
+  finalRoundId                       BigInt?                @unique @map("final_round_id")
+  status                             LiveRoundSessionStatus @default(ACTIVE)
+  date                               DateTime               @db.Timestamptz(6)
+  teeSegment                         String                 @default("full") @map("tee_segment")
+  roundContext                       RoundContext           @default(real) @map("round_context")
+  notes                              String?
+  startHoleNumber                    Int                    @default(1) @map("start_hole_number")
+  activeHoleNumber                   Int                    @default(1) @map("active_hole_number")
+  activeHolePass                     Int                    @default(1) @map("active_hole_pass") @db.SmallInt
+  activeStep                         LiveRoundActiveStep    @default(SCORE) @map("active_step")
+  liveRoundTrackFir                  Boolean                @default(true) @map("live_round_track_fir")
+  liveRoundTrackGir                  Boolean                @default(true) @map("live_round_track_gir")
+  liveRoundTrackChips                Boolean                @default(true) @map("live_round_track_chips")
+  liveRoundTrackGreensideBunkerShots Boolean                @default(true) @map("live_round_track_greenside_bunker_shots")
+  liveRoundTrackPutts                Boolean                @default(true) @map("live_round_track_putts")
+  liveRoundTrackPenalties            Boolean                @default(true) @map("live_round_track_penalties")
+  startedAt                          DateTime               @default(now()) @map("started_at") @db.Timestamptz(6)
+  lastSavedAt                        DateTime               @default(now()) @map("last_saved_at") @db.Timestamptz(6)
+  completedAt                        DateTime?              @map("completed_at") @db.Timestamptz(6)
+  discardedAt                        DateTime?              @map("discarded_at") @db.Timestamptz(6)
+  createdAt                          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  course                             Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  finalRound                         Round?                 @relation("FinalizedLiveRound", fields: [finalRoundId], references: [id], onDelete: SetNull)
+  holeDrafts                         LiveRoundHoleDraft[]
+  tee                                Tee                    @relation(fields: [teeId], references: [id])
+  user                               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, lastSavedAt], map: "idx_live_round_sessions_user_status_saved")
+  @@index([userId, status, updatedAt], map: "idx_live_round_sessions_user_status_updated")
+  @@index([courseId], map: "idx_live_round_sessions_course_id")
+  @@index([teeId], map: "idx_live_round_sessions_tee_id")
+  @@index([status], map: "idx_live_round_sessions_status")
+  @@map("live_round_sessions")
+}
+
+model LiveRoundHoleDraft {
+  id                   BigInt              @id @default(autoincrement())
+  sessionId            BigInt              @map("session_id")
+  holeId               BigInt              @map("hole_id")
+  holeNumber           Int                 @map("hole_number")
+  displayHoleNumber    Int                 @map("display_hole_number")
+  pass                 Int                 @default(1) @map("pass") @db.SmallInt
+  score                Int?
+  firHit               Int?                @map("fir_hit")
+  firDirection         RoundMissDirection? @map("fir_direction")
+  girHit               Int?                @map("gir_hit")
+  girDirection         RoundMissDirection? @map("gir_direction")
+  putts                Int?
+  penalties            Int?
+  chips                Int?
+  greensideBunkerShots Int?                @map("greenside_bunker_shots")
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  hole                 Hole                @relation(fields: [holeId], references: [id], onDelete: Cascade)
+  session              LiveRoundSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, holeId, pass], map: "uq_live_round_hole_drafts_session_hole_pass")
+  @@index([sessionId], map: "idx_live_round_hole_drafts_session_id")
+  @@index([sessionId, displayHoleNumber], map: "idx_live_round_hole_drafts_session_display")
+  @@index([holeId], map: "idx_live_round_hole_drafts_hole_id")
+  @@map("live_round_hole_drafts")
 }
 
 model FriendRequest {
@@ -579,16 +653,16 @@ model RoundStrokesGained {
 }
 
 model HandicapTierBaseline {
-  id                BigInt   @id @default(autoincrement())
-  handicap          Int      @map("handicap")
-  baselineScore     Decimal  @map("baseline_score") @db.Decimal(5, 1)
-  baselineGIRPct    Decimal  @map("baseline_gir_pct") @db.Decimal(5, 1)
-  baselineFIRPct    Decimal  @map("baseline_fir_pct") @db.Decimal(5, 1)
-  baselinePutts     Decimal  @map("baseline_putts") @db.Decimal(5, 1)
-  baselinePenalties Decimal  @map("baseline_penalties") @db.Decimal(5, 1)
-  baselineShortGameShots Decimal @map("baseline_short_game_shots") @db.Decimal(5, 1)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                     BigInt   @id @default(autoincrement())
+  handicap               Int      @map("handicap")
+  baselineScore          Decimal  @map("baseline_score") @db.Decimal(5, 1)
+  baselineGIRPct         Decimal  @map("baseline_gir_pct") @db.Decimal(5, 1)
+  baselineFIRPct         Decimal  @map("baseline_fir_pct") @db.Decimal(5, 1)
+  baselinePutts          Decimal  @map("baseline_putts") @db.Decimal(5, 1)
+  baselinePenalties      Decimal  @map("baseline_penalties") @db.Decimal(5, 1)
+  baselineShortGameShots Decimal  @map("baseline_short_game_shots") @db.Decimal(5, 1)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@map("handicap_tier_baseline")
 }
@@ -810,6 +884,17 @@ enum RoundMissDirection {
   miss_right
   miss_short
   miss_long
+}
+
+enum LiveRoundSessionStatus {
+  ACTIVE
+  COMPLETED
+  DISCARDED
+}
+
+enum LiveRoundActiveStep {
+  GPS
+  SCORE
 }
 
 enum UserReportReason {

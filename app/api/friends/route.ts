@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { getBlockStateBetweenUsers } from '@/lib/socialSafety';
+import { compareFriendsByName } from '@/lib/friendUtils';
 
 // GET friends list
 export async function GET(request: NextRequest) {
@@ -82,8 +83,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Sort by username
-    results.sort((a: any, b: any) => a.username.localeCompare(b.username));
+    results.sort(compareFriendsByName);
 
     return successResponse({ results });
   } catch (error) {

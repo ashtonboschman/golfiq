@@ -12,6 +12,26 @@ export interface FriendUser {
   total_rounds?: number | null;
 }
 
+interface FriendName {
+  first_name?: string | null;
+  last_name?: string | null;
+  username?: string | null;
+}
+
+export function compareFriendsByName(a: FriendName, b: FriendName): number {
+  const firstNameComparison = (a.first_name || a.username || '').localeCompare(
+    b.first_name || b.username || '',
+    undefined,
+    { sensitivity: 'base' }
+  );
+
+  if (firstNameComparison !== 0) return firstNameComparison;
+
+  return (a.last_name || '').localeCompare(b.last_name || '', undefined, {
+    sensitivity: 'base',
+  });
+}
+
 export function normalizeFriend(user: Partial<FriendUser> & { type: string }): FriendUser {
   if (!user.type) {
     throw new Error('normalizeFriend called without explicit type');

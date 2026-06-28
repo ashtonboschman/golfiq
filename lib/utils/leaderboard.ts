@@ -1,11 +1,14 @@
 // app/lib/utils/leaderboard.ts
+import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { normalizeRoundsByMode, calculateHandicap } from './handicap';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 
-export async function recalcLeaderboard(userId: bigint): Promise<void> {
+type LeaderboardDbClient = PrismaClient | Prisma.TransactionClient;
+
+export async function recalcLeaderboard(userId: bigint, db: LeaderboardDbClient = prisma): Promise<void> {
   // Fetch all rounds for the user
-  const rounds = await prisma.round.findMany({
+  const rounds = await db.round.findMany({
     where: {
       userId,
       roundContext: 'real',
@@ -42,7 +45,7 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
 
   if (!rounds.length) {
     // No rounds: clear leaderboard stats
-    await prisma.userLeaderboardStats.upsert({
+    await db.userLeaderboardStats.upsert({
       where: { userId },
       create: {
         userId,
@@ -98,7 +101,7 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
 
   if (!totalRounds) {
     // No valid rounds: clear leaderboard stats
-    await prisma.userLeaderboardStats.upsert({
+    await db.userLeaderboardStats.upsert({
       where: { userId },
       create: {
         userId,
@@ -133,7 +136,7 @@ export async function recalcLeaderboard(userId: bigint): Promise<void> {
   const handicap = calculateHandicap(validRounds);
 
   // Update leaderboard stats
-  await prisma.userLeaderboardStats.upsert({
+  await db.userLeaderboardStats.upsert({
     where: { userId },
     create: {
       userId,

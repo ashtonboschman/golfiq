@@ -9,7 +9,7 @@ import { AsyncPaginate } from 'react-select-async-paginate';
 import { selectStyles } from '@/lib/selectStyles';
 import HoleCard from '@/components/HoleCard';
 import { getLocalDateString } from '@/lib/dateUtils';
-import { Plus } from 'lucide-react';
+import { CalendarDays, Clock, Play, Plus, Trash2 } from 'lucide-react';
 import Select from 'react-select';
 import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
@@ -18,14 +18,11 @@ import { captureClientEvent } from '@/lib/analytics/client';
 import { getRoundAddDraftKey } from '@/lib/rounds/addDraft';
 import {
   DEFAULT_LIVE_ROUND_TRACKING_PREFS,
-  LIVE_ROUND_AGGREGATE_FIELDS,
   normalizeLiveRoundTrackingPrefs,
   profileFieldsToLiveRoundTrackingPrefs,
-  sumTrackedLiveRoundField,
   type LiveRoundTrackingPrefs,
   type LiveRoundTrackingProfileFields,
 } from '@/lib/rounds/liveRoundTracking';
-import { useLiveRoundHoleScroll } from '@/lib/rounds/useLiveRoundHoleScroll';
 import {
   buildLiveRoundContextFromDraft,
   clearDashboardResumeCtaSnooze,
@@ -34,6 +31,7 @@ import {
   readLiveRoundContext,
   writeLiveRoundContext,
 } from '@/lib/rounds/liveRoundResume';
+import { teeSegmentLabel, type LiveRoundSession } from '@/components/rounds/live/types';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -104,11 +102,62 @@ interface TeeOption {
 type RoundContext = 'real' | 'simulator' | 'practice';
 
 type TaggedRoundContext = Exclude<RoundContext, 'real'>;
+type RoundEntryMode = 'live' | 'after';
+
+type ApiResponse<T> = T & {
+  message?: string;
+};
+
+const ADD_ROUND_DIRTY_KEY = 'golfiq-add-round-dirty';
 
 const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'simulator', label: 'Simulator Round' },
   { value: 'practice', label: 'Practice Round' },
 ];
+
+const courseSelectStyles = {
+  ...selectStyles,
+  control: (base: any, state: any) => ({
+    ...selectStyles.control(base, state),
+    height: '44px',
+    minHeight: '44px',
+    padding: '0 2px',
+  }),
+  valueContainer: (base: any) => ({
+    ...selectStyles.valueContainer(base),
+    height: '42px',
+  }),
+  indicatorsContainer: (base: any) => ({
+    ...base,
+    height: '42px',
+  }),
+};
+
+async function readApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || 'Request failed');
+  }
+  return data;
+}
+
+function sessionCourseLabel(session: LiveRoundSession) {
+  if (!session.course) return 'Selected Course';
+  return session.course.club_name === session.course.course_name
+    ? session.course.course_name
+    : `${session.course.club_name} - ${session.course.course_name}`;
+}
+
+function formatSessionDate(date: string) {
+  return date ? date.slice(0, 10) : '';
+}
+
+function formatSavedTime(value: string | null) {
+  if (!value) return 'Not saved yet';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Saved recently';
+  return `Saved ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
 
 type AddRoundDraft = {
   version: 1;
@@ -120,6 +169,7 @@ type AddRoundDraft = {
   completedHoles: number[];
   expandedHole: number;
   liveRoundTracking: LiveRoundTrackingPrefs;
+  liveStartHoleNumber?: number;
 };
 
 function AddRoundContent() {
@@ -185,6 +235,17 @@ function AddRoundContent() {
   const [liveRoundTracking, setLiveRoundTracking] = useState<LiveRoundTrackingPrefs>(
     DEFAULT_LIVE_ROUND_TRACKING_PREFS,
   );
+  const [roundEntryMode, setRoundEntryMode] = useState<RoundEntryMode>(
+    searchParams.get('mode') === 'live' ? 'live' : 'after',
+  );
+  const [activeLiveSessions, setActiveLiveSessions] = useState<LiveRoundSession[]>([]);
+  const [loadingLiveSessions, setLoadingLiveSessions] = useState(false);
+  const [liveStartError, setLiveStartError] = useState<string | null>(null);
+  const [showLiveStartSetup, setShowLiveStartSetup] = useState(false);
+  const [startingLiveRound, setStartingLiveRound] = useState(false);
+  const [discardingLiveSessionId, setDiscardingLiveSessionId] = useState<string | null>(null);
+  const [hasUserEdited, setHasUserEdited] = useState(false);
+  const [liveStartHoleNumber, setLiveStartHoleNumber] = useState(1);
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const holeScoresRef = useRef<HoleScore[]>([]);
   const hasSubmittedRef = useRef(false);
@@ -196,6 +257,9 @@ function AddRoundContent() {
   const latestModeRef = useRef<'live_round' | 'after_round'>('after_round');
   const latestStepRef = useRef<'initial' | 'course_selected' | 'tee_selected'>('initial');
   const liveRoundTrackingReadyRef = useRef(false);
+  const initialDateRef = useRef(round.date);
+  const allowBrowserBackRef = useRef(false);
+  const hasPushedBackGuardRef = useRef(false);
   const roundAddDraftKey = useMemo(
     () => getRoundAddDraftKey(session?.user?.id),
     [session?.user?.id],
@@ -234,13 +298,13 @@ function AddRoundContent() {
     setRound(prev => ({ ...prev, tee_segment: nextSegment }));
   }, []);
 
-  const isHBH = round.hole_by_hole === 1;
+  const isHBH = false;
+  const isAfterRoundMode = roundEntryMode === 'after';
 
-  useLiveRoundHoleScroll({
-    enabled: isHBH && initialized,
-    expandedHole,
-    holeCardRefs,
-  });
+  const markUserEdited = useCallback(() => {
+    hasInteractedRef.current = true;
+    setHasUserEdited(true);
+  }, []);
 
   useEffect(() => {
     if (status !== 'unauthenticated') {
@@ -300,14 +364,14 @@ function AddRoundContent() {
     if (status !== 'authenticated' || startTrackedRef.current) return;
     startTrackedRef.current = true;
     trackEvent(ANALYTICS_EVENTS.roundAddStarted, {
-      round_logging_mode_selected: isHBH ? 'live_round' : 'after_round',
+      round_logging_mode_selected: roundEntryMode === 'live' ? 'live_round' : 'after_round',
       holes_target: round.tee_segment === 'double9' || round.tee_segment === 'full' ? 18 : 9,
     });
-  }, [isHBH, round.tee_segment, status, trackEvent]);
+  }, [round.tee_segment, roundEntryMode, status, trackEvent]);
 
   useEffect(() => {
-    latestModeRef.current = isHBH ? 'live_round' : 'after_round';
-  }, [isHBH]);
+    latestModeRef.current = roundEntryMode === 'live' ? 'live_round' : 'after_round';
+  }, [roundEntryMode]);
 
   useEffect(() => {
     latestStepRef.current = round.tee_id
@@ -333,6 +397,7 @@ function AddRoundContent() {
 
       restoredDraftRef.current = true;
       hasInteractedRef.current = true;
+      setHasUserEdited(true);
       setRound((prev) => ({ ...prev, ...parsed.round }));
       setHoleScores(Array.isArray(parsed.holeScores) ? parsed.holeScores : []);
       setSelectedCourse(parsed.selectedCourse ?? null);
@@ -346,6 +411,9 @@ function AddRoundContent() {
         setLiveRoundTracking(normalizeLiveRoundTrackingPrefs(parsed.liveRoundTracking));
         liveRoundTrackingReadyRef.current = true;
       }
+      setLiveStartHoleNumber(
+        Number.isFinite(parsed.liveStartHoleNumber) ? (parsed.liveStartHoleNumber as number) : 1,
+      );
 
       if (parsed.selectedTee?.teeObj) {
         updateSegmentOptions(parsed.selectedTee.teeObj, parsed.round.tee_segment);
@@ -371,6 +439,36 @@ function AddRoundContent() {
     clearLiveRoundRecoveryState(session?.user?.id);
   }, [session?.user?.id]);
 
+  const refreshActiveLiveSessions = useCallback(async () => {
+    if (status !== 'authenticated') return;
+
+    setLoadingLiveSessions(true);
+    setLiveStartError(null);
+    try {
+      const response = await fetch('/api/rounds/live/sessions', { cache: 'no-store' });
+      const data = await readApiResponse<{ sessions: LiveRoundSession[] }>(response);
+      const sessions = data.sessions || [];
+      setActiveLiveSessions(sessions);
+      setShowLiveStartSetup((current) => current || sessions.length === 0);
+    } catch (error) {
+      setLiveStartError(error instanceof Error ? error.message : 'Unable to load active live rounds');
+      setShowLiveStartSetup(true);
+    } finally {
+      setLoadingLiveSessions(false);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    refreshActiveLiveSessions();
+  }, [refreshActiveLiveSessions, status]);
+
+  useEffect(() => {
+    if (searchParams.get('mode') === 'live') {
+      setRoundEntryMode('live');
+    }
+  }, [searchParams]);
+
   const buildCurrentDraft = useCallback((): AddRoundDraft => ({
     version: 1,
     savedAt: new Date().toISOString(),
@@ -381,6 +479,7 @@ function AddRoundContent() {
     completedHoles: Array.from(completedHoles),
     expandedHole,
     liveRoundTracking,
+    liveStartHoleNumber,
   }), [
     completedHoles,
     expandedHole,
@@ -389,11 +488,16 @@ function AddRoundContent() {
     round,
     selectedCourse,
     selectedTee,
+    liveStartHoleNumber,
   ]);
 
   const hasDraftProgress = useCallback(() => Boolean(
+    round.date !== initialDateRef.current ||
     round.course_id ||
     round.tee_id ||
+    round.round_context !== 'real' ||
+    round.tee_segment !== 'full' ||
+    liveStartHoleNumber !== 1 ||
     round.score != null ||
     round.fir_hit != null ||
     round.gir_hit != null ||
@@ -412,7 +516,38 @@ function AddRoundContent() {
       hole.penalties != null ||
       hole.chips != null ||
       hole.greenside_bunker_shots != null),
-  ), [holeScores, round]);
+  ), [holeScores, liveStartHoleNumber, round]);
+
+  const isRoundAddDirty = hasUserEdited && hasDraftProgress();
+
+  const clearAddRoundDirtyState = useCallback(() => {
+    setHasUserEdited(false);
+    hasInteractedRef.current = false;
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(ADD_ROUND_DIRTY_KEY);
+    }
+  }, []);
+
+  const confirmLeaveAddRound = useCallback((onDiscard: () => void) => {
+    if (!isRoundAddDirty) {
+      onDiscard();
+      return;
+    }
+
+    showConfirm({
+      title: 'Discard changes?',
+      message: 'You have unsaved round details.',
+      cancelText: 'Stay',
+      confirmText: 'Discard',
+      variant: 'warning',
+      confirmVariant: 'danger',
+      onConfirm: () => {
+        clearRoundDraft();
+        clearAddRoundDirtyState();
+        onDiscard();
+      },
+    });
+  }, [clearAddRoundDirtyState, clearRoundDraft, isRoundAddDirty, showConfirm]);
 
   const persistDraftAndResumeContext = useCallback(() => {
     if (status !== 'authenticated' || !roundAddDraftKey) return;
@@ -491,8 +626,26 @@ function AddRoundContent() {
     };
   }, [trackEvent]);
 
-  // Warn user before navigating away with unsaved changes
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (isRoundAddDirty) {
+      sessionStorage.setItem(ADD_ROUND_DIRTY_KEY, 'true');
+    } else {
+      sessionStorage.removeItem(ADD_ROUND_DIRTY_KEY);
+      hasPushedBackGuardRef.current = false;
+      allowBrowserBackRef.current = false;
+    }
+
+    return () => {
+      sessionStorage.removeItem(ADD_ROUND_DIRTY_KEY);
+    };
+  }, [isRoundAddDirty]);
+
+  // Warn user before refreshing/closing only when there are unsaved changes
+  useEffect(() => {
+    if (!isRoundAddDirty) return;
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
@@ -500,7 +653,71 @@ function AddRoundContent() {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  }, [isRoundAddDirty]);
+
+  useEffect(() => {
+    if (!isRoundAddDirty) return;
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      if (anchor.target && anchor.target !== '_self') return;
+
+      const nextUrl = new URL(anchor.href, window.location.origin);
+      if (nextUrl.origin !== window.location.origin) return;
+      if (nextUrl.pathname === pathname && nextUrl.search === window.location.search) return;
+
+      event.preventDefault();
+      confirmLeaveAddRound(() => {
+        router.push(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      });
+    };
+
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => document.removeEventListener('click', handleDocumentClick, true);
+  }, [confirmLeaveAddRound, isRoundAddDirty, pathname, router]);
+
+  useEffect(() => {
+    if (!isRoundAddDirty) return;
+    if (!hasPushedBackGuardRef.current) {
+      window.history.pushState({ golfiqAddRoundGuard: true }, '', window.location.href);
+      hasPushedBackGuardRef.current = true;
+    }
+
+    const restoreGuard = () => {
+      window.history.pushState({ golfiqAddRoundGuard: true }, '', window.location.href);
+    };
+
+    const handlePopState = () => {
+      if (allowBrowserBackRef.current) {
+        return;
+      }
+
+      showConfirm({
+        title: 'Discard changes?',
+        message: 'You have unsaved round details.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
+        onCancel: restoreGuard,
+        onConfirm: () => {
+          clearRoundDraft();
+          clearAddRoundDirtyState();
+          allowBrowserBackRef.current = true;
+          window.history.back();
+        },
+      });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [clearAddRoundDirtyState, clearRoundDraft, isRoundAddDirty, showConfirm]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -574,15 +791,12 @@ function AddRoundContent() {
   };
 
   const setRoundTag = (next: RoundContext) => {
-    hasInteractedRef.current = true;
+    markUserEdited();
     setRound((prev) => ({ ...prev, round_context: next }));
     setShowRoundTagPicker(false);
   };
 
   const roundTagLabel = round.round_context === 'simulator' ? 'Simulator' : 'Practice';
-
-  const getTotalScore = (holes: HoleScore[]) =>
-    holes.reduce((sum, h) => sum + (h.score ?? 0), 0);
 
   const deriveShortGameShots = (chips: number | null | undefined, greensideBunkerShots: number | null | undefined) => {
     if (chips == null && greensideBunkerShots == null) return null;
@@ -596,32 +810,12 @@ function AddRoundContent() {
       tee_id: Number(round.tee_id),
       round_context: round.round_context,
       tee_segment: round.tee_segment,
+      hole_by_hole: 0,
     };
-    if (isHBH) {
-      payload.round_holes = filteredHoleScores.map((h) => ({
-        hole_id: h.hole_id,
-        pass: h.pass,
-        score: h.score,
-        fir_hit: h.fir_hit,
-        fir_direction: h.fir_direction,
-        gir_hit: h.gir_hit,
-        gir_direction: h.gir_direction,
-        putts: h.putts,
-        penalties: h.penalties,
-        chips: h.chips,
-        greenside_bunker_shots: h.greenside_bunker_shots,
-      }));
-      payload.score = getTotalScore(filteredHoleScores);
-      LIVE_ROUND_AGGREGATE_FIELDS.forEach((field) => {
-        payload[field] = sumTrackedLiveRoundField(filteredHoleScores, field);
-      });
-      payload.short_game_shots = deriveShortGameShots(payload.chips, payload.greenside_bunker_shots);
-    } else {
-      ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(
-        (f) => (payload[f] = round[f as keyof Round]),
-      );
-      payload.short_game_shots = deriveShortGameShots(round.chips, round.greenside_bunker_shots);
-    }
+    ['fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].forEach(
+      (f) => (payload[f] = round[f as keyof Round]),
+    );
+    payload.short_game_shots = deriveShortGameShots(round.chips, round.greenside_bunker_shots);
     return payload;
   };
 
@@ -991,8 +1185,35 @@ function AddRoundContent() {
     }
   }, [holeScores, selectedTee, round.tee_segment]);
 
+  const liveStartHoleOptions = useMemo(() => {
+    if (selectedTee?.teeObj) {
+      try {
+        const resolver = apiTeeToResolver(selectedTee.teeObj);
+        const ctx = resolveTeeContext(resolver, round.tee_segment);
+        const holeNumbers = round.tee_segment === 'double9'
+          ? Array.from({ length: 18 }, (_, index) => index + 1)
+          : ctx.holeRange;
+        return holeNumbers.map((holeNumber) => ({
+          value: holeNumber,
+          label: `Hole ${holeNumber}`,
+        }));
+      } catch { /* fall through */ }
+    }
+
+    return filteredHoleScores.map((hole) => ({
+      value: hole.hole_number,
+      label: `Hole ${hole.hole_number}`,
+    }));
+  }, [filteredHoleScores, round.tee_segment, selectedTee]);
+
+  useEffect(() => {
+    if (liveStartHoleOptions.length === 0) return;
+    if (liveStartHoleOptions.some((option) => option.value === liveStartHoleNumber)) return;
+    setLiveStartHoleNumber(liveStartHoleOptions[0].value);
+  }, [liveStartHoleNumber, liveStartHoleOptions]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    hasInteractedRef.current = true;
+    markUserEdited();
     const { name, value } = e.target;
 
     if (['score', 'fir_hit', 'gir_hit', 'putts', 'penalties', 'chips', 'greenside_bunker_shots'].includes(name)) {
@@ -1023,7 +1244,7 @@ function AddRoundContent() {
   };
 
   const handleHoleScoreChange = (index: number, field: string, value: any) => {
-    hasInteractedRef.current = true;
+    markUserEdited();
     setHoleScores((prev) => {
       const updated = [...prev];
       const hole = updated[index];
@@ -1069,7 +1290,7 @@ function AddRoundContent() {
   };
 
   const toggleHoleByHole = async () => {
-    hasInteractedRef.current = true;
+    markUserEdited();
     const newHBH = round.hole_by_hole === 1 ? 0 : 1;
     trackEvent(ANALYTICS_EVENTS.roundLoggingModeSelected, {
       from_mode: round.hole_by_hole === 1 ? 'live_round' : 'after_round',
@@ -1077,10 +1298,10 @@ function AddRoundContent() {
     });
 
     if (newHBH === 1) {
-      // Switching to Live Round mode
+      // Switching to completed hole-by-hole scorecard entry
       // Validate that a tee is selected
       if (!round.tee_id) {
-        showMessage('Please select a tee before enabling Live Round mode.', 'error');
+        showMessage('Please select a tee before enabling hole-by-hole scorecard entry.', 'error');
         return;
       }
 
@@ -1166,7 +1387,7 @@ function AddRoundContent() {
       // Keep the current score when switching to HBH mode instead of nulling it
       setRound((prev) => ({ ...prev, hole_by_hole: 1 }));
     } else {
-      // Switching from Live Round mode
+      // Switching from completed hole-by-hole scorecard entry
       setRound((prev) => ({
         ...prev,
         hole_by_hole: 0,
@@ -1183,17 +1404,9 @@ function AddRoundContent() {
       return;
     }
 
-    if (!isHBH && (round.score === null || round.score === undefined)) {
+    if (round.score === null || round.score === undefined) {
       showMessage('Score is required in After Round mode.', 'error');
       return;
-    }
-
-    if (isHBH) {
-      const incomplete = filteredHoleScores.find((h) => h.score === null);
-      if (incomplete) {
-        showMessage(`Please enter a score for hole ${incomplete.hole_number}.`, 'error');
-        return;
-      }
     }
 
     setLoading(true);
@@ -1219,6 +1432,7 @@ function AddRoundContent() {
 
       hasSubmittedRef.current = true;
       clearRoundDraft();
+      clearAddRoundDirtyState();
 
       markInsightsNudgePending();
       markRoundInsightsRefreshPending(String(data.roundId));
@@ -1231,6 +1445,93 @@ function AddRoundContent() {
       showMessage(err.message || 'Error saving round', 'error');
       setLoading(false);
     }
+  };
+
+  const handleStartLiveRound = async () => {
+    clearMessage();
+    setLiveStartError(null);
+
+    if (status !== 'authenticated') {
+      router.replace('/login');
+      return;
+    }
+
+    if (!round.date || !round.course_id || !round.tee_id) {
+      const message = 'Date, Course, and Tee are required to start a live round.';
+      setLiveStartError(message);
+      showMessage(message, 'error');
+      return;
+    }
+
+    setStartingLiveRound(true);
+    try {
+      const startHoleNumber = liveStartHoleOptions.some((option) => option.value === liveStartHoleNumber)
+        ? liveStartHoleNumber
+        : liveStartHoleOptions[0]?.value;
+
+      const response = await fetch('/api/rounds/live/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          course_id: Number(round.course_id),
+          tee_id: Number(round.tee_id),
+          date: round.date,
+          tee_segment: round.tee_segment,
+          start_hole_number: startHoleNumber,
+          tracking_prefs: {
+            fir: liveRoundTracking.fir,
+            gir: liveRoundTracking.gir,
+            chips: liveRoundTracking.chips,
+            greenside_bunker_shots: liveRoundTracking.greensideBunkerShots,
+            putts: liveRoundTracking.putts,
+            penalties: liveRoundTracking.penalties,
+          },
+        }),
+      });
+
+      const data = await readApiResponse<{ session: LiveRoundSession }>(response);
+      hasSubmittedRef.current = true;
+      clearRoundDraft();
+      clearAddRoundDirtyState();
+      router.push(`/rounds/live/${data.session.id}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to start live round';
+      setLiveStartError(message);
+      showMessage(message, 'error');
+      setStartingLiveRound(false);
+    }
+  };
+
+  const handleDiscardLiveSession = (liveSession: LiveRoundSession) => {
+    const courseLabel = sessionCourseLabel(liveSession);
+    showConfirm({
+      title: 'Discard live round?',
+      message: `This removes ${courseLabel} from your resume list. This cannot be undone.`,
+      cancelText: 'Keep Round',
+      confirmText: 'Discard',
+      variant: 'danger',
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        setDiscardingLiveSessionId(liveSession.id);
+        setLiveStartError(null);
+        try {
+          const response = await fetch(`/api/rounds/live/sessions/${liveSession.id}/discard`, {
+            method: 'POST',
+          });
+          await readApiResponse<{ session: LiveRoundSession }>(response);
+          setActiveLiveSessions((current) => current.filter((sessionItem) => sessionItem.id !== liveSession.id));
+          setShowLiveStartSetup(true);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to discard live round';
+          setLiveStartError(message);
+          showMessage(message, 'error');
+        } finally {
+          setDiscardingLiveSessionId(null);
+        }
+      },
+    });
   };
 
   const formatValue = (val: number | null | undefined) => (val === null || val === undefined ? '' : val);
@@ -1400,12 +1701,161 @@ function AddRoundContent() {
     );
   };
 
+  const renderActiveLiveSessions = () => {
+    if (loadingLiveSessions) {
+      return <p className="live-round-muted">Checking for active live rounds...</p>;
+    }
+
+    if (activeLiveSessions.length === 0) {
+      return null;
+    }
+
+    const hasMultipleSessions = activeLiveSessions.length > 1;
+    const description = hasMultipleSessions
+      ? 'Choose a round to continue.'
+      : 'Pick up where you left off.';
+
+    return (
+      <div className="card live-round-add-panel">
+        <div className="live-round-section-title">
+          <div>
+            <h2>Continue Live Round</h2>
+            <p className="live-round-muted">{description}</p>
+          </div>
+        </div>
+
+        <div className="live-round-session-list">
+          {activeLiveSessions.map((liveSession) => {
+            const isDiscarding = discardingLiveSessionId === liveSession.id;
+
+            return (
+              <div className="live-round-session-row" key={liveSession.id}>
+                <div>
+                  <strong>{sessionCourseLabel(liveSession)}</strong>
+                  <span>
+                    <CalendarDays size={14} />
+                    {formatSessionDate(liveSession.date)}
+                    {' '}
+                    {liveSession.tee?.tee_name || 'Selected Tee'}
+                    {' '}
+                    {teeSegmentLabel(liveSession.tee_segment, liveSession.tee?.number_of_holes)}
+                  </span>
+                  <span>
+                    <Clock size={14} />
+                    {formatSavedTime(liveSession.last_saved_at)}
+                  </span>
+                  {liveSession.active_hole_number && (
+                    <span>Hole {liveSession.active_hole_number}</span>
+                  )}
+                </div>
+                <div className="live-round-session-actions">
+                  <button
+                    type="button"
+                    className="btn btn-edit live-round-session-icon-button live-round-resume-button"
+                    onClick={() => confirmLeaveAddRound(() => router.push(`/rounds/live/${liveSession.id}`))}
+                    disabled={isDiscarding}
+                    aria-label="Continue live round"
+                    title="Continue live round"
+                  >
+                    <Play size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-cancel live-round-session-icon-button live-round-discard-button"
+                    onClick={() => handleDiscardLiveSession(liveSession)}
+                    disabled={isDiscarding}
+                    aria-label={isDiscarding ? 'Discarding live round' : 'Discard live round'}
+                    title={isDiscarding ? 'Discarding live round' : 'Discard live round'}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {!showLiveStartSetup && (
+          <button
+            type="button"
+            className="btn btn-accent live-round-start-new-button"
+            onClick={() => setShowLiveStartSetup(true)}
+          >
+            Start New Live Round
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const renderLiveRoundSetup = () => {
+    return (
+      <>
+        {liveStartError && <div className="live-round-alert is-error">{liveStartError}</div>}
+        {renderActiveLiveSessions()}
+      </>
+    );
+  };
+
   if (status === 'loading') return null;
+  const showLiveStartAction = roundEntryMode === 'live' && (showLiveStartSetup || activeLiveSessions.length === 0);
+  const afterRoundEntryReady = isAfterRoundMode && Boolean(selectedTee);
+  const showRoundDetailsFields = afterRoundEntryReady;
+  const renderRoundTypeField = () => {
+    if (segmentOptions.length <= 1) return null;
+
+    return (
+      <div className="form-row">
+        <label className="form-label">Round Type</label>
+        <Select
+          value={segmentOptions.find(o => o.value === round.tee_segment) || segmentOptions[0]}
+          options={segmentOptions}
+          onChange={async (option: any) => {
+            markUserEdited();
+            if (option) {
+              const newSegment = option.value as TeeSegment;
+              if (selectedTee?.teeObj) {
+                try {
+                  const resolver = apiTeeToResolver(selectedTee.teeObj);
+                  const ctx = resolveTeeContext(resolver, newSegment);
+                  setRound(prev => ({ ...prev, tee_segment: newSegment, par_total: ctx.parTotal }));
+                } catch {
+                  setRound(prev => ({ ...prev, tee_segment: newSegment }));
+                }
+              } else {
+                setRound(prev => ({ ...prev, tee_segment: newSegment }));
+              }
+              // Re-fetch holes (double9 duplicates client-side)
+              if (round.tee_id) {
+                await fetchHoles(Number(round.tee_id), holeScoresRef.current, newSegment);
+              }
+            }
+          }}
+          styles={selectStyles}
+          isSearchable={false}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="page-stack">
       <div className='card'>
-        <form onSubmit={handleSubmit} className="form">
+        <form
+          onSubmit={(event) => {
+            if (roundEntryMode === 'live') {
+              event.preventDefault();
+              if (!showLiveStartAction) {
+                setShowLiveStartSetup(true);
+                return;
+              }
+              handleStartLiveRound();
+              return;
+            }
+            handleSubmit(event);
+          }}
+          className="form"
+        >
           <div className="form-row">
             <label className="form-label">Date</label>
             <input
@@ -1426,10 +1876,18 @@ function AddRoundContent() {
                   value={selectedCourse}
                   loadOptions={loadCourseOptions}
                   onChange={async (option) => {
-                    hasInteractedRef.current = true;
+                    markUserEdited();
                     setSelectedCourse(option);
                     setSelectedTee(null);
-                    setRound((prev) => ({ ...prev, course_id: option?.value.toString() ?? '', tee_id: '' }));
+                    setSegmentOptions([]);
+                    setLiveStartHoleNumber(1);
+                    setRound((prev) => ({
+                      ...prev,
+                      course_id: option?.value.toString() ?? '',
+                      tee_id: '',
+                      tee_segment: 'full',
+                      par_total: null,
+                    }));
                     setHoles([]);
                     setHoleScores([]);
 
@@ -1444,13 +1902,13 @@ function AddRoundContent() {
                   additional={{ page: 1 }}
                   placeholder="Select Course"
                   isClearable
-                  styles={selectStyles}
+                  styles={courseSelectStyles}
                   noOptionsMessage={() => "Course not found. Use + button to add course."}
                 />
               </div>
               <button
                 type="button"
-                onClick={() => router.push('/courses/search')}
+                onClick={() => confirmLeaveAddRound(() => router.push('/courses/search'))}
                 className="btn btn-accent btn-add-course"
                 title="Search Global Database"
               >
@@ -1459,66 +1917,66 @@ function AddRoundContent() {
             </div>
           </div>
 
-          <div className="form-row">
-            <label className="form-label">Tee</label>
-            <AsyncPaginate
-              key={selectedCourse?.value || 'no-course'}
-              value={selectedTee}
-              loadOptions={(search, loadedOptions, additional) =>
-                loadTeeOptions(search, loadedOptions, additional as { page: number }, selectedCourse?.value)
-              }
-              onChange={async (option) => {
-                hasInteractedRef.current = true;
-                setSelectedTee(option);
-                const teeId = option?.value ?? '';
-                setRound((prev) => ({ ...prev, tee_id: teeId.toString() }));
-                updateSegmentOptions(option?.teeObj);
-
-                if (teeId) {
-                  const holesData = await fetchHoles(teeId, []);
-                  const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
-                  setRound((prev) => ({ ...prev, par_total: totalPar }));
-                }
-              }}
-              isDisabled={!selectedCourse}
-              placeholder="Select Tee"
-              isClearable
-              additional={{ page: 1 }}
-              styles={selectStyles}
-            />
-          </div>
-
-          {segmentOptions.length > 1 && (
+          {selectedCourse && (
             <div className="form-row">
-              <label className="form-label">Round Type</label>
-              <Select
-                value={segmentOptions.find(o => o.value === round.tee_segment) || segmentOptions[0]}
-                options={segmentOptions}
-                onChange={async (option: any) => {
-                  hasInteractedRef.current = true;
-                  if (option) {
-                    const newSegment = option.value as TeeSegment;
-                    if (selectedTee?.teeObj) {
-                      try {
-                        const resolver = apiTeeToResolver(selectedTee.teeObj);
-                        const ctx = resolveTeeContext(resolver, newSegment);
-                        setRound(prev => ({ ...prev, tee_segment: newSegment, par_total: ctx.parTotal }));
-                      } catch {
-                        setRound(prev => ({ ...prev, tee_segment: newSegment }));
-                      }
-                    } else {
-                      setRound(prev => ({ ...prev, tee_segment: newSegment }));
-                    }
-                    // Re-fetch holes (double9 duplicates client-side)
-                    if (round.tee_id) {
-                      await fetchHoles(Number(round.tee_id), holeScoresRef.current, newSegment);
-                    }
+              <label className="form-label">Tee</label>
+              <AsyncPaginate
+                key={selectedCourse.value}
+                value={selectedTee}
+                loadOptions={(search, loadedOptions, additional) =>
+                  loadTeeOptions(search, loadedOptions, additional as { page: number }, selectedCourse.value)
+                }
+                onChange={async (option) => {
+                  markUserEdited();
+                  setSelectedTee(option);
+                  const teeId = option?.value ?? '';
+                  setRound((prev) => ({
+                    ...prev,
+                    tee_id: teeId.toString(),
+                    par_total: teeId ? prev.par_total : null,
+                  }));
+                  updateSegmentOptions(option?.teeObj);
+
+                  if (teeId) {
+                    const holesData = await fetchHoles(teeId, []);
+                    const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
+                    setRound((prev) => ({ ...prev, par_total: totalPar }));
                   }
                 }}
+                placeholder="Select Tee"
+                isClearable
+                additional={{ page: 1 }}
                 styles={selectStyles}
-                isSearchable={false}
               />
             </div>
+          )}
+
+          {selectedTee && isAfterRoundMode && renderRoundTypeField()}
+
+          {selectedTee && showLiveStartAction && (
+            <>
+              {renderRoundTypeField()}
+              <div className="form-row">
+                <label className="form-label">Starting Hole</label>
+                <Select
+                  value={
+                    liveStartHoleOptions.find((option) => option.value === liveStartHoleNumber) ??
+                    liveStartHoleOptions[0] ??
+                    null
+                  }
+                  options={liveStartHoleOptions}
+                  onChange={(option: any) => {
+                    markUserEdited();
+                    if (option) {
+                      setLiveStartHoleNumber(option.value);
+                    }
+                  }}
+                  styles={selectStyles}
+                  isSearchable={false}
+                  isDisabled={!selectedTee || liveStartHoleOptions.length === 0}
+                />
+              </div>
+            </>
           )}
 
           {initialized && (
@@ -1527,40 +1985,47 @@ function AddRoundContent() {
               <div className="stats-tabs">
                 <button
                   type="button"
-                  className={`stats-tab ${!isHBH ? 'active' : ''}`}
+                  className={`stats-tab ${roundEntryMode === 'after' ? 'active' : ''}`}
                   onClick={() => {
-                    if (isHBH) toggleHoleByHole();
+                    if (roundEntryMode !== 'after') {
+                      markUserEdited();
+                      setRoundEntryMode('after');
+                    }
                   }}
                 >
                   After Round
                 </button>
                 <button
                   type="button"
-                  className={`stats-tab ${isHBH ? 'active' : ''}`}
+                  className={`stats-tab ${roundEntryMode === 'live' ? 'active' : ''}`}
                   onClick={() => {
-                    if (!isHBH) toggleHoleByHole();
+                    if (roundEntryMode !== 'live') {
+                      markUserEdited();
+                      setRoundEntryMode('live');
+                    }
                   }}
                 >
                   Live Round
                 </button>
               </div>
               <p className="combined-note">
-                {isHBH ? 'Track each hole as you play.' : 'Enter totals after your round.'}
+                {roundEntryMode === 'live'
+                  ? 'Track hole-by-hole while you play.'
+                  : 'Enter totals after your round.'}
               </p>
-              {isHBH && (
-                <p className="combined-note">Live round fields follow your Settings preferences.</p>
-              )}
             </>
           )}
 
-          {!isHBH && (
+          {roundEntryMode === 'live' && renderLiveRoundSetup()}
+
+          {afterRoundEntryReady && (
             <div className="form-row">
               <label className="form-label">Par</label>
               <input type="text" value={round.par_total ?? ''} className="form-input" disabled />
             </div>
           )}
 
-          {!isHBH && (
+          {afterRoundEntryReady && (
             <div className="form-row">
               <label className="form-label">Score</label>
               <input
@@ -1585,11 +2050,11 @@ function AddRoundContent() {
             </div>
           )}
 
-          {!isHBH && (
+          {afterRoundEntryReady && (
             <p className="combined-note">Track at least 2 stats for stronger insights.</p>
           )}
 
-          {!isHBH &&
+          {afterRoundEntryReady &&
             ['fir_hit', 'gir_hit', 'chips', 'greenside_bunker_shots', 'putts', 'penalties'].map((field) => {
               const labelMap: Record<string, string> = {
                 fir_hit: 'Fairways In Regulation',
@@ -1625,107 +2090,112 @@ function AddRoundContent() {
               );
             })}
 
-          {renderHoleCards()}
+          {showRoundDetailsFields && (
+            <>
+              <div className="form-row">
+                <div className="round-tag-control">
+                  <div className="round-tag-inline">
+                    {round.round_context === 'real' ? (
+                      <button
+                        type="button"
+                        className="round-tag-trigger"
+                        onClick={() => setShowRoundTagPicker((prev) => !prev)}
+                      >
+                        Tag +
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="round-tag-pill is-selected"
+                        onClick={() => setShowRoundTagPicker((prev) => !prev)}
+                      >
+                        {roundTagLabel}
+                      </button>
+                    )}
+                    {round.round_context !== 'real' && (
+                      <button
+                        type="button"
+                        className="round-tag-clear"
+                        onClick={() => setRoundTag('real')}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
 
-          <div className="form-row">
-            <div className="round-tag-control">
-              <div className="round-tag-inline">
-                {round.round_context === 'real' ? (
-                  <button
-                    type="button"
-                    className="round-tag-trigger"
-                    onClick={() => setShowRoundTagPicker((prev) => !prev)}
-                  >
-                    Tag +
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="round-tag-pill is-selected"
-                    onClick={() => setShowRoundTagPicker((prev) => !prev)}
-                  >
-                    {roundTagLabel}
-                  </button>
-                )}
+                  {showRoundTagPicker && (
+                    <div className="round-tag-picker" role="group" aria-label="Round tag options">
+                      {roundTagOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`round-tag-pill ${round.round_context === option.value ? 'is-selected' : ''}`}
+                          onClick={() => setRoundTag(option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {round.round_context !== 'real' && (
-                  <button
-                    type="button"
-                    className="round-tag-clear"
-                    onClick={() => setRoundTag('real')}
-                  >
-                    Clear
-                  </button>
+                  <p className="combined-note">Tagged rounds are excluded from handicap, leaderboard, and overall insights.</p>
                 )}
               </div>
 
-              {showRoundTagPicker && (
-                <div className="round-tag-picker" role="group" aria-label="Round tag options">
-                  {roundTagOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={`round-tag-pill ${round.round_context === option.value ? 'is-selected' : ''}`}
-                      onClick={() => setRoundTag(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {round.round_context !== 'real' && (
-              <p className="combined-note">Tagged rounds are excluded from handicap, leaderboard, and overall insights.</p>
-            )}
-          </div>
-
-          <div className="form-row">
-            <label className="form-label">Notes</label>
-            <textarea
-              name="notes"
-              value={round.notes}
-              onChange={(e) => {
-                handleChange(e);
-                e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
-              }}
-              onFocus={(e) => {
-                const len = e.target.value.length;
-                e.target.setSelectionRange(len, len);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }
-              }}
-              rows={3}
-              className="form-input"
-              maxLength={500}
-              placeholder="Add any notes about your round (max 500 chars)"
-              wrap='soft'
-              enterKeyHint="done"
-            />
-          </div>
+              <div className="form-row">
+                <label className="form-label">Notes</label>
+                <textarea
+                  name="notes"
+                  value={round.notes}
+                  onChange={(e) => {
+                    handleChange(e);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }}
+                  onFocus={(e) => {
+                    const len = e.target.value.length;
+                    e.target.setSelectionRange(len, len);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  rows={3}
+                  className="form-input"
+                  maxLength={500}
+                  placeholder="Anything to remember from this round?"
+                  wrap='soft'
+                  enterKeyHint="done"
+                />
+              </div>
+            </>
+          )}
 
           <div className="form-actions">
             <button
               type="button"
-              onClick={() => {
-                showConfirm({
-                  message: 'Are you sure you want to cancel? Any unsaved changes will be lost.',
-                  onConfirm: () => {
-                    clearRoundDraft();
-                    router.replace(getBackUrl());
-                  }
-                });
-              }}
-              className="btn btn-cancel"
+              onClick={() => confirmLeaveAddRound(() => router.replace(getBackUrl()))}
+              className="btn btn-secondary"
             >
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="btn btn-save">
-              {loading ? 'Adding...' : 'Add Round'}
-            </button>
+            {showLiveStartAction ? (
+              <button
+                type="submit"
+                disabled={startingLiveRound || !round.date || !round.course_id || !round.tee_id || liveStartHoleOptions.length === 0}
+                className="btn btn-save"
+              >
+                <Play size={18} />
+                {startingLiveRound ? 'Starting...' : 'Start Round'}
+              </button>
+            ) : roundEntryMode === 'after' && afterRoundEntryReady ? (
+              <button type="submit" disabled={loading} className="btn btn-save">
+                {loading ? 'Saving...' : 'Add Round'}
+              </button>
+            ) : null}
           </div>
         </form>
       </div>

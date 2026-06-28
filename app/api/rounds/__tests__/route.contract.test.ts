@@ -284,6 +284,13 @@ describe('/api/rounds route contract', () => {
 
   it('POST hole-by-hole works when direction fields are omitted', async () => {
     mockedPrisma.round.findUnique.mockResolvedValueOnce(null);
+    mockedResolveTeeContext.mockReturnValueOnce({
+      holes: 1,
+      parTotal: 4,
+      nonPar3Holes: 1,
+      courseRating: 72.1,
+      slopeRating: 123,
+    });
 
     const request = new Request('http://localhost/api/rounds', {
       method: 'POST',
@@ -318,6 +325,13 @@ describe('/api/rounds route contract', () => {
 
   it('POST hole-by-hole normalizes inconsistent direction input and preserves valid miss directions', async () => {
     mockedPrisma.round.findUnique.mockResolvedValueOnce(null);
+    mockedResolveTeeContext.mockReturnValueOnce({
+      holes: 2,
+      parTotal: 8,
+      nonPar3Holes: 2,
+      courseRating: 72.1,
+      slopeRating: 123,
+    });
 
     const request = new Request('http://localhost/api/rounds', {
       method: 'POST',
@@ -375,6 +389,30 @@ describe('/api/rounds route contract', () => {
         ],
       }),
     );
+  });
+
+  it('POST rejects completed hole-by-hole rounds with unfinished hole scores', async () => {
+    const request = new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        hole_by_hole: 1,
+        round_holes: [
+          { hole_id: 101, pass: 1, score: null, putts: 2 },
+        ],
+      }),
+    });
+
+    const response = await POST(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.message).toMatch(/score is required for every hole/i);
+    expect(mockedPrisma.round.create).not.toHaveBeenCalled();
+    expect(mockedPrisma.roundHole.createMany).not.toHaveBeenCalled();
   });
 
   it('POST derives short_game_shots from chips and greenside_bunker_shots for after-round payloads', async () => {

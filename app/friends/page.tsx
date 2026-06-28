@@ -7,6 +7,7 @@ import FriendCard from '@/components/FriendCard';
 import PullToRefresh from '@/components/PullToRefresh';
 import { Plus } from 'lucide-react';
 import { SkeletonBlock, SkeletonCircle } from '@/components/skeleton/Skeleton';
+import { compareFriendsByName } from '@/lib/friendUtils';
 
 function FriendCardSkeleton({ request = false }: { request?: boolean }) {
   return (
@@ -66,7 +67,9 @@ export default function FriendsPage() {
   // Split back into sections for display
   const filteredIncoming = filteredUsers.filter((u) => u.type === 'incoming');
   const filteredOutgoing = filteredUsers.filter((u) => u.type === 'outgoing');
-  const filteredFriends = filteredUsers.filter((u) => u.type === 'friend');
+  const filteredFriends = filteredUsers
+    .filter((u) => u.type === 'friend')
+    .sort(compareFriendsByName);
 
   const handleRefresh = useCallback(async () => {
     await fetchAll();

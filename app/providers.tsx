@@ -16,11 +16,14 @@ import { PostHogProvider as PHProvider } from 'posthog-js/react';
 
 // Message Context (replacing MessageContext.jsx from old app)
 interface ConfirmOptions {
+  title?: string;
   message: string;
   onConfirm: () => void;
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
+  variant?: 'neutral' | 'warning' | 'danger';
+  confirmVariant?: 'primary' | 'neutral' | 'danger';
 }
 
 interface MessageContextType {

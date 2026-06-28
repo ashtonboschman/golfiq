@@ -1,14 +1,16 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import FriendsPage from '@/app/friends/page';
+import { FriendUser } from '@/lib/friendUtils';
 
 const mockPush = jest.fn();
 const mockHandleAction = jest.fn();
 const mockFetchAll = jest.fn();
 const mockMarkAcceptedNotificationsRead = jest.fn();
+let mockFriends: FriendUser[] = [];
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -18,7 +20,7 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/context/FriendsContext', () => ({
   useFriends: () => ({
-    friends: [],
+    friends: mockFriends,
     incomingRequests: [],
     outgoingRequests: [],
     acceptedNotifications: [
@@ -42,8 +44,8 @@ jest.mock('@/context/FriendsContext', () => ({
 }));
 
 jest.mock('@/components/FriendCard', () => {
-  function MockFriendCard() {
-    return <div data-testid="friend-card" />;
+  function MockFriendCard({ friend }: { friend: FriendUser }) {
+    return <div data-testid="friend-card">{`${friend.first_name} ${friend.last_name}`}</div>;
   }
 
   return MockFriendCard;
@@ -57,6 +59,7 @@ jest.mock('@/components/PullToRefresh', () => ({
 describe('/friends page accepted notifications', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFriends = [];
     mockMarkAcceptedNotificationsRead.mockResolvedValue(undefined);
   });
 
@@ -66,5 +69,42 @@ describe('/friends page accepted notifications', () => {
     await waitFor(() => {
       expect(mockMarkAcceptedNotificationsRead).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('renders accepted friends alphabetically by displayed name', () => {
+    mockFriends = [
+      {
+        id: 2,
+        user_id: 2,
+        first_name: 'Danny',
+        last_name: 'Divot',
+        avatar_url: '/avatars/default.png',
+        type: 'friend',
+      },
+      {
+        id: 1,
+        user_id: 1,
+        first_name: 'ace',
+        last_name: 'Walker',
+        avatar_url: '/avatars/default.png',
+        type: 'friend',
+      },
+      {
+        id: 3,
+        user_id: 3,
+        first_name: 'Alec',
+        last_name: 'Lafreniere',
+        avatar_url: '/avatars/default.png',
+        type: 'friend',
+      },
+    ];
+
+    render(<FriendsPage />);
+
+    expect(screen.getAllByTestId('friend-card').map((card) => card.textContent)).toEqual([
+      'ace Walker',
+      'Alec Lafreniere',
+      'Danny Divot',
+    ]);
   });
 });

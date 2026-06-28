@@ -11,8 +11,14 @@ import {
   hasInsightsNudgePending,
 } from '@/lib/insights/insightsNudge';
 import { clearLiveRoundRecoveryState } from '@/lib/rounds/liveRoundResume';
+import {
+  isLiveRoundPath,
+  requestLiveRoundNavigation,
+} from '@/lib/rounds/liveRoundNavigation';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+
+const ADD_ROUND_DIRTY_KEY = 'golfiq-add-round-dirty';
 
 export default function Footer() {
   const { data: session, status } = useSession();
@@ -54,24 +60,46 @@ export default function Footer() {
   const isInteractive = status === 'authenticated' && !!user;
 
   // Check if on add/edit round pages
-  const isOnAddEditPage = pathname === '/rounds/add' || pathname?.match(/^\/rounds\/edit\/\d+$/);
+  const isOnAddRoundPage = pathname === '/rounds/add';
+  const isOnEditRoundPage = Boolean(pathname?.match(/^\/rounds\/edit\/\d+$/));
+  const isOnLiveRoundPage = isLiveRoundPath(pathname);
 
   // Helper to navigate with warning if on add/edit page or profile with changes
   const navigateWithWarning = (path: string) => {
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 
-    if (isOnAddEditPage || hasUnsavedChanges) {
+    const addRoundHasUnsavedChanges =
+      isOnAddRoundPage &&
+      typeof window !== 'undefined' &&
+      sessionStorage.getItem(ADD_ROUND_DIRTY_KEY) === 'true';
+
+    if (isOnLiveRoundPage && requestLiveRoundNavigation({ path })) {
+      return;
+    }
+
+    if (addRoundHasUnsavedChanges) {
       showConfirm({
-        message: isOnAddEditPage
+        title: 'Discard changes?',
+        message: 'You have unsaved round details.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
+        onConfirm: () => {
+          clearLiveRoundRecoveryState(user?.id);
+          sessionStorage.removeItem(ADD_ROUND_DIRTY_KEY);
+          router.push(path);
+        },
+      });
+    } else if (isOnEditRoundPage || hasUnsavedChanges) {
+      showConfirm({
+        message: isOnEditRoundPage
           ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
           : 'You have unsaved changes. Are you sure you want to leave?',
         onConfirm: () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
-          }
-          if (pathname === '/rounds/add') {
-            clearLiveRoundRecoveryState(user?.id);
           }
           router.push(path);
         }
