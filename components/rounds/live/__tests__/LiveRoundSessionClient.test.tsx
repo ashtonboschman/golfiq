@@ -214,4 +214,61 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(screen.queryByText('HCP')).not.toBeInTheDocument();
     expect(document.querySelector('.live-round-hole-summary')).toHaveClass('without-handicap');
   });
+
+  it('waits for an active score save and advances from the first Next Hole tap', async () => {
+    const initialSession = makeSession();
+    initialSession.hole_drafts.push({
+      ...initialSession.hole_drafts[0],
+      id: '1002',
+      hole_id: '102',
+      hole_number: 2,
+      display_hole_number: 2,
+      score: null,
+      hole: {
+        id: '102',
+        hole_number: 2,
+        par: 3,
+        yardage: 175,
+        handicap: 2,
+      },
+    });
+    const savedSession = makeSession({
+      hole_drafts: initialSession.hole_drafts.map((draft) => (
+        draft.id === '1001' ? { ...draft, score: 5 } : draft
+      )),
+    });
+    const movedSession = makeSession({
+      active_hole_number: 2,
+      hole_drafts: savedSession.hole_drafts,
+    });
+    const holeSave = deferred<Response>();
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (!init?.method) return Promise.resolve(apiResponse({ session: initialSession }));
+      if (init.method === 'POST' && url.endsWith('/holes')) return holeSave.promise;
+      if (init.method === 'PATCH') return Promise.resolve(apiResponse({ session: movedSession }));
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '+' }));
+    const nextButton = screen.getByRole('button', { name: /Next Hole/ });
+    fireEvent.click(nextButton);
+
+    expect(nextButton).toBeDisabled();
+    fireEvent.click(nextButton);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      holeSave.resolve(apiResponse({
+        draft: savedSession.hole_drafts[0],
+        session: savedSession,
+      }));
+    });
+
+    await screen.findByRole('button', { name: /Review Missing Scores/ });
+    const navigationRequests = fetchMock.mock.calls.filter(([, init]) => init?.method === 'PATCH');
+    expect(navigationRequests).toHaveLength(1);
+  });
 });

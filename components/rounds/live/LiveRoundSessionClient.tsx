@@ -131,6 +131,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const [autosaveMessage, setAutosaveMessage] = useState<string>('Loaded');
   const [finalizing, setFinalizing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const [navigationPending, setNavigationPending] = useState(false);
   const [viewMode, setViewMode] = useState<LiveRoundViewMode>('score');
   const [returnToReviewAvailable, setReturnToReviewAvailable] = useState(false);
   const [reviewReturnDraftId, setReviewReturnDraftId] = useState<string | null>(null);
@@ -141,6 +142,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasPushedBackGuardRef = useRef(false);
   const allowBrowserBackRef = useRef(false);
+  const navigationPendingRef = useRef(false);
 
   const draftSaveQueue = useMemo(() => createLatestAutosaveQueue({
     save: async (draft: LiveRoundHoleDraft) => {
@@ -547,15 +549,18 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     targetDraft: LiveRoundHoleDraft,
     options: { fromReview?: boolean } = {},
   ) => {
-    if (!session) return;
+    if (!session || navigationPendingRef.current) return;
 
-    const saved = await flushAll();
-    if (!saved) return;
+    navigationPendingRef.current = true;
+    setNavigationPending(true);
 
-    setError(null);
-    setAutosaveStatus('saving');
-    setAutosaveMessage('Saving...');
     try {
+      const saved = await flushAll();
+      if (!saved) return;
+
+      setError(null);
+      setAutosaveStatus('saving');
+      setAutosaveMessage('Saving...');
       const response = await fetch(`/api/rounds/live/sessions/${session.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -584,29 +589,40 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       setError(err instanceof Error ? err.message : 'Unable to move holes');
       setAutosaveStatus('error');
       setAutosaveMessage(err instanceof Error ? err.message : 'Unable to move holes');
+    } finally {
+      navigationPendingRef.current = false;
+      setNavigationPending(false);
     }
   };
 
   const handlePrevious = () => {
     if (activeIndex <= 0) return;
     setReturnToReviewAvailable(false);
-    moveToDraft(playOrderDrafts[activeIndex - 1]);
+    void moveToDraft(playOrderDrafts[activeIndex - 1]);
   };
 
   const handleNext = () => {
     if (activeIndex < 0 || activeIndex >= playOrderDrafts.length - 1) return;
     setReturnToReviewAvailable(false);
-    moveToDraft(playOrderDrafts[activeIndex + 1]);
+    void moveToDraft(playOrderDrafts[activeIndex + 1]);
   };
 
   const handleReview = async () => {
-    const saved = await flushAll();
-    if (!saved) return;
-    setError(null);
-    setReviewReturnDraftId(activeDraft?.id ?? null);
-    setReturnToReviewAvailable(false);
-    scrollLiveRoundToTop();
-    setViewMode('review');
+    if (navigationPendingRef.current) return;
+    navigationPendingRef.current = true;
+    setNavigationPending(true);
+    try {
+      const saved = await flushAll();
+      if (!saved) return;
+      setError(null);
+      setReviewReturnDraftId(activeDraft?.id ?? null);
+      setReturnToReviewAvailable(false);
+      scrollLiveRoundToTop();
+      setViewMode('review');
+    } finally {
+      navigationPendingRef.current = false;
+      setNavigationPending(false);
+    }
   };
 
   const handleBackToScore = () => {
@@ -614,7 +630,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     const targetDraft = sortedDrafts.find((draft) => draft.id === reviewReturnDraftId);
     setReviewReturnDraftId(null);
     if (targetDraft) {
-      moveToDraft(targetDraft);
+      void moveToDraft(targetDraft);
       return;
     }
     scrollLiveRoundToTop();
@@ -819,6 +835,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                     type="button"
                     className={`live-round-review-hole-row ${isMissing ? 'is-missing' : ''}`}
                     onClick={() => moveToDraft(draft, { fromReview: true })}
+                    disabled={navigationPending}
                   >
                     <span>Hole {draft.display_hole_number}</span>
                     <span>Par {draft.hole?.par ?? '-'}</span>
@@ -897,7 +914,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleBackToScore}
-                disabled={finalizing}
+                disabled={finalizing || navigationPending}
               >
                 <ArrowLeft size={18} />
                 Back To Score
@@ -962,7 +979,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                 type="button"
                 className="btn btn-secondary"
                 onClick={handlePrevious}
-                disabled={isFirst}
+                disabled={isFirst || navigationPending}
               >
                 <ArrowLeft size={18} />
                 Previous Hole
@@ -971,6 +988,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                 type="button"
                 className="btn btn-accent"
                 onClick={isLast ? handleReview : handleNext}
+                disabled={navigationPending}
               >
                 {isLast ? lastHoleActionLabel : 'Next Hole'}
                 <ArrowRight size={18} />
@@ -982,7 +1000,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                 type="button"
                 className="btn btn-secondary live-round-review-shortcut"
                 onClick={handleReview}
-                disabled={finalizing}
+                disabled={finalizing || navigationPending}
               >
                 <ClipboardList size={18} />
                 {returnToReviewAvailable ? 'Back To Review' : 'Review Round'}
