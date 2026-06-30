@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { createCompletedRoundFromInput } from '@/lib/rounds/finalizeRound';
 import { resolveTeeContext } from '@/lib/tee/resolveTeeContext';
+import { getLiveGpsAvailabilityForCourse } from '@/lib/gps/liveMapping';
 import {
   createLiveRoundSession,
   discardLiveRoundSession,
@@ -49,6 +50,10 @@ jest.mock('@/lib/tee/resolveTeeContext', () => ({
   resolveTeeContext: jest.fn(),
 }));
 
+jest.mock('@/lib/gps/liveMapping', () => ({
+  getLiveGpsAvailabilityForCourse: jest.fn(),
+}));
+
 type MockPrisma = {
   tee: {
     findFirst: jest.Mock;
@@ -72,6 +77,7 @@ type MockPrisma = {
 
 const mockedPrisma = prisma as unknown as MockPrisma;
 const mockedResolveTeeContext = resolveTeeContext as jest.Mock;
+const mockedGetLiveGpsAvailabilityForCourse = getLiveGpsAvailabilityForCourse as jest.Mock;
 const mockedCreateCompletedRoundFromInput = createCompletedRoundFromInput as jest.Mock;
 
 const now = new Date('2026-06-26T12:00:00.000Z');
@@ -153,6 +159,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     activeHoleNumber: 1,
     activeHolePass: 1,
     activeStep: 'SCORE',
+    gpsEnabled: false,
     liveRoundTrackFir: true,
     liveRoundTrackGir: true,
     liveRoundTrackChips: true,
@@ -198,6 +205,15 @@ describe('liveRoundSessionService', () => {
       liveRoundTrackPenalties: false,
     });
     mockedPrisma.$queryRaw.mockResolvedValue([]);
+    mockedGetLiveGpsAvailabilityForCourse.mockResolvedValue({
+      courseId: '11',
+      available: true,
+      coverage: 'full',
+      expectedHoleNumbers: [1, 2],
+      availableHoleNumbers: [1, 2],
+      unavailableHoleNumbers: [],
+      reason: 'available',
+    });
     mockedPrisma.$transaction.mockImplementation((arg: unknown) => {
       if (typeof arg === 'function') {
         return (arg as (tx: MockPrisma) => unknown)(mockedPrisma);
@@ -226,6 +242,8 @@ describe('liveRoundSessionService', () => {
           teeId: BigInt(12),
           startHoleNumber: 1,
           activeHoleNumber: 1,
+          activeStep: 'SCORE',
+          gpsEnabled: false,
           liveRoundTrackGir: false,
           liveRoundTrackPenalties: false,
           holeDrafts: {
@@ -238,6 +256,64 @@ describe('liveRoundSessionService', () => {
       }),
     );
     expect(result.session.id).toBe('500');
+    expect(result.session.gpsEnabled).toBe(false);
+    expect(result.session.active_step).toBe('SCORE');
+    expect(mockedGetLiveGpsAvailabilityForCourse).not.toHaveBeenCalled();
+  });
+
+  it('creates a GPS-enabled session with full published coverage and starts on GPS', async () => {
+    mockedPrisma.tee.findFirst.mockResolvedValue(makeTee(18, 2));
+    mockedPrisma.liveRoundSession.create.mockResolvedValue(makeSession({
+      gpsEnabled: true,
+      activeStep: 'GPS',
+    }));
+
+    const result = await createLiveRoundSession(BigInt(1), {
+      course_id: 11,
+      tee_id: 12,
+      date: '2026-06-26',
+      tee_segment: 'full',
+      gpsEnabled: true,
+    });
+
+    expect(mockedGetLiveGpsAvailabilityForCourse).toHaveBeenCalledWith(BigInt(11));
+    expect(mockedPrisma.liveRoundSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          gpsEnabled: true,
+          activeStep: 'GPS',
+        }),
+      }),
+    );
+    expect(result.session.gpsEnabled).toBe(true);
+    expect(result.session.active_step).toBe('GPS');
+  });
+
+  it.each([
+    { coverage: 'none', availableHoleNumbers: [], unavailableHoleNumbers: [1, 2] },
+    { coverage: 'partial', availableHoleNumbers: [1], unavailableHoleNumbers: [2] },
+  ])('rejects GPS when course coverage is $coverage', async (availability) => {
+    mockedPrisma.tee.findFirst.mockResolvedValue(makeTee(18, 2));
+    mockedGetLiveGpsAvailabilityForCourse.mockResolvedValue({
+      courseId: '11',
+      available: false,
+      expectedHoleNumbers: [1, 2],
+      reason: 'incomplete_mapping',
+      ...availability,
+    });
+
+    await expect(createLiveRoundSession(BigInt(1), {
+      course_id: 11,
+      tee_id: 12,
+      date: '2026-06-26',
+      gpsEnabled: true,
+    })).rejects.toMatchObject({
+      name: 'LiveRoundSessionError',
+      status: 400,
+      code: 'gps_unavailable',
+      message: 'Live GPS is not available for this course yet.',
+    });
+    expect(mockedPrisma.liveRoundSession.create).not.toHaveBeenCalled();
   });
 
   it('starts a live round on the requested playable hole', async () => {
@@ -419,6 +495,14 @@ describe('liveRoundSessionService', () => {
       status: 404,
       code: 'session_not_found',
     });
+  });
+
+  it('includes gpsEnabled in a live session response', async () => {
+    mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(makeSession({ gpsEnabled: true }));
+
+    const result = await getLiveRoundSession(BigInt(1), '500');
+
+    expect(result.session.gpsEnabled).toBe(true);
   });
 
   it('discards only active owned sessions', async () => {

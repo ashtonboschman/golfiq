@@ -401,6 +401,7 @@ model LiveRoundSession {
   activeHoleNumber                   Int                    @default(1) @map("active_hole_number")
   activeHolePass                     Int                    @default(1) @map("active_hole_pass") @db.SmallInt
   activeStep                         LiveRoundActiveStep    @default(SCORE) @map("active_step")
+  gpsEnabled                         Boolean                @default(false) @map("gps_enabled")
   liveRoundTrackFir                  Boolean                @default(true) @map("live_round_track_fir")
   liveRoundTrackGir                  Boolean                @default(true) @map("live_round_track_gir")
   liveRoundTrackChips                Boolean                @default(true) @map("live_round_track_chips")

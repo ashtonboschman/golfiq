@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AddRoundPage from '@/app/rounds/add/page';
 import EditRoundPage from '@/app/rounds/edit/[id]/page';
@@ -12,6 +12,8 @@ const mockPush = jest.fn();
 const mockShowMessage = jest.fn();
 const mockShowConfirm = jest.fn();
 const mockClearMessage = jest.fn();
+const mockGetCurrentPosition = jest.fn();
+const mockRequestLiveRoundGpsPermission = jest.fn();
 
 let mockPathname = '/rounds/add';
 let mockParams: Record<string, string> = {};
@@ -42,9 +44,52 @@ jest.mock('@/app/providers', () => ({
   }),
 }));
 
+jest.mock('@/lib/gps/browserLocation', () => ({
+  requestLiveRoundGpsPermission: () => mockRequestLiveRoundGpsPermission(),
+}));
+
 jest.mock('react-select-async-paginate', () => ({
   AsyncPaginate: Object.assign(
-    () => <div data-testid="async-paginate" />,
+    ({
+      loadOptions,
+      onChange,
+      placeholder,
+    }: {
+      loadOptions?: (search: string, loaded: unknown[], additional: { page: number }) => Promise<unknown>;
+      onChange?: (option: unknown) => void;
+      placeholder?: string;
+    }) => (
+      <button
+        type="button"
+        data-testid="async-paginate"
+        aria-label={placeholder || 'Select option'}
+        onClick={async () => {
+          if (placeholder === 'Select Course') {
+            await loadOptions?.('', [], { page: 1 });
+            onChange?.({ label: 'GolfIQ Club', value: 11 });
+            return;
+          }
+          onChange?.({
+            label: 'Blue 6500 yd (72/113) 18 holes',
+            value: 21,
+            teeObj: {
+              id: 21,
+              tee_name: 'Blue',
+              gender: 'male',
+              number_of_holes: 18,
+              course_rating: 72,
+              slope_rating: 113,
+              par_total: 72,
+              front_course_rating: 36,
+              front_slope_rating: 113,
+              back_course_rating: 36,
+              back_slope_rating: 113,
+              holes: [{ hole_number: 1, par: 4 }],
+            },
+          });
+        }}
+      />
+    ),
     { displayName: 'MockAsyncPaginate' },
   ),
 }));
@@ -68,10 +113,16 @@ const mockedUseSession = useSession as unknown as jest.Mock;
 describe('round entry session guard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetCurrentPosition.mockReset();
+    mockRequestLiveRoundGpsPermission.mockResolvedValue(null);
     localStorage.clear();
     mockPathname = '/rounds/add';
     mockParams = {};
     mockQuery = new URLSearchParams();
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition: mockGetCurrentPosition },
+    });
   });
 
   it('redirects add-round to login when unauthenticated without any draft', async () => {
@@ -104,6 +155,247 @@ describe('round entry session guard', () => {
       expect.stringContaining('Connection/session issue detected'),
       'error',
     );
+  });
+
+  it('uses ephemeral browser location for course proximity without rendering a map', async () => {
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    mockGetCurrentPosition.mockImplementationOnce((onSuccess: PositionCallback) => {
+      onSuccess({
+        coords: { latitude: 49.8951, longitude: -97.1384 },
+      } as GeolocationPosition);
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes('/api/rounds/live/sessions')
+        ? { sessions: [] }
+        : url.includes('/api/courses?')
+          ? { courses: [] }
+          : { type: 'success', profile: null };
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    const { container } = render(<AddRoundPage />);
+
+    await waitFor(() => expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Select Course' }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('&lat=49.8951&lng=-97.1384'),
+    ));
+    expect(container.querySelector('canvas')).not.toBeInTheDocument();
+    expect(container.querySelector('[class*="map"]')).not.toBeInTheDocument();
+  });
+
+  it('shows an off-by-default GPS toggle only after full course coverage is confirmed', async () => {
+    mockQuery = new URLSearchParams('mode=live');
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      let body: Record<string, unknown> = { type: 'success', profile: null };
+      if (url.includes('/api/rounds/live/sessions')) body = { sessions: [] };
+      if (url.includes('/api/tees?')) body = { tees: [] };
+      if (url.includes('/api/gps/live/course/11')) {
+        body = {
+          availability: {
+            courseId: '11',
+            available: true,
+            coverage: 'full',
+            expectedHoleNumbers: [1],
+            availableHoleNumbers: [1],
+            unavailableHoleNumbers: [],
+            reason: 'available',
+          },
+        };
+      }
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
+
+    const gpsToggle = await screen.findByRole('checkbox', { name: 'Live GPS' });
+    expect(screen.getByText('Live GPS')).toBeInTheDocument();
+    const gpsHelp = screen.getByText('Hole maps and distances.');
+    expect(gpsHelp).toHaveClass('combined-note');
+    expect(gpsToggle).not.toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: 'Test GPS Location' })).not.toBeInTheDocument();
+    expect(gpsToggle.closest('.live-gps-toggle')?.nextElementSibling).toBe(gpsHelp);
+    expect(gpsHelp.nextElementSibling).toHaveClass('form-actions');
+  });
+
+  it('shows admins a test GPS location toggle beneath Live GPS', async () => {
+    mockQuery = new URLSearchParams('mode=live');
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '1' } },
+    });
+    mockGetCurrentPosition.mockImplementation((onSuccess: PositionCallback) => {
+      onSuccess({
+        coords: { latitude: 49.8951, longitude: -97.1384, accuracy: 5 },
+      } as GeolocationPosition);
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      let body: Record<string, unknown> = { type: 'success', profile: null };
+      if (url.includes('/api/rounds/live/sessions')) {
+        body = init?.method === 'POST'
+          ? { session: { id: 'admin-gps-test' } }
+          : { sessions: [] };
+      }
+      if (url.includes('/api/tees?')) body = { tees: [] };
+      if (url.includes('/api/tees/21/holes')) {
+        body = { holes: [{ id: 101, hole_number: 1, par: 4 }] };
+      }
+      if (url.includes('/api/gps/live/course/11')) {
+        body = {
+          availability: {
+            courseId: '11',
+            available: true,
+            coverage: 'full',
+            expectedHoleNumbers: [1],
+            availableHoleNumbers: [1],
+            unavailableHoleNumbers: [],
+            reason: 'available',
+          },
+        };
+      }
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
+
+    const gpsToggle = await screen.findByRole('checkbox', { name: 'Live GPS' });
+    const testGpsToggle = screen.getByRole('checkbox', { name: 'Test GPS Location' });
+    expect(testGpsToggle).toBeDisabled();
+    expect(testGpsToggle.closest('.live-gps-toggle')).toBe(
+      gpsToggle.closest('.live-gps-toggle')?.nextElementSibling,
+    );
+
+    fireEvent.click(gpsToggle);
+    expect(testGpsToggle).toBeEnabled();
+    fireEvent.click(testGpsToggle);
+    expect(testGpsToggle).toBeChecked();
+
+    fireEvent.click(gpsToggle);
+    expect(testGpsToggle).toBeDisabled();
+    expect(testGpsToggle).not.toBeChecked();
+
+    fireEvent.click(gpsToggle);
+    fireEvent.click(testGpsToggle);
+    fireEvent.click(screen.getByRole('button', { name: 'Select Tee' }));
+    expect(await screen.findByText('Round Type')).toBeInTheDocument();
+    expect(screen.getByText('Starting Hole')).toBeInTheDocument();
+    const startButton = await screen.findByRole('button', { name: 'Start Round' });
+    await waitFor(() => expect(startButton).toBeEnabled());
+    const locationCallCountBeforeStart = mockGetCurrentPosition.mock.calls.length;
+    fireEvent.click(startButton);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/rounds/live/admin-gps-test?gpsTestLocation=1');
+    });
+    expect(mockRequestLiveRoundGpsPermission).not.toHaveBeenCalled();
+    expect(mockGetCurrentPosition).toHaveBeenCalledTimes(locationCallCountBeforeStart);
+    const sessionCreateCall = (global.fetch as jest.Mock).mock.calls.find(
+      ([input, init]: [RequestInfo | URL, RequestInit | undefined]) =>
+        String(input) === '/api/rounds/live/sessions' && init?.method === 'POST',
+    );
+    expect(JSON.parse(String(sessionCreateCall?.[1]?.body))).toMatchObject({ gpsEnabled: true });
+    expect(JSON.parse(String(sessionCreateCall?.[1]?.body))).not.toHaveProperty('gpsTestLocation');
+  });
+
+  it('keeps the production pre-start GPS permission request when Test GPS is inactive', async () => {
+    mockQuery = new URLSearchParams('mode=live');
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      let body: Record<string, unknown> = { type: 'success', profile: null };
+      if (url.includes('/api/rounds/live/sessions')) {
+        body = init?.method === 'POST'
+          ? { session: { id: 'real-gps' } }
+          : { sessions: [] };
+      }
+      if (url.includes('/api/tees?')) body = { tees: [] };
+      if (url.includes('/api/tees/21/holes')) {
+        body = { holes: [{ id: 101, hole_number: 1, par: 4 }] };
+      }
+      if (url.includes('/api/gps/live/course/11')) {
+        body = {
+          availability: {
+            courseId: '11',
+            available: true,
+            coverage: 'full',
+            expectedHoleNumbers: [1],
+            availableHoleNumbers: [1],
+            unavailableHoleNumbers: [],
+            reason: 'available',
+          },
+        };
+      }
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Live GPS' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select Tee' }));
+
+    const startButton = await screen.findByRole('button', { name: 'Start Round' });
+    await waitFor(() => expect(startButton).toBeEnabled());
+    fireEvent.click(startButton);
+
+    await waitFor(() => {
+      expect(mockRequestLiveRoundGpsPermission).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledWith('/rounds/live/real-gps');
+    });
+  });
+
+  it('shows no GPS UI when course coverage is unavailable', async () => {
+    mockQuery = new URLSearchParams('mode=live');
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      let body: Record<string, unknown> = { type: 'success', profile: null };
+      if (url.includes('/api/rounds/live/sessions')) body = { sessions: [] };
+      if (url.includes('/api/courses?')) body = { courses: [] };
+      if (url.includes('/api/tees?')) body = { tees: [] };
+      if (url.includes('/api/gps/live/course/11')) {
+        body = {
+          availability: {
+            courseId: '11',
+            available: false,
+            coverage: 'none',
+            expectedHoleNumbers: [1],
+            availableHoleNumbers: [],
+            unavailableHoleNumbers: [1],
+            reason: 'not_published',
+          },
+        };
+      }
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+      '/api/gps/live/course/11',
+      expect.objectContaining({ cache: 'no-store' }),
+    ));
+
+    expect(screen.queryByRole('checkbox', { name: 'Live GPS' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/checking gps availability/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/gps is not available/i)).not.toBeInTheDocument();
   });
 
   it('redirects edit-round to login when unauthenticated without any draft', async () => {

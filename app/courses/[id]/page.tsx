@@ -140,7 +140,7 @@ export default function CourseDetailsPage() {
       label: gender,
       options: tees.map((t) => ({
         value: String(t.id),
-        label: `${t.tee_name} ${t.total_yards} yds (${t.course_rating}/${t.slope_rating}) ${t.number_of_holes} holes`,
+        label: `${t.tee_name} ${t.total_yards} yd (${t.course_rating}/${t.slope_rating}) ${t.number_of_holes} holes`,
       })),
     }));
   }, [teesGrouped]);
@@ -263,7 +263,7 @@ export default function CourseDetailsPage() {
               selectedTee
                 ? {
                     value: String(selectedTee.id),
-                    label: `${selectedTee.tee_name} ${selectedTee.total_yards} yds (${selectedTee.course_rating}/${selectedTee.slope_rating}) ${selectedTee.number_of_holes} holes`,
+                    label: `${selectedTee.tee_name} ${selectedTee.total_yards} yd (${selectedTee.course_rating}/${selectedTee.slope_rating}) ${selectedTee.number_of_holes} holes`,
                   }
                 : null
             }

@@ -2,6 +2,7 @@ export type RoundContext = 'real' | 'simulator' | 'practice';
 export type TeeSegment = 'full' | 'front9' | 'back9' | 'double9';
 export type LiveRoundActiveStep = 'GPS' | 'SCORE';
 export type LiveRoundSessionStatus = 'ACTIVE' | 'COMPLETED' | 'DISCARDED';
+export type { LiveGpsAvailability } from '@/lib/gps/liveMappingTypes';
 export type MissDirection = 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long';
 export type DirectionalResult = 'untracked' | 'hit' | MissDirection;
 
@@ -56,6 +57,7 @@ export type LiveRoundSession = {
   active_hole_number: number;
   active_hole_pass: number;
   active_step: LiveRoundActiveStep;
+  gpsEnabled: boolean;
   tracking_prefs: {
     fir: boolean;
     gir: boolean;

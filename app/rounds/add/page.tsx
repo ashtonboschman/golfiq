@@ -15,6 +15,8 @@ import { resolveTeeContext, getValidTeeSegments, type TeeForResolver, type TeeSe
 import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { requestLiveRoundGpsPermission } from '@/lib/gps/browserLocation';
+import { isAdminUserId } from '@/lib/admin';
 import { getRoundAddDraftKey } from '@/lib/rounds/addDraft';
 import {
   DEFAULT_LIVE_ROUND_TRACKING_PREFS,
@@ -31,7 +33,11 @@ import {
   readLiveRoundContext,
   writeLiveRoundContext,
 } from '@/lib/rounds/liveRoundResume';
-import { teeSegmentLabel, type LiveRoundSession } from '@/components/rounds/live/types';
+import {
+  teeSegmentLabel,
+  type LiveGpsAvailability,
+  type LiveRoundSession,
+} from '@/components/rounds/live/types';
 
 // Map API tee object (snake_case) to TeeForResolver (camelCase)
 function apiTeeToResolver(tee: any): TeeForResolver {
@@ -246,6 +252,10 @@ function AddRoundContent() {
   const [discardingLiveSessionId, setDiscardingLiveSessionId] = useState<string | null>(null);
   const [hasUserEdited, setHasUserEdited] = useState(false);
   const [liveStartHoleNumber, setLiveStartHoleNumber] = useState(1);
+  const [liveGpsEnabled, setLiveGpsEnabled] = useState(false);
+  const [liveGpsTestLocationEnabled, setLiveGpsTestLocationEnabled] = useState(false);
+  const [liveGpsAvailability, setLiveGpsAvailability] = useState<LiveGpsAvailability | null>(null);
+  const [loadingLiveGpsAvailability, setLoadingLiveGpsAvailability] = useState(false);
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const holeScoresRef = useRef<HoleScore[]>([]);
   const hasSubmittedRef = useRef(false);
@@ -264,6 +274,7 @@ function AddRoundContent() {
     () => getRoundAddDraftKey(session?.user?.id),
     [session?.user?.id],
   );
+  const isAdmin = status === 'authenticated' && isAdminUserId(session?.user?.id);
 
   const trackEvent = useCallback((event: (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS], properties: Record<string, unknown> = {}) => {
     captureClientEvent(
@@ -468,6 +479,45 @@ function AddRoundContent() {
       setRoundEntryMode('live');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (roundEntryMode !== 'live' || !selectedCourse) {
+      setLiveGpsAvailability(null);
+      setLoadingLiveGpsAvailability(false);
+      setLiveGpsEnabled(false);
+      setLiveGpsTestLocationEnabled(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setLiveGpsAvailability(null);
+    setLoadingLiveGpsAvailability(true);
+    setLiveGpsEnabled(false);
+    setLiveGpsTestLocationEnabled(false);
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/gps/live/course/${selectedCourse.value}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const data = await readApiResponse<{ availability: LiveGpsAvailability }>(response);
+        if (!controller.signal.aborted) {
+          setLiveGpsAvailability(data.availability);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setLiveGpsAvailability(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingLiveGpsAvailability(false);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [roundEntryMode, selectedCourse]);
 
   const buildCurrentDraft = useCallback((): AddRoundDraft => ({
     version: 1,
@@ -737,22 +787,27 @@ function AddRoundContent() {
     };
   }, [persistDraftAndResumeContext]);
 
-  // Get user's geolocation for course sorting
+  // One-time, ephemeral location lookup used only to sort nearby course search results.
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.log('Geolocation not available:', error);
-        }
-      );
-    }
-  }, []);
+    if (status !== 'authenticated' || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => {
+        // Course search still works without proximity sorting.
+      },
+      {
+        enableHighAccuracy: false,
+        maximumAge: 300000,
+        timeout: 8000,
+      },
+    );
+  }, [status]);
 
   // Fetch user profile for default tee preference
   useEffect(() => {
@@ -825,7 +880,9 @@ function AddRoundContent() {
     { page }: { page: number } = { page: 1 } // default if undefined
   ) => {
     try {
-      const locationParam = userLocation ? `&lat=${userLocation.lat}&lng=${userLocation.lng}` : '';
+      const locationParam = userLocation
+        ? `&lat=${userLocation.lat}&lng=${userLocation.lng}`
+        : '';
       const res = await fetch(
         `/api/courses?search=${encodeURIComponent(search)}&limit=20&page=${page}${locationParam}`
       );
@@ -878,7 +935,7 @@ function AddRoundContent() {
             tee.gender.charAt(0).toUpperCase() + tee.gender.slice(1).toLowerCase();
           if (!acc[genderKey]) acc[genderKey] = [];
           acc[genderKey].push({
-            label: `${tee.tee_name} ${tee.total_yards ?? 0} yds (${
+            label: `${tee.tee_name} ${tee.total_yards ?? 0} yd (${
               tee.course_rating ?? 0
             }/${tee.slope_rating ?? 0}) ${tee.number_of_holes ?? 0} holes`,
             value: tee.id,
@@ -995,7 +1052,7 @@ function AddRoundContent() {
       setRound((prev) => ({ ...prev, tee_id: String(matchedTee.id) }));
       setSelectedTee({
         value: matchedTee.id,
-        label: `${matchedTee.tee_name} ${matchedTee.total_yards ?? 0} yds (${matchedTee.course_rating ?? 0}/${matchedTee.slope_rating ?? 0}) ${matchedTee.number_of_holes ?? 0} holes`,
+        label: `${matchedTee.tee_name} ${matchedTee.total_yards ?? 0} yd (${matchedTee.course_rating ?? 0}/${matchedTee.slope_rating ?? 0}) ${matchedTee.number_of_holes ?? 0} holes`,
         teeObj: matchedTee,
       });
       updateSegmentOptions(matchedTee);
@@ -1112,7 +1169,7 @@ function AddRoundContent() {
             setRound((prev) => ({ ...prev, tee_id: String(teeId) }));
             setSelectedTee({
               value: foundTee.id,
-              label: `${foundTee.tee_name} ${foundTee.total_yards ?? 0} yds (${foundTee.course_rating ?? 0}/${foundTee.slope_rating ?? 0}) ${foundTee.number_of_holes ?? 0} holes`,
+              label: `${foundTee.tee_name} ${foundTee.total_yards ?? 0} yd (${foundTee.course_rating ?? 0}/${foundTee.slope_rating ?? 0}) ${foundTee.number_of_holes ?? 0} holes`,
               teeObj: foundTee,
             });
             updateSegmentOptions(foundTee);
@@ -1465,6 +1522,11 @@ function AddRoundContent() {
 
     setStartingLiveRound(true);
     try {
+      if (liveGpsEnabled && !liveGpsTestLocationEnabled) {
+        const gpsFix = await requestLiveRoundGpsPermission();
+        if (gpsFix) setUserLocation(gpsFix.position);
+      }
+
       const startHoleNumber = liveStartHoleOptions.some((option) => option.value === liveStartHoleNumber)
         ? liveStartHoleNumber
         : liveStartHoleOptions[0]?.value;
@@ -1480,6 +1542,7 @@ function AddRoundContent() {
           date: round.date,
           tee_segment: round.tee_segment,
           start_hole_number: startHoleNumber,
+          gpsEnabled: liveGpsEnabled,
           tracking_prefs: {
             fir: liveRoundTracking.fir,
             gir: liveRoundTracking.gir,
@@ -1495,7 +1558,12 @@ function AddRoundContent() {
       hasSubmittedRef.current = true;
       clearRoundDraft();
       clearAddRoundDirtyState();
-      router.push(`/rounds/live/${data.session.id}`);
+      const liveRoundPath = `/rounds/live/${data.session.id}`;
+      router.push(
+        liveGpsEnabled && liveGpsTestLocationEnabled
+          ? `${liveRoundPath}?gpsTestLocation=1`
+          : liveRoundPath,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to start live round';
       setLiveStartError(message);
@@ -1878,6 +1946,9 @@ function AddRoundContent() {
                   onChange={async (option) => {
                     markUserEdited();
                     setSelectedCourse(option);
+                    setLiveGpsEnabled(false);
+                    setLiveGpsTestLocationEnabled(false);
+                    setLiveGpsAvailability(null);
                     setSelectedTee(null);
                     setSegmentOptions([]);
                     setLiveStartHoleNumber(1);
@@ -2173,6 +2244,50 @@ function AddRoundContent() {
               </div>
             </>
           )}
+
+          {selectedCourse &&
+            roundEntryMode === 'live' &&
+            !loadingLiveGpsAvailability &&
+            liveGpsAvailability?.available &&
+            liveGpsAvailability.coverage === 'full' && (
+              <>
+                <label className="live-gps-toggle">
+                  <span>Live GPS</span>
+                  <span className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      aria-label="Live GPS"
+                      checked={liveGpsEnabled}
+                      onChange={(event) => {
+                        markUserEdited();
+                        const enabled = event.target.checked;
+                        setLiveGpsEnabled(enabled);
+                        if (!enabled) setLiveGpsTestLocationEnabled(false);
+                      }}
+                    />
+                    <span className="toggle-slider" />
+                  </span>
+                </label>
+                {isAdmin && (
+                  <label className="live-gps-toggle">
+                    <span>Test GPS Location</span>
+                    <span className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        aria-label="Test GPS Location"
+                        checked={liveGpsTestLocationEnabled}
+                        disabled={!liveGpsEnabled}
+                        onChange={(event) => {
+                          setLiveGpsTestLocationEnabled(event.target.checked);
+                        }}
+                      />
+                      <span className="toggle-slider" />
+                    </span>
+                  </label>
+                )}
+                <p className="combined-note">Hole maps and distances.</p>
+              </>
+            )}
 
           <div className="form-actions">
             <button

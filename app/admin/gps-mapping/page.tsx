@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
+import AdminGpsMappingLocationSort from '@/components/gps/AdminGpsMappingLocationSort';
 import { isAdminUserId } from '@/lib/admin';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
@@ -11,6 +12,8 @@ import { isGpsMappingSchemaAvailable } from '@/lib/gps/schemaStatus';
 type GpsMappingIndexPageProps = {
   searchParams?: Promise<{
     q?: string;
+    lat?: string;
+    lng?: string;
   }>;
 };
 
@@ -34,6 +37,57 @@ type CourseListItem = {
   }>;
 };
 
+const courseNameOrder = [
+  { clubName: 'asc' },
+  { courseName: 'asc' },
+] satisfies Prisma.CourseOrderByWithRelationInput[];
+
+function parseCoordinate(value: string | undefined, minimum: number, maximum: number) {
+  if (!value) return null;
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) && coordinate >= minimum && coordinate <= maximum
+    ? coordinate
+    : null;
+}
+
+async function getNearbyCourseIds(query: string, latitude: number, longitude: number) {
+  const searchPattern = `%${query}%`;
+  const searchFilter = query
+    ? Prisma.sql`
+        AND (
+          c.club_name ILIKE ${searchPattern}
+          OR c.course_name ILIKE ${searchPattern}
+          OR l.city ILIKE ${searchPattern}
+          OR l.state ILIKE ${searchPattern}
+        )
+      `
+    : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+    SELECT c.id
+    FROM courses c
+    INNER JOIN locations l ON c.id = l.course_id
+    WHERE l.latitude IS NOT NULL
+      AND l.longitude IS NOT NULL
+      ${searchFilter}
+    ORDER BY (
+      6371 * acos(
+        LEAST(
+          1.0,
+          cos(radians(${latitude})) * cos(radians(l.latitude::float))
+            * cos(radians(l.longitude::float) - radians(${longitude}))
+            + sin(radians(${latitude})) * sin(radians(l.latitude::float))
+        )
+      )
+    ) ASC,
+    c.club_name ASC,
+    c.course_name ASC
+    LIMIT 60
+  `);
+
+  return rows.map((row) => row.id);
+}
+
 function statusLabel(status: string | null | undefined) {
   return status ? status.toLowerCase() : 'not started';
 }
@@ -47,6 +101,9 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
 
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q?.trim() ?? '';
+  const latitude = parseCoordinate(resolvedSearchParams?.lat, -90, 90);
+  const longitude = parseCoordinate(resolvedSearchParams?.lng, -180, 180);
+  const hasUserLocation = latitude !== null && longitude !== null;
   const gpsMappingSchemaAvailable = await isGpsMappingSchemaAvailable();
 
   const courseWhere: Prisma.CourseWhereInput | undefined = query
@@ -80,9 +137,16 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
     },
   } as const;
 
-  const courses: CourseListItem[] = gpsMappingSchemaAvailable
+  const nearbyCourseIds = hasUserLocation
+    ? await getNearbyCourseIds(query, latitude, longitude)
+    : null;
+  const effectiveCourseWhere: Prisma.CourseWhereInput | undefined = nearbyCourseIds
+    ? { id: { in: nearbyCourseIds } }
+    : courseWhere;
+
+  const fetchedCourses: CourseListItem[] = gpsMappingSchemaAvailable
     ? await prisma.course.findMany({
-        where: courseWhere,
+        where: effectiveCourseWhere,
         select: {
           ...baseCourseSelect,
           mappedCourse: {
@@ -96,15 +160,21 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
             },
           },
         },
-        orderBy: [{ clubName: 'asc' }, { courseName: 'asc' }],
-        take: 60,
+        orderBy: nearbyCourseIds ? undefined : courseNameOrder,
+        take: nearbyCourseIds ? undefined : 60,
       }) as CourseListItem[]
     : (await prisma.course.findMany({
-        where: courseWhere,
+        where: effectiveCourseWhere,
         select: baseCourseSelect,
-        orderBy: [{ clubName: 'asc' }, { courseName: 'asc' }],
-        take: 60,
+        orderBy: nearbyCourseIds ? undefined : courseNameOrder,
+        take: nearbyCourseIds ? undefined : 60,
       })).map((course) => ({ ...course, mappedCourse: null }));
+
+  const courses = nearbyCourseIds
+    ? nearbyCourseIds
+        .map((courseId) => fetchedCourses.find((course) => course.id === courseId))
+        .filter((course): course is CourseListItem => Boolean(course))
+    : fetchedCourses;
 
   async function startMapping(formData: FormData) {
     'use server';
@@ -116,6 +186,7 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
 
   return (
     <main className="gps-admin-page">
+      <AdminGpsMappingLocationSort hasLocation={hasUserLocation} query={query} />
       <section className="gps-admin-page-header">
         <div>
           <p className="gps-prototype-kicker">Admin GPS Mapping</p>
@@ -130,6 +201,12 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
       <form className="gps-admin-search" action="/admin/gps-mapping">
         <label htmlFor="gps-course-search">Search Courses</label>
         <div>
+          {hasUserLocation && (
+            <>
+              <input type="hidden" name="lat" value={latitude} />
+              <input type="hidden" name="lng" value={longitude} />
+            </>
+          )}
           <input
             id="gps-course-search"
             type="search"

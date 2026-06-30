@@ -9,6 +9,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+const mockScrollTo = jest.fn();
 const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
 const mockShowConfirm = jest.fn();
@@ -108,6 +109,10 @@ const statsPayload = {
 describe('/rounds/[id]/stats page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Object.defineProperty(window, 'scrollTo', {
+      configurable: true,
+      value: mockScrollTo,
+    });
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: { user: { id: '1' } },
@@ -116,6 +121,21 @@ describe('/rounds/[id]/stats page', () => {
       ok: true,
       json: async () => ({ stats: statsPayload }),
     });
+  });
+
+  it('starts at the top when the stats route opens', async () => {
+    mockedUseSubscription.mockReturnValue({
+      isPremium: true,
+      loading: false,
+    });
+
+    render(<RoundStatsPage />);
+
+    await waitFor(() => expect(mockScrollTo).toHaveBeenCalledWith({
+      top: 0,
+      left: 0,
+      behavior: 'auto',
+    }));
   });
 
   it('shows strokes gained summary for premium users', async () => {

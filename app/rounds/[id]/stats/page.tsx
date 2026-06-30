@@ -100,6 +100,16 @@ export default function RoundStatsPage() {
 
   const roundId = params?.id as string;
 
+  useEffect(() => {
+    const scrollToTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    };
+
+    scrollToTop();
+    const frame = window.requestAnimationFrame(scrollToTop);
+    return () => window.cancelAnimationFrame(frame);
+  }, [roundId]);
+
   const fetchStats = useCallback(async () => {
     clearMessage();
     setLoading(true);

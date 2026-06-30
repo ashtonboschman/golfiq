@@ -29,7 +29,12 @@ export function distanceYards(from: LatLng, to: LatLng): number {
   return metersToYards(distanceMeters(from, to));
 }
 
-export function formatYards(value: number | null | undefined): string {
+export function formatYardNumber(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '--';
-  return `${Math.round(value)} yd`;
+  return String(Math.round(value));
+}
+
+export function formatYards(value: number | null | undefined): string {
+  const formatted = formatYardNumber(value);
+  return formatted === '--' ? formatted : `${formatted} yd`;
 }

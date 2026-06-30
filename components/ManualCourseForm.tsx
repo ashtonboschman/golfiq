@@ -400,7 +400,7 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                 className={`manual-course-tee-card ${tee.gender === 'male' ? 'is-male' : 'is-female'}`}
               >
                 <div>
-                  <strong>{tee.tee_name}</strong> ({tee.gender}) - {tee.total_yards} yds,
+                  <strong>{tee.tee_name}</strong> ({tee.gender}) - {tee.total_yards} yd,
                   Par {tee.par_total}, Rating: {tee.course_rating}, Slope: {tee.slope_rating}
                   <div className="manual-course-tee-meta">
                     {tee.number_of_holes} holes

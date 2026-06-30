@@ -9,6 +9,7 @@ import {
   type RoundContext,
 } from '@/lib/rounds/finalizeRound';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
+import { getLiveGpsAvailabilityForCourse } from '@/lib/gps/liveMapping';
 
 const TEE_SEGMENT_VALUES = ['full', 'front9', 'back9', 'double9'] as const;
 const LIVE_ROUND_STEP_VALUES = ['GPS', 'SCORE'] as const;
@@ -95,6 +96,7 @@ type LiveRoundSessionRow = {
   activeHoleNumber: number;
   activeHolePass: number;
   activeStep: LiveRoundActiveStep;
+  gpsEnabled: boolean;
   liveRoundTrackFir: boolean;
   liveRoundTrackGir: boolean;
   liveRoundTrackChips: boolean;
@@ -150,6 +152,7 @@ const createLiveRoundSessionSchema = z.object({
   start_hole_number: z.number().int().min(1).max(18).optional(),
   round_context: z.enum(ROUND_CONTEXT_VALUES).optional().default('real'),
   notes: z.string().nullable().optional(),
+  gpsEnabled: z.boolean().optional().default(false),
   tracking_prefs: z.object({
     fir: z.boolean().optional(),
     gir: z.boolean().optional(),
@@ -307,6 +310,7 @@ export function serializeLiveRoundSession(session: LiveRoundSessionRow) {
     active_hole_number: session.activeHoleNumber,
     active_hole_pass: session.activeHolePass,
     active_step: session.activeStep,
+    gpsEnabled: session.gpsEnabled,
     tracking_prefs: {
       fir: session.liveRoundTrackFir,
       gir: session.liveRoundTrackGir,
@@ -504,6 +508,17 @@ export async function createLiveRoundSession(userId: bigint, input: unknown) {
       throw liveRoundError('Course or tee not found', 404, 'tee_not_found');
     }
 
+    if (data.gpsEnabled) {
+      const availability = await getLiveGpsAvailabilityForCourse(data.course_id);
+      if (!availability.available || availability.coverage !== 'full') {
+        throw liveRoundError(
+          'Live GPS is not available for this course yet.',
+          400,
+          'gps_unavailable',
+        );
+      }
+    }
+
     const expectedDrafts = buildExpectedDrafts(tee, data.tee_segment);
     if (expectedDrafts.length === 0) {
       throw liveRoundError('Tee has no playable holes', 400, 'missing_tee_holes');
@@ -551,7 +566,8 @@ export async function createLiveRoundSession(userId: bigint, input: unknown) {
         startHoleNumber: firstDraft.displayHoleNumber,
         activeHoleNumber: firstDraft.displayHoleNumber,
         activeHolePass: firstDraft.pass,
-        activeStep: 'SCORE',
+        activeStep: data.gpsEnabled ? 'GPS' : 'SCORE',
+        gpsEnabled: data.gpsEnabled,
         liveRoundTrackFir: trackingPrefs.fir,
         liveRoundTrackGir: trackingPrefs.gir,
         liveRoundTrackChips: trackingPrefs.chips,

@@ -487,7 +487,7 @@ export default function ImportCoursePage() {
                           className="admin-course-tee-checkbox"
                         />
                         <span className="admin-course-tee-text">
-                          <strong>{tee.tee_name}</strong> - {tee.total_yards} yds (Rating: {tee.course_rating}
+                          <strong>{tee.tee_name}</strong> - {tee.total_yards} yd (Rating: {tee.course_rating}
                           /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes
                         </span>
                       </label>
@@ -512,7 +512,7 @@ export default function ImportCoursePage() {
                           className="admin-course-tee-checkbox"
                         />
                         <span className="admin-course-tee-text">
-                          <strong>{tee.tee_name}</strong> - {tee.total_yards} yds (Rating: {tee.course_rating}
+                          <strong>{tee.tee_name}</strong> - {tee.total_yards} yd (Rating: {tee.course_rating}
                           /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes
                         </span>
                       </label>

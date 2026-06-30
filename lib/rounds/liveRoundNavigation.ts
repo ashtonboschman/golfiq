@@ -8,6 +8,58 @@ export type LiveRoundNavigationRequest = {
   back?: boolean;
 };
 
+export type LiveRoundStep = 'GPS' | 'SCORE';
+
+export type LiveRoundStepTarget = {
+  draftIndex: number;
+  activeStep: LiveRoundStep;
+};
+
+type LiveRoundStepNavigationInput = {
+  gpsEnabled: boolean;
+  activeStep: LiveRoundStep;
+  activeIndex: number;
+  draftCount: number;
+};
+
+export function getNextLiveRoundStep({
+  gpsEnabled,
+  activeStep,
+  activeIndex,
+  draftCount,
+}: LiveRoundStepNavigationInput): LiveRoundStepTarget | null {
+  if (activeIndex < 0 || activeIndex >= draftCount) return null;
+
+  if (gpsEnabled && activeStep === 'GPS') {
+    return { draftIndex: activeIndex, activeStep: 'SCORE' };
+  }
+
+  if (activeIndex >= draftCount - 1) return null;
+  return {
+    draftIndex: activeIndex + 1,
+    activeStep: gpsEnabled ? 'GPS' : 'SCORE',
+  };
+}
+
+export function getPreviousLiveRoundStep({
+  gpsEnabled,
+  activeStep,
+  activeIndex,
+  draftCount,
+}: LiveRoundStepNavigationInput): LiveRoundStepTarget | null {
+  if (activeIndex < 0 || activeIndex >= draftCount) return null;
+
+  if (gpsEnabled && activeStep === 'SCORE') {
+    return { draftIndex: activeIndex, activeStep: 'GPS' };
+  }
+
+  if (activeIndex <= 0) return null;
+  return {
+    draftIndex: activeIndex - 1,
+    activeStep: 'SCORE',
+  };
+}
+
 export function isLiveRoundPath(pathname?: string | null) {
   return Boolean(pathname?.match(/^\/rounds\/live\/[^/]+$/));
 }

@@ -483,7 +483,7 @@ function EditRoundContent() {
             tee.gender.charAt(0).toUpperCase() + tee.gender.slice(1).toLowerCase();
           if (!acc[genderKey]) acc[genderKey] = [];
           acc[genderKey].push({
-            label: `${tee.tee_name} ${tee.total_yards ?? 0} yds (${tee.course_rating ?? 0}/${tee.slope_rating ?? 0}) ${tee.number_of_holes ?? 0} holes`,
+            label: `${tee.tee_name} ${tee.total_yards ?? 0} yd (${tee.course_rating ?? 0}/${tee.slope_rating ?? 0}) ${tee.number_of_holes ?? 0} holes`,
             value: tee.id,
             teeObj: tee,
           });
@@ -663,7 +663,7 @@ function EditRoundContent() {
             const foundTee = fetchedTees.find((t: any) => t.id === Number(roundData.tee_id));
             if (foundTee) {
               setSelectedTee({
-                label: `${foundTee.tee_name} ${foundTee.total_yards ?? 0} yds (${foundTee.course_rating ?? 0}/${foundTee.slope_rating ?? 0}) ${foundTee.number_of_holes ?? 0} holes`,
+                label: `${foundTee.tee_name} ${foundTee.total_yards ?? 0} yd (${foundTee.course_rating ?? 0}/${foundTee.slope_rating ?? 0}) ${foundTee.number_of_holes ?? 0} holes`,
                 value: foundTee.id,
                 teeObj: foundTee,
               });

@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Flag, LoaderCircle, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Flag, LoaderCircle, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
+import LiveGpsHoleMap from '@/components/gps/LiveGpsHoleMap';
 import LiveHoleScoreEntry from '@/components/rounds/live/LiveHoleScoreEntry';
 import {
   sessionTrackingPrefs,
@@ -15,10 +16,16 @@ import {
   type RoundContext,
 } from '@/components/rounds/live/types';
 import {
+  getNextLiveRoundStep,
+  getPreviousLiveRoundStep,
   LIVE_ROUND_NAVIGATION_EVENT,
   type LiveRoundNavigationRequest,
 } from '@/lib/rounds/liveRoundNavigation';
 import { createLatestAutosaveQueue } from '@/lib/rounds/latestAutosaveQueue';
+import { selectLiveGpsMappedHoleForDraft } from '@/lib/gps/liveHoleSelection';
+import type { LiveGpsMapping } from '@/lib/gps/liveMappingTypes';
+import { useLiveGpsLocation } from '@/lib/gps/useLiveGpsLocation';
+import { isAdminUserId } from '@/lib/admin';
 
 type LiveRoundSessionClientProps = {
   sessionId: string;
@@ -37,6 +44,12 @@ const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'simulator', label: 'Simulator Round' },
   { value: 'practice', label: 'Practice Round' },
 ];
+const subscribeToStaticGpsTestRequest = () => () => {};
+
+function readGpsTestLocationRequest() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('gpsTestLocation') === '1';
+}
 
 async function readApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
   const data = await response.json().catch(() => ({}));
@@ -97,6 +110,15 @@ function formatRatingSlope(session: LiveRoundSession) {
   return `${rating.toFixed(1)} / ${slope}`;
 }
 
+function holeContextLabel(draft: LiveRoundHoleDraft) {
+  const parts = [
+    `Par ${draft.hole?.par ?? '-'}`,
+    `${draft.hole?.yardage ?? '-'} yd`,
+  ];
+  if (draft.hole?.handicap != null) parts.push(`HCP ${draft.hole.handicap}`);
+  return parts.join(' · ');
+}
+
 function orderDraftsForPlay(drafts: LiveRoundHoleDraft[], startHoleNumber: number) {
   if (drafts.length <= 1) return drafts;
   const startIndex = drafts.findIndex((draft) => draft.display_hole_number === startHoleNumber);
@@ -122,9 +144,21 @@ function scrollLiveRoundToTop({ defer = false }: { defer?: boolean } = {}) {
 
 export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionClientProps) {
   const router = useRouter();
-  const { status } = useSession();
+  const { data: authSession, status } = useSession();
   const { showConfirm } = useMessage();
+  const gpsTestLocationRequested = useSyncExternalStore(
+    subscribeToStaticGpsTestRequest,
+    readGpsTestLocationRequest,
+    () => false,
+  );
+  const gpsTestLocationEnabled = (
+    status === 'authenticated'
+    && isAdminUserId(authSession?.user?.id)
+    && gpsTestLocationRequested
+  );
   const [session, setSession] = useState<LiveRoundSession | null>(null);
+  const [gpsMapping, setGpsMapping] = useState<LiveGpsMapping | null>(null);
+  const [gpsMappingLoading, setGpsMappingLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle');
@@ -269,6 +303,41 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     loadSession();
   }, [loadSession]);
 
+  useEffect(() => {
+    if (!session?.gpsEnabled) {
+      setGpsMapping(null);
+      setGpsMappingLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setGpsMapping(null);
+    setGpsMappingLoading(true);
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/gps/live/course/${session.course_id}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const data = await readApiResponse<LiveGpsMapping>(response);
+        if (controller.signal.aborted) return;
+
+        if (data.availability?.available && data.availability.coverage === 'full') {
+          setGpsMapping(data);
+        } else {
+          setGpsMapping(null);
+        }
+      } catch {
+        if (!controller.signal.aborted) setGpsMapping(null);
+      } finally {
+        if (!controller.signal.aborted) setGpsMappingLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [session?.course_id, session?.gpsEnabled]);
+
   useEffect(() => () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
@@ -300,6 +369,21 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     if (!activeDraft) return -1;
     return playOrderDrafts.findIndex((draft) => draft.id === activeDraft.id);
   }, [activeDraft, playOrderDrafts]);
+
+  const activeMappedHole = useMemo(() => {
+    if (!activeDraft || !gpsMapping) return null;
+    return selectLiveGpsMappedHoleForDraft(gpsMapping.holes, activeDraft);
+  }, [activeDraft, gpsMapping]);
+
+  const liveLocationActive = Boolean(
+    session?.status === 'ACTIVE' &&
+    session.gpsEnabled &&
+    !gpsTestLocationEnabled &&
+    session.active_step === 'GPS' &&
+    viewMode === 'score' &&
+    activeMappedHole,
+  );
+  const { location: liveLocation } = useLiveGpsLocation(liveLocationActive);
 
   const missingScoreDrafts = useMemo(
     () => sortedDrafts.filter((draft) => draft.score === null),
@@ -547,7 +631,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
 
   const moveToDraft = async (
     targetDraft: LiveRoundHoleDraft,
-    options: { fromReview?: boolean } = {},
+    options: { activeStep?: 'GPS' | 'SCORE'; fromReview?: boolean } = {},
   ) => {
     if (!session || navigationPendingRef.current) return;
 
@@ -567,7 +651,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
         body: JSON.stringify({
           active_hole_number: targetDraft.display_hole_number,
           active_hole_pass: targetDraft.pass,
-          active_step: 'SCORE',
+          active_step: options.activeStep ?? 'SCORE',
         }),
       });
       const data = await readApiResponse<{ session: LiveRoundSession }>(response);
@@ -596,15 +680,29 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   };
 
   const handlePrevious = () => {
-    if (activeIndex <= 0) return;
+    if (!session) return;
+    const target = getPreviousLiveRoundStep({
+      gpsEnabled: session.gpsEnabled,
+      activeStep: session.active_step,
+      activeIndex,
+      draftCount: playOrderDrafts.length,
+    });
+    if (!target) return;
     setReturnToReviewAvailable(false);
-    void moveToDraft(playOrderDrafts[activeIndex - 1]);
+    void moveToDraft(playOrderDrafts[target.draftIndex], { activeStep: target.activeStep });
   };
 
   const handleNext = () => {
-    if (activeIndex < 0 || activeIndex >= playOrderDrafts.length - 1) return;
+    if (!session) return;
+    const target = getNextLiveRoundStep({
+      gpsEnabled: session.gpsEnabled,
+      activeStep: session.active_step,
+      activeIndex,
+      draftCount: playOrderDrafts.length,
+    });
+    if (!target) return;
     setReturnToReviewAvailable(false);
-    void moveToDraft(playOrderDrafts[activeIndex + 1]);
+    void moveToDraft(playOrderDrafts[target.draftIndex], { activeStep: target.activeStep });
   };
 
   const handleReview = async () => {
@@ -756,43 +854,128 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const roundTypeLabel = teeSegmentLabel(session.tee_segment, session.tee?.number_of_holes);
   const teeName = session.tee?.tee_name || 'Selected Tee';
   const ratingSlopeLabel = formatRatingSlope(session);
-  const isFirst = activeIndex <= 0;
   const isLast = activeIndex === playOrderDrafts.length - 1;
+  const previousStep = getPreviousLiveRoundStep({
+    gpsEnabled: session.gpsEnabled,
+    activeStep: session.active_step,
+    activeIndex,
+    draftCount: playOrderDrafts.length,
+  });
+  const nextStep = getNextLiveRoundStep({
+    gpsEnabled: session.gpsEnabled,
+    activeStep: session.active_step,
+    activeIndex,
+    draftCount: playOrderDrafts.length,
+  });
+  const showGpsStep = session.gpsEnabled && session.active_step === 'GPS' && viewMode === 'score';
   const canFinish = missingScoreDrafts.length === 0;
-  const lastHoleActionLabel = missingScoreDrafts.length > 0 ? 'Review Missing Scores' : 'Review Round';
   const showSaveSpinner = autosaveStatus === 'pending' || autosaveStatus === 'saving';
+  const activeHoleContextLabel = holeContextLabel(activeDraft);
   const physicalHoleNote = session.tee_segment === 'double9' && activeDraft.pass === 2
     ? `Physical Hole ${activeDraft.hole_number}, Pass 2`
     : null;
 
-  return (
-    <div className="page-stack live-round-page">
-      <section className="card live-round-session-card">
-        <div className="live-round-topbar">
-          <div>
-            <h1>{courseLabel(session)}</h1>
-            <div className="live-round-header-meta">
-              <span className="live-round-header-date">
-                <CalendarDays size={14} aria-hidden="true" />
-                {formatDate(session.date)}
-              </span>
-              <span className="round-holes-tag">{roundTypeLabel}</span>
-              <span className={`tee-tag ${teePillClass(session.tee?.tee_name)}`}>{teeName}</span>
-              {ratingSlopeLabel && (
-                <span className="round-holes-tag">{ratingSlopeLabel}</span>
-              )}
+  const persistentGpsLayer = session.gpsEnabled ? (
+      <div
+        className={`live-round-gps-fullscreen${showGpsStep ? '' : ' is-hidden'}`}
+        aria-hidden={!showGpsStep}
+      >
+        <div className="live-round-gps-map-layer">
+          {gpsMappingLoading ? (
+            <div className="live-round-gps-unavailable" role="status">
+              Loading GPS map...
             </div>
-          </div>
-          <span
-            className={`live-round-save-indicator ${showSaveSpinner ? 'is-saving' : 'is-idle'}`}
-            role={showSaveSpinner ? 'status' : undefined}
-            aria-label={showSaveSpinner ? 'Saving' : undefined}
-            aria-hidden={showSaveSpinner ? undefined : true}
-            title={showSaveSpinner ? 'Saving' : undefined}
-          >
-            {showSaveSpinner && <LoaderCircle size={18} />}
-          </span>
+          ) : activeMappedHole ? (
+            <LiveGpsHoleMap
+              apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+              hole={activeMappedHole}
+              par={activeDraft.hole?.par ?? null}
+              routeKey={activeDraft.id}
+              userPosition={liveLocation.position}
+              userAccuracyMeters={liveLocation.accuracyMeters}
+              testLocationEnabled={gpsTestLocationEnabled}
+            />
+          ) : (
+            <div className="live-round-gps-unavailable" role="status">
+              GPS unavailable for this hole.
+            </div>
+          )}
         </div>
+
+        <div className="live-round-gps-hud">
+          <div className="live-round-gps-hole-card">
+            <strong>Hole {activeDraft.display_hole_number}</strong>
+            <small className="live-round-gps-hole-meta">{activeHoleContextLabel}</small>
+            {physicalHoleNote && (
+              <small className="live-round-gps-physical-hole-note">{physicalHoleNote}</small>
+            )}
+          </div>
+
+          {gpsTestLocationEnabled && (
+            <div className="live-round-gps-test-badge" role="status">
+              Test GPS · Drag Blue Dot
+            </div>
+          )}
+
+          {error && <div className="live-round-alert is-error">{error}</div>}
+        </div>
+
+        <div className="live-round-gps-controls">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handlePrevious}
+            disabled={!previousStep || navigationPending}
+          >
+            <ChevronLeft size={18} />
+            Previous Hole
+          </button>
+          <button
+            type="button"
+            className="btn btn-accent"
+            onClick={handleNext}
+            disabled={navigationPending || !nextStep}
+          >
+            Log Score
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+  ) : null;
+
+  return (
+    <>
+      {persistentGpsLayer}
+      {!showGpsStep && (
+        <div className="page-stack live-round-page">
+          <section className="card live-round-session-card">
+        {viewMode === 'review' && (
+          <div className="live-round-topbar">
+            <div>
+              <h1>{courseLabel(session)}</h1>
+              <div className="live-round-header-meta">
+                <span className="live-round-header-date">
+                  <CalendarDays size={14} aria-hidden="true" />
+                  {formatDate(session.date)}
+                </span>
+                <span className="round-holes-tag">{roundTypeLabel}</span>
+                <span className={`tee-tag ${teePillClass(session.tee?.tee_name)}`}>{teeName}</span>
+                {ratingSlopeLabel && (
+                  <span className="round-holes-tag">{ratingSlopeLabel}</span>
+                )}
+              </div>
+            </div>
+            <span
+              className={`live-round-save-indicator ${showSaveSpinner ? 'is-saving' : 'is-idle'}`}
+              role={showSaveSpinner ? 'status' : undefined}
+              aria-label={showSaveSpinner ? 'Saving' : undefined}
+              aria-hidden={showSaveSpinner ? undefined : true}
+              title={showSaveSpinner ? 'Saving' : undefined}
+            >
+              {showSaveSpinner && <LoaderCircle size={18} />}
+            </span>
+          </div>
+        )}
 
         {error && <div className="live-round-alert is-error">{error}</div>}
         {autosaveStatus === 'error' && (
@@ -839,7 +1022,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                   >
                     <span>Hole {draft.display_hole_number}</span>
                     <span>Par {draft.hole?.par ?? '-'}</span>
-                    <span>{draft.hole?.yardage ? `${draft.hole.yardage} yds` : 'Yards -'}</span>
+                    <span>{draft.hole?.yardage ? `${draft.hole.yardage} yd` : '-- yd'}</span>
                     <strong>{isMissing ? 'Missing' : draft.score}</strong>
                   </button>
                 );
@@ -916,7 +1099,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                 onClick={handleBackToScore}
                 disabled={finalizing || navigationPending}
               >
-                <ArrowLeft size={18} />
+                <ChevronLeft size={18} />
                 Back To Score
               </button>
               <button
@@ -979,10 +1162,10 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                 type="button"
                 className="btn btn-secondary"
                 onClick={handlePrevious}
-                disabled={isFirst || navigationPending}
+                disabled={!previousStep || navigationPending}
               >
-                <ArrowLeft size={18} />
-                Previous Hole
+                <ChevronLeft size={18} />
+                {session.gpsEnabled && session.active_step === 'SCORE' ? 'Hole GPS' : 'Previous Hole'}
               </button>
               <button
                 type="button"
@@ -990,8 +1173,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                 onClick={isLast ? handleReview : handleNext}
                 disabled={navigationPending}
               >
-                {isLast ? lastHoleActionLabel : 'Next Hole'}
-                <ArrowRight size={18} />
+                {isLast ? 'Review Round' : 'Next Hole'}
+                <ChevronRight size={18} />
               </button>
             </div>
 
@@ -1008,8 +1191,10 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
             )}
           </>
         )}
-      </section>
-    </div>
+          </section>
+        </div>
+      )}
+    </>
   );
 }
 

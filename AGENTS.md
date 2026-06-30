@@ -43,6 +43,8 @@ GolfIQ is not a GPS-first golf app. Prioritize fast round entry, clear stats, de
 * Reuse existing components and patterns from `components/`, `Layout`, `PremiumGate`, and shared style helpers.
 * Use `lib/selectStyles.ts` for `react-select` styling patterns.
 * For app UI work, prefer existing classes in `app/app.css`. If the needed styling does not exist, add or extend classes in `app/app.css` instead of introducing inline styles or Tailwind utilities.
+* Use the shared spacing tokens in `app/app.css` for new components and UI changes, including `--gap`, `--gap-small`, `--padding`, `--padding-small`, and `--padding-large`. Do not introduce hard-coded spacing when an existing token represents the intended rhythm.
+* Keep related screen-edge insets, sibling gaps, and component padding aligned through the same spacing tokens. Avoid mixing near-equivalent values such as 10px and 12px unless the visual difference is intentional and documented in the CSS.
 * Do not introduce new Tailwind utility usage unless explicitly requested. If you touch a Tailwind-styled holdout, prefer converting it to the repo's `app.css` conventions.
 * Avoid new inline styles for app UI unless the styling is truly runtime-driven, such as measured CSS custom properties or data-driven bar positioning. Email templates are an allowed exception.
 * Keep UI mobile-first, clean, premium-feeling, and analytics-focused.

@@ -6,7 +6,8 @@ import type {
   GpsMappingEditField,
 } from '@/lib/gps/adminMappingTypes';
 import { deriveAnchoredGpsCamera, normalizeDegrees } from '@/lib/gps/derivedCamera';
-import { distanceYards, formatYards } from '@/lib/gps/distance';
+import { distanceYards, formatYardNumber } from '@/lib/gps/distance';
+import { loadGoogleMaps } from '@/lib/gps/googleMapsLoader';
 import type { LatLng } from '@/lib/gps/types';
 
 type AdminGpsMappingMapProps = {
@@ -28,14 +29,6 @@ type CourseBounds = {
   west: number;
 };
 
-declare global {
-  interface Window {
-    __golfiqGoogleMapsPromise?: Promise<void>;
-    __golfiqGoogleMapsLoaded?: () => void;
-  }
-}
-
-const GOOGLE_MAPS_SCRIPT_ID = 'golfiq-google-maps-js';
 const DEFAULT_ZOOM = 17;
 const MIN_MAP_ZOOM = 16;
 const MAX_MAP_ZOOM = 19;
@@ -121,42 +114,6 @@ function offsetLatLng(point: LatLng, distanceMeters: number, bearing: number): L
     lat: toDegrees(nextLat),
     lng: toDegrees(nextLng),
   };
-}
-
-function loadGoogleMaps(apiKey: string): Promise<void> {
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('Google Maps can only load in the browser.'));
-  }
-
-  if (window.google?.maps?.Map) {
-    return Promise.resolve();
-  }
-
-  if (window.__golfiqGoogleMapsPromise) {
-    return window.__golfiqGoogleMapsPromise;
-  }
-
-  window.__golfiqGoogleMapsPromise = new Promise((resolve, reject) => {
-    window.__golfiqGoogleMapsLoaded = () => resolve();
-
-    const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
-    if (existingScript) {
-      existingScript.addEventListener('error', () => reject(new Error('Google Maps failed to load.')));
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = GOOGLE_MAPS_SCRIPT_ID;
-    script.async = true;
-    script.defer = true;
-    script.src =
-      `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}` +
-      '&v=weekly&loading=async&callback=__golfiqGoogleMapsLoaded';
-    script.onerror = () => reject(new Error('Google Maps failed to load.'));
-    document.head.appendChild(script);
-  });
-
-  return window.__golfiqGoogleMapsPromise;
 }
 
 function markerIcon(field: GpsMappingEditField): google.maps.Symbol {
@@ -248,7 +205,7 @@ function screenVectorToBearing(x: number, y: number, heading: number) {
 }
 
 function formatMapDistanceLabel(from: LatLng, to: LatLng) {
-  return `${Math.round(distanceYards(from, to))}y`;
+  return formatYardNumber(distanceYards(from, to));
 }
 
 function pointForField(hole: GpsMappedHoleDraft, field: GpsMappingEditField): LatLng | null {
@@ -331,6 +288,7 @@ export default function AdminGpsMappingMap({
   const onPointChangeRef = useRef(onPointChange);
   const [mapReady, setMapReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [initCount, setInitCount] = useState(0);
   const [derivedCameraDebug, setDerivedCameraDebug] = useState<DerivedCameraDebug>({
     available: false,
@@ -443,7 +401,7 @@ export default function AdminGpsMappingMap({
       distanceLabelRefs.current[index].setLabel({
         text: formatMapDistanceLabel(previous, point),
         color: '#f8fafc',
-        fontSize: '14px',
+        fontSize: '16px',
         fontWeight: '700',
       });
     });
@@ -529,17 +487,17 @@ export default function AdminGpsMappingMap({
     const badges = [
       {
         point: positions.back,
-        distanceText: formatYards(distanceYards(tee, greenBack)).replace(' yd', 'y'),
+        distanceText: formatYardNumber(distanceYards(tee, greenBack)),
         label: 'Back',
       },
       {
         point: positions.middle,
-        distanceText: formatYards(distanceYards(tee, greenCenter)).replace(' yd', 'y'),
+        distanceText: formatYardNumber(distanceYards(tee, greenCenter)),
         label: 'Mid',
       },
       {
         point: positions.front,
-        distanceText: formatYards(distanceYards(tee, greenFront)).replace(' yd', 'y'),
+        distanceText: formatYardNumber(distanceYards(tee, greenFront)),
         label: 'Front',
       },
     ] as const;
@@ -797,7 +755,7 @@ export default function AdminGpsMappingMap({
       mapRef.current = null;
       setMapReady(false);
     };
-  }, [apiKey]);
+  }, [apiKey, loadAttempt]);
 
   useEffect(() => {
     if (!mapReady) return;
@@ -839,8 +797,18 @@ export default function AdminGpsMappingMap({
 
   if (loadError) {
     return (
-      <div className="gps-map-missing-key" role="status">
-        {loadError}
+      <div className="gps-map-missing-key">
+        <span role="status">{loadError}</span>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            setLoadError(null);
+            setLoadAttempt((attempt) => attempt + 1);
+          }}
+        >
+          Retry Map
+        </button>
       </div>
     );
   }
