@@ -584,17 +584,24 @@ export async function DELETE(
 
     const insightsCount = await prisma.roundInsight.count({ where: { roundId } });
 
-    // Delete round holes first (cascade should handle this but being explicit)
-    await prisma.roundHole.deleteMany({
-      where: { roundId },
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete the linked live session before deleting the round. The relation otherwise
+      // sets finalRoundId to null, which would leave the session and its drafts orphaned.
+      await tx.liveRoundSession.deleteMany({
+        where: { finalRoundId: roundId, userId },
+      });
 
-    // Delete round
-    const result = await prisma.round.deleteMany({
-      where: {
-        id: roundId,
-        userId,
-      },
+      // Delete round holes first (cascade should handle this but being explicit).
+      await tx.roundHole.deleteMany({
+        where: { roundId },
+      });
+
+      return tx.round.deleteMany({
+        where: {
+          id: roundId,
+          userId,
+        },
+      });
     });
 
     if (result.count === 0) return errorResponse('Round not found or not authorized', 404);

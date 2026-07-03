@@ -769,25 +769,25 @@ export async function updateLiveRoundNavigation(
 
 export async function discardLiveRoundSession(userId: bigint, sessionIdParam: string) {
   const sessionId = parseSessionId(sessionIdParam);
-  const updatedSession = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const discardedSession = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await lockLiveRoundSessionForUpdate(tx, userId, sessionId);
     const session = assertActiveSession(await tx.liveRoundSession.findFirst({
       where: activeSessionWhere(userId, sessionId),
     }) as LiveRoundSessionRow | null);
 
     const now = new Date();
-    return tx.liveRoundSession.update({
-      where: { id: session.id },
-      data: {
-        status: 'DISCARDED',
-        discardedAt: now,
-        lastSavedAt: now,
-      },
-      include: sessionInclude,
-    }) as Promise<LiveRoundSessionRow>;
+    await tx.liveRoundSession.delete({ where: { id: session.id } });
+
+    return {
+      ...session,
+      status: 'DISCARDED' as const,
+      discardedAt: now,
+      lastSavedAt: now,
+      updatedAt: now,
+    };
   });
 
-  return { session: serializeLiveRoundSession(updatedSession) };
+  return { session: serializeLiveRoundSession(discardedSession) };
 }
 
 export async function finalizeLiveRoundSession(userId: bigint, sessionIdParam: string) {
@@ -894,9 +894,13 @@ export async function finalizeLiveRoundSession(userId: bigint, sessionIdParam: s
         include: sessionInclude,
       }) as LiveRoundSessionRow;
 
+      await tx.liveRoundHoleDraft.deleteMany({
+        where: { sessionId: session.id },
+      });
+
       return {
         roundId: finalizedRound.roundId.toString(),
-        session: serializeLiveRoundSession(updatedSession),
+        session: serializeLiveRoundSession({ ...updatedSession, holeDrafts: [] }),
       };
     }, LIVE_ROUND_FINALIZE_TRANSACTION_OPTIONS);
 

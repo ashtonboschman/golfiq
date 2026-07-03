@@ -1,4 +1,4 @@
-import { GET, PUT } from '@/app/api/rounds/[id]/route';
+import { DELETE, GET, PUT } from '@/app/api/rounds/[id]/route';
 import { requireAuth } from '@/lib/api-auth';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { prisma } from '@/lib/db';
@@ -20,6 +20,7 @@ jest.mock('@/lib/api-auth', () => {
 jest.mock('@/lib/db', () => ({
   prisma: {
     round: {
+      deleteMany: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
       findUnique: jest.fn(),
@@ -37,8 +38,13 @@ jest.mock('@/lib/db', () => ({
       create: jest.fn(),
     },
     roundInsight: {
+      count: jest.fn(),
       deleteMany: jest.fn(),
     },
+    liveRoundSession: {
+      deleteMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -72,6 +78,7 @@ jest.mock('@/app/api/rounds/[id]/insights/route', () => ({
 
 type MockPrisma = {
   round: {
+    deleteMany: jest.Mock;
     findFirst: jest.Mock;
     update: jest.Mock;
     findUnique: jest.Mock;
@@ -89,8 +96,13 @@ type MockPrisma = {
     create: jest.Mock;
   };
   roundInsight: {
+    count: jest.Mock;
     deleteMany: jest.Mock;
   };
+  liveRoundSession: {
+    deleteMany: jest.Mock;
+  };
+  $transaction: jest.Mock;
 };
 
 const mockedRequireAuth = requireAuth as jest.Mock;
@@ -135,6 +147,7 @@ describe('/api/rounds/[id] route contract', () => {
 
     mockedPrisma.tee.findUnique.mockResolvedValue({ id: BigInt(12), holes: [] });
     mockedPrisma.round.update.mockResolvedValue({});
+    mockedPrisma.round.deleteMany.mockResolvedValue({ count: 1 });
     mockedPrisma.round.findUnique.mockResolvedValue({
       score: 78,
       teeId: BigInt(12),
@@ -145,6 +158,11 @@ describe('/api/rounds/[id] route contract', () => {
     });
     mockedPrisma.roundStrokesGained.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.roundInsight.deleteMany.mockResolvedValue({ count: 1 });
+    mockedPrisma.roundInsight.count.mockResolvedValue(0);
+    mockedPrisma.liveRoundSession.deleteMany.mockResolvedValue({ count: 1 });
+    mockedPrisma.$transaction.mockImplementation(
+      (callback: (tx: MockPrisma) => unknown) => callback(mockedPrisma),
+    );
     mockedRecalcLeaderboard.mockResolvedValue(undefined);
     mockedGenerateInsights.mockResolvedValue(undefined);
     mockedGenerateOverall.mockResolvedValue(undefined);
@@ -565,5 +583,24 @@ describe('/api/rounds/[id] route contract', () => {
 
     const response = await PUT(request as any, params('9'));
     expect(response.status).toBe(400);
+  });
+
+  it('DELETE removes a linked completed live session before deleting its round', async () => {
+    mockedPrisma.round.findFirst.mockResolvedValue({ id: BigInt(9) });
+
+    const request = new Request('http://localhost/api/rounds/9', { method: 'DELETE' });
+    const response = await DELETE(request as any, params('9'));
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockedPrisma.liveRoundSession.deleteMany).toHaveBeenCalledWith({
+      where: { finalRoundId: BigInt(9), userId: BigInt(1) },
+    });
+    expect(mockedPrisma.liveRoundSession.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedPrisma.round.deleteMany.mock.invocationCallOrder[0],
+    );
+    expect(mockedPrisma.round.deleteMany).toHaveBeenCalledWith({
+      where: { id: BigInt(9), userId: BigInt(1) },
+    });
   });
 });

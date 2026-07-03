@@ -22,11 +22,13 @@ jest.mock('@/lib/db', () => ({
     },
     liveRoundSession: {
       create: jest.fn(),
+      delete: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
     },
     liveRoundHoleDraft: {
+      deleteMany: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
     },
@@ -63,11 +65,13 @@ type MockPrisma = {
   };
   liveRoundSession: {
     create: jest.Mock;
+    delete: jest.Mock;
     findFirst: jest.Mock;
     findMany: jest.Mock;
     update: jest.Mock;
   };
   liveRoundHoleDraft: {
+    deleteMany: jest.Mock;
     findFirst: jest.Mock;
     update: jest.Mock;
   };
@@ -507,23 +511,15 @@ describe('liveRoundSessionService', () => {
 
   it('discards only active owned sessions', async () => {
     mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(makeSession());
-    mockedPrisma.liveRoundSession.update.mockResolvedValue(makeSession({
-      status: 'DISCARDED',
-      discardedAt: now,
-    }));
 
     const result = await discardLiveRoundSession(BigInt(1), '500');
 
-    expect(mockedPrisma.liveRoundSession.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'DISCARDED',
-          discardedAt: expect.any(Date),
-          lastSavedAt: expect.any(Date),
-        }),
-      }),
-    );
+    expect(mockedPrisma.liveRoundSession.delete).toHaveBeenCalledWith({
+      where: { id: BigInt(500) },
+    });
+    expect(mockedPrisma.liveRoundSession.update).not.toHaveBeenCalled();
     expect(result.session.status).toBe('DISCARDED');
+    expect(result.session.discarded_at).not.toBeNull();
   });
 
   it('updates live round review details before finalization', async () => {
@@ -565,6 +561,7 @@ describe('liveRoundSessionService', () => {
 
     expect(mockedPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(mockedPrisma.liveRoundSession.update).not.toHaveBeenCalled();
+    expect(mockedPrisma.liveRoundSession.delete).not.toHaveBeenCalled();
   });
 
   it('rechecks active status under the session lock before discarding', async () => {
@@ -578,6 +575,7 @@ describe('liveRoundSessionService', () => {
 
     expect(mockedPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(mockedPrisma.liveRoundSession.update).not.toHaveBeenCalled();
+    expect(mockedPrisma.liveRoundSession.delete).not.toHaveBeenCalled();
   });
 
   it('rejects finalization when any draft score is missing', async () => {
@@ -645,9 +643,13 @@ describe('liveRoundSessionService', () => {
         }),
       }),
     );
+    expect(mockedPrisma.liveRoundHoleDraft.deleteMany).toHaveBeenCalledWith({
+      where: { sessionId: BigInt(500) },
+    });
     expect(runPostCommitSideEffects).toHaveBeenCalledTimes(1);
     expect(result.roundId).toBe('900');
     expect(result.session.status).toBe('COMPLETED');
+    expect(result.session.hole_drafts).toEqual([]);
   });
 
   it('returns the completed round for repeated finalize calls', async () => {
@@ -663,6 +665,7 @@ describe('liveRoundSessionService', () => {
     expect(result.roundId).toBe('900');
     expect(mockedCreateCompletedRoundFromInput).not.toHaveBeenCalled();
     expect(mockedPrisma.liveRoundSession.update).not.toHaveBeenCalled();
+    expect(mockedPrisma.liveRoundHoleDraft.deleteMany).not.toHaveBeenCalled();
   });
 
   it('does not create duplicate completed rounds when a later finalize sees the completed session', async () => {
