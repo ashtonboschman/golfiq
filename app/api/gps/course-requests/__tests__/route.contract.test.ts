@@ -1,6 +1,7 @@
 import { GET, POST } from '@/app/api/gps/course-requests/route';
 import { requireAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/db';
+import { EMAIL_FROM, sendAdminNotificationEmail } from '@/lib/email';
 import { getLiveGpsAvailabilityForCourse } from '@/lib/gps/liveMapping';
 
 jest.mock('@/lib/api-auth', () => {
@@ -11,6 +12,7 @@ jest.mock('@/lib/api-auth', () => {
 jest.mock('@/lib/db', () => ({
   prisma: {
     course: { findUnique: jest.fn() },
+    user: { findUnique: jest.fn() },
     gpsCourseRequest: {
       count: jest.fn(),
       findUnique: jest.fn(),
@@ -19,12 +21,18 @@ jest.mock('@/lib/db', () => ({
   },
 }));
 
+jest.mock('@/lib/email', () => ({
+  sendAdminNotificationEmail: jest.fn(),
+  EMAIL_FROM: { UPDATES: 'updates@golfiq.ca' },
+}));
+
 jest.mock('@/lib/gps/liveMapping', () => ({
   getLiveGpsAvailabilityForCourse: jest.fn(),
 }));
 
 type MockPrisma = {
   course: { findUnique: jest.Mock };
+  user: { findUnique: jest.Mock };
   gpsCourseRequest: {
     count: jest.Mock;
     findUnique: jest.Mock;
@@ -35,6 +43,7 @@ type MockPrisma = {
 const mockedRequireAuth = requireAuth as jest.Mock;
 const mockedPrisma = prisma as unknown as MockPrisma;
 const mockedAvailability = getLiveGpsAvailabilityForCourse as jest.Mock;
+const mockedSendAdminNotificationEmail = sendAdminNotificationEmail as jest.Mock;
 
 function postRequest(courseId: unknown) {
   return new Request('http://localhost/api/gps/course-requests', {
@@ -45,14 +54,31 @@ function postRequest(courseId: unknown) {
 }
 
 describe('/api/gps/course-requests', () => {
+  let consoleWarnSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     mockedRequireAuth.mockResolvedValue(BigInt(7));
-    mockedPrisma.course.findUnique.mockResolvedValue({ id: BigInt(42) });
+    mockedPrisma.course.findUnique.mockResolvedValue({
+      id: BigInt(42),
+      clubName: 'Test Golf Club',
+      courseName: 'Championship Course',
+      location: { city: 'Winnipeg', state: 'MB', country: 'Canada' },
+    });
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      email: 'golfer@example.com',
+      profile: { firstName: 'Test', lastName: 'Golfer' },
+    });
     mockedPrisma.gpsCourseRequest.findUnique.mockResolvedValue(null);
     mockedPrisma.gpsCourseRequest.count.mockResolvedValue(0);
     mockedPrisma.gpsCourseRequest.upsert.mockResolvedValue({ status: 'REQUESTED' });
     mockedAvailability.mockResolvedValue({ available: false, coverage: 'none' });
+    mockedSendAdminNotificationEmail.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
   });
 
   it('rejects unauthenticated POST requests', async () => {
@@ -90,6 +116,10 @@ describe('/api/gps/course-requests', () => {
   });
 
   it('creates or restores an unmapped course request idempotently', async () => {
+    mockedPrisma.gpsCourseRequest.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ status: 'REQUESTED' });
+
     const first = await POST(postRequest(42) as any);
     const second = await POST(postRequest(42) as any);
 
@@ -102,6 +132,26 @@ describe('/api/gps/course-requests', () => {
         create: expect.objectContaining({ status: 'REQUESTED' }),
         update: { status: 'REQUESTED' },
       }),
+    );
+    expect(mockedSendAdminNotificationEmail).toHaveBeenCalledTimes(1);
+    expect(mockedSendAdminNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: EMAIL_FROM.UPDATES,
+        subject: '[GolfIQ] GPS mapping request - Test Golf Club - Championship Course',
+        text: expect.stringContaining('User Email: golfer@example.com'),
+        html: expect.stringContaining('<strong>Location:</strong> Winnipeg, MB, Canada'),
+      }),
+    );
+  });
+
+  it('does not fail the GPS request when the admin notification cannot be sent', async () => {
+    mockedSendAdminNotificationEmail.mockResolvedValue(false);
+
+    const response = await POST(postRequest(42) as any);
+
+    expect(response.status).toBe(200);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      'Failed to send GPS mapping request admin notification email.',
     );
   });
 
