@@ -8,6 +8,7 @@ import { useMessage } from '@/app/providers';
 import { AsyncPaginate } from 'react-select-async-paginate';
 import { selectStyles } from '@/lib/selectStyles';
 import HoleCard from '@/components/HoleCard';
+import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 import { getLocalDateString } from '@/lib/dateUtils';
 import { CalendarDays, Clock, Play, Plus, Trash2 } from 'lucide-react';
 import Select from 'react-select';
@@ -245,7 +246,7 @@ function AddRoundContent() {
     searchParams.get('mode') === 'after' ? 'after' : 'live',
   );
   const [activeLiveSessions, setActiveLiveSessions] = useState<LiveRoundSession[]>([]);
-  const [loadingLiveSessions, setLoadingLiveSessions] = useState(false);
+  const [loadingLiveSessions, setLoadingLiveSessions] = useState(true);
   const [liveStartError, setLiveStartError] = useState<string | null>(null);
   const [showLiveStartSetup, setShowLiveStartSetup] = useState(false);
   const [startingLiveRound, setStartingLiveRound] = useState(false);
@@ -1775,11 +1776,7 @@ function AddRoundContent() {
   };
 
   const renderActiveLiveSessions = () => {
-    if (loadingLiveSessions) {
-      return <p className="live-round-muted">Checking for active live rounds...</p>;
-    }
-
-    if (activeLiveSessions.length === 0) {
+    if (activeLiveSessions.length === 0 || showLiveStartSetup) {
       return null;
     }
 
@@ -1789,7 +1786,7 @@ function AddRoundContent() {
       : 'Pick up where you left off.';
 
     return (
-      <div className="card live-round-add-panel">
+      <section className="live-round-add-panel">
         <div className="live-round-section-title">
           <div>
             <h2>Continue Live Round</h2>
@@ -1848,16 +1845,14 @@ function AddRoundContent() {
           })}
         </div>
 
-        {!showLiveStartSetup && (
-          <button
-            type="button"
-            className="btn btn-accent live-round-start-new-button"
-            onClick={() => setShowLiveStartSetup(true)}
-          >
-            Start New Live Round
-          </button>
-        )}
-      </div>
+        <button
+          type="button"
+          className="btn btn-accent live-round-start-new-button"
+          onClick={() => setShowLiveStartSetup(true)}
+        >
+          Start New Round
+        </button>
+      </section>
     );
   };
 
@@ -1871,7 +1866,28 @@ function AddRoundContent() {
   };
 
   if (status === 'loading') return null;
+  if (status === 'authenticated' && roundEntryMode === 'live' && loadingLiveSessions) {
+    return (
+      <div className="page-stack">
+        <div
+          className="card skeleton-stack live-round-entry-skeleton"
+          role="status"
+          aria-label="Loading live rounds"
+          aria-busy="true"
+        >
+          <SkeletonBlock width="38%" height={18} />
+          <SkeletonBlock width="58%" height={14} />
+          <SkeletonBlock height={88} />
+          <SkeletonBlock className="skeleton-btn" height={44} />
+        </div>
+      </div>
+    );
+  }
   const showLiveStartAction = roundEntryMode === 'live' && (showLiveStartSetup || activeLiveSessions.length === 0);
+  const showActiveRoundChoice = roundEntryMode === 'live'
+    && activeLiveSessions.length > 0
+    && !showLiveStartSetup;
+  const showRoundSetupFields = !showActiveRoundChoice;
   const afterRoundEntryReady = isAfterRoundMode && Boolean(selectedTee);
   const showRoundDetailsFields = afterRoundEntryReady;
   const renderRoundTypeField = () => {
@@ -1929,133 +1945,138 @@ function AddRoundContent() {
           }}
           className="form"
         >
-          <div className="form-row">
-            <label className="form-label">Date</label>
-            <input
-              type="date"
-              name="date"
-              value={round.date}
-              onChange={handleChange}
-              className="form-input"
-              required
-            />
-          </div>
-
-          <div className="form-row">
-            <label className="form-label">Course</label>
-            <div className="round-form-course-row">
-              <div className="round-form-course-select">
-                <AsyncPaginate
-                  value={selectedCourse}
-                  loadOptions={loadCourseOptions}
-                  onChange={async (option) => {
-                    markUserEdited();
-                    setSelectedCourse(option);
-                    setLiveGpsEnabled(false);
-                    setLiveGpsTestLocationEnabled(false);
-                    setLiveGpsAvailability(null);
-                    setSelectedTee(null);
-                    setSegmentOptions([]);
-                    setLiveStartHoleNumber(1);
-                    setRound((prev) => ({
-                      ...prev,
-                      course_id: option?.value.toString() ?? '',
-                      tee_id: '',
-                      tee_segment: 'full',
-                      par_total: null,
-                    }));
-                    setHoles([]);
-                    setHoleScores([]);
-
-                    // Fetch tees and auto-select based on user profile
-                    if (option?.value) {
-                      const fetchedTees = await fetchTees(option.value);
-                      if (fetchedTees.length > 0) {
-                        autoSelectTee(fetchedTees);
-                      }
-                    }
-                  }}
-                  additional={{ page: 1 }}
-                  placeholder="Select Course"
-                  isClearable
-                  styles={courseSelectStyles}
-                  noOptionsMessage={() => "Course not found. Use + button to add course."}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => confirmLeaveAddRound(() => router.push('/courses/search'))}
-                className="btn btn-accent btn-add-course"
-                title="Search Global Database"
-              >
-                <Plus/>
-              </button>
-            </div>
-          </div>
-
-          {selectedCourse && (
-            <div className="form-row">
-              <label className="form-label">Tee</label>
-              <AsyncPaginate
-                key={selectedCourse.value}
-                value={selectedTee}
-                loadOptions={(search, loadedOptions, additional) =>
-                  loadTeeOptions(search, loadedOptions, additional as { page: number }, selectedCourse.value)
-                }
-                onChange={async (option) => {
-                  markUserEdited();
-                  setSelectedTee(option);
-                  const teeId = option?.value ?? '';
-                  setRound((prev) => ({
-                    ...prev,
-                    tee_id: teeId.toString(),
-                    par_total: teeId ? prev.par_total : null,
-                  }));
-                  updateSegmentOptions(option?.teeObj);
-
-                  if (teeId) {
-                    const holesData = await fetchHoles(teeId, []);
-                    const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
-                    setRound((prev) => ({ ...prev, par_total: totalPar }));
-                  }
-                }}
-                placeholder="Select Tee"
-                isClearable
-                additional={{ page: 1 }}
-                styles={selectStyles}
-              />
-            </div>
-          )}
-
-          {selectedTee && isAfterRoundMode && renderRoundTypeField()}
-
-          {selectedTee && showLiveStartAction && (
+          {showRoundSetupFields && (
             <>
-              {renderRoundTypeField()}
               <div className="form-row">
-                <label className="form-label">Starting Hole</label>
-                <Select
-                  value={
-                    liveStartHoleOptions.find((option) => option.value === liveStartHoleNumber) ??
-                    liveStartHoleOptions[0] ??
-                    null
-                  }
-                  options={liveStartHoleOptions}
-                  onChange={(option: any) => {
-                    markUserEdited();
-                    if (option) {
-                      setLiveStartHoleNumber(option.value);
-                    }
-                  }}
-                  styles={selectStyles}
-                  isSearchable={false}
-                  isDisabled={!selectedTee || liveStartHoleOptions.length === 0}
+                <label className="form-label" htmlFor="round-date">Date</label>
+                <input
+                  id="round-date"
+                  type="date"
+                  name="date"
+                  value={round.date}
+                  onChange={handleChange}
+                  className="form-input"
+                  required
                 />
               </div>
+
+              <div className="form-row">
+                <label className="form-label">Course</label>
+                <div className="round-form-course-row">
+                  <div className="round-form-course-select">
+                    <AsyncPaginate
+                      value={selectedCourse}
+                      loadOptions={loadCourseOptions}
+                      onChange={async (option) => {
+                        markUserEdited();
+                        setSelectedCourse(option);
+                        setLiveGpsEnabled(false);
+                        setLiveGpsTestLocationEnabled(false);
+                        setLiveGpsAvailability(null);
+                        setSelectedTee(null);
+                        setSegmentOptions([]);
+                        setLiveStartHoleNumber(1);
+                        setRound((prev) => ({
+                          ...prev,
+                          course_id: option?.value.toString() ?? '',
+                          tee_id: '',
+                          tee_segment: 'full',
+                          par_total: null,
+                        }));
+                        setHoles([]);
+                        setHoleScores([]);
+
+                        // Fetch tees and auto-select based on user profile
+                        if (option?.value) {
+                          const fetchedTees = await fetchTees(option.value);
+                          if (fetchedTees.length > 0) {
+                            autoSelectTee(fetchedTees);
+                          }
+                        }
+                      }}
+                      additional={{ page: 1 }}
+                      placeholder="Select Course"
+                      isClearable
+                      styles={courseSelectStyles}
+                      noOptionsMessage={() => "Course not found. Use + button to add course."}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => confirmLeaveAddRound(() => router.push('/courses/search'))}
+                    className="btn btn-accent btn-add-course"
+                    title="Search Global Database"
+                  >
+                    <Plus/>
+                  </button>
+                </div>
+              </div>
+
+              {selectedCourse && (
+                <div className="form-row">
+                  <label className="form-label">Tee</label>
+                  <AsyncPaginate
+                    key={selectedCourse.value}
+                    value={selectedTee}
+                    loadOptions={(search, loadedOptions, additional) =>
+                      loadTeeOptions(search, loadedOptions, additional as { page: number }, selectedCourse.value)
+                    }
+                    onChange={async (option) => {
+                      markUserEdited();
+                      setSelectedTee(option);
+                      const teeId = option?.value ?? '';
+                      setRound((prev) => ({
+                        ...prev,
+                        tee_id: teeId.toString(),
+                        par_total: teeId ? prev.par_total : null,
+                      }));
+                      updateSegmentOptions(option?.teeObj);
+
+                      if (teeId) {
+                        const holesData = await fetchHoles(teeId, []);
+                        const totalPar = holesData.reduce((sum: number, h: any) => sum + (h.par ?? 0), 0);
+                        setRound((prev) => ({ ...prev, par_total: totalPar }));
+                      }
+                    }}
+                    placeholder="Select Tee"
+                    isClearable
+                    additional={{ page: 1 }}
+                    styles={selectStyles}
+                  />
+                </div>
+              )}
+
+              {selectedTee && isAfterRoundMode && renderRoundTypeField()}
+
+              {selectedTee && showLiveStartAction && (
+                <>
+                  {renderRoundTypeField()}
+                  <div className="form-row">
+                    <label className="form-label">Starting Hole</label>
+                    <Select
+                      value={
+                        liveStartHoleOptions.find((option) => option.value === liveStartHoleNumber) ??
+                        liveStartHoleOptions[0] ??
+                        null
+                      }
+                      options={liveStartHoleOptions}
+                      onChange={(option: any) => {
+                        markUserEdited();
+                        if (option) {
+                          setLiveStartHoleNumber(option.value);
+                        }
+                      }}
+                      styles={selectStyles}
+                      isSearchable={false}
+                      isDisabled={!selectedTee || liveStartHoleOptions.length === 0}
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
 
-          {initialized && (
+          {initialized && !showActiveRoundChoice && (
             <>
               <label className="form-label">Logging Mode</label>
               <div className="stats-tabs">

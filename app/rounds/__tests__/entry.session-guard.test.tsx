@@ -150,6 +150,29 @@ describe('round entry session guard', () => {
     ).toBeTruthy();
   });
 
+  it('shows a stable skeleton while checking for active live rounds', () => {
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      if (String(input).includes('/api/rounds/live/sessions')) {
+        return new Promise<Response>(() => undefined);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ type: 'success', profile: null }),
+      } as Response);
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+
+    expect(screen.getByRole('status', { name: 'Loading live rounds' })).toBeInTheDocument();
+    expect(screen.queryByText('Checking for active live rounds...')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Date')).not.toBeInTheDocument();
+    expect(screen.queryByText('Logging Mode')).not.toBeInTheDocument();
+  });
+
   it('redirects add-round to login when unauthenticated without any draft', async () => {
     mockedUseSession.mockReturnValue({
       status: 'unauthenticated',
@@ -205,7 +228,7 @@ describe('round entry session guard', () => {
     const { container } = render(<AddRoundPage />);
 
     await waitFor(() => expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Select Course' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('&lat=49.8951&lng=-97.1384'),
     ));
@@ -336,7 +359,7 @@ describe('round entry session guard', () => {
     expect(JSON.parse(String(sessionCreateCall?.[1]?.body))).not.toHaveProperty('gpsTestLocation');
   });
 
-  it('hides new-round GPS controls until Start New Live Round is selected', async () => {
+  it('shows only the active-round decision until Start New Round is selected', async () => {
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
       data: { user: { id: '1' } },
@@ -376,17 +399,24 @@ describe('round entry session guard', () => {
 
     render(<AddRoundPage />);
 
-    const startNewButton = await screen.findByRole('button', { name: 'Start New Live Round' });
+    const startNewButton = await screen.findByRole('button', { name: 'Start New Round' });
+    expect(screen.queryByText('Logging Mode')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Date')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select Course' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select Tee' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Live GPS' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Test GPS Location' })).not.toBeInTheDocument();
+
+    fireEvent.click(startNewButton);
+
+    expect(screen.queryByText('Continue Live Round')).not.toBeInTheDocument();
+    expect(screen.getByText('Logging Mode')).toBeInTheDocument();
+    expect(screen.getByLabelText('Date')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Select Course' }));
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
       '/api/gps/live/course/11',
       expect.objectContaining({ cache: 'no-store' }),
     ));
-
-    expect(screen.queryByRole('checkbox', { name: 'Live GPS' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: 'Test GPS Location' })).not.toBeInTheDocument();
-
-    fireEvent.click(startNewButton);
 
     expect(await screen.findByRole('checkbox', { name: 'Live GPS' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Test GPS Location' })).not.toBeChecked();

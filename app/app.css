@@ -10457,6 +10457,8 @@ input[type='date'].form-input {
 }
 
 .live-round-add-panel {
+  display: flex;
+  flex-direction: column;
   gap: var(--gap);
 }
 
