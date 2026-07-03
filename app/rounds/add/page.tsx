@@ -242,7 +242,7 @@ function AddRoundContent() {
     DEFAULT_LIVE_ROUND_TRACKING_PREFS,
   );
   const [roundEntryMode, setRoundEntryMode] = useState<RoundEntryMode>(
-    searchParams.get('mode') === 'live' ? 'live' : 'after',
+    searchParams.get('mode') === 'after' ? 'after' : 'live',
   );
   const [activeLiveSessions, setActiveLiveSessions] = useState<LiveRoundSession[]>([]);
   const [loadingLiveSessions, setLoadingLiveSessions] = useState(false);
@@ -264,7 +264,9 @@ function AddRoundContent() {
   const restoredDraftRef = useRef(false);
   const draftHydrationAttemptedRef = useRef(false);
   const unauthDraftWarningShownRef = useRef(false);
-  const latestModeRef = useRef<'live_round' | 'after_round'>('after_round');
+  const latestModeRef = useRef<'live_round' | 'after_round'>(
+    searchParams.get('mode') === 'after' ? 'after_round' : 'live_round',
+  );
   const latestStepRef = useRef<'initial' | 'course_selected' | 'tee_selected'>('initial');
   const liveRoundTrackingReadyRef = useRef(false);
   const initialDateRef = useRef(round.date);
@@ -475,9 +477,9 @@ function AddRoundContent() {
   }, [refreshActiveLiveSessions, status]);
 
   useEffect(() => {
-    if (searchParams.get('mode') === 'live') {
-      setRoundEntryMode('live');
-    }
+    const requestedMode = searchParams.get('mode');
+    if (requestedMode === 'live') setRoundEntryMode('live');
+    if (requestedMode === 'after') setRoundEntryMode('after');
   }, [searchParams]);
 
   useEffect(() => {
@@ -504,6 +506,9 @@ function AddRoundContent() {
         const data = await readApiResponse<{ availability: LiveGpsAvailability }>(response);
         if (!controller.signal.aborted) {
           setLiveGpsAvailability(data.availability);
+          setLiveGpsEnabled(
+            data.availability.available && data.availability.coverage === 'full',
+          );
         }
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -2056,18 +2061,6 @@ function AddRoundContent() {
               <div className="stats-tabs">
                 <button
                   type="button"
-                  className={`stats-tab ${roundEntryMode === 'after' ? 'active' : ''}`}
-                  onClick={() => {
-                    if (roundEntryMode !== 'after') {
-                      markUserEdited();
-                      setRoundEntryMode('after');
-                    }
-                  }}
-                >
-                  After Round
-                </button>
-                <button
-                  type="button"
                   className={`stats-tab ${roundEntryMode === 'live' ? 'active' : ''}`}
                   onClick={() => {
                     if (roundEntryMode !== 'live') {
@@ -2077,6 +2070,18 @@ function AddRoundContent() {
                   }}
                 >
                   Live Round
+                </button>
+                <button
+                  type="button"
+                  className={`stats-tab ${roundEntryMode === 'after' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (roundEntryMode !== 'after') {
+                      markUserEdited();
+                      setRoundEntryMode('after');
+                    }
+                  }}
+                >
+                  After Round
                 </button>
               </div>
               <p className="combined-note">
@@ -2247,6 +2252,7 @@ function AddRoundContent() {
 
           {selectedCourse &&
             roundEntryMode === 'live' &&
+            showLiveStartAction &&
             !loadingLiveGpsAvailability &&
             liveGpsAvailability?.available &&
             liveGpsAvailability.coverage === 'full' && (

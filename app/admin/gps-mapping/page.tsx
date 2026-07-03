@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Prisma } from '@prisma/client';
+import { GpsMappingStatus, Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import AdminGpsMappingLocationSort from '@/components/gps/AdminGpsMappingLocationSort';
@@ -14,6 +14,7 @@ type GpsMappingIndexPageProps = {
     q?: string;
     lat?: string;
     lng?: string;
+    status?: string;
   }>;
 };
 
@@ -42,6 +43,17 @@ const courseNameOrder = [
   { courseName: 'asc' },
 ] satisfies Prisma.CourseOrderByWithRelationInput[];
 
+const mappingStatusFilters = [
+  'ALL',
+  'NOT_STARTED',
+  GpsMappingStatus.DRAFT,
+  GpsMappingStatus.READY,
+  GpsMappingStatus.VERIFIED,
+  GpsMappingStatus.DISABLED,
+] as const;
+
+type MappingStatusFilter = (typeof mappingStatusFilters)[number];
+
 function parseCoordinate(value: string | undefined, minimum: number, maximum: number) {
   if (!value) return null;
   const coordinate = Number(value);
@@ -50,7 +62,36 @@ function parseCoordinate(value: string | undefined, minimum: number, maximum: nu
     : null;
 }
 
-async function getNearbyCourseIds(query: string, latitude: number, longitude: number) {
+function parseMappingStatusFilter(value: string | undefined): MappingStatusFilter {
+  return mappingStatusFilters.includes(value as MappingStatusFilter)
+    ? value as MappingStatusFilter
+    : 'ALL';
+}
+
+function mappingStatusWhere(
+  status: MappingStatusFilter,
+  gpsMappingSchemaAvailable: boolean,
+): Prisma.CourseWhereInput | undefined {
+  if (status === 'ALL') return undefined;
+
+  if (!gpsMappingSchemaAvailable) {
+    return status === 'NOT_STARTED' ? undefined : { id: { in: [] } };
+  }
+
+  if (status === 'NOT_STARTED') {
+    return { mappedCourse: { is: null } };
+  }
+
+  return { mappedCourse: { is: { mappingStatus: status } } };
+}
+
+async function getNearbyCourseIds(
+  query: string,
+  latitude: number,
+  longitude: number,
+  status: MappingStatusFilter,
+  gpsMappingSchemaAvailable: boolean,
+) {
   const searchPattern = `%${query}%`;
   const searchFilter = query
     ? Prisma.sql`
@@ -62,14 +103,28 @@ async function getNearbyCourseIds(query: string, latitude: number, longitude: nu
         )
       `
     : Prisma.empty;
+  const mappingJoin = gpsMappingSchemaAvailable
+    ? Prisma.sql`LEFT JOIN mapped_courses mc ON c.id = mc.course_id`
+    : Prisma.empty;
+  const statusFilter = !gpsMappingSchemaAvailable
+    ? status === 'ALL' || status === 'NOT_STARTED'
+      ? Prisma.empty
+      : Prisma.sql`AND FALSE`
+    : status === 'ALL'
+      ? Prisma.empty
+      : status === 'NOT_STARTED'
+        ? Prisma.sql`AND mc.id IS NULL`
+        : Prisma.sql`AND mc.mapping_status = ${status}::"GpsMappingStatus"`;
 
   const rows = await prisma.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
     SELECT c.id
     FROM courses c
     INNER JOIN locations l ON c.id = l.course_id
+    ${mappingJoin}
     WHERE l.latitude IS NOT NULL
       AND l.longitude IS NOT NULL
       ${searchFilter}
+      ${statusFilter}
     ORDER BY (
       6371 * acos(
         LEAST(
@@ -89,7 +144,8 @@ async function getNearbyCourseIds(query: string, latitude: number, longitude: nu
 }
 
 function statusLabel(status: string | null | undefined) {
-  return status ? status.toLowerCase() : 'not started';
+  if (!status) return 'not started';
+  return status === GpsMappingStatus.DRAFT ? 'in progress' : status.toLowerCase();
 }
 
 export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIndexPageProps) {
@@ -101,12 +157,13 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
 
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q?.trim() ?? '';
+  const status = parseMappingStatusFilter(resolvedSearchParams?.status);
   const latitude = parseCoordinate(resolvedSearchParams?.lat, -90, 90);
   const longitude = parseCoordinate(resolvedSearchParams?.lng, -180, 180);
   const hasUserLocation = latitude !== null && longitude !== null;
   const gpsMappingSchemaAvailable = await isGpsMappingSchemaAvailable();
 
-  const courseWhere: Prisma.CourseWhereInput | undefined = query
+  const searchWhere: Prisma.CourseWhereInput | undefined = query
     ? {
         OR: [
           { clubName: { contains: query, mode: 'insensitive' } },
@@ -115,6 +172,10 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
           { location: { state: { contains: query, mode: 'insensitive' } } },
         ],
       }
+    : undefined;
+  const statusWhere = mappingStatusWhere(status, gpsMappingSchemaAvailable);
+  const courseWhere: Prisma.CourseWhereInput | undefined = searchWhere || statusWhere
+    ? { AND: [searchWhere ?? {}, statusWhere ?? {}] }
     : undefined;
 
   const baseCourseSelect = {
@@ -138,7 +199,13 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
   } as const;
 
   const nearbyCourseIds = hasUserLocation
-    ? await getNearbyCourseIds(query, latitude, longitude)
+    ? await getNearbyCourseIds(
+        query,
+        latitude,
+        longitude,
+        status,
+        gpsMappingSchemaAvailable,
+      )
     : null;
   const effectiveCourseWhere: Prisma.CourseWhereInput | undefined = nearbyCourseIds
     ? { id: { in: nearbyCourseIds } }
@@ -186,7 +253,7 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
 
   return (
     <main className="gps-admin-page">
-      <AdminGpsMappingLocationSort hasLocation={hasUserLocation} query={query} />
+      <AdminGpsMappingLocationSort hasLocation={hasUserLocation} query={query} status={status} />
       <section className="gps-admin-page-header">
         <div>
           <p className="gps-prototype-kicker">Admin GPS Mapping</p>
@@ -199,22 +266,35 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
       </section>
 
       <form className="gps-admin-search" action="/admin/gps-mapping">
-        <label htmlFor="gps-course-search">Search Courses</label>
-        <div>
-          {hasUserLocation && (
-            <>
-              <input type="hidden" name="lat" value={latitude} />
-              <input type="hidden" name="lng" value={longitude} />
-            </>
-          )}
-          <input
-            id="gps-course-search"
-            type="search"
-            name="q"
-            defaultValue={query}
-            placeholder="Club, course, city, or state"
-          />
-          <button type="submit" className="btn btn-primary">Search</button>
+        {hasUserLocation && (
+          <>
+            <input type="hidden" name="lat" value={latitude} />
+            <input type="hidden" name="lng" value={longitude} />
+          </>
+        )}
+        <div className="gps-admin-search-controls">
+          <label className="gps-admin-search-field" htmlFor="gps-course-search">
+            <span>Search Courses</span>
+            <input
+              id="gps-course-search"
+              type="search"
+              name="q"
+              defaultValue={query}
+              placeholder="Club, course, city, or state"
+            />
+          </label>
+          <label className="gps-admin-search-field" htmlFor="gps-mapping-status">
+            <span>Mapping Status</span>
+            <select id="gps-mapping-status" name="status" defaultValue={status}>
+              <option value="ALL">All Statuses</option>
+              <option value="NOT_STARTED">Not Started</option>
+              <option value={GpsMappingStatus.DRAFT}>In Progress</option>
+              <option value={GpsMappingStatus.READY}>Ready</option>
+              <option value={GpsMappingStatus.VERIFIED}>Verified</option>
+              <option value={GpsMappingStatus.DISABLED}>Disabled</option>
+            </select>
+          </label>
+          <button type="submit" className="btn btn-primary">Apply</button>
         </div>
       </form>
 
@@ -229,8 +309,16 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
       )}
 
       <section className="gps-admin-course-list" aria-label="GPS mapping courses">
+        {courses.length === 0 && (
+          <div className="gps-admin-empty" role="status">
+            <h2>No courses match these filters.</h2>
+            <p>Try another search or mapping status.</p>
+          </div>
+        )}
         {courses.map((course) => {
           const holeNumbers = new Set(course.tees.flatMap((tee) => tee.holes.map((hole) => hole.holeNumber)));
+          const isFinishedMapping = course.mappedCourse?.mappingStatus === GpsMappingStatus.READY
+            || course.mappedCourse?.mappingStatus === GpsMappingStatus.VERIFIED;
           return (
             <article key={course.id.toString()} className="gps-admin-course-row">
               <div>
@@ -247,20 +335,25 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
                   {course.mappedCourse ? ` | ${course.mappedCourse.holes.length} mapped holes` : ''}
                 </span>
               </div>
-              {!gpsMappingSchemaAvailable ? (
-                <button type="button" className="btn btn-secondary" disabled>
-                  Migration Required
-                </button>
-              ) : course.mappedCourse ? (
-                <Link href={`/admin/gps-mapping/${course.id.toString()}`} className="btn btn-primary">
-                  Continue Mapping
-                </Link>
-              ) : (
-                <form action={startMapping}>
-                  <input type="hidden" name="courseId" value={course.id.toString()} />
-                  <button type="submit" className="btn btn-secondary">Start Mapping</button>
-                </form>
-              )}
+              <div className="gps-admin-course-action">
+                {!gpsMappingSchemaAvailable ? (
+                  <button type="button" className="btn btn-secondary" disabled>
+                    Migration Required
+                  </button>
+                ) : course.mappedCourse ? (
+                  <Link
+                    href={`/admin/gps-mapping/${course.id.toString()}`}
+                    className={`btn ${isFinishedMapping ? 'btn-save' : 'btn-primary'}`}
+                  >
+                    {isFinishedMapping ? 'Edit Mapping' : 'Continue Mapping'}
+                  </Link>
+                ) : (
+                  <form action={startMapping}>
+                    <input type="hidden" name="courseId" value={course.id.toString()} />
+                    <button type="submit" className="btn btn-secondary">Start Mapping</button>
+                  </form>
+                )}
+              </div>
             </article>
           );
         })}

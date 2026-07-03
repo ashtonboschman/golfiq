@@ -462,6 +462,18 @@ export default function AdminGpsMappingCourseClient({
             <p>Click the map or drag a marker to update the selected geometry field.</p>
           </div>
 
+          <AdminGpsMappingMap
+            apiKey={googleMapsKey}
+            hole={activeHole}
+            selectedField={selectedField}
+            courseBounds={courseBounds}
+            showCourseBounds={showCourseBounds}
+            fallbackCenter={fallbackMapCenter(course)}
+            derivedCameraRequest={derivedCameraRequest}
+            onFieldSelect={setSelectedField}
+            onPointChange={handlePointChange}
+          />
+
           <div className="gps-admin-map-options">
             <label className="gps-admin-toggle">
               <input
@@ -478,18 +490,6 @@ export default function AdminGpsMappingCourseClient({
                 : 'Recalculate bounds before showing the course box.'}
             </p>
           </div>
-
-          <AdminGpsMappingMap
-            apiKey={googleMapsKey}
-            hole={activeHole}
-            selectedField={selectedField}
-            courseBounds={courseBounds}
-            showCourseBounds={showCourseBounds}
-            fallbackCenter={fallbackMapCenter(course)}
-            derivedCameraRequest={derivedCameraRequest}
-            onFieldSelect={setSelectedField}
-            onPointChange={handlePointChange}
-          />
 
           <div className="gps-admin-editor-actions">
             <button
@@ -543,11 +543,13 @@ export default function AdminGpsMappingCourseClient({
           {scorecardHoles.map((scorecardHole) => {
             const mappedHole = holesByNumber.get(scorecardHole.holeNumber);
             const summary = mappedHole ? completionSummary(mappedHole) : null;
+            const isReady = mappedHole?.mappingStatus === 'READY'
+              || mappedHole?.mappingStatus === 'VERIFIED';
             return (
               <button
                 key={scorecardHole.holeNumber}
                 type="button"
-                className={`gps-admin-hole-row ${scorecardHole.holeNumber === activeHoleNumber ? 'active' : ''}`}
+                className={`gps-admin-hole-row${scorecardHole.holeNumber === activeHoleNumber ? ' active' : ''}${isReady ? ' is-ready' : ''}`}
                 onClick={() => selectHole(scorecardHole.holeNumber)}
               >
                 <span>{scorecardHoleLabel(scorecardHole)}</span>

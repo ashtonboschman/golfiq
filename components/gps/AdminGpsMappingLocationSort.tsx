@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 type AdminGpsMappingLocationSortProps = {
   hasLocation: boolean;
   query: string;
+  status: string;
 };
 
 export default function AdminGpsMappingLocationSort({
   hasLocation,
   query,
+  status,
 }: AdminGpsMappingLocationSortProps) {
   const router = useRouter();
 
@@ -25,6 +27,7 @@ export default function AdminGpsMappingLocationSort({
 
         const params = new URLSearchParams();
         if (query) params.set('q', query);
+        if (status !== 'ALL') params.set('status', status);
         params.set('lat', position.coords.latitude.toString());
         params.set('lng', position.coords.longitude.toString());
 
@@ -42,7 +45,7 @@ export default function AdminGpsMappingLocationSort({
     return () => {
       active = false;
     };
-  }, [hasLocation, query, router]);
+  }, [hasLocation, query, router, status]);
 
   return null;
 }

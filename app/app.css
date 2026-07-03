@@ -9848,13 +9848,21 @@ input[type='date'].form-input {
   text-transform: uppercase;
 }
 
-.gps-admin-search div {
+.gps-admin-search-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.35fr) auto;
+  gap: var(--gap-small);
+  align-items: end;
+}
+
+.gps-admin-search-field {
+  display: grid;
+  gap: var(--gap-small);
+  min-width: 0;
 }
 
 .gps-admin-search input,
+.gps-admin-search select,
 .gps-admin-edit-controls select {
   width: 100%;
   box-sizing: border-box;
@@ -9893,6 +9901,23 @@ input[type='date'].form-input {
   margin: 4px 0 0;
   color: var(--color-secondary-text);
   font-size: 0.9rem;
+}
+
+.gps-admin-course-action {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  justify-self: end;
+}
+
+.gps-admin-course-action form,
+.gps-admin-course-action .btn {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gps-admin-course-action .btn {
+  white-space: nowrap;
 }
 
 .gps-admin-empty,
@@ -9986,6 +10011,10 @@ input[type='date'].form-input {
 .gps-admin-hole-row.active {
   border-color: var(--color-accent);
   background: var(--color-secondary-surface);
+}
+
+.gps-admin-hole-row.is-ready {
+  border-color: var(--color-success);
 }
 
 .gps-admin-hole-row span {
@@ -10266,7 +10295,7 @@ input[type='date'].form-input {
     flex-direction: column;
   }
 
-  .gps-admin-search div,
+  .gps-admin-search-controls,
   .gps-admin-course-row,
   .gps-admin-editor-actions,
   .gps-admin-coordinates,
@@ -10294,6 +10323,11 @@ input[type='date'].form-input {
 
   .gps-admin-course-actions .btn {
     min-height: 40px;
+  }
+
+  .gps-admin-course-action {
+    width: 100%;
+    justify-self: stretch;
   }
 
   .gps-admin-editor-header {
