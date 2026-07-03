@@ -179,6 +179,12 @@ type AddRoundDraft = {
   liveStartHoleNumber?: number;
 };
 
+type GpsCourseRequestState = {
+  requestedByCurrentUser: boolean;
+  status: 'REQUESTED' | 'MAPPED' | 'DISMISSED' | null;
+  requestCount: number;
+};
+
 function AddRoundContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -257,6 +263,10 @@ function AddRoundContent() {
   const [liveGpsTestLocationEnabled, setLiveGpsTestLocationEnabled] = useState(false);
   const [liveGpsAvailability, setLiveGpsAvailability] = useState<LiveGpsAvailability | null>(null);
   const [loadingLiveGpsAvailability, setLoadingLiveGpsAvailability] = useState(false);
+  const [gpsCourseRequest, setGpsCourseRequest] = useState<GpsCourseRequestState | null>(null);
+  const [loadingGpsCourseRequest, setLoadingGpsCourseRequest] = useState(false);
+  const [requestingGpsCourse, setRequestingGpsCourse] = useState(false);
+  const [gpsCourseRequestError, setGpsCourseRequestError] = useState<string | null>(null);
   const holeCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   const holeScoresRef = useRef<HoleScore[]>([]);
   const hasSubmittedRef = useRef(false);
@@ -489,6 +499,10 @@ function AddRoundContent() {
       setLoadingLiveGpsAvailability(false);
       setLiveGpsEnabled(false);
       setLiveGpsTestLocationEnabled(false);
+      setGpsCourseRequest(null);
+      setLoadingGpsCourseRequest(false);
+      setRequestingGpsCourse(false);
+      setGpsCourseRequestError(null);
       return;
     }
 
@@ -497,6 +511,10 @@ function AddRoundContent() {
     setLoadingLiveGpsAvailability(true);
     setLiveGpsEnabled(false);
     setLiveGpsTestLocationEnabled(false);
+    setGpsCourseRequest(null);
+    setLoadingGpsCourseRequest(false);
+    setRequestingGpsCourse(false);
+    setGpsCourseRequestError(null);
 
     void (async () => {
       try {
@@ -507,9 +525,30 @@ function AddRoundContent() {
         const data = await readApiResponse<{ availability: LiveGpsAvailability }>(response);
         if (!controller.signal.aborted) {
           setLiveGpsAvailability(data.availability);
-          setLiveGpsEnabled(
-            data.availability.available && data.availability.coverage === 'full',
-          );
+          const hasFullCoverage = data.availability.available && data.availability.coverage === 'full';
+          setLiveGpsEnabled(hasFullCoverage);
+
+          if (!hasFullCoverage) {
+            setLoadingGpsCourseRequest(true);
+            try {
+              const requestResponse = await fetch(
+                `/api/gps/course-requests?courseId=${selectedCourse.value}`,
+                { cache: 'no-store', signal: controller.signal },
+              );
+              const requestData = await readApiResponse<GpsCourseRequestState>(requestResponse);
+              if (!controller.signal.aborted) setGpsCourseRequest(requestData);
+            } catch (requestError) {
+              if (!controller.signal.aborted) {
+                setGpsCourseRequestError(
+                  requestError instanceof Error
+                    ? requestError.message
+                    : 'Unable to load GPS request status',
+                );
+              }
+            } finally {
+              if (!controller.signal.aborted) setLoadingGpsCourseRequest(false);
+            }
+          }
         }
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -1608,6 +1647,33 @@ function AddRoundContent() {
     });
   };
 
+  const handleRequestGpsCourse = async () => {
+    if (!selectedCourse || requestingGpsCourse) return;
+
+    setRequestingGpsCourse(true);
+    setGpsCourseRequestError(null);
+    try {
+      const response = await fetch('/api/gps/course-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId: selectedCourse.value }),
+      });
+      await readApiResponse<{ requested: boolean; status: 'REQUESTED'; message: string }>(response);
+      setGpsCourseRequest((current) => ({
+        requestedByCurrentUser: true,
+        status: 'REQUESTED',
+        requestCount:
+          (current?.requestCount ?? 0) + (current?.requestedByCurrentUser ? 0 : 1),
+      }));
+    } catch (error) {
+      setGpsCourseRequestError(
+        error instanceof Error ? error.message : 'Unable to request GPS mapping',
+      );
+    } finally {
+      setRequestingGpsCourse(false);
+    }
+  };
+
   const formatValue = (val: number | null | undefined) => (val === null || val === undefined ? '' : val);
 
   const calculateTotals = () => {
@@ -2314,6 +2380,47 @@ function AddRoundContent() {
                 )}
                 <p className="combined-note">Hole maps and distances.</p>
               </>
+            )}
+
+          {selectedCourse &&
+            selectedTee &&
+            roundEntryMode === 'live' &&
+            showLiveStartAction &&
+            !loadingLiveGpsAvailability &&
+            !loadingGpsCourseRequest &&
+            liveGpsAvailability &&
+            (!liveGpsAvailability.available || liveGpsAvailability.coverage !== 'full') && (
+              <section className="live-gps-unavailable" aria-label="Live GPS unavailable">
+                <div className="live-gps-toggle live-gps-request-row">
+                  <span>Live GPS</span>
+                  <button
+                    type="button"
+                    className={`btn btn-secondary live-gps-request-button ${
+                      gpsCourseRequest?.requestedByCurrentUser
+                        ? 'live-gps-request-status'
+                        : ''
+                    }`}
+                    disabled={requestingGpsCourse || gpsCourseRequest?.requestedByCurrentUser}
+                    onClick={handleRequestGpsCourse}
+                  >
+                    {gpsCourseRequest?.requestedByCurrentUser
+                      ? '✓ Requested'
+                      : requestingGpsCourse
+                        ? 'Requesting...'
+                        : 'Request GPS'}
+                  </button>
+                </div>
+                <p className="combined-note">
+                  {gpsCourseRequest?.requestedByCurrentUser
+                    ? 'GPS mapping requested. We’ll prioritize this course.'
+                    : 'Hole maps are not available for this course yet.'}
+                </p>
+                {gpsCourseRequestError && (
+                  <span className="live-gps-request-error" role="alert">
+                    {gpsCourseRequestError}
+                  </span>
+                )}
+              </section>
             )}
 
           <div className="form-actions">

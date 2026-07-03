@@ -1,7 +1,12 @@
 'use server';
 
 import 'server-only';
-import { GpsMappingSource, GpsMappingStatus, Prisma } from '@prisma/client';
+import {
+  GpsCourseRequestStatus,
+  GpsMappingSource,
+  GpsMappingStatus,
+  Prisma,
+} from '@prisma/client';
 import { requireAdmin } from '@/lib/admin-auth';
 import { prisma } from '@/lib/db';
 
@@ -574,11 +579,20 @@ export async function markGpsMappedCourseReady(mappedCourseIdInput: IdInput) {
     };
   }
 
-  const updated = await prisma.mappedCourse.update({
-    where: { id: mappedCourseId },
-    data: { mappingStatus: GpsMappingStatus.READY },
-    select: mappedCourseSelect(),
-  });
+  const [updated] = await prisma.$transaction([
+    prisma.mappedCourse.update({
+      where: { id: mappedCourseId },
+      data: { mappingStatus: GpsMappingStatus.READY },
+      select: mappedCourseSelect(),
+    }),
+    prisma.gpsCourseRequest.updateMany({
+      where: {
+        courseId: mappedCourse.courseId,
+        status: { not: GpsCourseRequestStatus.MAPPED },
+      },
+      data: { status: GpsCourseRequestStatus.MAPPED },
+    }),
+  ]);
 
   return {
     ok: true,

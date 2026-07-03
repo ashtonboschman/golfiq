@@ -471,7 +471,7 @@ describe('round entry session guard', () => {
     });
   });
 
-  it('shows no GPS UI when course coverage is unavailable', async () => {
+  it('does not show the GPS request until an unavailable course and tee are selected', async () => {
     mockQuery = new URLSearchParams('mode=live');
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
@@ -507,8 +507,196 @@ describe('round entry session guard', () => {
     ));
 
     expect(screen.queryByRole('checkbox', { name: 'Live GPS' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request GPS' })).not.toBeInTheDocument();
     expect(screen.queryByText(/checking gps availability/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/gps is not available/i)).not.toBeInTheDocument();
+  });
+
+  it('requests GPS for an unavailable course and still starts a non-GPS live round', async () => {
+    mockQuery = new URLSearchParams('mode=live');
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      let body: Record<string, unknown> = { type: 'success', profile: null };
+      if (url.includes('/api/rounds/live/sessions')) {
+        body = init?.method === 'POST'
+          ? { session: { id: 'without-gps' } }
+          : { sessions: [] };
+      }
+      if (url.includes('/api/tees?')) body = { tees: [] };
+      if (url.includes('/api/tees/21/holes')) {
+        body = { holes: [{ id: 101, hole_number: 1, par: 4 }] };
+      }
+      if (url.includes('/api/gps/live/course/11')) {
+        body = {
+          availability: {
+            courseId: '11',
+            available: false,
+            coverage: 'none',
+            expectedHoleNumbers: [1],
+            availableHoleNumbers: [],
+            unavailableHoleNumbers: [1],
+            reason: 'not_published',
+          },
+        };
+      }
+      if (url.includes('/api/gps/course-requests')) {
+        body = init?.method === 'POST'
+          ? { requested: true, status: 'REQUESTED', message: 'GPS mapping requested' }
+          : { requestedByCurrentUser: false, status: null, requestCount: 2 };
+      }
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Tee' }));
+
+    const unavailableHelp = await screen.findByText('Hole maps are not available for this course yet.');
+    expect(screen.queryByRole('checkbox', { name: 'Live GPS' })).not.toBeInTheDocument();
+    const requestButton = screen.getByRole('button', { name: 'Request GPS' });
+    const requestRow = requestButton.closest('.live-gps-request-row');
+    expect(requestRow).toHaveTextContent('Live GPS');
+    expect(requestRow?.nextElementSibling).toBe(unavailableHelp);
+    expect(unavailableHelp).toHaveClass('combined-note');
+    fireEvent.click(requestButton);
+
+    expect(await screen.findByText('GPS mapping requested. We’ll prioritize this course.')).toBeInTheDocument();
+    const requestedStatus = screen.getByRole('button', { name: '✓ Requested' });
+    expect(requestedStatus).toBeDisabled();
+    expect(requestedStatus).toHaveClass('live-gps-request-status');
+
+    const startButton = screen.getByRole('button', { name: 'Start Round' });
+    await waitFor(() => expect(startButton).toBeEnabled());
+    fireEvent.click(startButton);
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/rounds/live/without-gps'));
+    expect(mockRequestLiveRoundGpsPermission).not.toHaveBeenCalled();
+    const sessionCreateCall = (global.fetch as jest.Mock).mock.calls.find(
+      ([requestInput, requestInit]: [RequestInfo | URL, RequestInit | undefined]) =>
+        String(requestInput) === '/api/rounds/live/sessions' && requestInit?.method === 'POST',
+    );
+    expect(JSON.parse(String(sessionCreateCall?.[1]?.body))).toMatchObject({ gpsEnabled: false });
+  });
+
+  it('keeps Request GPS retryable after a failed request', async () => {
+    mockQuery = new URLSearchParams('mode=live');
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    let shouldFailRequest = true;
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/rounds/live/sessions')) {
+        return { ok: true, json: async () => ({ sessions: [] }) } as Response;
+      }
+      if (url.includes('/api/tees?')) {
+        return { ok: true, json: async () => ({ tees: [] }) } as Response;
+      }
+      if (url.includes('/api/tees/21/holes')) {
+        return {
+          ok: true,
+          json: async () => ({ holes: [{ id: 101, hole_number: 1, par: 4 }] }),
+        } as Response;
+      }
+      if (url.includes('/api/gps/live/course/11')) {
+        return {
+          ok: true,
+          json: async () => ({
+            availability: {
+              courseId: '11',
+              available: false,
+              coverage: 'none',
+              expectedHoleNumbers: [1],
+              availableHoleNumbers: [],
+              unavailableHoleNumbers: [1],
+              reason: 'not_published',
+            },
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/gps/course-requests') && init?.method === 'POST') {
+        if (shouldFailRequest) {
+          shouldFailRequest = false;
+          return {
+            ok: false,
+            status: 503,
+            json: async () => ({ message: 'Please try again' }),
+          } as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({ requested: true, status: 'REQUESTED' }),
+        } as Response;
+      }
+      if (url.includes('/api/gps/course-requests')) {
+        return {
+          ok: true,
+          json: async () => ({ requestedByCurrentUser: false, status: null, requestCount: 0 }),
+        } as Response;
+      }
+      return { ok: true, json: async () => ({ type: 'success', profile: null }) } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Tee' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Request GPS' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Please try again');
+    const retryButton = screen.getByRole('button', { name: 'Request GPS' });
+    expect(retryButton).toBeEnabled();
+
+    fireEvent.click(retryButton);
+    expect(await screen.findByRole('button', { name: '✓ Requested' })).toBeDisabled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('hides Request GPS in After Round mode', async () => {
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      let body: Record<string, unknown> = { type: 'success', profile: null };
+      if (url.includes('/api/rounds/live/sessions')) body = { sessions: [] };
+      if (url.includes('/api/tees?')) body = { tees: [] };
+      if (url.includes('/api/tees/21/holes')) {
+        body = { holes: [{ id: 101, hole_number: 1, par: 4 }] };
+      }
+      if (url.includes('/api/gps/live/course/11')) {
+        body = {
+          availability: {
+            courseId: '11',
+            available: false,
+            coverage: 'none',
+            expectedHoleNumbers: [1],
+            availableHoleNumbers: [],
+            unavailableHoleNumbers: [1],
+            reason: 'not_published',
+          },
+        };
+      }
+      if (url.includes('/api/gps/course-requests')) {
+        body = { requestedByCurrentUser: false, status: null, requestCount: 0 };
+      }
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Course' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Tee' }));
+    expect(await screen.findByRole('button', { name: 'Request GPS' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'After Round' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Request GPS' })).not.toBeInTheDocument();
+    });
   });
 
   it('redirects edit-round to login when unauthenticated without any draft', async () => {

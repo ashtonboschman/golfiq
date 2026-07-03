@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { GpsMappingStatus, Prisma } from '@prisma/client';
+import { GpsCourseRequestStatus, GpsMappingStatus, Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import AdminGpsMappingLocationSort from '@/components/gps/AdminGpsMappingLocationSort';
@@ -36,6 +36,9 @@ type CourseListItem = {
   tees: Array<{
     holes: Array<{ holeNumber: number }>;
   }>;
+  _count: {
+    gpsCourseRequests: number;
+  };
 };
 
 const courseNameOrder = [
@@ -196,6 +199,13 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
         },
       },
     },
+    _count: {
+      select: {
+        gpsCourseRequests: {
+          where: { status: GpsCourseRequestStatus.REQUESTED },
+        },
+      },
+    },
   } as const;
 
   const nearbyCourseIds = hasUserLocation
@@ -333,6 +343,9 @@ export default async function GpsMappingIndexPage({ searchParams }: GpsMappingIn
                   {holeNumbers.size || 0} scorecard holes | GPS status:{' '}
                   <strong>{statusLabel(course.mappedCourse?.mappingStatus)}</strong>
                   {course.mappedCourse ? ` | ${course.mappedCourse.holes.length} mapped holes` : ''}
+                  {course._count.gpsCourseRequests > 0
+                    ? ` | Requested by ${course._count.gpsCourseRequests} ${course._count.gpsCourseRequests === 1 ? 'user' : 'users'}`
+                    : ''}
                 </span>
               </div>
               <div className="gps-admin-course-action">

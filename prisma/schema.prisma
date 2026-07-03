@@ -27,6 +27,7 @@ model User {
   subscriptionTier              SubscriptionTier         @default(free) @map("subscription_tier")
   dataExports                   DataExport[]
   courseRequests                CourseRequest[]
+  gpsCourseRequests             GpsCourseRequest[]
   feedbackSubmissions           UserFeedback[]
   friendRequestsReceived        FriendRequest[]          @relation("RecipientRelation")
   friendRequestsSent            FriendRequest[]          @relation("RequesterRelation")
@@ -193,6 +194,7 @@ model Course {
   verified           Boolean            @default(false)
   location           Location?
   mappedCourse       MappedCourse?
+  gpsCourseRequests  GpsCourseRequest[]
   rounds             Round[]
   liveRoundSessions  LiveRoundSession[]
   tees               Tee[]
@@ -254,6 +256,23 @@ model MappedHole {
   @@index([mappingStatus], map: "idx_mapped_holes_status")
   @@index([source], map: "idx_mapped_holes_source")
   @@map("mapped_holes")
+}
+
+model GpsCourseRequest {
+  id        BigInt                 @id @default(autoincrement())
+  courseId  BigInt                 @map("course_id")
+  userId    BigInt                 @map("user_id")
+  status    GpsCourseRequestStatus @default(REQUESTED)
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  course    Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId], map: "uq_gps_course_requests_course_user")
+  @@index([courseId], map: "idx_gps_course_requests_course")
+  @@index([userId], map: "idx_gps_course_requests_user")
+  @@index([status], map: "idx_gps_course_requests_status")
+  @@map("gps_course_requests")
 }
 
 model Location {
@@ -921,6 +940,12 @@ enum GpsMappingStatus {
   READY
   VERIFIED
   DISABLED
+}
+
+enum GpsCourseRequestStatus {
+  REQUESTED
+  MAPPED
+  DISMISSED
 }
 
 enum GpsMappingSource {

@@ -10479,6 +10479,42 @@ input[type='date'].form-input {
   white-space: nowrap;
 }
 
+.live-gps-unavailable {
+  display: grid;
+  gap: var(--gap-small);
+  color: var(--color-primary-text);
+}
+
+.live-gps-request-row {
+  cursor: default;
+}
+
+.live-gps-unavailable p {
+  margin: 0;
+  color: var(--color-secondary-text);
+}
+
+.live-gps-request-button {
+  width: fit-content;
+  min-width: 112px;
+  padding: var(--gap-small) var(--padding-small);
+  font-size: 0.9rem;
+}
+
+.live-gps-request-status,
+.live-gps-request-status:disabled {
+  border: 1px solid var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+  opacity: 1;
+  cursor: default;
+}
+
+.live-gps-request-error {
+  color: var(--color-red);
+  font-size: 0.88rem;
+}
+
 .live-round-add-start {
   display: flex;
   flex-direction: column;
