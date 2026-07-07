@@ -80,7 +80,7 @@ const cases: OutcomeCase[] = [
     key: 'M2-A',
     messageIndex: 1,
     expectedOutcome: 'M2-A',
-    expectedMessageFragment: 'Rounds in this range often come from lost scoring chances and one or two holes that get away.',
+    expectedMessageFragment: 'The score is clear, but the cause needs more tracked detail.',
     input: {
       ...baseInput,
       measuredComponents: [],

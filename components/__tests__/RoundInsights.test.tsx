@@ -5,6 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RoundInsights from '@/components/RoundInsights';
 import { useSession } from 'next-auth/react';
+import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
 
 const mockPush = jest.fn();
 
@@ -43,7 +44,7 @@ function payload(confidence: 'LOW' | 'MED' | 'HIGH') {
 
 function identityPayload() {
   return {
-    version: 'round_identity_v1.0.0',
+    version: ROUND_IDENTITY_V1_VERSION,
     inputHash: 'abc123',
     primaryKey: 'steady_scoring',
     title: 'Steady Scoring Round',
@@ -209,10 +210,9 @@ describe('RoundInsights confidence pill UI', () => {
     expect(screen.getByText('Approach was the biggest source of lost strokes.')).toBeInTheDocument();
     expect(screen.getByText('Next round: Play to the center of the green.')).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: 'See what really cost you strokes' })).toBeInTheDocument();
-    expect(screen.getByText('Find the part of the game that hurt the score most and what to focus on next.')).toBeInTheDocument();
-    expect(screen.getByText('Your full round breakdown is ready.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'See the Full Breakdown' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Unlock Your Full Round Breakdown' })).toBeInTheDocument();
+    expect(screen.getByText('See the stats behind each insight and how it shaped your round.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'See Premium Plans' })).toBeInTheDocument();
 
     expect(container.querySelector('.locked-section.round-insights-lock-section')).toBeInTheDocument();
     expect(container.querySelector('.locked-overlay.has-cta')).toBeInTheDocument();
@@ -229,10 +229,34 @@ describe('RoundInsights confidence pill UI', () => {
     );
 
     await screen.findByText('Round Insights');
-    expect(screen.queryByRole('heading', { name: 'See what really cost you strokes' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Find the part of the game that hurt the score most and what to focus on next.')).not.toBeInTheDocument();
-    expect(screen.queryByText('Your full round breakdown is ready.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'See the Full Breakdown' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Unlock Your Full Round Breakdown' })).not.toBeInTheDocument();
+    expect(screen.queryByText('See the stats behind each insight and how it shaped your round.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'See Premium Plans' })).not.toBeInTheDocument();
+  });
+
+  it('keeps free users on basic messages when a composed identity is present', async () => {
+    const withIdentity = identityInsightsPayload({
+      displayEvidence: {
+        strongestArea: {
+          area: 'putting',
+          label: 'Putting',
+          valueText: '+3.9 SG putting',
+          detailText: 'Putts: 31 (1.72 per hole).',
+        },
+      },
+    });
+
+    const { container } = render(
+      <RoundInsights
+        roundId="round-free-basic-identity"
+        isPremium={false}
+        initialInsightsPayload={withIdentity}
+      />,
+    );
+
+    expect(await screen.findByText(withIdentity.messages[0])).toBeInTheDocument();
+    expect(screen.queryByText(/You shot 82 \(\+10\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/31 putts/i)).not.toBeInTheDocument();
   });
 
   it('renders composed identity insights as exactly three legacy-style cards when identity is present', async () => {
@@ -450,6 +474,49 @@ describe('RoundInsights confidence pill UI', () => {
     expect(screen.queryByText('What Worked')).not.toBeInTheDocument();
   });
 
+  it('renders the neutral identity when aggregate stats have no clear separator', async () => {
+    const withIdentity = identityInsightsPayload({
+      primaryKey: 'no_clear_separator',
+      title: 'No Clear Separator',
+      summary: 'The tracked areas stayed close enough that no single one defined the round.',
+      evidenceLevel: 'aggregate_stats',
+      tone: 'build',
+      sampleContext: 'established',
+      modifiers: [],
+    });
+
+    const { container } = render(
+      <RoundInsights
+        roundId="round-no-clear-separator"
+        isPremium={true}
+        initialInsightsPayload={withIdentity}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/tracked areas stayed close enough that no single one defined the round/i),
+    ).toBeInTheDocument();
+    const icons = container.querySelectorAll('.insight-message-icon');
+    expect(icons[1]).toHaveClass('insight-level-info');
+  });
+
+  it('safely falls back when a stored identity contains unknown keys', async () => {
+    const withIdentity = identityInsightsPayload({
+      primaryKey: 'invented_story',
+      modifiers: ['one_hole_damage', 'invented_modifier'],
+    });
+
+    render(
+      <RoundInsights
+        roundId="round-invalid-identity-keys"
+        isPremium={true}
+        initialInsightsPayload={withIdentity}
+      />,
+    );
+
+    expect(await screen.findByText(/tracked stats did not separate enough to define one clear round story/i)).toBeInTheDocument();
+  });
+
   it('maps composed icons for career-best breakthrough with damage-focused watch', async () => {
     const withIdentity = identityInsightsPayload({
       primaryKey: 'breakthrough',
@@ -576,7 +643,52 @@ describe('RoundInsights confidence pill UI', () => {
     expect(icons[2]).toHaveClass('insight-level-warning');
   });
 
-  it('maps score-only composed icons to info', async () => {
+  it.each(['volatile_scoring', 'big_number', 'approach_leak'])(
+    'uses a success M1 icon for positive-total-SG %s rounds while preserving coaching icons',
+    async (primaryKey) => {
+      const withIdentity = identityInsightsPayload({
+        primaryKey,
+        tone: primaryKey === 'volatile_scoring' ? 'build' : 'fix',
+        overallTone: 'success',
+        modifiers: ['one_hole_damage'],
+        displayEvidence: {
+          scoreText: '77 (+7)',
+          baselineDeltaText: '5.6 strokes better than your recent average of 82.6.',
+          strongestArea: {
+            area: 'putting',
+            label: 'Putting',
+            valueText: '+3.9 SG putting',
+            detailText: 'Putts: 31 (1.72 per hole).',
+          },
+          weakestArea: {
+            area: 'big_numbers',
+            label: 'Concentrated Damage',
+            valueText: '2 double-or-worse holes',
+            detailText: 'A couple of big holes carried too much of the score.',
+          },
+        },
+      });
+
+      const { container } = render(
+        <RoundInsights
+          roundId={`round-positive-sg-${primaryKey}`}
+          isPremium={true}
+          initialInsightsPayload={withIdentity}
+        />,
+      );
+
+      await screen.findByText(/You shot 77 \(\+7\)/i);
+      const icons = container.querySelectorAll('.insight-message-icon');
+      expect(icons).toHaveLength(3);
+      expect(icons[0]).toHaveClass('insight-level-success');
+      expect(icons[1]).toHaveClass('insight-level-success');
+      expect(icons[2]).toHaveClass(
+        primaryKey === 'volatile_scoring' ? 'insight-level-info' : 'insight-level-warning',
+      );
+    },
+  );
+
+  it('rewards a logged score-only round while keeping evidence and coaching informational', async () => {
     const withIdentity = identityInsightsPayload({
       primaryKey: 'score_only_baseline',
       tone: 'explain',
@@ -605,7 +717,7 @@ describe('RoundInsights confidence pill UI', () => {
     await screen.findByText(/You shot 92 \(\+20\)/i);
     const icons = container.querySelectorAll('.insight-message-icon');
     expect(icons).toHaveLength(3);
-    expect(icons[0]).toHaveClass('insight-level-info');
+    expect(icons[0]).toHaveClass('insight-level-success');
     expect(icons[1]).toHaveClass('insight-level-info');
     expect(icons[2]).toHaveClass('insight-level-info');
   });
@@ -678,6 +790,39 @@ describe('RoundInsights confidence pill UI', () => {
     expect(icons[0]).toHaveClass('insight-level-warning');
     expect(icons[1]).toHaveClass('insight-level-warning');
     expect(icons[2]).toHaveClass('insight-level-info');
+  });
+
+  it('renders premium directional evidence only when it supports the selected leak area', async () => {
+    const withIdentity = identityInsightsPayload({
+      primaryKey: 'approach_leak',
+      tone: 'fix',
+      overallTone: 'warning',
+      displayEvidence: {
+        weakestArea: {
+          area: 'approach',
+          label: 'Approach Play',
+          valueText: '-1.2 SG approach',
+          detailText: 'Greens in regulation: 5/18 (28%).',
+        },
+        directional: {
+          area: 'gir',
+          dominantDirection: 'right',
+          count: 5,
+          totalDirectionalMisses: 6,
+          confidence: 'high',
+        },
+      },
+    });
+
+    render(
+      <RoundInsights
+        roundId="round-premium-directional"
+        isPremium={true}
+        initialInsightsPayload={withIdentity}
+      />,
+    );
+
+    expect(await screen.findByText(/This round's GIR misses were mostly right \(5\/6\)/i)).toBeInTheDocument();
   });
 
   it('maps tee-trouble M3 to info for coaching action focus', async () => {

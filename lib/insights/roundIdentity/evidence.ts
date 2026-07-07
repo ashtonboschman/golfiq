@@ -30,7 +30,7 @@ export function resolveRoundEntryMode(holeByHole: boolean | null | undefined): R
 
 export function resolveSampleContext(roundsLifetime: number): RoundIdentitySampleContext {
   if (roundsLifetime <= 1) return 'first_round';
-  if (roundsLifetime <= 4) return 'early';
+  if (roundsLifetime === 2) return 'early';
   return 'established';
 }
 
@@ -46,15 +46,7 @@ export function resolveRoundIdentityConfidence(input: {
   statCompletenessScore: number;
   sgConfidence: 'high' | 'medium' | 'low' | null;
 }): RoundIdentityConfidence {
-  if (input.sampleContext === 'first_round') {
-    if (input.evidenceLevel === 'score_only') return 'building';
-    if (input.sgConfidence === 'low') return 'building';
-    if (input.evidenceLevel === 'hole_by_hole' && input.statCompletenessScore >= 85 && input.sgConfidence === 'high') {
-      return 'strong';
-    }
-    if (input.statCompletenessScore >= 65) return 'moderate';
-    return 'building';
-  }
+  if (input.sampleContext === 'first_round') return 'building';
   if (input.evidenceLevel === 'score_only') return 'building';
   if (input.sgConfidence === 'low') return 'building';
   if (input.evidenceLevel === 'hole_by_hole' && input.statCompletenessScore >= 70 && input.sampleContext === 'established') {

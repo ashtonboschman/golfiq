@@ -9,6 +9,7 @@ import {
   type DashboardLatestRoundIdentitySummary,
 } from '@/lib/insights/dashboardFocus';
 import { deriveShortGameMetrics } from '@/lib/utils/shortGameMetrics';
+import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
 
 const MISS_DIRECTION_KEYS = ['miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
 type MissDirectionKey = (typeof MISS_DIRECTION_KEYS)[number];
@@ -24,6 +25,7 @@ function emptyDirectionCounts(): Record<MissDirectionKey, number> {
 
 function normalizeLatestRoundIdentity(rawIdentity: any): DashboardLatestRoundIdentitySummary {
   if (!rawIdentity || typeof rawIdentity !== 'object') return null;
+  if (rawIdentity.version !== ROUND_IDENTITY_V1_VERSION) return null;
   const primaryKey =
     typeof rawIdentity.primaryKey === 'string' && rawIdentity.primaryKey.length > 0
       ? rawIdentity.primaryKey

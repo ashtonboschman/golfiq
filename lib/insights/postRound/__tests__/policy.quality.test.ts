@@ -147,4 +147,27 @@ describe('post-round policy message quality guardrails', () => {
       expect(textToCheck).not.toContain('residual');
     }
   });
+
+  it('keeps short-game variants tied to recovery-shot efficiency rather than inferred lies', () => {
+    for (const confidence of ['MED', 'HIGH'] as const) {
+      const shortGameInput: PostRoundPolicyInput = {
+        ...BASE,
+        confidence,
+        measuredComponents: [
+          { name: 'short_game', label: 'Short Game', value: -1.4 },
+          { name: 'putting', label: 'Putting', value: 0.2 },
+        ],
+        bestMeasured: { name: 'putting', label: 'Putting', value: 0.2 },
+        worstMeasured: { name: 'short_game', label: 'Short Game', value: -1.4 },
+        opportunityIsWeak: true,
+        weakSeparation: false,
+      };
+
+      for (let variantIndex = 0; variantIndex < 10; variantIndex += 1) {
+        const out = buildDeterministicPostRoundInsights(shortGameInput, { fixedVariantIndex: variantIndex });
+        expect(out.messages[1]).not.toMatch(/tougher recovery situations|difficult recoveries|difficult next shots/i);
+        expect(out.messages[1]).toMatch(/recovery shots|recovery work|short game/i);
+      }
+    }
+  });
 });

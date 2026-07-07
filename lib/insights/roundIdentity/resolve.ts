@@ -20,6 +20,8 @@ import {
   type RoundIdentityPrimaryKey,
   type RoundIdentityResolverInput,
 } from '@/lib/insights/roundIdentity/types';
+import { resolveRoundIdentityDisplayLevels } from '@/lib/insights/roundIdentity/presentation';
+import { POST_ROUND_THRESHOLDS } from '@/lib/insights/config/postRound';
 
 type PrimaryCandidate = {
   key: RoundIdentityPrimaryKey;
@@ -40,6 +42,15 @@ function clamp(value: number, min: number, max: number): number {
 function expectedScale(holesPlayed: number, fullRoundValue: number): number {
   if (holesPlayed <= 9) return fullRoundValue * 0.5;
   return fullRoundValue;
+}
+
+function resolveFairwaysPossible(input: {
+  holesPlayed: number;
+  fairwaysPossible?: number | null;
+}): number {
+  const canonical = toFiniteNumber(input.fairwaysPossible);
+  if (canonical != null && canonical > 0) return Math.max(1, Math.round(canonical));
+  return Math.max(1, input.holesPlayed - Math.round(input.holesPlayed * 0.22));
 }
 
 function asPercent(numerator: number | null, denominator: number): number | null {
@@ -144,6 +155,7 @@ export function buildRoundIdentityInputHash(
       roundsLifetime: input.roundsLifetime,
       avgScoreRecent: input.avgScoreRecent,
       handicapAtRound: input.handicapAtRound,
+      fairwaysPossible: input.fairwaysPossible ?? null,
       hasTrustedHoleByHole: input.hasTrustedHoleByHole,
     },
     roundHoles: input.roundHoles.map((hole) => ({
@@ -182,6 +194,7 @@ function countConsecutive(holes: Array<{ scoreToPar: number }>, minScoreToPar: n
 function getPrimaryTitle(primary: RoundIdentityPrimaryKey): string {
   const titles: Record<RoundIdentityPrimaryKey, string> = {
     score_only_baseline: 'Baseline Round Logged',
+    no_clear_separator: 'No Clear Separator',
     breakthrough: 'Breakthrough Round',
     clean_control: 'Clean Control Round',
     all_around_strong: 'All-Around Strong Round',
@@ -208,7 +221,10 @@ function toneFromPrimary(
   primary: RoundIdentityPrimaryKey,
   evidence: RoundIdentityEvidenceSnapshot,
 ): RoundIdentity['tone'] {
-  if (primary === 'score_only_baseline') return 'explain';
+  if (primary === 'score_only_baseline') {
+    return evidence.evidenceLevel === 'score_only' ? 'explain' : 'build';
+  }
+  if (primary === 'no_clear_separator') return 'build';
   const positive: RoundIdentityPrimaryKey[] = [
     'breakthrough',
     'clean_control',
@@ -223,12 +239,69 @@ function toneFromPrimary(
   return 'fix';
 }
 
+function overallToneFromRound(
+  input: RoundIdentityResolverInput,
+  primary: RoundIdentityPrimaryKey,
+  scoreDelta: number | null,
+): NonNullable<RoundIdentity['overallTone']> {
+  if (primary === 'breakthrough') return 'great';
+
+  const sgTotal = toFiniteNumber(input.sgTotal);
+  if (sgTotal != null) {
+    const exceptionalBoundary = expectedScale(input.holesPlayed, POST_ROUND_THRESHOLDS.sgExceptional);
+    const neutralBoundary = expectedScale(input.holesPlayed, POST_ROUND_THRESHOLDS.sgReward);
+    if (sgTotal >= exceptionalBoundary) return 'great';
+    if (sgTotal >= neutralBoundary) return 'success';
+    if (sgTotal <= -neutralBoundary) return 'warning';
+    return 'info';
+  }
+
+  if (scoreDelta != null) {
+    const scoreBoundary = expectedScale(input.holesPlayed, POST_ROUND_THRESHOLDS.scoreNearDelta);
+    if (scoreDelta < -scoreBoundary) return 'success';
+    if (scoreDelta > scoreBoundary) return 'warning';
+    return 'success';
+  }
+
+  const positivePrimaries: RoundIdentityPrimaryKey[] = [
+    'score_only_baseline',
+    'clean_control',
+    'all_around_strong',
+    'approach_carried',
+    'putting_saved',
+    'tee_controlled',
+    'short_game_rescue',
+  ];
+  const warningPrimaries: RoundIdentityPrimaryKey[] = [
+    'penalty_damaged',
+    'big_number',
+    'everything_leaked',
+    'approach_leak',
+    'tee_trouble',
+    'putting_leak',
+    'short_game_pressure',
+    'scoring_chance_missed',
+  ];
+  if (positivePrimaries.includes(primary)) return 'success';
+  if (warningPrimaries.includes(primary)) return 'warning';
+  return 'info';
+}
+
 function nextRoundFocusFromTone(
   tone: RoundIdentity['tone'],
   primary: RoundIdentityPrimaryKey,
 ): string {
   if (tone === 'repeat') {
-    return 'Next round, repeat this low-damage decision pattern and see if it holds.';
+    const repeatFocus: Partial<Record<RoundIdentityPrimaryKey, string>> = {
+      breakthrough: 'Next round, keep what supported this score while protecting against costly holes.',
+      clean_control: 'Next round, keep the same low-damage scoring pattern and see if it holds.',
+      all_around_strong: 'Next round, keep the balanced scoring pattern in place and see if it repeats.',
+      approach_carried: 'Next round, keep leaning on approach play and see if the strength carries over.',
+      tee_controlled: 'Next round, keep leaning on tee-shot control and see if it carries over.',
+      putting_saved: 'Next round, keep leaning on putting and see if the strength carries over.',
+      short_game_rescue: 'Next round, keep leaning on short-game efficiency and see if it carries over.',
+    };
+    return repeatFocus[primary] ?? 'Next round, repeat the parts that worked and see if the pattern holds.';
   }
   if (tone === 'explain') {
     return 'Next round, add a few stats so GolfIQ can explain what shaped the score.';
@@ -237,16 +310,25 @@ function nextRoundFocusFromTone(
     if (primary === 'volatile_scoring' || primary === 'big_number') {
       return 'Next round, protect against one costly hole while keeping your scoring upside.';
     }
+    if (primary === 'no_clear_separator') {
+      return 'Next round, keep tracking the same areas and see whether one separates more clearly.';
+    }
+    if (primary === 'survival') {
+      return 'Next round, keep the damage control and look for one area that can make scoring easier.';
+    }
+    if (primary === 'steady_scoring') {
+      return 'Next round, keep the steady scoring pattern in place and see if it repeats.';
+    }
     return 'Next round, keep this pattern in place and confirm it across another round.';
   }
   const map: Partial<Record<RoundIdentityPrimaryKey, string>> = {
     approach_leak: 'Next round, play to safer approach targets to reduce stress on each hole.',
     tee_trouble: 'Next round, keep tee shots playable before chasing distance.',
-    penalty_damaged: 'Next round, take one less risk on penalty holes and keep the ball in play.',
-    putting_leak: 'Next round, prioritize first-putt pace to leave easier second putts.',
+    penalty_damaged: 'Next round, favor the safer target whenever penalty trouble is in play.',
+    putting_leak: 'Next round, make reducing avoidable putts the first putting goal.',
     short_game_pressure: 'Next round, aim for more greens or easier misses to reduce scramble load.',
-    scoring_chance_missed: 'Next round, convert more of your green hits by tightening pace and start line.',
-    everything_leaked: 'Next round, pick one control lever first: playable tee balls and fewer penalties.',
+    scoring_chance_missed: 'Next round, make cleaner conversion on the greens the first scoring priority.',
+    everything_leaked: 'Next round, choose one measured leak to tighten first and keep the rest simple.',
   };
   return map[primary] ?? 'Next round, remove the biggest leak before adding risk.';
 }
@@ -258,7 +340,12 @@ function summarizePrimary(
 ): string {
   const toPar = input.toPar;
   if (primary === 'score_only_baseline') {
-    return `Score recorded at ${input.score} (${toPar >= 0 ? `+${toPar}` : `${toPar}`}). This gives GolfIQ a starting point.`;
+    return evidence.evidenceLevel === 'score_only'
+      ? `Score recorded at ${input.score} (${toPar >= 0 ? `+${toPar}` : `${toPar}`}). This gives GolfIQ a starting point.`
+      : 'The available stats did not separate enough to define one clear round story.';
+  }
+  if (primary === 'no_clear_separator') {
+    return 'The tracked areas stayed close enough that no single one defined the round.';
   }
   if (primary === 'breakthrough') return "This score beat what you've been shooting lately by a meaningful margin.";
   if (primary === 'clean_control') return 'Damage stayed low all round, and that control protected the score.';
@@ -288,9 +375,11 @@ function shapedByFromPrimary(
   evidence: RoundIdentityEvidenceSnapshot,
 ): string[] {
   const lines: string[] = [];
-  if (primary === 'score_only_baseline') {
+  if (primary === 'score_only_baseline' && evidence.evidenceLevel === 'score_only') {
     lines.push('Only score was available, so this is baseline context.');
     lines.push('Add optional stats next round to unlock cause-level feedback.');
+  } else if (primary === 'score_only_baseline') {
+    lines.push('The tracked stats did not separate enough to name one clear round story.');
   } else {
     lines.push(`Primary story: ${getPrimaryTitle(primary)}.`);
   }
@@ -329,7 +418,12 @@ function buildStrengthLeak(
       },
     };
   }
-  if (primary !== 'score_only_baseline' && primary !== 'survival' && primary !== 'volatile_scoring') {
+  if (
+    primary !== 'score_only_baseline' &&
+    primary !== 'no_clear_separator' &&
+    primary !== 'survival' &&
+    primary !== 'volatile_scoring'
+  ) {
     return {
       leak: {
         label: 'Primary Leak',
@@ -352,14 +446,21 @@ function buildDisplayEvidence(input: {
   sgPutting: number | null;
   sgPenalties: number | null;
   firHit: number | null;
+  fairwaysPossible: number;
   firPct: number | null;
   girHit: number | null;
   girPct: number | null;
   putts: number | null;
   puttsPerHole: number | null;
+  puttOverBaseline: number | null;
   penalties: number | null;
   shortGameShots: number | null;
   holesPlayed: number;
+  hasReliableTeeEvidence: boolean;
+  hasReliableApproachEvidence: boolean;
+  hasReliablePuttingEvidence: boolean;
+  hasReliableShortGameEvidence: boolean;
+  hasReliablePenaltyEvidence: boolean;
   evidenceLevel: RoundIdentityEvidenceSnapshot['evidenceLevel'];
   buckets: ReturnType<typeof getScoringBuckets>;
   bigNumberCount: number;
@@ -389,8 +490,8 @@ function buildDisplayEvidence(input: {
   const puttsPerHoleText = input.puttsPerHole != null ? formatNumber(input.puttsPerHole, 2) : null;
   const candidates: AreaCandidate[] = [];
 
-  if (input.sgPutting != null || input.puttsPerHole != null || input.putts != null) {
-    const puttingScore = input.sgPutting ?? (input.puttsPerHole != null ? (1.95 - input.puttsPerHole) * 3 : 0);
+  if (input.hasReliablePuttingEvidence && (input.sgPutting != null || input.puttsPerHole != null || input.putts != null)) {
+    const puttingScore = input.sgPutting ?? (input.puttOverBaseline != null ? -input.puttOverBaseline : 0);
     candidates.push({
       area: 'putting',
       label: 'Putting',
@@ -408,7 +509,7 @@ function buildDisplayEvidence(input: {
     });
   }
 
-  if (input.sgApproach != null || input.girPct != null || input.girHit != null) {
+  if (input.hasReliableApproachEvidence && (input.sgApproach != null || input.girPct != null || input.girHit != null)) {
     const approachScore = input.sgApproach ?? (input.girPct != null ? (input.girPct - 40) / 8 : 0);
     candidates.push({
       area: 'approach',
@@ -427,7 +528,7 @@ function buildDisplayEvidence(input: {
     });
   }
 
-  if (input.sgOffTee != null || input.firPct != null || input.firHit != null) {
+  if (input.hasReliableTeeEvidence && (input.sgOffTee != null || input.firPct != null || input.firHit != null)) {
     const offTeeScore = input.sgOffTee ?? (input.firPct != null ? (input.firPct - 50) / 12 : 0);
     candidates.push({
       area: 'off_tee',
@@ -441,12 +542,12 @@ function buildDisplayEvidence(input: {
             : `FIR ${firPctText ?? ''}`.trim(),
       detailText:
         input.firHit != null && firPctText != null
-          ? `Fairways hit: ${input.firHit}${input.holesPlayed > 9 ? `/${Math.max(1, input.holesPlayed - Math.round(input.holesPlayed * 0.22))}` : ''} (${firPctText}).`
+          ? `Fairways hit: ${input.firHit}/${input.fairwaysPossible} (${firPctText}).`
           : 'Tee-shot evidence was available this round.',
     });
   }
 
-  if (input.sgShortGame != null || input.shortGameShots != null) {
+  if (input.hasReliableShortGameEvidence && (input.sgShortGame != null || input.shortGameShots != null)) {
     const shortGameScore = input.sgShortGame ?? 0;
     candidates.push({
       area: 'short_game',
@@ -459,7 +560,7 @@ function buildDisplayEvidence(input: {
     });
   }
 
-  if (input.sgPenalties != null || input.penalties != null) {
+  if (input.hasReliablePenaltyEvidence && (input.sgPenalties != null || input.penalties != null)) {
     const penaltyScore = input.sgPenalties ?? (input.penalties != null ? (1.5 - input.penalties) * 0.75 : 0);
     candidates.push({
       area: 'penalties',
@@ -480,10 +581,11 @@ function buildDisplayEvidence(input: {
 
   let strongestArea: RoundIdentityDisplayEvidence['strongestArea'];
   let weakestArea: RoundIdentityDisplayEvidence['weakestArea'];
+  const evidenceBoundary = expectedScale(input.holesPlayed, POST_ROUND_THRESHOLDS.sgReward);
 
   if (candidates.length > 0) {
     const strongest = [...candidates].sort((a, b) => b.score - a.score)[0];
-    if (strongest.score >= 0.25) {
+    if (strongest.score >= evidenceBoundary) {
       strongestArea = {
         area: strongest.area,
         label: strongest.label,
@@ -493,7 +595,7 @@ function buildDisplayEvidence(input: {
     }
 
     const weakest = [...candidates].sort((a, b) => a.score - b.score)[0];
-    if (weakest.score <= -0.25) {
+    if (weakest.score <= -evidenceBoundary) {
       weakestArea = {
         area: weakest.area,
         label: weakest.label,
@@ -563,6 +665,7 @@ function resolveModifiers(input: {
   girHit: number | null;
   putts: number | null;
   firHit: number | null;
+  fairwaysPossible: number;
   penalties: number | null;
   shortGameShots: number | null;
   sgOffTee: number | null;
@@ -573,11 +676,18 @@ function resolveModifiers(input: {
   hasReliableShortGameEvidence: boolean;
 }): RoundIdentityModifierKey[] {
   const modifiers: RoundIdentityModifierKey[] = [];
-  const expectedFir = Math.max(1, input.holesPlayed - Math.round(input.holesPlayed * 0.22));
+  const expectedFir = input.fairwaysPossible;
   const firPct = asPercent(input.firHit, expectedFir);
   const girPct = asPercent(input.girHit, input.holesPlayed);
   const puttsPerHole = input.putts != null ? input.putts / input.holesPlayed : null;
   const opportunities = input.girHit != null ? Math.max(0, input.holesPlayed - input.girHit) : null;
+  const puttExpectedBaseline =
+    input.putts != null && input.girHit != null && opportunities != null
+      ? input.girHit * 2 + opportunities * 1.5
+      : null;
+  const puttOverBaseline = puttExpectedBaseline != null && input.putts != null
+    ? input.putts - puttExpectedBaseline
+    : null;
 
   const scoreDelta = input.avgScoreRecent != null ? input.score - input.avgScoreRecent : null;
   const massivePositiveScoreStory =
@@ -628,8 +738,12 @@ function resolveModifiers(input: {
   if (input.hasReliableApproachEvidence && girPct != null && girPct >= 45) modifiers.push('green_hitting_strength');
   if (
     input.hasReliablePuttingEvidence &&
-    !((input.sgPutting != null && input.sgPutting >= expectedScale(input.holesPlayed, 1.2)) || (puttsPerHole != null && puttsPerHole <= 1.75)) &&
-    ((puttsPerHole != null && puttsPerHole >= 2) || (input.putts != null && input.girHit != null && input.putts >= input.girHit * 2 + expectedScale(input.holesPlayed, 4)))
+    (input.sgPutting != null
+      ? input.sgPutting <= -expectedScale(input.holesPlayed, 0.55)
+      : puttsPerHole != null &&
+        puttsPerHole >= 2 &&
+        puttOverBaseline != null &&
+        puttOverBaseline >= expectedScale(input.holesPlayed, 3))
   ) {
     modifiers.push('putting_conversion_issue');
   }
@@ -655,7 +769,7 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
   const frontBack = getFrontBackSplit(normalizedHoles);
   const parType = getParTypePerformance(normalizedHoles);
 
-  const expectedFir = Math.max(1, input.holesPlayed - Math.round(input.holesPlayed * 0.22));
+  const expectedFir = resolveFairwaysPossible(input);
   const firPct = asPercent(input.firHit, expectedFir);
   const girPct = asPercent(input.girHit, input.holesPlayed);
   const puttsPerHole = input.putts != null ? input.putts / input.holesPlayed : null;
@@ -688,7 +802,14 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
     ((input.sgOffTee != null && input.sgOffTee <= -expectedScale(input.holesPlayed, 0.8)) ||
       (firPct != null && firPct < 40 && !firOnlyTeeLeakSuppressed));
   const approachLeak = evidence.hasReliableApproachEvidence && ((input.sgApproach != null && input.sgApproach <= -expectedScale(input.holesPlayed, 0.8)) || (girPct != null && girPct < 33));
-  const puttingLeak = evidence.hasReliablePuttingEvidence && ((input.sgPutting != null && input.sgPutting <= -expectedScale(input.holesPlayed, 0.9)) || (puttsPerHole != null && puttsPerHole >= 2.05));
+  const puttingLeak =
+    evidence.hasReliablePuttingEvidence &&
+    (input.sgPutting != null
+      ? input.sgPutting <= -expectedScale(input.holesPlayed, 0.9)
+      : puttsPerHole != null &&
+        puttsPerHole >= 2.05 &&
+        puttOverBaseline != null &&
+        puttOverBaseline >= expectedScale(input.holesPlayed, 3));
   const shortGameLeak =
     evidence.hasReliableShortGameEvidence &&
     (input.toPar >= expectedScale(input.holesPlayed, 8) ||
@@ -732,14 +853,18 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
   const positiveDomains = [
     input.sgOffTee != null && input.sgOffTee >= expectedScale(input.holesPlayed, 0.6),
     input.sgApproach != null && input.sgApproach >= expectedScale(input.holesPlayed, 0.6),
-    input.sgPutting != null && input.sgPutting >= expectedScale(input.holesPlayed, 0.6),
-    input.sgShortGame != null && input.sgShortGame >= expectedScale(input.holesPlayed, 0.6),
+    evidence.hasReliablePuttingEvidence && input.sgPutting != null && input.sgPutting >= expectedScale(input.holesPlayed, 0.6),
+    evidence.hasReliableShortGameEvidence && input.sgShortGame != null && input.sgShortGame >= expectedScale(input.holesPlayed, 0.6),
   ].filter(Boolean).length;
 
   const severePuttingLeak =
     evidence.hasReliablePuttingEvidence &&
-    ((input.sgPutting != null && input.sgPutting <= -expectedScale(input.holesPlayed, 1.2)) ||
-      (puttsPerHole != null && puttsPerHole >= 2.18));
+    (input.sgPutting != null
+      ? input.sgPutting <= -expectedScale(input.holesPlayed, 1.2)
+      : puttsPerHole != null &&
+        puttsPerHole >= 2.18 &&
+        puttOverBaseline != null &&
+        puttOverBaseline >= expectedScale(input.holesPlayed, 4.5));
 
   const isAboveExpected = scoreDelta != null && scoreDelta <= -expectedScale(input.holesPlayed, 2);
   const hasNoDamage = evidence.hasTrustedHoleByHole && bigNumberCount === 0 && worstHoleDamage <= 1;
@@ -869,10 +994,24 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
       }
     }
 
-    if (input.sgApproach != null && input.sgApproach >= Math.max(expectedScale(input.holesPlayed, 0.9), 0.8)) candidates.push({ key: 'approach_carried', priority: 930, reason: 'approach_strength' });
+    if (input.sgApproach != null && input.sgApproach >= expectedScale(input.holesPlayed, 0.9)) candidates.push({ key: 'approach_carried', priority: 930, reason: 'approach_strength' });
     if ((input.sgOffTee != null && input.sgOffTee >= expectedScale(input.holesPlayed, 0.8)) || (firPct != null && firPct >= 58)) candidates.push({ key: 'tee_controlled', priority: 914, reason: 'tee_strength' });
-    if ((input.sgPutting != null && input.sgPutting >= expectedScale(input.holesPlayed, 0.9)) || (puttsPerHole != null && puttsPerHole <= 1.8)) candidates.push({ key: 'putting_saved', priority: 920, reason: 'putting_strength' });
-    if (evidence.hasReliableShortGameEvidence && ((input.sgShortGame != null && input.sgShortGame >= expectedScale(input.holesPlayed, 0.8)) || (opportunities != null && opportunities > 0 && input.shortGameShots != null && input.shortGameShots / opportunities >= 0.75 && input.score <= input.parTotal + expectedScale(input.holesPlayed, 15)))) {
+    const puttingStrength =
+      evidence.hasReliablePuttingEvidence &&
+      (input.sgPutting != null
+        ? input.sgPutting >= expectedScale(input.holesPlayed, 0.9)
+        : puttsPerHole != null &&
+          puttsPerHole <= 1.8 &&
+          puttOverBaseline != null &&
+          puttOverBaseline <= -expectedScale(input.holesPlayed, 3));
+    if (puttingStrength) {
+      candidates.push({ key: 'putting_saved', priority: 920, reason: 'putting_strength' });
+    }
+    if (
+      evidence.hasReliableShortGameEvidence &&
+      input.sgShortGame != null &&
+      input.sgShortGame >= expectedScale(input.holesPlayed, 0.8)
+    ) {
       candidates.push({ key: 'short_game_rescue', priority: 915, reason: 'short_game_rescue' });
     }
     if (isCleanControl) candidates.push({ key: 'clean_control', priority: 928, reason: 'low_damage_controlled' });
@@ -888,7 +1027,12 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
 
   if (candidates.length === 0) {
     candidates.push({
-      key: evidence.evidenceLevel === 'hole_by_hole' ? 'steady_scoring' : 'score_only_baseline',
+      key:
+        evidence.evidenceLevel === 'hole_by_hole'
+          ? 'steady_scoring'
+          : evidence.evidenceLevel === 'aggregate_stats'
+            ? 'no_clear_separator'
+            : 'score_only_baseline',
       priority: 1,
       reason: 'fallback',
     });
@@ -912,6 +1056,7 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
     girHit: input.girHit,
     putts: input.putts,
     firHit: input.firHit,
+    fairwaysPossible: expectedFir,
     penalties: input.penalties,
     shortGameShots: input.shortGameShots,
     sgOffTee: input.sgOffTee,
@@ -923,6 +1068,7 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
   });
 
   const tone = toneFromPrimary(primary, evidence);
+  const overallTone = overallToneFromRound(input, primary, scoreDelta);
   const summary = summarizePrimary(primary, input, evidence);
   const shapedBy = shapedByFromPrimary(primary, modifiers, evidence);
   const strengthLeak = buildStrengthLeak(primary);
@@ -939,14 +1085,21 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
     sgPutting: input.sgPutting,
     sgPenalties: input.sgPenalties,
     firHit: input.firHit,
+    fairwaysPossible: expectedFir,
     firPct,
     girHit: input.girHit,
     girPct,
     putts: input.putts,
     puttsPerHole,
+    puttOverBaseline,
     penalties: input.penalties,
     shortGameShots: input.shortGameShots,
     holesPlayed: input.holesPlayed,
+    hasReliableTeeEvidence: evidence.hasReliableTeeEvidence,
+    hasReliableApproachEvidence: evidence.hasReliableApproachEvidence,
+    hasReliablePuttingEvidence: evidence.hasReliablePuttingEvidence,
+    hasReliableShortGameEvidence: evidence.hasReliableShortGameEvidence,
+    hasReliablePenaltyEvidence: evidence.hasReliablePenaltyEvidence,
     evidenceLevel: evidence.evidenceLevel,
     buckets,
     bigNumberCount,
@@ -955,13 +1108,13 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
   });
 
   const adjustedConfidence: RoundIdentity['confidence'] =
-    primary === 'score_only_baseline'
+    primary === 'score_only_baseline' && evidence.evidenceLevel === 'score_only'
       ? 'building'
       : evidence.confidence === 'strong' && primary === 'everything_leaked'
         ? 'moderate'
         : evidence.confidence;
 
-  return {
+  const identity: RoundIdentity = {
     version: ROUND_IDENTITY_V1_VERSION,
     inputHash,
     primaryKey: primary,
@@ -975,8 +1128,13 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
     confidence: adjustedConfidence,
     sampleContext: evidence.sampleContext,
     tone,
+    overallTone,
     entryMode: evidence.entryMode,
     statCompletenessScore: clamp(evidence.statCompletenessScore, 0, 100),
     displayEvidence,
+  };
+  return {
+    ...identity,
+    displayLevels: resolveRoundIdentityDisplayLevels(identity),
   };
 }

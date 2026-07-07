@@ -256,9 +256,19 @@ describe('/api/rounds/[id] route contract', () => {
         }),
       }),
     );
+    expect(mockedPrisma.roundInsight.deleteMany).toHaveBeenCalledWith({ where: { roundId: BigInt(9) } });
+    expect(mockedGenerateInsights).toHaveBeenCalledWith(
+      BigInt(9),
+      BigInt(1),
+      undefined,
+      { forceRegenerate: true },
+    );
+    expect(mockedGenerateOverall).toHaveBeenCalledWith(BigInt(1), 'combined', { touchGeneratedAt: true });
   });
 
   it('PUT preserves existing round_context when omitted', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockedGenerateInsights.mockRejectedValueOnce(new Error('temporary insight failure'));
     mockedPrisma.round.findFirst.mockResolvedValue({
       date: new Date('2026-04-20T12:00:00.000Z'),
       courseId: BigInt(11),
@@ -291,6 +301,7 @@ describe('/api/rounds/[id] route contract', () => {
 
     const response = await PUT(request as any, params('9'));
     expect(response.status).toBe(200);
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to generate insights:', expect.any(Error));
 
     expect(mockedPrisma.round.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -299,6 +310,7 @@ describe('/api/rounds/[id] route contract', () => {
         }),
       }),
     );
+    consoleErrorSpy.mockRestore();
   });
 
   it('GET includes hole-level direction fields when hole-by-hole data exists', async () => {

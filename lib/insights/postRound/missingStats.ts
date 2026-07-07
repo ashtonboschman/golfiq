@@ -7,13 +7,6 @@ type RoundLike = {
   penalties?: number | null;
 };
 
-const STAT_LABELS: Record<AdvancedStatKey, string> = {
-  fir: 'FIR',
-  gir: 'GIR',
-  putts: 'putts',
-  penalties: 'penalties',
-};
-
 export function getMissingStats(round: RoundLike): MissingStats {
   return {
     fir: round.firHit == null,
@@ -34,12 +27,4 @@ export function getMissingStatKeys(missing: MissingStats): AdvancedStatKey[] {
 
 export function getMissingCount(missing: MissingStats): number {
   return getMissingStatKeys(missing).length;
-}
-
-export function formatMissingStatsList(missing: MissingStats): string {
-  const labels = getMissingStatKeys(missing).map((key) => STAT_LABELS[key]);
-  if (labels.length === 0) return '';
-  if (labels.length === 1) return labels[0];
-  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
-  return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
 }

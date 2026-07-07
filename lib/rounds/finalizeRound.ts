@@ -6,7 +6,6 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { generateAndStoreOverallInsights } from '@/app/api/insights/overall/route';
 import { generateInsights } from '@/app/api/rounds/[id]/insights/route';
-import { hasPremiumEntitlement } from '@/lib/subscription';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { calculateNetScore } from '@/lib/utils/handicap';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
@@ -202,25 +201,10 @@ function parseRoundDate(date: string) {
 }
 
 async function triggerInsightsGeneration(roundId: bigint, userId: bigint): Promise<void> {
-  const entitlement = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      subscriptionTier: true,
-      subscriptionStatus: true,
-      subscriptionProvider: true,
-      stripeCustomerId: true,
-      stripeSubscriptionId: true,
-      appleOriginalTransactionId: true,
-      appleProductId: true,
-    },
-  });
-
-  if (hasPremiumEntitlement(entitlement)) {
-    try {
-      await generateInsights(roundId, userId);
-    } catch (error) {
-      console.error('Failed to generate insights:', error);
-    }
+  try {
+    await generateInsights(roundId, userId);
+  } catch (error) {
+    console.error('Failed to generate insights:', error);
   }
 }
 
@@ -439,12 +423,10 @@ export async function createCompletedRoundFromInput({
   await recalcLeaderboard(userId, db);
 
   const runPostCommitSideEffects = async () => {
-    triggerInsightsGeneration(roundId, userId).catch((error: unknown) => {
-      console.error('Failed to generate insights:', error);
-    });
-    triggerOverallInsightsGeneration(userId).catch((error: unknown) => {
-      console.error('Failed to regenerate overall insights:', error);
-    });
+    await Promise.all([
+      triggerInsightsGeneration(roundId, userId),
+      triggerOverallInsightsGeneration(userId),
+    ]);
 
     const storedRound = await prisma.round.findUnique({
       where: { id: roundId },

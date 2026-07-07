@@ -62,8 +62,18 @@ function makeTee() {
 
 describe('/api/rounds/[id]/insights route contract', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     mockedGetServerSession.mockResolvedValue({ user: { id: '1' } });
+
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [],
+      best: null,
+      opportunity: null,
+      opportunityIsWeak: false,
+      componentCount: 0,
+      residualDominant: false,
+      weakSeparation: false,
+    });
 
     mockedPrisma.roundInsight.findUnique.mockResolvedValue(null);
     mockedPrisma.roundInsight.upsert.mockImplementation(async (args: any) => ({
@@ -84,17 +94,23 @@ describe('/api/rounds/[id]/insights route contract', () => {
       tee: makeTee(),
     });
 
-    mockedPrisma.round.findMany
-      .mockResolvedValueOnce([
-        { id: BigInt(10), score: 78, date: new Date('2026-01-01T12:00:00.000Z'), createdAt: new Date('2026-01-01T12:00:00.000Z') },
-        { id: BigInt(20), score: 77, date: new Date('2026-01-10T12:00:00.000Z'), createdAt: new Date('2026-01-10T12:00:00.000Z') },
-        { id: BigInt(30), score: 76, date: new Date('2026-01-20T12:00:00.000Z'), createdAt: new Date('2026-01-20T12:00:00.000Z') },
-        { id: BigInt(40), score: 74, date: new Date('2026-02-03T12:00:00.000Z'), createdAt: new Date('2026-02-03T12:00:00.000Z') },
-      ])
-      .mockResolvedValueOnce([
-        { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
-        { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
-      ]);
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
+        return [
+          { id: BigInt(10), score: 78, date: new Date('2026-01-01T12:00:00.000Z'), createdAt: new Date('2026-01-01T12:00:00.000Z') },
+          { id: BigInt(20), score: 77, date: new Date('2026-01-10T12:00:00.000Z'), createdAt: new Date('2026-01-10T12:00:00.000Z') },
+          { id: BigInt(30), score: 76, date: new Date('2026-01-20T12:00:00.000Z'), createdAt: new Date('2026-01-20T12:00:00.000Z') },
+          { id: BigInt(40), score: 74, date: new Date('2026-02-03T12:00:00.000Z'), createdAt: new Date('2026-02-03T12:00:00.000Z') },
+        ];
+      }
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
+        return [
+          { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        ];
+      }
+      return [];
+    });
 
     mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
       roundId: BigInt(40),
@@ -166,19 +182,41 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const premium = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
+    const storedInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
+    mockedPrisma.roundInsight.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      userId: BigInt(1),
+      insights: storedInsights,
+    });
+
     const free = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: false, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: false },
+    );
+    const premiumAfterFreeView = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true },
     );
 
     expect(premium.messages[1]).toMatch(/This round's GIR misses were mostly right/i);
+    expect(premium.messages[1]).toMatch(/\(5\/6\)/);
     expect(premium.messages[1].toLowerCase()).not.toMatch(/swing|clubface|path|mechanic|slice/);
     expect(free.messages[1]).not.toMatch(/This round's GIR misses were mostly right/i);
+    expect(premiumAfterFreeView.messages[1]).toMatch(/This round's GIR misses were mostly right \(5\/6\)/i);
+    expect(storedInsights.messages[1]).not.toMatch(/This round's GIR misses/i);
+    expect(storedInsights.raw_payload.round_identity_v1.displayEvidence.directional).toEqual(
+      expect.objectContaining({
+        area: 'gir',
+        dominantDirection: 'right',
+        count: 5,
+        totalDirectionalMisses: 6,
+      }),
+    );
   });
 
   it('regenerates when stored round_identity_v1 hash is stale', async () => {
@@ -199,7 +237,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
+      { isPremium: true },
     );
 
     expect(mockedPrisma.roundInsight.upsert).toHaveBeenCalled();
@@ -237,12 +275,55 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.round_identity_v1.entryMode).toBe('post_round');
     expect(insights.round_identity_v1.evidenceLevel).not.toBe('hole_by_hole');
+  });
+
+  it('reconstructs live-round sequence from the recorded starting hole', async () => {
+    const tee = makeTee();
+    const roundHoles = tee.holes.map((hole) => ({
+      pass: 1,
+      score: hole.par + (hole.holeNumber === 18 ? 2 : 0),
+      firHit: 1,
+      girHit: 1,
+      putts: 2,
+      penalties: 0,
+      chips: 0,
+      greensideBunkerShots: 0,
+      firDirection: null,
+      girDirection: null,
+      hole,
+    }));
+
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: roundHoles.reduce((sum, hole) => sum + hole.score, 0),
+      firHit: 14,
+      girHit: 17,
+      putts: 36,
+      penalties: 0,
+      holeByHole: true,
+      teeSegment: 'full',
+      finalizedLiveRoundSession: { startHoleNumber: 7 },
+      roundHoles,
+      tee,
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true },
+      { forceRegenerate: true },
+    );
+
+    expect(insights.round_identity_v1.evidenceLevel).toBe('hole_by_hole');
+    expect(insights.round_identity_v1.modifiers).toContain('bounce_back');
   });
 
   it('passes short-game opportunity guard inputs into measured SG selection', async () => {
@@ -286,8 +367,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(mockedRunMeasuredSgSelection).toHaveBeenCalledWith(
@@ -374,8 +455,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages).toHaveLength(3);
@@ -447,8 +528,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages[1]).not.toMatch(/Recorded FIR misses|Recorded GIR misses/i);
@@ -473,8 +554,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.message_outcomes[2]).toBe('M3-C');
@@ -534,8 +615,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: false, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: false },
+      { forceRegenerate: true },
     );
 
     expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
@@ -598,8 +679,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
@@ -653,8 +734,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
@@ -719,8 +800,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: false, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: false },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages).toHaveLength(3);
@@ -732,6 +813,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[1].toLowerCase()).not.toContain('untracked parts');
     expect(insights.messages[1].toLowerCase()).not.toContain('not fully tracked');
     expect(insights.messages.join(' ').toLowerCase()).not.toContain('residual');
+    expect(insights.round_identity_v1).toBeNull();
   });
 
   it('premium users include residual suffix only when residual is dominant', async () => {
@@ -761,8 +843,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const dominant = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(dominant.messages[1].toLowerCase()).toMatch(
@@ -786,8 +868,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const nonDominant = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(nonDominant.messages[1].toLowerCase()).not.toContain('tracked stats');
@@ -823,8 +905,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const belowThreshold = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(belowThreshold.messages.join(' ').toLowerCase()).not.toMatch(
@@ -857,8 +939,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.confidence).toBe('LOW');
@@ -912,19 +994,19 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.confidence).toBe('LOW');
     expect(insights.message_outcomes[1]).toBe('M2-A');
     expect(insights.messages[1]).toMatch(
-      /Penalty trouble created the biggest scoring pressure in this round|Penalty strokes kept forcing difficult recovery situations|Trouble off the tee added pressure before the hole could settle|Penalty trouble made too many holes harder to manage/,
+      /Penalty trouble created the biggest scoring pressure in this round|Penalty strokes made too many holes harder to contain|Trouble off the tee made too many holes harder from the start|Penalty trouble made too many holes harder to manage/,
     );
     expect(insights.messages[1]).not.toContain('Missing that many greens usually puts pressure');
   });
 
-  it('MED vs HIGH confidence differ in M2 decisiveness at the API boundary', async () => {
+  it('keeps legacy M2 decisiveness while projecting canonical confidence consistently across tiers', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
       if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
@@ -945,7 +1027,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     });
 
     mockedRunMeasuredSgSelection.mockReset();
-    mockedRunMeasuredSgSelection.mockReturnValueOnce({
+    const decisiveSelection = {
       components: [
         { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.2 },
@@ -957,12 +1039,19 @@ describe('/api/rounds/[id]/insights route contract', () => {
       componentCount: 3,
       residualDominant: false,
       weakSeparation: false,
-    });
+    };
+    mockedRunMeasuredSgSelection.mockReturnValue(decisiveSelection);
     const high = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
+    );
+    const freeHigh = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false },
+      { forceRegenerate: true },
     );
 
     mockedRunMeasuredSgSelection.mockReturnValueOnce({
@@ -981,11 +1070,13 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const med = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
-    expect(high.confidence).toBe('HIGH');
+    expect(high.round_identity_v1.confidence).toBe('moderate');
+    expect(high.confidence).toBe('MED');
+    expect(freeHigh.confidence).toBe('MED');
     expect(med.confidence).toBe('MED');
     expect(high.message_outcomes[1]).toBe('M2-D');
     expect(med.message_outcomes[1]).toBe('M2-D');
@@ -994,6 +1085,24 @@ describe('/api/rounds/[id]/insights route contract', () => {
   });
 
   it('residual-dominant ambiguous rounds acknowledge uncertainty in premium M2 copy', async () => {
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
+        return [
+          { id: BigInt(10), score: 78, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+          { id: BigInt(20), score: 77, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+          { id: BigInt(30), score: 76, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+          { id: BigInt(40), score: 74, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+        ];
+      }
+      if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'desc') {
+        return [
+          { id: BigInt(39), score: 75, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+          { id: BigInt(38), score: 76, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        ];
+      }
+      return [];
+    });
     mockedRunMeasuredSgSelection.mockReset();
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
@@ -1021,10 +1130,15 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
+    expect(insights.round_identity_v1.sampleContext).toBe('established');
+    expect(insights.round_identity_v1.evidenceLevel).toBe('aggregate_stats');
+    expect(insights.round_identity_v1.statCompletenessScore).toBeGreaterThanOrEqual(45);
+    expect(insights.round_identity_v1.confidence).toBe('moderate');
+    expect(insights.round_identity_v1.primaryKey).toBe('no_clear_separator');
     expect(insights.confidence).toBe('MED');
     expect(insights.message_outcomes[1]).toBe('M2-D');
     expect(insights.messages[1].toLowerCase()).toMatch(
@@ -1069,8 +1183,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages[0]).toContain('You shot 46');
@@ -1115,8 +1229,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: false, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: false },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages[0]).toContain('You shot 46');
@@ -1170,8 +1284,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages[0]).toContain('above your recent average');
@@ -1221,8 +1335,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages[0]).toContain('better than your recent average');
@@ -1272,12 +1386,113 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(40),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(insights.messages[0]).toContain('matches your recent average');
     expect(insights.message_levels[0]).toBe('success');
+  });
+
+  it('keeps free M1 rewarding when positive total SG and recent-score context point different ways', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 82,
+      firHit: 7,
+      girHit: 9,
+      putts: 32,
+      penalties: 1,
+      teeSegment: 'full',
+      roundHoles: [],
+      tee: makeTee(),
+    });
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(10), score: 80, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+        { id: BigInt(20), score: 80, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+        { id: BigInt(30), score: 80, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+        { id: BigInt(40), score: 82, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        { id: BigInt(39), score: 80, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        { id: BigInt(38), score: 80, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+      ]);
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      sgTotal: 0.5,
+      sgOffTee: 0.2,
+      sgApproach: 0.1,
+      sgShortGame: 0.1,
+      sgPutting: 0.1,
+      sgPenalties: 0,
+      sgResidual: 0,
+      confidence: 'medium',
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false },
+      { forceRegenerate: true },
+    );
+
+    expect(insights.message_levels[0]).toBe('success');
+    expect(insights.messages[0]).toMatch(/overall performance finished above expectation/i);
+    expect(insights.messages[0]).not.toMatch(/\+0\.5|strokes gained/i);
+  });
+
+  it('keeps free M1 cautionary when a better score still finishes below the SG benchmark', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 78,
+      firHit: 7,
+      girHit: 9,
+      putts: 33,
+      penalties: 1,
+      teeSegment: 'full',
+      roundHoles: [],
+      tee: makeTee(),
+    });
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(10), score: 80, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+        { id: BigInt(20), score: 80, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+        { id: BigInt(30), score: 80, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+        { id: BigInt(40), score: 78, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        { id: BigInt(39), score: 80, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        { id: BigInt(38), score: 80, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+      ]);
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      sgTotal: -0.5,
+      sgOffTee: -0.1,
+      sgApproach: -0.2,
+      sgShortGame: -0.1,
+      sgPutting: -0.1,
+      sgPenalties: 0,
+      sgResidual: 0,
+      confidence: 'medium',
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false },
+      { forceRegenerate: true },
+    );
+
+    expect(insights.message_levels[0]).toBe('warning');
+    expect(insights.messages[0]).toMatch(/score improved/i);
+    expect(insights.messages[0]).toMatch(/overall performance still finished below expectation/i);
+    expect(insights.messages[0]).not.toMatch(/-0\.5|strokes gained/i);
   });
 
   it('M2 outcome levels map to semantic levels (C=info, D=warning, E=success)', async () => {
@@ -1357,8 +1572,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
       const insights = await generateInsights(
         BigInt(40),
         BigInt(1),
-        { isPremium: true, showStrokesGained: true },
-        { forceRegenerate: true, bumpVariant: false },
+        { isPremium: true },
+        { forceRegenerate: true },
       );
 
       expect(insights.message_outcomes[1]).toBe(testCase.name);
@@ -1366,7 +1581,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     }
   });
 
-  it('free rewritten M2 level matches the final displayed free text', async () => {
+  it('keeps free M2 aligned to the canonical identity when legacy selections disagree', async () => {
     mockedPrisma.round.findMany.mockReset();
     mockedPrisma.round.findMany.mockImplementation(async (args: any) => {
       if (Array.isArray(args?.orderBy) && args.orderBy[0]?.date === 'asc') {
@@ -1400,7 +1615,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
           residualDominant: false,
           weakSeparation: false,
         },
-        expectedText: 'Approach was the main area costing you strokes.',
+        expectedText: 'Putting was the main area costing you strokes.',
         expectedLevel: 'warning',
       },
       {
@@ -1416,8 +1631,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
           residualDominant: false,
           weakSeparation: false,
         },
-        expectedText: 'Approach was the strongest part of the round.',
-        expectedLevel: 'success',
+        expectedText: 'Putting was the main area costing you strokes.',
+        expectedLevel: 'warning',
       },
       {
         selection: {
@@ -1432,8 +1647,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
           residualDominant: false,
           weakSeparation: false,
         },
-        expectedText: 'Off The Tee was not a big factor in the score.',
-        expectedLevel: 'info',
+        expectedText: 'Putting was the main area costing you strokes.',
+        expectedLevel: 'warning',
       },
     ] as const;
 
@@ -1443,13 +1658,46 @@ describe('/api/rounds/[id]/insights route contract', () => {
       const insights = await generateInsights(
         BigInt(40),
         BigInt(1),
-        { isPremium: false, showStrokesGained: true },
-        { forceRegenerate: true, bumpVariant: false },
+        { isPremium: false },
+        { forceRegenerate: true },
       );
 
       expect(insights.messages[1]).toBe(testCase.expectedText);
       expect(insights.message_levels[1]).toBe(testCase.expectedLevel);
+      expect(insights.messages[2]).toMatch(
+        /^Next round: (make reducing avoidable putts|keep putting as the first area|look for cleaner finishes|make finishing holes with fewer putts)/i,
+      );
+      expect(insights.messages[2]).not.toMatch(/first-putt|pace|start line|three-putt/i);
     }
+  });
+
+  it('keeps free no-clear-separator M2 informational and non-decisive', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 86,
+      firHit: 7,
+      girHit: 6,
+      putts: 32,
+      penalties: 1,
+      teeSegment: 'full',
+      roundHoles: [],
+      tee: makeTee(),
+    });
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue(null);
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false },
+      { forceRegenerate: true },
+    );
+
+    expect(insights.messages[1]).toMatch(/No tracked area clearly separated/i);
+    expect(insights.messages[1]).toMatch(/slightly lower, but not enough to define the round/i);
+    expect(insights.messages[1]).not.toMatch(/clearest leak|main area costing/i);
+    expect(insights.message_levels[1]).toBe('info');
   });
 
   it('M3 remains info-level across outcomes', async () => {
@@ -1505,12 +1753,62 @@ describe('/api/rounds/[id]/insights route contract', () => {
       const insights = await generateInsights(
         BigInt(40),
         BigInt(1),
-        { isPremium: true, showStrokesGained: true },
-        { forceRegenerate: true, bumpVariant: false },
+        { isPremium: true },
+        { forceRegenerate: true },
       );
       expect(insights.messages[2].startsWith('Next round:')).toBe(true);
       expect(insights.message_levels[2]).toBe('info');
     }
+  });
+
+  it('keeps an urgent canonical M3 warning for free users without exposing premium identity detail', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 84,
+      firHit: 7,
+      girHit: 9,
+      putts: 32,
+      penalties: 3,
+      teeSegment: 'full',
+      roundHoles: [],
+      tee: makeTee(),
+    });
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(10), score: 82, createdAt: new Date('2026-01-01T12:00:00.000Z') },
+        { id: BigInt(20), score: 82, createdAt: new Date('2026-01-10T12:00:00.000Z') },
+        { id: BigInt(30), score: 82, createdAt: new Date('2026-01-20T12:00:00.000Z') },
+        { id: BigInt(40), score: 84, createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        { id: BigInt(39), score: 82, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        { id: BigInt(38), score: 82, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+      ]);
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      sgTotal: -2,
+      sgOffTee: 0,
+      sgApproach: 0,
+      sgShortGame: 0,
+      sgPutting: 0,
+      sgPenalties: -2,
+      sgResidual: 0,
+      confidence: 'medium',
+    });
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false },
+      { forceRegenerate: true },
+    );
+
+    expect(insights.message_levels[2]).toBe('warning');
+    expect(insights.messages[2]).toMatch(/^Next round:/);
+    expect(insights.round_identity_v1).toBeNull();
   });
 
   it('scopes same-day two rounds by strict played date-time ordering', async () => {
@@ -1572,14 +1870,14 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const laterInsights = await generateInsights(
       BigInt(102),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
     const earlierInsights = await generateInsights(
       BigInt(101),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     const savedLaterInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
@@ -1628,8 +1926,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(201),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     const savedInsights = mockedPrisma.roundInsight.upsert.mock.calls[0][0].create.insights;
@@ -1669,8 +1967,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(302),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
@@ -1719,8 +2017,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     await generateInsights(
       BigInt(403),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(
@@ -1763,8 +2061,8 @@ describe('/api/rounds/[id]/insights route contract', () => {
     const insights = await generateInsights(
       BigInt(501),
       BigInt(1),
-      { isPremium: true, showStrokesGained: true },
-      { forceRegenerate: true, bumpVariant: false },
+      { isPremium: true },
+      { forceRegenerate: true },
     );
 
     expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(

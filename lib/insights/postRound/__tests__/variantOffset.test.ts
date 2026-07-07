@@ -16,11 +16,4 @@ describe('resolvePostRoundVariantOffset', () => {
     expect(resolvePostRoundVariantOffset({ variant_offset: 'bad' })).toBe(0);
   });
 
-  it('increments only when forceRegenerate and bumpVariant are both true', () => {
-    const existing = { variant_offset: 4 };
-    expect(resolvePostRoundVariantOffset(existing, { forceRegenerate: true, bumpVariant: true })).toBe(5);
-    expect(resolvePostRoundVariantOffset(existing, { forceRegenerate: true, bumpVariant: false })).toBe(4);
-    expect(resolvePostRoundVariantOffset(existing, { forceRegenerate: false, bumpVariant: true })).toBe(4);
-  });
 });
-

@@ -6,6 +6,16 @@
 type AreaKey = NonNullable<RoundIdentityDisplayAreaEvidence['area']>;
 
 const DAMAGE_MODIFIERS = new Set(['one_hole_damage', 'blow_up_stretch']);
+const CORRECTIVE_PRIMARIES = new Set<RoundIdentity['primaryKey']>([
+  'survival',
+  'approach_leak',
+  'tee_trouble',
+  'penalty_damaged',
+  'putting_leak',
+  'short_game_pressure',
+  'scoring_chance_missed',
+  'everything_leaked',
+]);
 
 const M1_SCORE_ONLY_BASELINE_VARIANTS = [
   'This gives GolfIQ a starting point. Add one or two optional stats next round so it can explain what shaped the number.',
@@ -14,17 +24,24 @@ const M1_SCORE_ONLY_BASELINE_VARIANTS = [
 ] as const;
 
 const M1_BREAKTHROUGH_CLEAN_VARIANTS = [
-  'This was a true breakthrough score that finished clearly above your usual range.',
+  'This was a true breakthrough score that finished clearly better than your usual range.',
   'This round landed well outside your usual scoring range in the right direction.',
-  'This was the kind of score that shows real progress, not just a small step forward.',
+  'This score was clearly better than your recent range, not just a small step forward.',
   'This one clearly separated itself from your recent rounds.',
   'This was a true step forward compared with where your scores have been.',
 ] as const;
 
+const M1_VOLATILE_OR_BIG_POSITIVE_VARIANTS = [
+  'The good holes won out overall, even with a few costly swings.',
+  'This was a positive round overall, with the scoring upside outweighing the expensive holes.',
+  'You created enough good golf to stay ahead of the big numbers.',
+  'The round finished on the right side of your benchmark, even with a few costly holes.',
+] as const;
+
 const M1_BREAKTHROUGH_DAMAGE_VARIANTS = [
-  'This was a true breakthrough score, with enough good holes to outweigh a couple costly mistakes.',
+  'This was a true breakthrough score, with enough good holes to outweigh a couple of costly mistakes.',
   'This round still broke through because the good holes did more than enough to offset the costly ones.',
-  'Even with a couple mistakes, this score was clearly ahead of your usual range.',
+  'Even with a couple of mistakes, this score was clearly ahead of your usual range.',
   'The costly holes showed up, but they did not define the round, and the score still broke through.',
   'This was a breakthrough round because the good holes outweighed the damage.',
 ] as const;
@@ -62,19 +79,19 @@ const M1_PUTTING_SAVED_VARIANTS = [
 ] as const;
 
 const M1_TEE_CONTROLLED_VARIANTS = [
-  'Playability off the tee made the rest of each hole easier to manage.',
-  'Tee shots gave the round cleaner starts and kept pressure off the rest of the hole.',
-  'The round was easier to manage because the ball stayed playable off the tee.',
-  'Good enough tee-shot control helped keep the scorecard under control.',
-  'The tee game gave you more holes that started from manageable spots.',
+  'Fairway finding was a clear strength Off The Tee.',
+  'Off The Tee results supported the score through stronger fairway finding.',
+  'Tee-shot accuracy gave the round a stronger base.',
+  'Off The Tee was a positive, led by the number of fairways you found.',
+  'Fairway finding helped make Off The Tee one of the stronger parts of the round.',
 ] as const;
 
 const M1_SHORT_GAME_RESCUE_VARIANTS = [
-  'Recovery shots kept missed greens from turning into bigger damage.',
-  'The short game helped keep missed greens from becoming round-changing mistakes.',
-  'Recovery around the green did enough to protect the score.',
-  'The short game gave the round a safety net when greens were missed.',
-  'Around the greens, you limited enough damage to keep the round together.',
+  'You needed fewer recovery shots than expected after missed greens.',
+  'Short-game efficiency helped limit the cost of missed greens.',
+  'Recovery-shot efficiency did enough to protect the score.',
+  'The short game used fewer shots than expected after greens were missed.',
+  'Around the greens, efficient recovery work helped hold the round together.',
 ] as const;
 
 const M1_STEADY_SCORING_VARIANTS = [
@@ -86,7 +103,7 @@ const M1_STEADY_SCORING_VARIANTS = [
 ] as const;
 
 const M1_ALL_AROUND_STRONG_VARIANTS = [
-  'This round was not carried by one lucky area. Multiple parts of your game supported the score.',
+  'This round was not carried by one area. Multiple parts of your game supported the score.',
   'This was balanced golf. More than one part of your game helped the score.',
   'The score had support from multiple areas instead of depending on one standout stat.',
   'This round worked because several parts of your game held up at the same time.',
@@ -105,7 +122,7 @@ const M1_PENALTY_DAMAGED_NORMAL_VARIANTS = [
   'Penalty trouble changed the score more than routine mistakes.',
   'Penalty strokes changed the round more than routine mistakes did.',
   'The penalties made the score climb faster than the rest of the round suggested.',
-  'This round got more expensive when penalty strokes entered the round.',
+  'The score got more expensive when penalty strokes appeared.',
   'Penalty trouble was the part that changed the score the quickest.',
 ] as const;
 
@@ -118,11 +135,11 @@ const M1_PENALTY_DAMAGED_REPEATED_VARIANTS = [
 ] as const;
 
 const M1_PUTTING_LEAK_VARIANTS = [
-  'The score got away mostly on the greens. The chances were there, but the finish was not sharp enough.',
+  'The score got away mostly on the greens. Putting added more strokes than the round could absorb.',
   'Too many strokes stayed on the greens.',
   'Putting made it harder to turn decent holes into better numbers.',
   'The round needed more from the putter than it got.',
-  'Too many chances stalled on the greens, and that showed up in the score.',
+  'Putting held the score back, and that showed up in the final number.',
 ] as const;
 
 const M1_SCORING_CHANCE_MISSED_VARIANTS = [
@@ -142,19 +159,19 @@ const M1_APPROACH_LEAK_VARIANTS = [
 ] as const;
 
 const M1_TEE_TROUBLE_VARIANTS = [
-  'Too many holes started from recovery spots, which made scoring harder than it needed to be.',
-  'The round got harder because too many holes started from awkward positions.',
-  'Tee-shot trouble put pressure on the rest of too many holes.',
-  'Too many tee shots left the round playing from defense.',
-  'The scorecard got tougher because the first shot did not set up enough clean holes.',
+  'Fairway finding was the clearest issue Off The Tee.',
+  'Too many fairways were missed for Off The Tee to support the score.',
+  'Tee-shot accuracy was below its expected level this round.',
+  'Off The Tee lost ground through missed fairways.',
+  'The clearest tee-shot signal was not finding enough fairways.',
 ] as const;
 
 const M1_SHORT_GAME_PRESSURE_VARIANTS = [
-  'The round leaned on too many difficult saves, and that pressure added up.',
-  'Too many holes needed recovery work around the green, and that made the score harder to protect.',
-  'The short game was under pressure too often for the round to stay clean.',
-  'Too many missed greens turned into difficult saves.',
-  'The round asked for too many up-and-downs, and that pressure showed up in the score.',
+  'Recovery shots added up too quickly after missed greens.',
+  'The round needed more recovery shots than expected after missed greens.',
+  'Short-game efficiency was below expectation this round.',
+  'Missed greens required too many recovery shots.',
+  'Recovery work took too many strokes, and that pressure showed up in the score.',
 ] as const;
 
 const M1_EVERYTHING_LEAKED_VARIANTS = [
@@ -165,6 +182,20 @@ const M1_EVERYTHING_LEAKED_VARIANTS = [
   'The round got away because more than one part of the game was under pressure.',
 ] as const;
 
+const M1_POSITIVE_WITH_CORRECTIVE_PRIMARY_VARIANTS = [
+  'Overall, this was a positive round. One weaker area should not overshadow the result.',
+  'The round finished above expectation overall, even with one area still worth tightening.',
+  'The stronger parts of the round outweighed the area that needs work.',
+  'The round finished on the right side of the benchmark, with one area left to clean up.',
+] as const;
+
+const M1_NO_CLEAR_POSITIVE_VARIANTS = [
+  'The overall result was positive, and no single tracked area had to carry it.',
+  'The round held up overall without one tracked area separating from the rest.',
+  'This was a balanced result, with no single tracked area defining the score.',
+  'The result stayed on the positive side even though the tracked areas remained close.',
+] as const;
+
 const M2_SCORE_ONLY_BASELINE_VARIANTS = [
   'This round gives GolfIQ a starting point for future comparisons.',
   'This score gives you a starting point to compare against next time.',
@@ -173,10 +204,10 @@ const M2_SCORE_ONLY_BASELINE_VARIANTS = [
 ] as const;
 
 const M2_STRENGTH_PUTTING_VARIANTS = [
-  "Putting was the round's biggest edge. With {putts} putts, you converted enough chances to support the score.",
-  'The putter gave the round its biggest lift. With {putts} putts, you saved enough strokes to protect the score.',
-  'Putting did real work for the score. {putts} putts helped turn chances into better numbers.',
-  'Putting was a strength. With {putts} putts, you gave the round a scoring boost.',
+  'Putting was your biggest gain against your benchmark. You had {putts} putts.',
+  'The putter gave the round its biggest lift. You finished with {putts} putts.',
+  'Putting was your clearest strength this round. You had {putts} putts.',
+  'Putting gained the most strokes against your benchmark. You finished with {putts} putts.',
 ] as const;
 
 const M2_STRENGTH_APPROACH_VARIANTS = [
@@ -187,24 +218,24 @@ const M2_STRENGTH_APPROACH_VARIANTS = [
 ] as const;
 
 const M2_STRENGTH_OFF_TEE_VARIANTS = [
-  'Tee shots kept the round playable. You found {made} of {total} fairways, which helped keep pressure off the rest of the hole.',
-  'The tee game gave you enough clean starts. Finding {made} of {total} fairways kept more holes manageable.',
-  'Off the tee, the ball stayed playable often enough to support the score.',
-  'Tee-shot control helped the round stay organized by keeping more holes in front of you.',
+  'Off The Tee was a strength. You found {made} of {total} fairways.',
+  'Fairway finding supported the score Off The Tee. You hit {made} of {total} fairways.',
+  'Off The Tee finished above expectation through stronger fairway finding.',
+  'Tee-shot accuracy was one of the clearest positive signals in the round.',
 ] as const;
 
 const M2_STRENGTH_SHORT_GAME_VARIANTS = [
-  'The short game helped limit damage. Missed greens did not hurt as much because recovery shots kept you in the hole.',
-  'Around the greens, you did enough to keep the score from slipping further.',
-  'The short game gave the round a safety net when greens were missed.',
-  'Recovery shots helped protect the round when the approach game left work to do.',
+  'The short game helped limit damage by using fewer recovery shots than expected after missed greens.',
+  'Around the greens, recovery-shot efficiency helped keep the score from slipping further.',
+  'The short game finished above expectation after greens were missed.',
+  'Efficient recovery work helped protect the round after missed greens.',
 ] as const;
 
 const M2_STRENGTH_PENALTIES_VARIANTS = [
   'Risk control quietly supported the score. Keeping penalty trouble down protected your scoring momentum.',
   'Avoiding penalty trouble helped keep the round from getting expensive.',
   'The round stayed cleaner because penalty strokes did not pile up.',
-  'Keeping the ball in play protected the score more than it might show at first glance.',
+  'Keeping penalty strokes off the card protected the score more than it might show at first glance.',
 ] as const;
 
 const M2_STRENGTH_GENERIC_VARIANTS = [
@@ -222,10 +253,10 @@ const M2_LEAK_PENALTIES_VARIANTS = [
 ] as const;
 
 const M2_LEAK_OFF_TEE_VARIANTS = [
-  'Tee shots made the round harder than it needed to be. When the ball starts from recovery spots, everything after that gets tougher.',
-  'The round was under pressure early on too many holes because of tee-shot trouble.',
-  'Too many tee shots left the rest of the hole playing from defense.',
-  'The first shot created too much work, and that pressure carried into the score.',
+  'Off The Tee was the clearest leak because too few fairways were found.',
+  'Tee-shot accuracy finished below expectation this round.',
+  'Missed fairways made Off The Tee the clearest area to tighten.',
+  'Fairway finding was the main issue in the Off The Tee results.',
 ] as const;
 
 const M2_LEAK_APPROACH_VARIANTS = [
@@ -236,17 +267,17 @@ const M2_LEAK_APPROACH_VARIANTS = [
 ] as const;
 
 const M2_LEAK_PUTTING_VARIANTS = [
-  'Putting was the clearest leak. The chances were there, but too many strokes stayed on the greens.',
-  'The greens held the score back. Too many chances needed one stroke more than they should have.',
+  'Putting was the clearest leak. Too many strokes stayed on the greens.',
+  'The greens held the score back because putting required too many strokes.',
   'Putting made it harder to finish holes cleanly.',
   'Too much of the score stayed on the greens, and that kept the number higher.',
 ] as const;
 
 const M2_LEAK_SHORT_GAME_VARIANTS = [
-  'Short-game pressure was the clearest leak. Too many misses left difficult saves for par.',
-  'Around the greens, the round needed too many tough saves.',
-  'The short game could not erase enough of the missed-green pressure.',
-  'Too many recovery shots left difficult next putts, and that added up.',
+  'Short-game efficiency was the clearest leak. Missed greens required too many recovery shots.',
+  'Around the greens, the round needed more recovery shots than expected.',
+  'The short game lost ground through inefficient recovery work after missed greens.',
+  'Recovery shots added up too quickly after missed greens.',
 ] as const;
 
 const M2_LEAK_GENERIC_VARIANTS = [
@@ -277,6 +308,27 @@ const M2_GENERIC_SUMMARY_VARIANTS = [
   'One more tracked area next round would make the main reason behind the score much clearer.',
 ] as const;
 
+const M2_NO_CLEAR_WEAKEST_VARIANTS = [
+  'No tracked area separated enough to call a clear leak. {areaLabel} was slightly lower, but not decisive.',
+  '{areaLabel} was the lowest tracked area, but the gap was not enough to define the round.',
+  'The tracked areas stayed close. {areaLabel} was slightly lower, but one round is not enough to call it a pattern.',
+  'There was no clear leak in the tracked data. {areaLabel} was the lowest area, but only by a small margin.',
+] as const;
+
+const M2_NO_CLEAR_STRONGEST_VARIANTS = [
+  'No tracked area separated enough to call a clear strength. {areaLabel} was slightly higher, but not decisive.',
+  '{areaLabel} was the highest tracked area, but the gap was not enough to define the round.',
+  'The tracked areas stayed close. {areaLabel} was slightly higher, but one round is not enough to call it a pattern.',
+  'There was no clear standout in the tracked data. {areaLabel} was the highest area, but only by a small margin.',
+] as const;
+
+const M2_NO_CLEAR_BALANCED_VARIANTS = [
+  'No tracked area separated enough to call a clear strength or leak.',
+  'The tracked areas stayed close, with no decisive strength or weakness.',
+  'This was a balanced read. No tracked area stood far enough apart to define the round.',
+  'The available stats did not show one area clearly outperforming or trailing the rest.',
+] as const;
+
 const M3_EXPLAIN_VARIANTS = [
   'Add one or two optional stats next round so GolfIQ can explain more than just the score.',
   'Add a couple of stats next round, like putts or greens, so GolfIQ can explain what shaped the score.',
@@ -284,10 +336,10 @@ const M3_EXPLAIN_VARIANTS = [
 ] as const;
 
 const M3_REPEAT_DAMAGE_COUPLE_VARIANTS = [
-  'Next round, keep giving yourself scoring chances while protecting against the big numbers. Clean up the couple of doubles, and this kind of round can go even lower.',
-  'Next round, keep creating scoring chances and make the doubles harder to find.',
+  'Next round, keep the parts that worked while protecting against the big numbers. Clean up those doubles, and this kind of round can go even lower.',
+  'Next round, keep the parts that worked and make the doubles harder to find.',
   'Next round, protect the good holes by keeping the costly ones closer to bogey.',
-  'Next round, keep creating chances and make the couple of bad holes less expensive.',
+  'Next round, keep the good pattern and make those costly holes less expensive.',
 ] as const;
 
 const M3_REPEAT_DAMAGE_ONE_VARIANTS = [
@@ -307,28 +359,28 @@ const M3_REPEAT_PAR3_VARIANTS = [
 const M3_REPEAT_PAR5_VARIANTS = [
   'Next round, keep leaning on par 5 scoring while protecting the holes where par is a good result.',
   'Next round, keep using the par 5s as scoring chances without forcing the risky shot.',
-  'Next round, let the par 5s help the score again, but stay patient when the chance is not there.',
-  'Next round, keep the par 5 mindset that gave the score a lift.',
+  'Next round, let the par 5s help the score again without forcing a shot when the chance is not there.',
+  'Next round, keep the par 5 scoring pattern that gave the score a lift.',
 ] as const;
 
 const M3_REPEAT_SLOW_START_STRONG_FINISH_VARIANTS = [
-  'Next round, bring the same calm you found late in the round into the first few holes.',
-  'Next round, try to start with the same rhythm you found near the finish.',
-  'Next round, use the late-round version of your game earlier.',
-  'Next round, treat the opening holes like the stretch where you settled in.',
+  'Next round, bring the lower-damage pattern from the finish into the first few holes.',
+  'Next round, aim for the same scoring control early that showed up near the finish.',
+  'Next round, carry the cleaner late-round scoring pattern into the opening holes.',
+  'Next round, use the safer scoring pattern from the finish on the opening holes.',
 ] as const;
 
 const M3_REPEAT_FAST_START_SLOW_FINISH_VARIANTS = [
-  'Next round, carry your early-round discipline into the finish so the cushion lasts.',
-  'Next round, protect the good start by keeping the same decisions late.',
-  'Next round, when the round starts well, stay patient through the closing holes.',
-  'Next round, keep the early rhythm from turning into late pressure.',
+  'Next round, carry the early scoring control into the finish so the cushion lasts.',
+  'Next round, protect the good start by keeping the same scoring control late.',
+  'Next round, when the round starts well, keep the same damage control through the closing holes.',
+  'Next round, keep the early scoring control from turning into late pressure.',
 ] as const;
 
 const M3_REPEAT_BOUNCE_VARIANTS = [
   'Next round, keep using that bounce-back response after mistakes. It protected the round.',
   'Next round, keep resetting after mistakes instead of letting one hole turn into two.',
-  'Next round, trust the reset after a bad hole. That response matters.',
+  'Next round, use the next hole as a reset after a mistake.',
   'Next round, keep the same response when a mistake shows up.',
 ] as const;
 
@@ -341,7 +393,7 @@ const M3_REPEAT_REPEATED_BOGEYS_VARIANTS = [
 
 const M3_REPEAT_NO_DAMAGE_VARIANTS = [
   'Next round, keep the same damage control and let the score build from clean holes.',
-  'Next round, repeat the clean-card mindset before chasing anything extra.',
+  'Next round, keep the same low-damage priority before chasing anything extra.',
   'Next round, keep avoiding the mistake that changes the whole card.',
   'Next round, let the score build from another low-damage round.',
 ] as const;
@@ -389,10 +441,10 @@ const M3_FIX_BIG_3PLUS_VARIANTS = [
 ] as const;
 
 const M3_FIX_BIG_2_VARIANTS = [
-  'Next round, protect against the couple of big-number holes. Keep the risky shots simple before they turn into doubles or worse.',
-  'Next round, treat the risky holes with more patience. One safer decision can keep a double from becoming the story.',
+  'Next round, protect against those two big-number holes. Keep the risky shots simple before they turn into doubles or worse.',
+  'Next round, use the safer target on the risky holes. One simpler decision can keep a double from becoming the story.',
   'Next round, when trouble shows up, take the boring shot back into play first.',
-  "Next round, keep the couple of costly holes from becoming the round's main story.",
+  "Next round, keep those two costly holes from becoming the round's main story.",
 ] as const;
 
 const M3_FIX_BIG_ONE_VARIANTS = [
@@ -410,10 +462,10 @@ const M3_FIX_PENALTIES_VARIANTS = [
 ] as const;
 
 const M3_FIX_PUTTING_VARIANTS = [
-  'Next round, focus on first-putt pace and leave distance before worrying about makes.',
-  'Next round, make speed control the first putting goal.',
-  'Next round, protect against the three-putt first and let the makes come after that.',
-  'Next round, leave the first putt closer before chasing every make.',
+  'Next round, make reducing avoidable putts the first putting goal.',
+  'Next round, keep putting as the first area to tighten and make the goal simple.',
+  'Next round, look for cleaner finishes on the greens before changing anything else.',
+  'Next round, make finishing holes with fewer putts the putting priority.',
 ] as const;
 
 const M3_FIX_OFF_TEE_VARIANTS = [
@@ -449,6 +501,20 @@ const M3_BUILD_FIRST_NO_STRONG_VARIANTS = [
   'Next round, add a couple of basics like putts or greens so the round story gets clearer.',
   'Next round, track one extra area and the insight will have more to work with.',
   'Next round, one or two extra stats will help separate what happened from why it happened.',
+] as const;
+
+const M3_BUILD_NO_CLEAR_WEAKEST_VARIANTS = [
+  'Next round, keep tracking the same areas. {areaLabel} was slightly lower, but one more round will show whether that is a real pattern.',
+  'Next round, keep the same stats in place and watch {areaLabel}. The current gap is not decisive yet.',
+  'Next round, track the same areas again before treating {areaLabel} as a real leak.',
+  'Next round, give {areaLabel} one more round of evidence before making it the priority.',
+] as const;
+
+const M3_BUILD_NO_CLEAR_GENERIC_VARIANTS = [
+  'Next round, keep tracking the same areas and see whether one separates more clearly.',
+  'Next round, use the same stat set again so a clearer pattern has a chance to emerge.',
+  'Next round, keep the tracking consistent and let another round confirm what matters most.',
+  'Next round, repeat the same tracking before choosing one area as the priority.',
 ] as const;
 
 const M3_BUILD_WEAKEST_VARIANTS = [
@@ -512,7 +578,10 @@ function joinSentences(parts: Array<string | null | undefined>): string {
 
 function buildLeadWithBaseline(lead: string, baselineDeltaText?: string | null): string {
   if (!baselineDeltaText) return lead;
-  const cleanedBaseline = baselineDeltaText.trim().replace(/\.$/, '');
+  const cleanedBaseline = baselineDeltaText
+    .trim()
+    .replace(/\.$/, '')
+    .replace(/^Right on\b/, 'right on');
   if (/^You shot /i.test(lead)) {
     return `${lead}, which was ${cleanedBaseline}`;
   }
@@ -620,10 +689,28 @@ function areaLabel(area: AreaKey): string {
   return 'this pattern';
 }
 
+function appendDirectionalEvidence(
+  identity: RoundIdentity,
+  area: RoundIdentityDisplayAreaEvidence,
+  text: string,
+): string {
+  const directional = identity.displayEvidence?.directional;
+  if (!directional) return text;
+  const expectedArea = directional.area === 'fir' ? 'off_tee' : 'approach';
+  if (area.area !== expectedArea) return text;
+
+  const statLabel = directional.area === 'fir' ? 'FIR' : 'GIR';
+  const verb = directional.confidence === 'high' ? 'were mostly' : 'leaned';
+  return joinSentences([
+    text,
+    `This round's ${statLabel} misses ${verb} ${directional.dominantDirection} (${directional.count}/${directional.totalDirectionalMisses}).`,
+  ]);
+}
+
 function goodScoreBadProcessAreaLine(identity: RoundIdentity): string {
   const area = identity.displayEvidence?.weakestArea?.area;
   if (area === 'approach') return 'The score improved, but approach play still left too much work.';
-  if (area === 'off_tee') return 'The score improved, but tee shots still left too many holes playing from defense.';
+  if (area === 'off_tee') return 'The score improved, but fairway finding Off The Tee still needs attention.';
   if (area === 'putting') return 'The score improved, but putting still left strokes on the greens.';
   if (area === 'short_game') return 'The score improved, but the short game still had too much cleanup work.';
   if (area === 'penalties') {
@@ -702,7 +789,7 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
       [
         'The round got better as it went, which is a useful signal.',
         'The finish was stronger than the start, which gives you something to build from.',
-        'You found a better rhythm later in the round.',
+        'The scoring pattern was cleaner later in the round.',
         'The late holes were cleaner than the early ones.',
       ],
       'm1-addon-slow-start-strong-finish',
@@ -741,7 +828,7 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
       [
         'Par 3s created more pressure than the rest of the round.',
         'The par 3s were where the scorecard got most uncomfortable.',
-        'The shorter holes played tougher than they should have.',
+        'Par 3 scoring cost more than the other hole types.',
         'Par 3 scoring added more stress than expected.',
       ],
       'm1-addon-par3',
@@ -836,9 +923,10 @@ function buildM2BigNumberFirst(identity: RoundIdentity, count: number | null | u
     variantFns[3] = () => 'One costly hole changed the score more than the rest of the round.';
   }
   if (count === 2) {
-    variantFns[0] = () => 'A couple holes did most of the damage.';
-    variantFns[1] = () => 'A couple holes carried too much of the score.';
-    variantFns[3] = () => 'A couple costly holes changed the score more than the rest of the round.';
+    variantFns[0] = () => 'A couple of holes did most of the damage.';
+    variantFns[1] = () => 'A couple of holes carried too much of the score.';
+    variantFns[2] = () => 'The round got away on two costly holes.';
+    variantFns[3] = () => 'A couple of costly holes changed the score more than the rest of the round.';
   }
   const variant = pickTemplate(identity, `${saltPrefix}-${count ?? 'na'}`, variantFns);
   return variant({ countText, countTextLower });
@@ -884,16 +972,44 @@ export function buildStoryCard(identity: RoundIdentity): string {
   const scoreText = identity.displayEvidence?.scoreText;
   const baselineDeltaText = identity.displayEvidence?.baselineDeltaText;
 
-  if (identity.primaryKey === 'score_only_baseline') {
+  if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
     return joinSentences([
       scoreText ? `You shot ${scoreText}` : 'Score recorded',
       pickVariant(identity, M1_SCORE_ONLY_BASELINE_VARIANTS, 'm1-score-only-baseline'),
     ]);
   }
 
+  if (identity.primaryKey === 'score_only_baseline') {
+    return joinSentences([
+      scoreText ? `You shot ${scoreText}` : 'Round recorded',
+      'The tracked stats did not separate enough to define one clear round story.',
+    ]);
+  }
+
   const lead = scoreText ? `You shot ${scoreText}` : identity.summary;
   const leadWithBaseline = buildLeadWithBaseline(lead, baselineDeltaText);
   const opening = baselineDeltaText ? leadWithBaseline : lead;
+  const positiveOverall = identity.overallTone === 'success' || identity.overallTone === 'great';
+
+  if (identity.primaryKey === 'no_clear_separator') {
+    return joinSentences([
+      opening,
+      positiveOverall
+        ? pickVariant(identity, M1_NO_CLEAR_POSITIVE_VARIANTS, 'm1-no-clear-positive')
+        : identity.summary,
+    ]);
+  }
+
+  if (positiveOverall && CORRECTIVE_PRIMARIES.has(identity.primaryKey)) {
+    return joinSentences([
+      opening,
+      pickVariant(
+        identity,
+        M1_POSITIVE_WITH_CORRECTIVE_PRIMARY_VARIANTS,
+        'm1-positive-corrective-primary',
+      ),
+    ]);
+  }
 
   if (identity.primaryKey === 'breakthrough') {
     const withDamage = hasDamageSignal(identity) || Boolean(identity.displayEvidence?.hbhStory?.detailText);
@@ -909,9 +1025,12 @@ export function buildStoryCard(identity: RoundIdentity): string {
   }
 
   if (identity.primaryKey === 'volatile_scoring' || identity.primaryKey === 'big_number') {
+    const variants = identity.overallTone === 'success' || identity.overallTone === 'great'
+      ? M1_VOLATILE_OR_BIG_POSITIVE_VARIANTS
+      : M1_VOLATILE_OR_BIG_VARIANTS;
     return joinSentences([
       opening,
-      pickVariant(identity, M1_VOLATILE_OR_BIG_VARIANTS, 'm1-volatile-big'),
+      pickVariant(identity, variants, 'm1-volatile-big'),
       selectM1AddOn(identity, { allowHBH: true, primaryCoversRepeatedDamage: true }),
     ]);
   }
@@ -1081,7 +1200,7 @@ function buildLeakCardFromArea(identity: RoundIdentity, area: RoundIdentityDispl
     const penalties = parsePenalties(area.detailText);
     const penaltySentence =
       penalties != null && penalties > 0
-        ? `${penalties === 1 ? 'Even one penalty' : 'A couple penalties'} can turn manageable holes into big numbers.`
+        ? `${penalties === 1 ? 'Even one penalty' : `${countWord(penalties)} penalty strokes`} can turn manageable holes into big numbers.`
         : 'Penalty trouble can turn manageable holes into big numbers quickly.';
     const template = pickVariant(identity, M2_LEAK_PENALTIES_VARIANTS, 'm2-leak-penalties');
     return applyTemplate(template, { penaltySentence });
@@ -1114,31 +1233,46 @@ function buildLeakCardFromArea(identity: RoundIdentity, area: RoundIdentityDispl
 }
 
 export function buildAreaCard(identity: RoundIdentity): string {
-  if (identity.primaryKey === 'score_only_baseline') {
+  if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
     return pickVariant(identity, M2_SCORE_ONLY_BASELINE_VARIANTS, 'm2-score-only-baseline');
   }
 
   const strongest = identity.displayEvidence?.strongestArea;
   const weakest = identity.displayEvidence?.weakestArea;
-  const useLeakFraming = identity.tone === 'fix' || identity.primaryKey === 'penalty_damaged';
+  const positiveOverall = identity.overallTone === 'success' || identity.overallTone === 'great';
+  const useLeakFraming = !positiveOverall && (identity.tone === 'fix' || identity.primaryKey === 'penalty_damaged');
 
-  if (identity.primaryKey === 'penalty_damaged' && weakest?.area === 'big_numbers') {
+  if (identity.primaryKey === 'no_clear_separator') {
+    if (weakest) {
+      const template = pickVariant(identity, M2_NO_CLEAR_WEAKEST_VARIANTS, 'm2-no-clear-weakest');
+      return applyTemplate(template, { areaLabel: weakest.label });
+    }
+    if (strongest) {
+      const template = pickVariant(identity, M2_NO_CLEAR_STRONGEST_VARIANTS, 'm2-no-clear-strongest');
+      return applyTemplate(template, { areaLabel: strongest.label });
+    }
+    return pickVariant(identity, M2_NO_CLEAR_BALANCED_VARIANTS, 'm2-no-clear-balanced');
+  }
+
+  if (!positiveOverall && identity.primaryKey === 'penalty_damaged' && weakest?.area === 'big_numbers') {
     const count = parseDoubleOrWorseCount(weakest.valueText) ?? parseDoubleOrWorseCount(weakest.detailText);
     const first = buildM2BigNumberFirst(identity, count, 'm2-penalty-big-number-first');
     const second = buildM2PenaltyBigSecond(identity, count);
     return joinSentences([first, second]);
   }
 
-  if (identity.primaryKey === 'approach_leak' && weakest?.area === 'big_numbers') {
+  if (!positiveOverall && identity.primaryKey === 'approach_leak' && weakest?.area === 'big_numbers') {
     const count = parseDoubleOrWorseCount(weakest.valueText) ?? parseDoubleOrWorseCount(weakest.detailText);
     const first = buildM2BigNumberFirst(identity, count, 'm2-approach-big-number-first');
     const second = buildM2ApproachBigSecond(identity, count);
     return joinSentences([first, second]);
   }
 
-  if (useLeakFraming && weakest) return buildLeakCardFromArea(identity, weakest);
+  if (useLeakFraming && weakest) {
+    return appendDirectionalEvidence(identity, weakest, buildLeakCardFromArea(identity, weakest));
+  }
   if (strongest) return buildStrengthCardFromArea(identity, strongest);
-  if (weakest) return buildLeakCardFromArea(identity, weakest);
+  if (weakest) return appendDirectionalEvidence(identity, weakest, buildLeakCardFromArea(identity, weakest));
 
   if (identity.primaryKey === 'everything_leaked') {
     return pickVariant(identity, M2_EVERYTHING_FALLBACK_VARIANTS, 'm2-everything-fallback');
@@ -1238,6 +1372,14 @@ function buildBuildFocus(identity: RoundIdentity): string {
   const strongest = identity.displayEvidence?.strongestArea;
   const weakest = identity.displayEvidence?.weakestArea;
 
+  if (identity.primaryKey === 'no_clear_separator') {
+    if (weakest) {
+      const template = pickVariant(identity, M3_BUILD_NO_CLEAR_WEAKEST_VARIANTS, 'm3-build-no-clear-weakest');
+      return applyTemplate(template, { areaLabel: weakest.label });
+    }
+    return pickVariant(identity, M3_BUILD_NO_CLEAR_GENERIC_VARIANTS, 'm3-build-no-clear-generic');
+  }
+
   if (identity.sampleContext === 'first_round' && strongest) {
     const template = pickVariant(identity, M3_BUILD_FIRST_WITH_STRONG_VARIANTS, 'm3-build-first-strong');
     return applyTemplate(template, { areaLabel: areaLabel(strongest.area) });
@@ -1257,9 +1399,10 @@ function buildBuildFocus(identity: RoundIdentity): string {
 }
 
 export function buildWatchCard(identity: RoundIdentity): string {
-  if (identity.tone === 'explain') {
+  if (identity.tone === 'explain' && identity.evidenceLevel === 'score_only') {
     return pickVariant(identity, M3_EXPLAIN_VARIANTS, 'sparse-watch');
   }
+  if (identity.tone === 'explain') return buildBuildFocus(identity);
   if (identity.tone === 'repeat') return buildRepeatFocus(identity);
   if (identity.tone === 'fix') return buildFixFocus(identity);
   return buildBuildFocus(identity);

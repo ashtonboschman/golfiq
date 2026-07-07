@@ -81,7 +81,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedOutcomes: ['M1-B', 'M2-A', 'M3-A'],
     expectedLevels: ['success', 'warning', 'info'],
     m1Includes: ['You shot 82 (+10)', 'With only Putting logged', '1.4 strokes'],
-    m2Includes: ['Scoring pressure likely came from missed chances and tougher recovery spots.'],
+    m2Includes: ['One measured area is not enough to explain the full score with confidence.'],
     m3Includes: ['Next round:', 'leaving shorter second putts from long range'],
   },
   {
@@ -127,7 +127,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     expectedOutcomes: ['M1-A', 'M2-A', 'M3-A'],
     expectedLevels: ['success', 'success', 'info'],
     m1Includes: ['You shot 90 (+18).'],
-    m2Includes: ['Rounds in this range often come from lost scoring chances and one or two holes that get away.'],
+    m2Includes: ['The score is clear, but the cause needs more tracked detail.'],
     m3Includes: ['Next round:'],
   },
 ];

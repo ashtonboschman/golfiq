@@ -51,7 +51,9 @@ describe('roundIdentity evidence', () => {
 
   it('resolves sample context bands', () => {
     expect(resolveSampleContext(1)).toBe('first_round');
-    expect(resolveSampleContext(3)).toBe('early');
+    expect(resolveSampleContext(2)).toBe('early');
+    expect(resolveSampleContext(3)).toBe('established');
+    expect(resolveSampleContext(4)).toBe('established');
     expect(resolveSampleContext(8)).toBe('established');
   });
 
@@ -61,7 +63,7 @@ describe('roundIdentity evidence', () => {
     expect(resolveEvidenceLevel(baseInput({ hasTrustedHoleByHole: true }))).toBe('hole_by_hole');
   });
 
-  it('confidence stays building for sparse first rounds and can become stronger with rich evidence', () => {
+  it('keeps first-round confidence building even with rich evidence', () => {
     expect(
       resolveRoundIdentityConfidence({
         evidenceLevel: 'score_only',
@@ -78,7 +80,7 @@ describe('roundIdentity evidence', () => {
         statCompletenessScore: 72,
         sgConfidence: 'high',
       }),
-    ).toBe('moderate');
+    ).toBe('building');
 
     expect(
       resolveRoundIdentityConfidence({

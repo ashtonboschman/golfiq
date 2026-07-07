@@ -297,7 +297,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[1]).toBe('M2-D');
-    expect(out.messages[1]).toContain('Short Game added pressure after missed greens');
+    expect(out.messages[1]).toContain('Short Game added pressure by requiring too many recovery shots after missed greens');
   });
 
   test('uses short-game-specific positive M2 copy when short game is measured as positive', () => {

@@ -1,7 +1,8 @@
-export const ROUND_IDENTITY_V1_VERSION = 'round_identity_v1.0.0';
+export const ROUND_IDENTITY_V1_VERSION = 'round_identity_v1.6.1';
 
 export type RoundIdentityPrimaryKey =
   | 'score_only_baseline'
+  | 'no_clear_separator'
   | 'breakthrough'
   | 'clean_control'
   | 'all_around_strong'
@@ -42,6 +43,13 @@ export type RoundIdentityEvidenceLevel = 'score_only' | 'aggregate_stats' | 'hol
 export type RoundIdentityConfidence = 'building' | 'moderate' | 'strong';
 export type RoundIdentitySampleContext = 'first_round' | 'early' | 'established';
 export type RoundIdentityTone = 'fix' | 'repeat' | 'build' | 'explain';
+export type RoundIdentityOverallTone = 'great' | 'success' | 'warning' | 'info';
+export type RoundIdentityInsightLevel = RoundIdentityOverallTone;
+export type RoundIdentityDisplayLevels = {
+  story: RoundIdentityInsightLevel;
+  worked: RoundIdentityInsightLevel;
+  watch: RoundIdentityInsightLevel;
+};
 export type RoundIdentityEntryMode = 'post_round' | 'live_round' | 'unknown';
 
 export type RoundIdentity = {
@@ -65,6 +73,8 @@ export type RoundIdentity = {
   confidence: RoundIdentityConfidence;
   sampleContext: RoundIdentitySampleContext;
   tone: RoundIdentityTone;
+  overallTone?: RoundIdentityOverallTone;
+  displayLevels?: RoundIdentityDisplayLevels;
   entryMode: RoundIdentityEntryMode;
   statCompletenessScore: number;
   displayEvidence?: RoundIdentityDisplayEvidence;
@@ -92,16 +102,26 @@ export type RoundIdentityDisplayStoryEvidence = {
   detailText: string;
 };
 
+export type RoundIdentityDirectionalEvidence = {
+  area: 'fir' | 'gir';
+  dominantDirection: 'left' | 'right' | 'short' | 'long';
+  count: number;
+  totalDirectionalMisses: number;
+  confidence: 'medium' | 'high';
+};
+
 export type RoundIdentityDisplayEvidence = {
   scoreText?: string;
   baselineDeltaText?: string;
   strongestArea?: RoundIdentityDisplayAreaEvidence;
   weakestArea?: RoundIdentityDisplayAreaEvidence;
   hbhStory?: RoundIdentityDisplayStoryEvidence;
+  directional?: RoundIdentityDirectionalEvidence;
 };
 
 export type RoundIdentityHoleInput = {
   holeNumber: number | null;
+  playOrder?: number | null;
   par: number | null;
   score: number | null;
   pass: number | null;
@@ -126,6 +146,7 @@ export type RoundIdentityResolverInput = {
   roundsLifetime: number;
   avgScoreRecent: number | null;
   handicapAtRound: number | null;
+  fairwaysPossible?: number | null;
   firHit: number | null;
   girHit: number | null;
   putts: number | null;

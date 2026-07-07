@@ -188,7 +188,7 @@ export function RoundInsightsSkeleton() {
       <div className="insights-header">
         <div className="insights-title">
           <Sparkles size={20} />
-          <h3>Performance Insights</h3>
+          <h3>Round Insights</h3>
         </div>
         <SkeletonBlock width={78} height={24} rounded="pill" />
       </div>

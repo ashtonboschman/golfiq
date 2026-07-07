@@ -23,8 +23,9 @@ import {
   buildRoundIdentityInputHash,
   resolveRoundIdentity,
 } from '@/lib/insights/roundIdentity/resolve';
+import { buildWatchCard } from '@/lib/insights/roundIdentity/copyTemplates';
 import { resolveRoundEntryMode } from '@/lib/insights/roundIdentity/evidence';
-import { hasCompleteHoleScores } from '@/lib/insights/roundIdentity/features';
+import { applyPlayedHoleOrder, hasCompleteHoleScores } from '@/lib/insights/roundIdentity/features';
 import {
   ROUND_IDENTITY_V1_VERSION,
   type RoundIdentityHoleInput,
@@ -39,7 +40,6 @@ const inFlightGenerations = new Map<string, Promise<any>>();
 
 type ViewerEntitlements = {
   isPremium: boolean;
-  showStrokesGained: boolean;
 };
 type ScoreDeltaBucket = 'better' | 'near' | 'worse';
 type RoundContextKey = 'real' | 'simulator' | 'practice';
@@ -147,25 +147,56 @@ function formatDirectionalAreaLabel(area: 'fir' | 'gir'): string {
 function buildPostRoundDirectionalQualifier(input: {
   pattern: DirectionalPatternSummary | null;
   confidence: PostRoundConfidence;
-  isPremium: boolean;
 }): string | null {
-  const { pattern, confidence, isPremium } = input;
+  const { pattern, confidence } = input;
   if (!pattern) return null;
   if (confidence === 'LOW') return null;
 
   const area = formatDirectionalAreaLabel(pattern.area);
   const direction = pattern.dominantDirection;
   if (confidence === 'HIGH') {
-    if (isPremium) {
-      return `This round's ${area} misses were mostly ${direction} (${pattern.count}/${pattern.totalDirectionalMisses}).`;
-    }
-    return `This round's ${area} misses were mostly ${direction}.`;
+    return `This round's ${area} misses were mostly ${direction} (${pattern.count}/${pattern.totalDirectionalMisses}).`;
   }
 
-  if (isPremium && pattern.confidence === 'high') {
+  if (pattern.confidence === 'high') {
     return `This round's ${area} misses leaned ${direction} (${pattern.count}/${pattern.totalDirectionalMisses}).`;
   }
   return `This round's ${area} misses leaned ${direction}.`;
+}
+
+function resolveStoredDirectionalPattern(insights: any): DirectionalPatternSummary | null {
+  const raw = insights?.raw_payload?.directional;
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.area !== 'fir' && raw.area !== 'gir') return null;
+  if (!['left', 'right', 'short', 'long'].includes(raw.dominant_direction)) return null;
+  if (raw.confidence !== 'medium' && raw.confidence !== 'high') return null;
+
+  const count = toFiniteNumber(raw.dominant_count);
+  const totalDirectionalMisses = toFiniteNumber(raw.total_directional_misses);
+  if (count == null || totalDirectionalMisses == null || count <= 0 || totalDirectionalMisses < count) return null;
+
+  return {
+    area: raw.area,
+    dominantDirection: raw.dominant_direction,
+    count: Math.round(count),
+    totalDirectionalMisses: Math.round(totalDirectionalMisses),
+    dominanceRatio: count / totalDirectionalMisses,
+    confidence: raw.confidence,
+    usable: true,
+  };
+}
+
+function buildViewerDirectionalQualifier(
+  insights: any,
+  entitlements: ViewerEntitlements,
+  outcome: string | null,
+  confidence: PostRoundConfidence | null,
+): string | null {
+  if (!entitlements.isPremium || outcome !== 'M2-D' || confidence == null) return null;
+  return buildPostRoundDirectionalQualifier({
+    pattern: resolveStoredDirectionalPattern(insights),
+    confidence,
+  });
 }
 
 function hasNoBaselineHistory(insights: any): boolean {
@@ -209,13 +240,117 @@ function buildFreeMessage2(
   return sanitizeWhitespace(currentMessage);
 }
 
+function resolveStoredIdentityLevel(
+  insights: any,
+  key: 'story' | 'worked' | 'watch',
+): InsightLevel | null {
+  const level = insights?.raw_payload?.round_identity_v1?.displayLevels?.[key];
+  return level === 'great' || level === 'success' || level === 'warning' || level === 'info'
+    ? level
+    : null;
+}
+
+function resolveViewerConfidence(insights: any): PostRoundConfidence | null {
+  const identityConfidence = insights?.raw_payload?.round_identity_v1?.confidence;
+  if (identityConfidence === 'building') return 'LOW';
+  if (identityConfidence === 'moderate') return 'MED';
+  if (identityConfidence === 'strong') return 'HIGH';
+
+  const legacyConfidence = insights?.confidence;
+  return legacyConfidence === 'LOW' || legacyConfidence === 'MED' || legacyConfidence === 'HIGH'
+    ? legacyConfidence
+    : null;
+}
+
+function resolveFreeIdentityMessage2(insights: any): { text: string; level: InsightLevel } | null {
+  const identity = insights?.raw_payload?.round_identity_v1;
+  const evidence = identity?.displayEvidence;
+  if (!identity || !evidence || typeof evidence !== 'object') return null;
+
+  const level = resolveStoredIdentityLevel(insights, 'worked');
+  const strongest = evidence.strongestArea;
+  const weakest = evidence.weakestArea;
+
+  if (identity.primaryKey === 'no_clear_separator') {
+    const slightlyLower = weakest?.label;
+    const slightlyHigher = strongest?.label;
+    if (typeof slightlyLower === 'string' && slightlyLower.trim()) {
+      return {
+        text: `No tracked area clearly separated. ${slightlyLower.trim()} was slightly lower, but not enough to define the round.`,
+        level: 'info',
+      };
+    }
+    if (typeof slightlyHigher === 'string' && slightlyHigher.trim()) {
+      return {
+        text: `No tracked area clearly separated. ${slightlyHigher.trim()} was slightly higher, but not enough to define the round.`,
+        level: 'info',
+      };
+    }
+    return {
+      text: 'No tracked area separated enough to call a clear strength or leak.',
+      level: 'info',
+    };
+  }
+
+  const selected = level === 'success' && strongest
+    ? strongest
+    : level === 'warning' && weakest
+      ? weakest
+      : strongest ?? weakest;
+  if (!selected || typeof selected.label !== 'string' || !selected.label.trim()) return null;
+
+  const label = selected.label.trim();
+  if (selected === strongest) {
+    return { text: `${label} was the strongest part of the round.`, level: level ?? 'success' };
+  }
+  if (selected.area === 'big_numbers') {
+    return { text: 'Costly holes were the clearest scoring issue.', level: level ?? 'warning' };
+  }
+  if (selected.area === 'penalties') {
+    return { text: 'Penalty strokes were the clearest scoring issue.', level: level ?? 'warning' };
+  }
+  return { text: `${label} was the main area costing you strokes.`, level: level ?? 'warning' };
+}
+
+function buildFreeMessage1(
+  message: string,
+  insights: any,
+  noBaselineHistory: boolean,
+): string {
+  const baseMessage = noBaselineHistory ? firstNSentences(message, 2) : sentenceOne(message);
+  const scoreBucket = resolveScoreDeltaBucket(insights);
+  const storyLevel = resolveStoredIdentityLevel(insights, 'story');
+
+  if ((storyLevel === 'success' || storyLevel === 'great') && scoreBucket === 'worse') {
+    return `${baseMessage} Even so, your overall performance finished above expectation.`;
+  }
+  if (storyLevel === 'warning' && scoreBucket === 'better') {
+    return `${baseMessage} The score improved, but your overall performance still finished below expectation.`;
+  }
+  return baseMessage;
+}
+
+function resolveFreeIdentityMessage3(insights: any): { text: string; level: InsightLevel } | null {
+  const identity = insights?.raw_payload?.round_identity_v1;
+  if (!identity || typeof identity !== 'object') return null;
+  const canonicalFocus = buildWatchCard(identity);
+  const focus = canonicalFocus || identity.nextRoundFocus;
+  if (typeof focus !== 'string' || !focus.trim()) return null;
+  const trimmed = focus.trim();
+  const text = /^Next round[:,]\s*/i.test(trimmed)
+    ? trimmed.replace(/^Next round[:,]\s*/i, 'Next round: ')
+    : `Next round: ${trimmed}`;
+  return {
+    text,
+    level: resolveStoredIdentityLevel(insights, 'watch') ?? 'info',
+  };
+}
+
 function buildViewerMessages(
   insights: any,
   normalizedMessages: string[],
   entitlements: ViewerEntitlements,
 ): string[] {
-  if (entitlements.isPremium) return normalizedMessages;
-
   const outcomes: string[] = Array.isArray(insights?.message_outcomes) ? insights.message_outcomes : [];
   const details = insights?.message_details as { m2BaseText?: string; m2ResidualIncluded?: boolean } | undefined;
   const confidence = insights?.confidence === 'LOW' || insights?.confidence === 'MED' || insights?.confidence === 'HIGH'
@@ -225,19 +360,34 @@ function buildViewerMessages(
   const noBaselineHistory = hasNoBaselineHistory(insights);
 
   return normalizedMessages.map((message, index) => {
+    if (entitlements.isPremium && index !== 1) return message;
+
     if (index === 0) {
       // Free always gets a score-focused headline, not SG component precision.
-      if (noBaselineHistory) {
-        // Keep the setup phrase for first/no-history rounds.
-        return firstNSentences(message, 2);
-      }
-      return sentenceOne(message);
+      return buildFreeMessage1(message, insights, noBaselineHistory);
     }
 
     if (index === 1) {
+      const outcome = outcomes[1] ?? null;
+      const directionalQualifier = buildViewerDirectionalQualifier(
+        insights,
+        entitlements,
+        outcome,
+        confidence,
+      );
+      if (entitlements.isPremium) {
+        return sanitizeWhitespace(`${message}${directionalQualifier ? ` ${directionalQualifier}` : ''}`);
+      }
+      const identityMessage = resolveFreeIdentityMessage2(insights);
+      if (identityMessage) return identityMessage.text;
       const baseMessage = details?.m2BaseText ? sanitizeWhitespace(details.m2BaseText) : sanitizeWhitespace(message);
-      const freeM2 = buildFreeMessage2(baseMessage, outcomes[1] ?? null, confidence, worstLabel);
-      return stripSgPrecisionPhrases(freeM2);
+      const freeM2 = buildFreeMessage2(baseMessage, outcome, confidence, worstLabel);
+      return stripSgPrecisionPhrases(`${freeM2}${directionalQualifier ? ` ${directionalQualifier}` : ''}`);
+    }
+
+    if (index === 2 && !entitlements.isPremium) {
+      const identityFocus = resolveFreeIdentityMessage3(insights);
+      if (identityFocus) return identityFocus.text;
     }
 
     return stripSgPrecisionPhrases(message);
@@ -262,7 +412,7 @@ function resolveScoreDeltaBucket(insights: any): ScoreDeltaBucket | null {
   if (score == null || avgScore == null) return null;
 
   const holesPlayed = resolveHolesPlayedForLeveling(insights);
-  const nearDelta = 1.5 * resolvePostRoundStrokeScale(holesPlayed);
+  const nearDelta = POST_ROUND_THRESHOLDS.scoreNearDelta * resolvePostRoundStrokeScale(holesPlayed);
   const delta = score - avgScore;
   if (Math.abs(delta) <= nearDelta) return 'near';
   return delta > 0 ? 'worse' : 'better';
@@ -320,6 +470,7 @@ function resolveMessage2Level(input: {
 function buildViewerMessageLevels(
   insights: any,
   viewerMessages: string[],
+  entitlements: ViewerEntitlements,
 ): InsightLevel[] {
   const outcomes: string[] = Array.isArray(insights?.message_outcomes) ? insights.message_outcomes : [];
   const confidence = insights?.confidence === 'LOW' || insights?.confidence === 'MED' || insights?.confidence === 'HIGH'
@@ -327,8 +478,18 @@ function buildViewerMessageLevels(
     : null;
 
   return viewerMessages.map((message, index) => {
-    if (index === 0) return resolveMessage1Level(insights);
+    if (index === 0) {
+      if (!entitlements.isPremium) {
+        const identityLevel = resolveStoredIdentityLevel(insights, 'story');
+        if (identityLevel) return identityLevel;
+      }
+      return resolveMessage1Level(insights);
+    }
     if (index === 1) {
+      if (!entitlements.isPremium) {
+        const identityMessage = resolveFreeIdentityMessage2(insights);
+        if (identityMessage) return identityMessage.level;
+      }
       return resolveMessage2Level({
         insights,
         outcome: outcomes[1] ?? null,
@@ -336,7 +497,13 @@ function buildViewerMessageLevels(
         message,
       });
     }
-    if (index === 2) return 'info';
+    if (index === 2) {
+      if (!entitlements.isPremium) {
+        const identityFocus = resolveFreeIdentityMessage3(insights);
+        if (identityFocus) return identityFocus.level;
+      }
+      return 'info';
+    }
 
     const rawLevel = Array.isArray(insights?.message_levels) ? insights.message_levels[index] : null;
     if (rawLevel === 'great' || rawLevel === 'success' || rawLevel === 'warning' || rawLevel === 'info') {
@@ -352,31 +519,19 @@ function buildViewerRoundIdentity(
 ): any | null {
   const identity = insights?.raw_payload?.round_identity_v1;
   if (!identity || typeof identity !== 'object') return null;
-  if (entitlements.isPremium) return identity;
-
-  const shapedBy = Array.isArray(identity.shapedBy) ? identity.shapedBy.slice(0, 3) : [];
-  const modifiers = Array.isArray(identity.modifiers) ? identity.modifiers.slice(0, 2) : [];
-
-  return {
-    ...identity,
-    shapedBy,
-    modifiers,
-  };
+  return entitlements.isPremium ? identity : null;
 }
 
 function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements): any {
-  const effectiveEntitlements: ViewerEntitlements = entitlements ?? { isPremium: false, showStrokesGained: true };
+  const effectiveEntitlements: ViewerEntitlements = entitlements ?? { isPremium: false };
   const rawMessages: string[] = Array.isArray(insights?.messages) ? insights.messages : [];
   const messages = rawMessages.length === 1 ? (recoverMessagesFromBlob(rawMessages[0]) ?? rawMessages) : rawMessages;
   const normalizedMessages = normalizeInsightMessages(messages).slice(0, MAX_INSIGHTS);
 
-  const visibleCount = effectiveEntitlements.isPremium
-    ? Math.min(MAX_INSIGHTS, normalizedMessages.length)
-    : Math.min(MAX_INSIGHTS, normalizedMessages.length);
-
   const viewerMessages = buildViewerMessages(insights, normalizedMessages, effectiveEntitlements);
-  const viewerLevels = buildViewerMessageLevels(insights, viewerMessages);
+  const viewerLevels = buildViewerMessageLevels(insights, viewerMessages, effectiveEntitlements);
   const viewerRoundIdentity = buildViewerRoundIdentity(insights, effectiveEntitlements);
+  const viewerConfidence = resolveViewerConfidence(insights);
 
   const {
     raw_payload,
@@ -398,7 +553,7 @@ function limitInsightsForViewer(insights: any, entitlements?: ViewerEntitlements
     ...rest,
     messages: viewerMessages,
     message_levels: viewerLevels.slice(0, viewerMessages.length),
-    visible_count: visibleCount,
+    confidence: viewerConfidence ?? rest.confidence,
     round_identity_v1: viewerRoundIdentity,
     round_number:
       insights?.raw_payload?.onboarding?.round_number != null
@@ -431,8 +586,7 @@ async function getViewerEntitlements(userId: bigint): Promise<ViewerEntitlements
   });
 
   const isPremium = user ? isPremiumUser(user) : false;
-  const showStrokesGained = true;
-  return { isPremium, showStrokesGained };
+  return { isPremium };
 }
 
 function computePerformanceBand(totalSG: number | null, holesPlayed: number): PerformanceBand {
@@ -556,12 +710,13 @@ function mapRoundIdentityHoles(input: {
   entryMode: ReturnType<typeof resolveRoundEntryMode>;
   holesPlayed: number;
   roundHoles: any[];
+  startHoleNumber?: number | null;
 }): { roundHoles: RoundIdentityHoleInput[]; hasTrustedHoleByHole: boolean } {
   if (input.entryMode !== 'live_round') {
     return { roundHoles: [], hasTrustedHoleByHole: false };
   }
 
-  const mapped: RoundIdentityHoleInput[] = Array.isArray(input.roundHoles)
+  const canonical: RoundIdentityHoleInput[] = Array.isArray(input.roundHoles)
     ? input.roundHoles.map((hole: any) => ({
         holeNumber: hole?.hole?.holeNumber != null ? Number(hole.hole.holeNumber) : null,
         par: hole?.hole?.par != null ? Number(hole.hole.par) : null,
@@ -578,6 +733,8 @@ function mapRoundIdentityHoles(input: {
         girDirection: hole?.girDirection ?? null,
       }))
     : [];
+
+  const mapped = applyPlayedHoleOrder(canonical, input.startHoleNumber);
 
   const hasTrustedHoleByHole = hasCompleteHoleScores({
     holesPlayed: input.holesPlayed,
@@ -599,12 +756,14 @@ function buildRoundIdentityResolverInput(input: {
   toPar: number;
   roundNumber: number;
   avgScore: number | null;
+  fairwaysPossible: number;
 }): RoundIdentityResolverInput {
   const entryMode = resolveRoundEntryMode(input.round?.holeByHole);
   const mappedHoles = mapRoundIdentityHoles({
     entryMode,
     holesPlayed: input.holesPlayed,
     roundHoles: input.round?.roundHoles ?? [],
+    startHoleNumber: input.round?.finalizedLiveRoundSession?.startHoleNumber ?? null,
   });
   const normalizedSgConfidence = input.sgComponents?.confidence
     ? String(input.sgComponents.confidence).toLowerCase()
@@ -628,6 +787,7 @@ function buildRoundIdentityResolverInput(input: {
     avgScoreRecent: input.avgScore != null && Number.isFinite(input.avgScore) ? input.avgScore : null,
     handicapAtRound:
       input.round?.handicapAtRound != null ? Number(input.round.handicapAtRound) : null,
+    fairwaysPossible: input.fairwaysPossible,
     firHit: input.round?.firHit != null ? Number(input.round.firHit) : null,
     girHit: input.round?.girHit != null ? Number(input.round.girHit) : null,
     putts: input.round?.putts != null ? Number(input.round.putts) : null,
@@ -673,6 +833,7 @@ async function computeCurrentRoundIdentityHash(
           holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } },
         },
       },
+      finalizedLiveRoundSession: { select: { startHoleNumber: true } },
       roundHoles: {
         select: {
           pass: true,
@@ -743,6 +904,7 @@ async function computeCurrentRoundIdentityHash(
     toPar,
     roundNumber,
     avgScore,
+    fairwaysPossible: currentContext.nonPar3Holes,
   });
   return buildRoundIdentityInputHash(resolverInput);
 }
@@ -784,37 +946,14 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const userId = await getUserSession();
-    const { id } = await params;
-    const roundId = BigInt(id);
-
-    const entitlements = await getViewerEntitlements(userId);
-    const insights = await generateInsights(roundId, userId, entitlements, { forceRegenerate: true, bumpVariant: true });
-    return NextResponse.json({ insights });
-  } catch (error: any) {
-    console.error('Error generating insights:', error);
-    const isUnauthorized = isUnauthorizedError(error);
-    return NextResponse.json(
-      { message: isUnauthorized ? 'Unauthorized' : 'Error generating insights' },
-      { status: isUnauthorized ? 401 : 500 },
-    );
-  }
-}
-
 export async function generateInsights(
   roundId: bigint,
   userId: bigint,
   entitlements?: ViewerEntitlements,
-  options?: { forceRegenerate?: boolean; bumpVariant?: boolean },
+  options?: { forceRegenerate?: boolean },
 ) {
   const effectiveEntitlements = entitlements ?? (await getViewerEntitlements(userId));
   const forceRegenerate = options?.forceRegenerate === true;
-  const bumpVariant = options?.bumpVariant === true;
 
   const existing = await prisma.roundInsight.findUnique({ where: { roundId } });
   const existingInsights = existing?.insights as any;
@@ -843,10 +982,8 @@ export async function generateInsights(
     }
   }
 
-  const promise = generateInsightsInternal(roundId, userId, effectiveEntitlements, {
+  const promise = generateInsightsInternal(roundId, userId, {
     previousVariantOffset,
-    forceRegenerate,
-    bumpVariant,
   }).finally(() => {
     inFlightGenerations.delete(key);
   });
@@ -859,11 +996,8 @@ export async function generateInsights(
 async function generateInsightsInternal(
   roundId: bigint,
   userId: bigint,
-  entitlements: ViewerEntitlements,
   generationOptions: {
     previousVariantOffset: number;
-    forceRegenerate: boolean;
-    bumpVariant: boolean;
   },
 ) {
   const round = await prisma.round.findUnique({
@@ -875,6 +1009,7 @@ async function generateInsightsInternal(
           holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } },
         },
       },
+      finalizedLiveRoundSession: { select: { startHoleNumber: true } },
       roundHoles: {
         select: {
           pass: true,
@@ -914,11 +1049,7 @@ async function generateInsightsInternal(
     targetRoundDate,
   });
   const { roundNumber, previousScore, totalRounds } = resolveRoundOrdinalContext(roundId, roundsInOrder);
-  const isOnboardingRound = false;
-  const shouldBumpVariant = generationOptions.forceRegenerate && generationOptions.bumpVariant && !isOnboardingRound;
-  const variantOffset = shouldBumpVariant
-    ? generationOptions.previousVariantOffset + 1
-    : generationOptions.previousVariantOffset;
+  const variantOffset = generationOptions.previousVariantOffset;
 
   const toPar = Number(round.score) - currentContext.parTotal;
 
@@ -954,6 +1085,7 @@ async function generateInsightsInternal(
     toPar,
     roundNumber,
     avgScore,
+    fairwaysPossible: currentContext.nonPar3Holes,
   });
   const roundIdentity = resolveRoundIdentity(roundIdentityInput);
 
@@ -1049,18 +1181,26 @@ async function generateInsightsInternal(
       highConfidenceDominanceRatio: 0.78,
     },
   });
-  const directionalQualifier = buildPostRoundDirectionalQualifier({
-    pattern: directionalPattern,
-    confidence,
-    isPremium: entitlements.isPremium,
-  });
-  const message2WithDirectional = directionalQualifier
-    ? `${deterministicInsights.messages[1]} ${directionalQualifier}`
-    : deterministicInsights.messages[1];
+  const roundIdentityWithDirectional =
+    directionalPattern && directionalPattern.confidence !== 'low' && confidence !== 'LOW'
+      ? {
+          ...roundIdentity,
+          displayEvidence: {
+            ...roundIdentity.displayEvidence,
+            directional: {
+              area: directionalPattern.area,
+              dominantDirection: directionalPattern.dominantDirection,
+              count: directionalPattern.count,
+              totalDirectionalMisses: directionalPattern.totalDirectionalMisses,
+              confidence: directionalPattern.confidence,
+            },
+          },
+        }
+      : roundIdentity;
 
   const finalMessages: [string, string, string] = [
     enforceMaxMessageChars(deterministicInsights.messages[0], POST_ROUND_MESSAGE_MAX_CHARS),
-    enforceMaxMessageChars(message2WithDirectional, POST_ROUND_MESSAGE_MAX_CHARS),
+    enforceMaxMessageChars(deterministicInsights.messages[1], POST_ROUND_MESSAGE_MAX_CHARS),
     enforceMaxMessageChars(deterministicInsights.messages[2], POST_ROUND_MESSAGE_MAX_CHARS),
   ];
 
@@ -1102,10 +1242,11 @@ async function generateInsightsInternal(
             dominant_direction: directionalPattern.dominantDirection,
             dominant_count: directionalPattern.count,
             total_directional_misses: directionalPattern.totalDirectionalMisses,
+            dominance_ratio: directionalPattern.dominanceRatio,
             confidence: directionalPattern.confidence,
           }
         : null,
-      round_identity_v1: roundIdentity,
+      round_identity_v1: roundIdentityWithDirectional,
       onboarding: {
         active: false,
         round_number: roundNumber,

@@ -7577,7 +7577,7 @@ input[type='date'].form-input {
 }
 
 .round-insights-lock-section {
-  min-height: 165px;
+  min-height: 180px;
 }
 
 .round-insights-lock-section .locked-blur-content {
@@ -7585,22 +7585,18 @@ input[type='date'].form-input {
 }
 
 .round-insights-lock-section .locked-overlay {
-  padding-top: 4px;
-  padding-bottom: 4px;
+  padding: var(--padding-small);
 }
 
 .round-insights-lock-section .locked-overlay-card {
   width: min(420px, 100%);
-}
-
-.round-insights-lock-section .round-insights-lock-bridge {
-  color: var(--color-primary-text);
-  font-weight: 600;
+  padding: var(--padding);
+  gap: var(--gap-small);
 }
 
 @media (max-width: 640px) {
   .round-insights-lock-section {
-    min-height: 280px;
+    min-height: 190px;
   }
 
   .dashboard-focus-confidence-tooltip .info-tooltip-content,
@@ -7621,7 +7617,7 @@ input[type='date'].form-input {
 
 @media (min-width: 900px) {
   .round-insights-lock-section {
-    min-height: 250px;
+    min-height: 180px;
   }
 }
 

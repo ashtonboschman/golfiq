@@ -4,12 +4,13 @@ import {
   buildWatchCard,
 } from '@/lib/insights/roundIdentity/copyTemplates';
 import type { RoundIdentity, RoundIdentityPrimaryKey } from '@/lib/insights/roundIdentity/types';
+import { resolveRoundIdentityDisplayLevels } from '@/lib/insights/roundIdentity/presentation';
 
 export type RoundIdentityDisplayInsight = {
   kind: 'story' | 'worked' | 'watch';
   title: string;
   body: string;
-  icon?: 'spark' | 'check' | 'target' | 'warning' | 'trend';
+  level: 'great' | 'success' | 'warning' | 'info';
 };
 
 export type RoundIdentityDisplay = {
@@ -29,7 +30,7 @@ function confidenceLabel(confidence: RoundIdentity['confidence']): RoundIdentity
 }
 
 function confidenceText(identity: RoundIdentity): string {
-  if (identity.confidence === 'strong') return 'Enough history to trust this pattern more.';
+  if (identity.confidence === 'strong') return 'Solid round detail with enough history behind the pattern.';
   if (identity.confidence === 'moderate') return 'Useful signal, but still getting sharper.';
   if (identity.evidenceLevel === 'score_only') return 'Early read: the score is in, but GolfIQ needs more detail.';
   return 'Early read: this pattern will get stronger with more rounds.';
@@ -39,6 +40,8 @@ function headlineFromPrimary(primary: RoundIdentityPrimaryKey): string {
   switch (primary) {
     case 'score_only_baseline':
       return 'This round gives GolfIQ a starting point.';
+    case 'no_clear_separator':
+      return 'No single tracked area separated from the rest.';
     case 'breakthrough':
       return 'Your scoring upside showed up in this round.';
     case 'clean_control':
@@ -89,7 +92,7 @@ function watchTitle(identity: RoundIdentity): string {
 
 export function composeRoundIdentityDisplay(
   identity: RoundIdentity,
-  options?: { isFirstRound?: boolean; isPremium?: boolean; roundNumber?: number | null },
+  options?: { isFirstRound?: boolean; roundNumber?: number | null },
 ): RoundIdentityDisplay {
   const isFirstRound = options?.isFirstRound || identity.sampleContext === 'first_round';
   const roundNumber = typeof options?.roundNumber === 'number' ? options.roundNumber : null;
@@ -107,6 +110,7 @@ export function composeRoundIdentityDisplay(
               : undefined;
 
   const eyebrow = undefined;
+  const levels = identity.displayLevels ?? resolveRoundIdentityDisplayLevels(identity);
 
   const display: RoundIdentityDisplay = {
     eyebrow: isFirstRound ? 'Round 1 Logged' : eyebrow,
@@ -117,19 +121,19 @@ export function composeRoundIdentityDisplay(
         kind: 'story',
         title: 'Main Round Story',
         body: buildStoryCard(identity),
-        icon: 'spark',
+        level: levels.story,
       },
       {
         kind: 'worked',
         title: 'What Worked',
         body: buildAreaCard(identity),
-        icon: 'check',
+        level: levels.worked,
       },
       {
         kind: 'watch',
         title: watchTitle(identity),
         body: buildWatchCard(identity),
-        icon: identity.tone === 'fix' ? 'warning' : identity.tone === 'explain' ? 'trend' : 'target',
+        level: levels.watch,
       },
     ],
     confidenceLabel: confidenceLabel(identity.confidence),

@@ -1,10 +1,12 @@
 export const POST_ROUND_THRESHOLDS = {
   sgWeakness: -1.0,
   sgNeutralEps: 0.3,
+  sgReward: 0.5,
   sgToughRound: -5.0,
   sgBelowExpectations: -2.0,
   sgAboveExpectations: 2.0,
   sgExceptional: 5.0,
+  scoreNearDelta: 1.5,
 } as const;
 
 export const POST_ROUND_RESIDUAL = {

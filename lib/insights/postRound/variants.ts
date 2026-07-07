@@ -50,7 +50,3 @@ export function pickOutcomeVariantMeta(options: VariantOptions): VariantPickResu
     count: variants.length,
   };
 }
-
-export function pickOutcomeVariant(options: VariantOptions): string {
-  return pickOutcomeVariantMeta(options).text;
-}

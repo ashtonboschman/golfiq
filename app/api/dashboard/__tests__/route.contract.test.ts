@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext } from '@/lib/tee/resolveTeeContext';
 import { normalizeRoundsByMode, calculateHandicap } from '@/lib/utils/handicap';
+import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
@@ -241,6 +242,7 @@ describe('/api/dashboard route contract', () => {
       insights: {
         raw_payload: {
           round_identity_v1: {
+            version: ROUND_IDENTITY_V1_VERSION,
             primaryKey: 'approach_carried',
             tone: 'repeat',
             confidence: 'strong',
@@ -261,6 +263,28 @@ describe('/api/dashboard route contract', () => {
       confidence: 'strong',
       evidenceLevel: 'hole_by_hole',
     });
+  });
+
+  it('ignores a stored latest-round identity from an older copy version', async () => {
+    mockedPrisma.roundInsight.findUnique.mockResolvedValue({
+      insights: {
+        raw_payload: {
+          round_identity_v1: {
+            version: 'round_identity_v1.4.0',
+            primaryKey: 'approach_carried',
+            tone: 'repeat',
+            confidence: 'strong',
+            evidenceLevel: 'hole_by_hole',
+          },
+        },
+      },
+    });
+
+    const response = await GET(new Request('http://localhost/api/dashboard?statsMode=combined') as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.latestRoundIdentity).toBeNull();
   });
 
   it('returns FIR/GIR miss tendencies percentages from directional misses', async () => {

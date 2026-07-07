@@ -60,6 +60,141 @@ function baseInput(overrides: Partial<RoundIdentityResolverInput> = {}): RoundId
 }
 
 describe('resolveRoundIdentity', () => {
+  it('marks a volatile round at the positive-total-SG boundary as an overall success', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: 77,
+        toPar: 7,
+        avgScoreRecent: 82.6,
+        sgTotal: 0.5,
+        roundHoles: holesFromToPar([0, 0, 2, 0, -1, 0, 0, 0, 0, 0, 0, 2, 0, 0, -1, 0, 0, 0]),
+        hasTrustedHoleByHole: true,
+      }),
+    );
+
+    expect(identity.primaryKey).toBe('volatile_scoring');
+    expect(identity.overallTone).toBe('success');
+  });
+
+  it('keeps exceptional total SG at great instead of letting the success boundary override it', () => {
+    const exceptional = resolveRoundIdentity(baseInput({ sgTotal: 5 }));
+    const strongButNotExceptional = resolveRoundIdentity(baseInput({ sgTotal: 4.99 }));
+    const exceptionalNine = resolveRoundIdentity(
+      baseInput({
+        holesPlayed: 9,
+        teeSegment: 'front_9',
+        score: 43,
+        parTotal: 36,
+        toPar: 7,
+        sgTotal: 2.5,
+      }),
+    );
+
+    expect(exceptional.overallTone).toBe('great');
+    expect(exceptional.displayLevels?.story).toBe('great');
+    expect(strongButNotExceptional.overallTone).toBe('success');
+    expect(strongButNotExceptional.displayLevels?.story).toBe('success');
+    expect(exceptionalNine.overallTone).toBe('great');
+    expect(exceptionalNine.displayLevels?.story).toBe('great');
+  });
+
+  it('uses an informational overall tone for effectively neutral total SG', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: 77,
+        toPar: 7,
+        avgScoreRecent: 82.6,
+        sgTotal: 0.49,
+        roundHoles: holesFromToPar([0, 0, 2, 0, -1, 0, 0, 0, 0, 0, 0, 2, 0, 0, -1, 0, 0, 0]),
+        hasTrustedHoleByHole: true,
+      }),
+    );
+
+    expect(identity.primaryKey).toBe('volatile_scoring');
+    expect(identity.overallTone).toBe('info');
+  });
+
+  it('uses score context for overall tone when SG is unavailable', () => {
+    const better = resolveRoundIdentity(baseInput({ sgTotal: null, score: 82, avgScoreRecent: 85 }));
+    const worse = resolveRoundIdentity(baseInput({ sgTotal: null, score: 88, avgScoreRecent: 85 }));
+
+    expect(better.overallTone).toBe('success');
+    expect(worse.overallTone).toBe('warning');
+  });
+
+  it('keeps the exact recent-score boundary positive and warns only beyond it', () => {
+    const exactBetter = resolveRoundIdentity(baseInput({ sgTotal: null, score: 84, avgScoreRecent: 85.5 }));
+    const exactWorse = resolveRoundIdentity(baseInput({ sgTotal: null, score: 87, avgScoreRecent: 85.5 }));
+    const justWorse = resolveRoundIdentity(baseInput({ sgTotal: null, score: 87, avgScoreRecent: 85.49 }));
+
+    expect(exactBetter.overallTone).toBe('success');
+    expect(exactWorse.overallTone).toBe('success');
+    expect(justWorse.overallTone).toBe('warning');
+  });
+
+  it('does not call marginal full-round SG a display strength', () => {
+    const identity = resolveRoundIdentity(baseInput({ sgPutting: 0.3, putts: 34, girHit: null }));
+    expect(identity.displayEvidence?.strongestArea).toBeUndefined();
+  });
+
+  it('does not surface putting or short-game evidence without the required context', () => {
+    const putting = resolveRoundIdentity(
+      baseInput({ sgPutting: 1.2, putts: 29, girHit: null }),
+    );
+    const shortGame = resolveRoundIdentity(
+      baseInput({ sgShortGame: 1.2, shortGameShots: 5, girHit: null }),
+    );
+
+    expect(putting.primaryKey).not.toBe('putting_saved');
+    expect(putting.displayEvidence?.strongestArea?.area).not.toBe('putting');
+    expect(shortGame.primaryKey).not.toBe('short_game_rescue');
+    expect(shortGame.displayEvidence?.strongestArea?.area).not.toBe('short_game');
+  });
+
+  it('scales approach strength thresholds for nine-hole rounds', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        holesPlayed: 9,
+        parTotal: 36,
+        score: 42,
+        toPar: 6,
+        avgScoreRecent: 42,
+        sgApproach: 0.6,
+      }),
+    );
+    expect(identity.primaryKey).toBe('approach_carried');
+  });
+
+  it('does not infer short-game rescue from raw shot volume alone', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: 82,
+        toPar: 10,
+        avgScoreRecent: 83,
+        girHit: 6,
+        chips: 8,
+        greensideBunkerShots: 1,
+        shortGameShots: 9,
+        sgShortGame: null,
+      }),
+    );
+    expect(identity.primaryKey).not.toBe('short_game_rescue');
+  });
+
+  it('does not call putting a primary strength from raw putts per hole alone', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: 82,
+        toPar: 10,
+        avgScoreRecent: 83,
+        girHit: 10,
+        putts: 30,
+        sgPutting: null,
+      }),
+    );
+    expect(identity.primaryKey).not.toBe('putting_saved');
+  });
+
   it('returns score_only_baseline when only score exists', () => {
     const identity = resolveRoundIdentity(baseInput({ roundsLifetime: 1 }));
     expect(identity.primaryKey).toBe('score_only_baseline');
@@ -79,6 +214,29 @@ describe('resolveRoundIdentity', () => {
     );
     expect(identity.primaryKey).toBe('score_only_baseline');
     expect(identity.confidence).toBe('building');
+  });
+
+  it('uses a neutral aggregate identity when tracked areas have no clear separator', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        fairwaysPossible: 14,
+        firHit: 7,
+        girHit: 7,
+        putts: 32,
+        penalties: 1,
+        sgTotal: 0,
+        sgOffTee: 0,
+        sgApproach: 0,
+        sgPutting: 0,
+        sgPenalties: 0,
+        sgConfidence: 'medium',
+      }),
+    );
+
+    expect(identity.evidenceLevel).toBe('aggregate_stats');
+    expect(identity.primaryKey).toBe('no_clear_separator');
+    expect(identity.tone).toBe('build');
+    expect(identity.confidence).not.toBe('building');
   });
 
   it('formats stroke singular/plural correctly in baseline delta text', () => {
@@ -370,12 +528,14 @@ describe('resolveRoundIdentity', () => {
         score: 85,
         toPar: 13,
         avgScoreRecent: 92,
+        sgTotal: 2,
         entryMode: 'live_round',
         hasTrustedHoleByHole: true,
         roundHoles,
       }),
     );
     expect(identity.primaryKey).toBe('big_number');
+    expect(identity.overallTone).toBe('success');
   });
 
   it('prioritizes penalty_damaged over positive stories when penalties are strong', () => {
@@ -958,5 +1118,21 @@ describe('resolveRoundIdentity', () => {
     expect(identity.displayEvidence?.strongestArea?.area).toBe('putting');
     expect(identity.displayEvidence?.strongestArea?.valueText).toMatch(/\+6\.9 SG putting/i);
     expect(identity.displayEvidence?.weakestArea?.area).toBe('big_numbers');
+  });
+
+  it('celebrates a breakthrough against recent form even when handicap-benchmark SG is negative', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: 78,
+        toPar: 6,
+        avgScoreRecent: 89,
+        roundsLifetime: 8,
+        sgTotal: -0.7,
+      }),
+    );
+
+    expect(identity.primaryKey).toBe('breakthrough');
+    expect(identity.overallTone).toBe('great');
+    expect(identity.displayEvidence?.baselineDeltaText).toMatch(/better than your recent average/i);
   });
 });

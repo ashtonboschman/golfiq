@@ -249,6 +249,7 @@ describe('/api/rounds route contract', () => {
     expect(mockedPrisma.round.count).toHaveBeenCalledWith({
       where: { userId: BigInt(1), roundContext: 'real' },
     });
+    expect(mockedGenerateInsights).toHaveBeenCalledWith(BigInt(222), BigInt(1));
   });
 
   it('POST persists explicit simulator round_context', async () => {
@@ -280,6 +281,30 @@ describe('/api/rounds route contract', () => {
     expect(mockedPrisma.round.count).toHaveBeenCalledWith({
       where: { userId: BigInt(1), roundContext: 'real' },
     });
+  });
+
+  it('keeps a completed round successful when post-round insight generation fails', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockedGenerateInsights.mockRejectedValueOnce(new Error('temporary insight failure'));
+
+    const request = new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 80,
+        hole_by_hole: 0,
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(201);
+    expect(mockedGenerateInsights).toHaveBeenCalledWith(BigInt(222), BigInt(1));
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to generate insights:', expect.any(Error));
+    consoleErrorSpy.mockRestore();
   });
 
   it('POST hole-by-hole works when direction fields are omitted', async () => {

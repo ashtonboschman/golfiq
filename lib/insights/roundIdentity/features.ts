@@ -47,32 +47,64 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+export function applyPlayedHoleOrder(
+  roundHoles: RoundIdentityHoleInput[],
+  startHoleNumber: number | null | undefined,
+): RoundIdentityHoleInput[] {
+  const canonical = [...roundHoles];
+  const hasRepeatedPhysicalHoles = canonical.some((hole, index) =>
+    canonical.some((other, otherIndex) =>
+      otherIndex !== index && other.holeNumber === hole.holeNumber && other.pass !== hole.pass,
+    ),
+  );
+  const displayHoleNumber = (hole: RoundIdentityHoleInput): number | null => {
+    if (hole.holeNumber == null) return null;
+    if (!hasRepeatedPhysicalHoles) return hole.holeNumber;
+    return hole.holeNumber + (Math.max(1, hole.pass ?? 1) - 1) * 9;
+  };
+  const startIndex = startHoleNumber == null
+    ? -1
+    : canonical.findIndex((hole) => displayHoleNumber(hole) === startHoleNumber);
+  const playedSequence = startIndex > 0
+    ? [...canonical.slice(startIndex), ...canonical.slice(0, startIndex)]
+    : canonical;
+
+  return playedSequence.map((hole, index) => ({ ...hole, playOrder: index + 1 }));
+}
+
 export function normalizeTrustedHoleSequence(input: {
   holesPlayed: number;
   roundHoles: RoundIdentityHoleInput[];
 }): NormalizedHole[] {
   const expected = Math.max(1, Math.round(toFiniteNumber(input.holesPlayed) ?? 18));
-  const byHole = new Map<number, RoundIdentityHoleInput>();
-
-  const sorted = [...(input.roundHoles ?? [])].sort((a, b) => {
+  const holes = [...(input.roundHoles ?? [])];
+  const hasCompletePlayOrder =
+    holes.length === expected && holes.every((hole) => toFiniteNumber(hole.playOrder) != null);
+  const sorted = holes.sort((a, b) => {
+    if (hasCompletePlayOrder) {
+      return (toFiniteNumber(a.playOrder) ?? 999) - (toFiniteNumber(b.playOrder) ?? 999);
+    }
     const aPass = toFiniteNumber(a.pass) ?? 1;
     const bPass = toFiniteNumber(b.pass) ?? 1;
     if (aPass !== bPass) return aPass - bPass;
     return (toFiniteNumber(a.holeNumber) ?? 999) - (toFiniteNumber(b.holeNumber) ?? 999);
   });
 
+  if (sorted.length !== expected) return [];
+
+  const seenPlayedHoles = new Set<string>();
   for (const hole of sorted) {
     const holeNumber = toFiniteNumber(hole.holeNumber);
-    if (holeNumber == null) continue;
-    const rounded = Math.round(holeNumber);
-    if (rounded < 1 || rounded > expected) continue;
-    if (!byHole.has(rounded)) byHole.set(rounded, hole);
+    if (holeNumber == null) return [];
+    const pass = Math.max(1, Math.round(toFiniteNumber(hole.pass) ?? 1));
+    const playedHoleKey = `${pass}:${Math.round(holeNumber)}`;
+    if (seenPlayedHoles.has(playedHoleKey)) return [];
+    seenPlayedHoles.add(playedHoleKey);
   }
 
   const normalized: NormalizedHole[] = [];
-  for (let holeNumber = 1; holeNumber <= expected; holeNumber += 1) {
-    const row = byHole.get(holeNumber);
-    if (!row) return [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    const row = sorted[index];
     const par = toFiniteNumber(row.par);
     const score = toFiniteNumber(row.score);
     if (par == null || score == null) return [];
@@ -80,7 +112,7 @@ export function normalizeTrustedHoleSequence(input: {
     const parInt = Math.round(par);
     const scoreInt = Math.round(score);
     normalized.push({
-      holeNumber,
+      holeNumber: index + 1,
       par: parInt,
       score: scoreInt,
       scoreToPar: scoreInt - parInt,
@@ -236,8 +268,11 @@ export function hasReliableShortGameEvidence(input: RoundIdentityResolverInput):
 export function hasReliableTeeEvidence(input: RoundIdentityResolverInput): boolean {
   if (toFiniteNumber(input.sgOffTee) != null) return true;
   if (toFiniteNumber(input.firHit) == null) return false;
+  const canonicalPossible = toFiniteNumber(input.fairwaysPossible);
   const par3Estimate = Math.round(input.holesPlayed * 0.22);
-  const possible = Math.max(1, input.holesPlayed - par3Estimate);
+  const possible = canonicalPossible != null
+    ? Math.max(1, Math.round(canonicalPossible))
+    : Math.max(1, input.holesPlayed - par3Estimate);
   return possible >= 5;
 }
 

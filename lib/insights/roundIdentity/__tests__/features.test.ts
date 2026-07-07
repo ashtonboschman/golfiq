@@ -1,4 +1,5 @@
 import {
+  applyPlayedHoleOrder,
   getBigNumberCount,
   getFrontBackSplit,
   getOneHoleDamageShare,
@@ -73,6 +74,100 @@ describe('roundIdentity features', () => {
     expect(hasCompleteHoleScores({ holesPlayed: input.holesPlayed, roundHoles: partial })).toBe(false);
   });
 
+  it('normalizes a back-nine sequence by played order', () => {
+    const roundHoles = Array.from({ length: 9 }, (_, index) => ({
+      holeNumber: index + 10,
+      par: index % 3 === 0 ? 3 : 4,
+      score: index % 4 === 0 ? 5 : 4,
+      pass: 1,
+      firHit: null,
+      girHit: null,
+      putts: 2,
+      penalties: 0,
+      chips: 0,
+      greensideBunkerShots: 0,
+      firDirection: null,
+      girDirection: null,
+    }));
+
+    const normalized = normalizeTrustedHoleSequence({ holesPlayed: 9, roundHoles });
+    expect(normalized).toHaveLength(9);
+    expect(normalized.map((hole) => hole.holeNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(hasCompleteHoleScores({ holesPlayed: 9, roundHoles })).toBe(true);
+  });
+
+  it('normalizes double-nine passes as an 18-hole played sequence', () => {
+    const roundHoles = Array.from({ length: 18 }, (_, index) => ({
+      holeNumber: (index % 9) + 1,
+      par: index % 3 === 0 ? 3 : 4,
+      score: index % 5 === 0 ? 5 : 4,
+      pass: index < 9 ? 1 : 2,
+      firHit: null,
+      girHit: null,
+      putts: 2,
+      penalties: 0,
+      chips: 0,
+      greensideBunkerShots: 0,
+      firDirection: null,
+      girDirection: null,
+    }));
+
+    const normalized = normalizeTrustedHoleSequence({ holesPlayed: 18, roundHoles });
+    expect(normalized).toHaveLength(18);
+    expect(normalized.map((hole) => hole.holeNumber)).toEqual(Array.from({ length: 18 }, (_, index) => index + 1));
+    expect(hasCompleteHoleScores({ holesPlayed: 18, roundHoles })).toBe(true);
+  });
+
+  it('preserves the actual sequence when a live round starts on hole 7', () => {
+    const canonical = Array.from({ length: 18 }, (_, index) => ({
+      holeNumber: index + 1,
+      par: 4,
+      score: index + 1,
+      pass: 1,
+      firHit: null,
+      girHit: null,
+      putts: 2,
+      penalties: 0,
+      chips: 0,
+      greensideBunkerShots: 0,
+      firDirection: null,
+      girDirection: null,
+    }));
+
+    const played = applyPlayedHoleOrder(canonical, 7);
+    const normalized = normalizeTrustedHoleSequence({ holesPlayed: 18, roundHoles: played });
+
+    expect(played.map((hole) => hole.holeNumber)).toEqual([
+      7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6,
+    ]);
+    expect(normalized.map((hole) => hole.score)).toEqual([
+      7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6,
+    ]);
+  });
+
+  it('uses display-hole order when the second pass of a double nine starts first', () => {
+    const canonical = Array.from({ length: 18 }, (_, index) => ({
+      holeNumber: (index % 9) + 1,
+      par: 4,
+      score: index + 1,
+      pass: index < 9 ? 1 : 2,
+      firHit: null,
+      girHit: null,
+      putts: 2,
+      penalties: 0,
+      chips: 0,
+      greensideBunkerShots: 0,
+      firDirection: null,
+      girDirection: null,
+    }));
+
+    const played = applyPlayedHoleOrder(canonical, 10);
+
+    expect(played[0]).toEqual(expect.objectContaining({ holeNumber: 1, pass: 2, playOrder: 1 }));
+    expect(played[8]).toEqual(expect.objectContaining({ holeNumber: 9, pass: 2, playOrder: 9 }));
+    expect(played[9]).toEqual(expect.objectContaining({ holeNumber: 1, pass: 1, playOrder: 10 }));
+  });
+
   it('builds scoring buckets and big-number signals from normalized holes', () => {
     const holes = normalizeTrustedHoleSequence({
       holesPlayed: 9,
@@ -135,5 +230,13 @@ describe('roundIdentity features', () => {
     expect(hasReliableApproachEvidence(noApproach)).toBe(false);
     const weakShortGame = buildBaseInput({ girHit: 17, chips: 1, greensideBunkerShots: 0, shortGameShots: 1 });
     expect(hasReliableShortGameEvidence(weakShortGame)).toBe(false);
+
+    const par3HeavyNine = buildBaseInput({
+      holesPlayed: 9,
+      fairwaysPossible: 4,
+      firHit: 3,
+      sgOffTee: null,
+    });
+    expect(hasReliableTeeEvidence(par3HeavyNine)).toBe(false);
   });
 });

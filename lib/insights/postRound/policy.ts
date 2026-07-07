@@ -153,18 +153,18 @@ const M1_NO_BASELINE_SUFFIX_VARIANTS = [
 ] as const;
 
 const M2_A_VARIANTS = [
-  "Rounds in this range often come from lost scoring chances and one or two holes that get away.",
-  "Scores like this usually build from a few missed opportunities and difficult recoveries.",
-  "A couple of costly holes likely shaped most of the scoring here.",
-  "Scores in this range often reflect missed chances and a few holes that add pressure.",
-  "Rounds like this usually come down to a few swings that pushed the score the wrong way.",
-  "The score suggests a mix of missed opportunities and a few holes that became difficult to manage.",
+  "The score is clear, but the cause needs more tracked detail.",
+  "There is not enough measured detail to name the part of the game that shaped this score.",
+  "This result needs another tracked area before GolfIQ can explain the main cause.",
+  "The score gives a starting point, but the why needs more round detail.",
+  "More tracked detail is needed before tying this score to one part of the game.",
+  "The result is recorded, but the available stats do not support one clear cause.",
 ] as const;
 
 const M2_A_SINGLE_VARIANTS = [
-  "Scoring pressure likely came from missed chances and tougher recovery spots.",
-  "Scores like this usually come from missed chances and a couple of difficult holes.",
-  "A few holes likely carried most of the scoring pressure in this round.",
+  "One measured area is not enough to explain the full score with confidence.",
+  "The available stat adds context, but it does not explain the whole round by itself.",
+  "GolfIQ needs another tracked area before naming the main cause of this score.",
 ] as const;
 
 const M2_C_VARIANTS = [
@@ -226,11 +226,11 @@ const M2_D_PENALTIES_VARIANTS = [
 ] as const;
 
 const M2_D_SHORT_GAME_VARIANTS = [
-  "Short Game added pressure after missed greens and became a clear scoring leak.{residualSuffix}",
-  "Missed greens created tougher recovery situations throughout the round.{residualSuffix}",
-  "Short Game lost ground because missed greens kept leading to difficult recoveries.{residualSuffix}",
-  "Short Game became a scoring issue as missed greens kept creating difficult recoveries.{residualSuffix}",
-  "Short Game cost strokes as missed greens kept creating difficult next shots.{residualSuffix}",
+  "Short Game added pressure by requiring too many recovery shots after missed greens.{residualSuffix}",
+  "Recovery shots added up too quickly after missed greens.{residualSuffix}",
+  "Short Game lost ground through inefficient recovery work after missed greens.{residualSuffix}",
+  "Short Game became a scoring issue because recovery shots exceeded expectation.{residualSuffix}",
+  "Short Game cost strokes through extra recovery work after missed greens.{residualSuffix}",
 ] as const;
 
 const M2_E_PENALTIES_VARIANTS = [
@@ -256,9 +256,9 @@ const M2_D_PENALTIES_MED_VARIANTS = [
 ] as const;
 
 const M2_D_SHORT_GAME_MED_VARIANTS = [
-  "Short Game likely added pressure after missed greens and became a scoring leak.{residualSuffix}",
-  "Missed greens likely created tougher recovery situations through the round.{residualSuffix}",
-  "Short Game likely lost strokes because missed greens led to tougher recoveries.{residualSuffix}",
+  "Short Game likely added pressure through extra recovery shots after missed greens.{residualSuffix}",
+  "Recovery shots likely added up too quickly after missed greens.{residualSuffix}",
+  "Short Game likely lost strokes through inefficient recovery work after missed greens.{residualSuffix}",
 ] as const;
 
 const M2_E_PENALTIES_MED_VARIANTS = [
@@ -315,15 +315,15 @@ const M2_GROUNDED_PENALTIES_VARIANTS = [
 
 const M2_GROUNDED_PENALTY_PRESSURE_VARIANTS = [
   "Penalty trouble created the biggest scoring pressure in this round.",
-  "Penalty strokes kept forcing difficult recovery situations.",
+  "Penalty strokes made too many holes harder to contain.",
   "Trouble off the tee made too many holes harder from the start.",
   "Penalty trouble made too many holes harder to manage.",
 ] as const;
 
 const M2_GROUNDED_FIR_VARIANTS = [
-  "With {firMade}/{firTotal} fairways hit, several holes likely started from tougher positions.",
-  "Missing fairways this often can make approach shots harder and create tougher recovery situations.",
-  "Tee-shot position likely added pressure before the approach shots.",
+  "With {firMade}/{firTotal} fairways hit, accuracy was the clearest issue Off The Tee.",
+  "Finding {firMade}/{firTotal} fairways put the Off The Tee result below expectation.",
+  "Fairway finding was the clearest source of pressure Off The Tee.",
 ] as const;
 
 const M2_GROUNDED_PUTTS_VARIANTS = [

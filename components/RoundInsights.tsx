@@ -3,14 +3,18 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles, RefreshCw, Flame, CircleCheck, CircleAlert, Info, Lock } from 'lucide-react';
+import { Sparkles, Flame, CircleCheck, CircleAlert, Info, Lock } from 'lucide-react';
 import { RoundInsightsSkeleton } from '@/components/skeleton/PageSkeletons';
 import { consumeRoundInsightsRefreshPending } from '@/lib/insights/insightsNudge';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { useAdaptiveTooltipPlacement } from '@/lib/ui/useAdaptiveTooltipPlacement';
-import { composeRoundIdentityDisplay, type RoundIdentityDisplayInsight } from '@/lib/insights/roundIdentity/compose';
-import type { RoundIdentity, RoundIdentityEvidenceArea } from '@/lib/insights/roundIdentity/types';
+import { composeRoundIdentityDisplay } from '@/lib/insights/roundIdentity/compose';
+import type {
+  RoundIdentity,
+  RoundIdentityDirectionalEvidence,
+  RoundIdentityEvidenceArea,
+} from '@/lib/insights/roundIdentity/types';
 
 interface RoundInsightsProps {
   roundId: string;
@@ -31,7 +35,6 @@ type InsightLevel = 'great' | 'success' | 'warning' | 'info';
 type InsightConfidence = 'LOW' | 'MED' | 'HIGH';
 
 const DEFAULT_LEVEL: InsightLevel = 'info';
-const SHOW_POST_ROUND_REGENERATE = false;
 const ROUND_INSIGHTS_CACHE_TTL_MS = 30_000;
 const roundInsightsViewedKeys = new Set<string>();
 
@@ -51,6 +54,45 @@ const DISPLAY_EVIDENCE_AREAS = new Set<RoundIdentityEvidenceArea>([
   'big_numbers',
   'scoring',
   'unknown',
+]);
+const ROUND_IDENTITY_PRIMARY_KEYS = new Set<RoundIdentity['primaryKey']>([
+  'score_only_baseline',
+  'no_clear_separator',
+  'breakthrough',
+  'clean_control',
+  'all_around_strong',
+  'approach_carried',
+  'tee_controlled',
+  'putting_saved',
+  'short_game_rescue',
+  'steady_scoring',
+  'survival',
+  'approach_leak',
+  'tee_trouble',
+  'penalty_damaged',
+  'putting_leak',
+  'short_game_pressure',
+  'scoring_chance_missed',
+  'volatile_scoring',
+  'big_number',
+  'everything_leaked',
+]);
+const ROUND_IDENTITY_MODIFIER_KEYS = new Set<RoundIdentity['modifiers'][number]>([
+  'one_hole_damage',
+  'blow_up_stretch',
+  'bounce_back',
+  'fast_start_slow_finish',
+  'slow_start_strong_finish',
+  'par_3_problem',
+  'par_5_scoring',
+  'no_damage',
+  'repeated_bogeys',
+  'good_score_bad_process',
+  'bad_score_good_process',
+  'tee_accuracy_leak',
+  'green_hitting_strength',
+  'putting_conversion_issue',
+  'short_game_stress',
 ]);
 
 function getRoundInsightsCacheKey(roundId: string, isPremium: boolean, userId: string): string {
@@ -114,11 +156,15 @@ function stripMessagePrefix(message: string): string {
   return message.trim();
 }
 
+function normalizeInsightLevel(level: unknown): InsightLevel {
+  return level === 'great' || level === 'success' || level === 'warning' || level === 'info'
+    ? level
+    : DEFAULT_LEVEL;
+}
+
 function normalizeMessageLevels(messages: string[], levels: unknown): InsightLevel[] {
   const validLevels = Array.isArray(levels)
-    ? levels.filter((level): level is InsightLevel =>
-        level === 'great' || level === 'success' || level === 'warning' || level === 'info',
-      )
+    ? levels.map(normalizeInsightLevel)
     : [];
 
   return messages.map((_, index) => validLevels[index] ?? DEFAULT_LEVEL);
@@ -128,21 +174,43 @@ function normalizeRoundIdentityPayload(rawIdentity: unknown): RoundIdentity | nu
   if (!rawIdentity || typeof rawIdentity !== 'object') return null;
   const identity = rawIdentity as Record<string, unknown>;
   if (typeof identity.title !== 'string' || typeof identity.summary !== 'string') return null;
+  const primaryKey = String(identity.primaryKey ?? 'score_only_baseline') as RoundIdentity['primaryKey'];
 
   const normalizeDisplayArea = (value: unknown): RoundIdentityEvidenceArea => {
     const key = String(value ?? 'unknown') as RoundIdentityEvidenceArea;
     return DISPLAY_EVIDENCE_AREAS.has(key) ? key : 'unknown';
   };
+  const normalizeDirectional = (value: unknown): RoundIdentityDirectionalEvidence | undefined => {
+    if (!value || typeof value !== 'object') return undefined;
+    const directional = value as Record<string, unknown>;
+    if (directional.area !== 'fir' && directional.area !== 'gir') return undefined;
+    if (!['left', 'right', 'short', 'long'].includes(String(directional.dominantDirection))) return undefined;
+    if (directional.confidence !== 'medium' && directional.confidence !== 'high') return undefined;
+    const count = Number(directional.count);
+    const totalDirectionalMisses = Number(directional.totalDirectionalMisses);
+    if (!Number.isFinite(count) || !Number.isFinite(totalDirectionalMisses) || count <= 0 || totalDirectionalMisses < count) {
+      return undefined;
+    }
+    return {
+      area: directional.area,
+      dominantDirection: directional.dominantDirection as RoundIdentityDirectionalEvidence['dominantDirection'],
+      count: Math.round(count),
+      totalDirectionalMisses: Math.round(totalDirectionalMisses),
+      confidence: directional.confidence,
+    };
+  };
 
   return {
     version: String(identity.version ?? ''),
     inputHash: String(identity.inputHash ?? ''),
-    primaryKey: String(identity.primaryKey ?? 'score_only_baseline') as RoundIdentity['primaryKey'],
+    primaryKey: ROUND_IDENTITY_PRIMARY_KEYS.has(primaryKey) ? primaryKey : 'score_only_baseline',
     title: String(identity.title),
     summary: String(identity.summary),
     shapedBy: Array.isArray(identity.shapedBy) ? identity.shapedBy.map((item) => String(item)) : [],
     nextRoundFocus: String(identity.nextRoundFocus ?? ''),
-    modifiers: (Array.isArray(identity.modifiers) ? identity.modifiers.map((item) => String(item)) : []) as RoundIdentity['modifiers'],
+    modifiers: (Array.isArray(identity.modifiers) ? identity.modifiers : [])
+      .map((item) => String(item) as RoundIdentity['modifiers'][number])
+      .filter((item) => ROUND_IDENTITY_MODIFIER_KEYS.has(item)),
     evidenceLevel:
       identity.evidenceLevel === 'score_only' || identity.evidenceLevel === 'aggregate_stats' || identity.evidenceLevel === 'hole_by_hole'
         ? identity.evidenceLevel
@@ -159,6 +227,21 @@ function normalizeRoundIdentityPayload(rawIdentity: unknown): RoundIdentity | nu
       identity.tone === 'fix' || identity.tone === 'repeat' || identity.tone === 'build' || identity.tone === 'explain'
         ? identity.tone
         : 'explain',
+    overallTone:
+      identity.overallTone === 'great' ||
+      identity.overallTone === 'success' ||
+      identity.overallTone === 'warning' ||
+      identity.overallTone === 'info'
+        ? identity.overallTone
+        : undefined,
+    displayLevels:
+      identity.displayLevels && typeof identity.displayLevels === 'object'
+        ? {
+            story: normalizeInsightLevel((identity.displayLevels as Record<string, unknown>).story),
+            worked: normalizeInsightLevel((identity.displayLevels as Record<string, unknown>).worked),
+            watch: normalizeInsightLevel((identity.displayLevels as Record<string, unknown>).watch),
+          }
+        : undefined,
     entryMode:
       identity.entryMode === 'post_round' || identity.entryMode === 'live_round' || identity.entryMode === 'unknown'
         ? identity.entryMode
@@ -201,6 +284,9 @@ function normalizeRoundIdentityPayload(rawIdentity: unknown): RoundIdentity | nu
                     detailText: String(((identity.displayEvidence as Record<string, unknown>).hbhStory as Record<string, unknown>).detailText ?? ''),
                   }
                 : undefined,
+            directional: normalizeDirectional(
+              (identity.displayEvidence as Record<string, unknown>).directional,
+            ),
           }
         : undefined,
     strength:
@@ -274,120 +360,6 @@ function LevelIcon({ level }: { level: InsightLevel }) {
   return <Info size={18} className="insight-message-icon insight-level-info" />;
 }
 
-function isDamagePreventionText(text: string): boolean {
-  const normalized = text.toLowerCase();
-  const phrases = [
-    'big-number',
-    'big numbers',
-    'double',
-    'doubles',
-    'costly hole',
-    'costly holes',
-    'costly ones',
-    'damage control',
-    'closer to bogey',
-    'protect bogey',
-    'penalty',
-    'penalties',
-    'one mistake from turning into',
-    'bad holes',
-    'going sideways',
-    'round-changing holes',
-  ];
-  return phrases.some((phrase) => normalized.includes(phrase));
-}
-
-function getComposedInsightLevel(identity: RoundIdentity, insight: RoundIdentityDisplayInsight): InsightLevel {
-  const storySuccessPrimaries = new Set<RoundIdentity['primaryKey']>([
-    'clean_control',
-    'all_around_strong',
-    'approach_carried',
-    'putting_saved',
-    'tee_controlled',
-    'short_game_rescue',
-    'steady_scoring',
-  ]);
-  const storyWarningPrimaries = new Set<RoundIdentity['primaryKey']>([
-    'penalty_damaged',
-    'big_number',
-    'volatile_scoring',
-    'everything_leaked',
-    'approach_leak',
-    'tee_trouble',
-    'putting_leak',
-    'short_game_pressure',
-    'scoring_chance_missed',
-  ]);
-  const leakFramedPrimaries = new Set<RoundIdentity['primaryKey']>([
-    'penalty_damaged',
-    'big_number',
-    'everything_leaked',
-    'approach_leak',
-    'tee_trouble',
-    'putting_leak',
-    'short_game_pressure',
-    'scoring_chance_missed',
-  ]);
-  const urgentDamagePrimaries = new Set<RoundIdentity['primaryKey']>([
-    'penalty_damaged',
-    'big_number',
-    'everything_leaked',
-  ]);
-  const coachingFixPrimaries = new Set<RoundIdentity['primaryKey']>([
-    'approach_leak',
-    'tee_trouble',
-    'putting_leak',
-    'short_game_pressure',
-  ]);
-  const coachingFixAreas = new Set(['approach', 'off_tee', 'putting', 'short_game']);
-
-  if (insight.kind === 'story') {
-    if (identity.primaryKey === 'breakthrough') return 'great';
-    if (storyWarningPrimaries.has(identity.primaryKey)) return 'warning';
-    if (storySuccessPrimaries.has(identity.primaryKey)) return 'success';
-    if (identity.primaryKey === 'score_only_baseline' || identity.primaryKey === 'survival') return 'info';
-    return 'info';
-  }
-
-  if (insight.kind === 'worked') {
-    const strongestArea = identity.displayEvidence?.strongestArea;
-    const weakestArea = identity.displayEvidence?.weakestArea;
-    const m2UsesWeakest =
-      Boolean(weakestArea) && (identity.tone === 'fix' || identity.primaryKey === 'penalty_damaged' || !strongestArea);
-
-    if (identity.primaryKey === 'score_only_baseline') return 'info';
-    if (leakFramedPrimaries.has(identity.primaryKey)) return 'warning';
-    if (identity.tone === 'fix') return 'warning';
-    if (m2UsesWeakest) return 'warning';
-    if (strongestArea) return 'success';
-    return 'info';
-  }
-
-  const weakestArea = identity.displayEvidence?.weakestArea;
-  const hasDamageModifier =
-    identity.modifiers.includes('one_hole_damage') || identity.modifiers.includes('blow_up_stretch');
-  const hasDamageWatchText = isDamagePreventionText(insight.body);
-  const hasExplicitDamageFocus = hasDamageModifier || hasDamageWatchText;
-  const weakestAreaIsUrgentDamage = weakestArea?.area != null && ['penalties', 'big_numbers'].includes(weakestArea.area);
-
-  if (identity.primaryKey === 'score_only_baseline' || identity.primaryKey === 'survival') return 'info';
-  if (identity.tone === 'build' || identity.tone === 'explain') return 'info';
-  if (hasDamageModifier || urgentDamagePrimaries.has(identity.primaryKey)) return 'warning';
-  if (identity.tone === 'fix' && coachingFixPrimaries.has(identity.primaryKey)) return 'info';
-  if (identity.tone === 'fix' && weakestAreaIsUrgentDamage) return 'warning';
-  if (identity.tone === 'fix' && weakestArea?.area != null && coachingFixAreas.has(weakestArea.area)) return 'info';
-  if (identity.tone === 'fix') return 'info';
-  if (identity.tone === 'repeat' && hasExplicitDamageFocus) return 'warning';
-  if (
-    identity.tone === 'repeat' &&
-    (identity.primaryKey === 'breakthrough' ||
-      storySuccessPrimaries.has(identity.primaryKey))
-  ) {
-    return 'success';
-  }
-  return 'info';
-}
-
 export default function RoundInsights({
   roundId,
   isPremium,
@@ -411,7 +383,6 @@ export default function RoundInsights({
   const initialInsights = initialCachedInsights ?? normalizedInitialInsights;
   const [insights, setInsights] = useState<RoundInsightsResponse | null>(initialInsights);
   const [loading, setLoading] = useState(!initialInsights);
-  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
   const fetchedCacheKeyRef = useRef<string | null>(null);
@@ -446,7 +417,7 @@ export default function RoundInsights({
     if (!normalizedInitialInsights) return;
 
     writeRoundInsightsCache(cacheKey, normalizedInitialInsights);
-    setInsights((prev) => prev ?? normalizedInitialInsights);
+    setInsights(normalizedInitialInsights);
     setLoading(false);
     setError(null);
   }, [cacheKey, normalizedInitialInsights]);
@@ -485,6 +456,7 @@ export default function RoundInsights({
     if (isPremiumLoading) return;
     if (fetchedCacheKeyRef.current === cacheKey) return;
     fetchedCacheKeyRef.current = cacheKey;
+    if (normalizedInitialInsights) return;
     const hasCached = Boolean((shouldBypassCache ? null : readRoundInsightsCache(cacheKey)) ?? normalizedInitialInsights);
     fetchInsights({ showLoading: !hasCached, forceRefresh: true });
   }, [cacheKey, fetchInsights, isPremiumLoading, normalizedInitialInsights, shouldBypassCache]);
@@ -520,9 +492,9 @@ export default function RoundInsights({
         : identity?.sampleContext === 'first_round'
           ? 1
           : identity?.sampleContext === 'early'
-            ? 3
+            ? 2
             : identity?.sampleContext === 'established'
-              ? 6
+              ? 3
               : null;
 
     const sharedProps = {
@@ -624,34 +596,6 @@ export default function RoundInsights({
     session?.user?.subscription_tier,
   ]);
 
-  const handleRegenerate = async () => {
-    setRegenerating(true);
-    try {
-      const res = await fetch(`/api/rounds/${roundId}/insights`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (res.status === 401 || res.status === 403) {
-        setInsights({ messages: [] });
-        setError(null);
-        return;
-      }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to regenerate insights');
-      const nextInsights = normalizeInsightsPayload(data.insights);
-      writeRoundInsightsCache(cacheKey, nextInsights);
-      setInsights(nextInsights);
-      setError(null);
-    } catch (err: any) {
-      console.error('Error regenerating insights:', err);
-      setError(err.message || 'Failed to regenerate insights');
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
   const Header = ({
     label,
     tone,
@@ -665,16 +609,6 @@ export default function RoundInsights({
         <h3>Round Insights</h3>
       </div>
       <div className="u-flex u-items-center admin-course-inline-actions">
-        {SHOW_POST_ROUND_REGENERATE && (
-          <button
-            type="button"
-            className="btn btn-toggle"
-            onClick={handleRegenerate}
-            disabled={regenerating || loading}
-          >
-            {regenerating ? <RefreshCw className="spinning" size={16} /> : <RefreshCw size={16} />} Regenerate
-          </button>
-        )}
         {isPremiumLoading ? (
           <span className="skeleton u-inline-block u-w-78 u-h-24 u-rounded-pill" />
         ) : (
@@ -694,7 +628,7 @@ export default function RoundInsights({
               >
                 <h4>Insight Confidence</h4>
                 <p>
-                  This shows how much data GolfIQ has behind this round's insights. Building means an early read. Moderate means useful signal, but still getting sharper. Strong means enough history to trust the pattern more.
+                  This shows how much round detail and history GolfIQ has behind the insight. Building means an early read. Moderate means useful evidence that is still getting sharper. Strong means the pattern has both solid detail and enough history behind it.
                 </p>
                 <div className={`info-tooltip-arrow ${confidenceTooltipPosition} ${confidenceTooltipVertical}`} />
               </div>
@@ -715,14 +649,13 @@ export default function RoundInsights({
     try {
       composedIdentityDisplay = composeRoundIdentityDisplay(normalizedRoundIdentity, {
         isFirstRound: normalizedRoundIdentity.sampleContext === 'first_round' || insights?.round_number === 1,
-        isPremium,
         roundNumber: insights?.round_number ?? null,
       });
     } catch {
       composedIdentityDisplay = null;
     }
   }
-  const shouldRenderComposedInsights = Boolean(normalizedRoundIdentity && composedIdentityDisplay);
+  const shouldRenderComposedInsights = isPremium && Boolean(normalizedRoundIdentity && composedIdentityDisplay);
   const shouldRenderLegacyInsights =
     !shouldRenderComposedInsights && Boolean(insights && insights.messages.length > 0);
   const composedIdentity = shouldRenderComposedInsights ? (normalizedRoundIdentity as RoundIdentity) : null;
@@ -756,7 +689,7 @@ export default function RoundInsights({
             {displayIdentity.insights.map((insight, idx) => (
               <div key={`${insight.kind}-${idx}`} className="insight-message">
                 <div className="insight-message-content">
-                  <LevelIcon level={getComposedInsightLevel(composedIdentity, insight)} />
+                  <LevelIcon level={insight.level} />
                   <span className="insight-message-text">{insight.body}</span>
                 </div>
               </div>
@@ -788,10 +721,9 @@ export default function RoundInsights({
           </div>
           <div className="locked-overlay has-cta">
             <div className="locked-overlay-card">
-              <Lock size={50} className="locked-overlay-icon" />
-              <h4>See what really cost you strokes</h4>
-              <p>Find the part of the game that hurt the score most and what to focus on next.</p>
-              <p className="round-insights-lock-bridge">Your full round breakdown is ready.</p>
+              <Lock size={36} className="locked-overlay-icon" />
+              <h4>Unlock Your Full Round Breakdown</h4>
+              <p>See the stats behind each insight and how it shaped your round.</p>
               <button
                 className="btn btn-upgrade"
                 onClick={() => {
@@ -816,7 +748,7 @@ export default function RoundInsights({
                   router.push('/pricing');
                 }}
               >
-                See the Full Breakdown
+                See Premium Plans
               </button>
             </div>
           </div>
