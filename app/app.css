@@ -2359,11 +2359,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   min-height: 0;
 }
 
-.dashboard-focus-card.dashboard-focus-card-compact {
-  min-height: 0;
-  gap: calc(var(--gap) * 0.3);
-}
-
 .dashboard-focus-card-relative {
   position: relative;
 }
@@ -2372,7 +2367,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: var(--gap-small);
   margin-bottom: var(--gap-small);
   width: 100%;
   position: relative;
@@ -2380,39 +2375,31 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 
 .dashboard-focus-title {
   margin: 0;
-  text-align: left;
+  text-align: center;
 }
 
-.dashboard-focus-skeleton-info-dot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-}
-
-.dashboard-focus-body,
-.dashboard-focus-updating {
+.dashboard-focus-body {
   margin: 0;
   color: var(--color-secondary-text);
   font-size: 0.9rem;
+  line-height: 1.45;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-focus-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--gap-small);
+  min-width: 0;
 }
 
 .dashboard-focus-next-round {
   margin: 0;
-  font-size: 0.88rem;
-}
-
-.dashboard-focus-next-round-label {
-  font-weight: 600;
+  color: var(--color-primary-text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-focus-confidence-tooltip {
@@ -2484,13 +2471,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   line-height: 1.4;
 }
 
-.dashboard-focus-updating {
-  color: var(--color-secondary-text);
-  font-size: 0.8rem;
-  opacity: 0.85;
-  text-align: center;
-}
-
 .dashboard-focus-actions {
   display: flex;
   justify-content: stretch;
@@ -2518,10 +2498,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   width: 100%;
 }
 
-.dashboard-focus-skeleton-line-pretitle {
-  width: 30%;
-}
-
 .dashboard-focus-skeleton-line-next-round {
   width: 68%;
 }
@@ -2530,11 +2506,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   display: flex;
   flex-direction: column;
   gap: calc(var(--gap-small) * 0.5);
-}
-
-.dashboard-focus-skeleton-flex-spacer {
-  flex: 1 1 auto;
-  min-height: var(--gap-small);
 }
 
 .dashboard-focus-actions-skeleton {
@@ -2556,6 +2527,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   font-size: 1rem;
   font-weight: 700;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 /* Dashboard Filters */

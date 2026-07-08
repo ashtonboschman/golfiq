@@ -1,7 +1,5 @@
-import {
-  buildRoundFocusState,
-  type DashboardOverallInsightsSummary,
-} from '@/lib/insights/dashboardFocus';
+import type { DashboardRoundFocusDto } from '@/lib/insights/dashboardRoundFocus/types';
+import { composeDashboardRoundFocus } from '@/lib/insights/dashboardRoundFocus/presentation';
 import {
   buildDeterministicOverallCards,
   computeOverallPayload,
@@ -12,60 +10,21 @@ import {
   type PostRoundPolicyInput,
 } from '@/lib/insights/postRound/policy';
 
-function makeSummary(
-  overrides: Partial<DashboardOverallInsightsSummary> = {},
-): DashboardOverallInsightsSummary {
+function makeRoundFocus(): DashboardRoundFocusDto {
   return {
-    lastUpdatedAt: '2026-03-01T12:00:00.000Z',
-    drillSeed: 'seed',
-    recommendationText: null,
-    mode: 'combined',
-    roundsRecent: 8,
-    recentWindow: 5,
-    scoreTrendDelta: 1.1,
-    trajectoryLabel: 'Worsening',
-    consistencyLabel: 'Moderate',
-    consistencySpread: 3.3,
-    projectionScore: 82,
-    projectionScoreRange: { low: 80.7, high: 83.6 },
-    projectionHandicap: 12.1,
-    sgComponentDelta: {
-      offTee: -0.2,
-      approach: -0.9,
-      putting: -0.3,
-      penalties: -0.2,
-      residual: 0.1,
-    },
-    efficiencyDelta: {
-      firPctPoints: -1,
-      girPctPoints: -3,
-      putts: 0.2,
-      penalties: 0.1,
-    },
-    statCoverage: {
-      fir: { tracked: 5, total: 5 },
-      gir: { tracked: 5, total: 5 },
-      putts: { tracked: 5, total: 5 },
-      penalties: { tracked: 5, total: 5 },
-    },
-    biggestLeakComponent: 'approach',
-    confidence: 'high',
-    persistenceSignal: {
-      component: 'approach',
-      count: 4,
-      window: 5,
-      tier: 'persistent',
-    },
-    dataQualityFlags: {
-      insufficientRounds: false,
-      missingScoreTrend: false,
-      combinedNeedsMoreNineHoleRounds: false,
-      missingComponentData: false,
-      partialRecentStats: false,
-      residualDominant: false,
-      volatileScoring: false,
-    },
-    ...overrides,
+    version: 'dashboard_round_focus_v2',
+    tier: 'premium',
+    source: 'trend',
+    relationship: 'trend_only',
+    selectedCategory: 'approach',
+    confidence: 'strong',
+    trendState: 'component',
+    baselineDirection: 'worse',
+    latestRoundCategory: null,
+    latestRoundPolarity: null,
+    sourceRoundId: null,
+    trendReason: 'negative_declining',
+    latestRoundUnavailableReason: 'missing_identity',
   };
 }
 
@@ -162,9 +121,10 @@ describe('insight system role boundaries', () => {
   });
 
   it('round focus keeps immediate coaching language and avoids broad trend-report wording', () => {
-    const state = buildRoundFocusState(makeSummary(), true, false);
-    const text = [state.focus.headline, state.focus.body, state.focus.nextRound].join(' ').toLowerCase();
-    expect(text).toContain('scoring focus');
+    const focus = composeDashboardRoundFocus(makeRoundFocus());
+    const text = [focus.headline, focus.supportingText, focus.nextRoundAction].join(' ').toLowerCase();
+    expect(text).toContain('clearest scoring focus');
+    expect(text).toContain('largest margin for error');
     expect(text).not.toContain('season trajectory');
     expect(text).not.toContain('long-term trend');
     expect(text).not.toContain('overall pattern');
@@ -172,11 +132,11 @@ describe('insight system role boundaries', () => {
   });
 
   it('representative outputs remain role-distinct without direct phrase collisions', () => {
-    const focus = buildRoundFocusState(makeSummary(), true, false);
+    const focus = composeDashboardRoundFocus(makeRoundFocus());
     const overall = buildOverallCards();
     const post = buildPostRoundOutput();
 
-    const focusHeadline = focus.focus.headline.toLowerCase();
+    const focusHeadline = focus.headline.toLowerCase();
     const overallJoined = overall.join(' ').toLowerCase();
     const postJoined = post.messages.join(' ').toLowerCase();
 

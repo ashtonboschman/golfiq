@@ -4,12 +4,11 @@ import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { normalizeRoundsByMode, calculateHandicap } from '@/lib/utils/handicap';
 import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
-import {
-  buildDashboardOverallInsightsSummary,
-  type DashboardLatestRoundIdentitySummary,
-} from '@/lib/insights/dashboardFocus';
 import { deriveShortGameMetrics } from '@/lib/utils/shortGameMetrics';
-import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
+import {
+  buildDashboardRoundFocus,
+  createUnavailableDashboardRoundFocusDto,
+} from '@/lib/insights/dashboardRoundFocus/buildDashboardRoundFocus';
 
 const MISS_DIRECTION_KEYS = ['miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
 type MissDirectionKey = (typeof MISS_DIRECTION_KEYS)[number];
@@ -20,40 +19,6 @@ function emptyDirectionCounts(): Record<MissDirectionKey, number> {
     miss_right: 0,
     miss_short: 0,
     miss_long: 0,
-  };
-}
-
-function normalizeLatestRoundIdentity(rawIdentity: any): DashboardLatestRoundIdentitySummary {
-  if (!rawIdentity || typeof rawIdentity !== 'object') return null;
-  if (rawIdentity.version !== ROUND_IDENTITY_V1_VERSION) return null;
-  const primaryKey =
-    typeof rawIdentity.primaryKey === 'string' && rawIdentity.primaryKey.length > 0
-      ? rawIdentity.primaryKey
-      : 'score_only_baseline';
-  const tone =
-    rawIdentity.tone === 'fix' ||
-    rawIdentity.tone === 'repeat' ||
-    rawIdentity.tone === 'build' ||
-    rawIdentity.tone === 'explain'
-      ? rawIdentity.tone
-      : null;
-  const confidence =
-    rawIdentity.confidence === 'building' ||
-    rawIdentity.confidence === 'moderate' ||
-    rawIdentity.confidence === 'strong'
-      ? rawIdentity.confidence
-      : null;
-  const evidenceLevel =
-    rawIdentity.evidenceLevel === 'score_only' ||
-    rawIdentity.evidenceLevel === 'aggregate_stats' ||
-    rawIdentity.evidenceLevel === 'hole_by_hole'
-      ? rawIdentity.evidenceLevel
-      : null;
-  return {
-    primaryKey,
-    tone,
-    confidence,
-    evidenceLevel,
   };
 }
 
@@ -159,6 +124,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    let roundFocus;
+    try {
+      const focusResult = await buildDashboardRoundFocus({
+        dashboardOwnerId: requestedUserId,
+        viewerId: currentUserId,
+        mode: statsMode,
+        roundContext: 'real',
+      });
+      roundFocus = focusResult.dto;
+    } catch (error) {
+      console.error('Dashboard Round Focus pipeline failed:', error);
+      roundFocus = createUnavailableDashboardRoundFocusDto();
+    }
+
     // Calculate date filter
     let dateFrom: Date | undefined;
     let dateTo: Date | undefined;
@@ -210,32 +189,6 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'asc' },
     });
 
-    const overallInsightModel = (prisma as any).overallInsight;
-    const storedOverallInsights = overallInsightModel
-      ? await overallInsightModel.findUnique({
-          where: { userId: requestedUserId },
-          select: { insights: true },
-        })
-      : null;
-    const overallInsightsSummary = buildDashboardOverallInsightsSummary(
-      storedOverallInsights?.insights ?? null,
-      statsMode,
-    );
-    const latestRoundId = rounds.length > 0 ? rounds[rounds.length - 1]?.id : null;
-    const roundInsightModel = (prisma as any).roundInsight;
-    const latestRoundInsight =
-      latestRoundId != null && roundInsightModel
-        ? await roundInsightModel.findUnique({
-            where: { roundId: latestRoundId },
-            select: { insights: true },
-          })
-        : null;
-    const latestRoundIdentity = normalizeLatestRoundIdentity(
-      latestRoundInsight?.insights?.raw_payload?.round_identity_v1 ??
-        latestRoundInsight?.insights?.round_identity_v1 ??
-        null,
-    );
-
     if (!rounds.length) {
       return successResponse({
         message: 'No rounds found',
@@ -260,9 +213,7 @@ export async function GET(request: NextRequest) {
         hbh_stats: null,
         scoring_profile: emptyScoringProfile,
         miss_tendencies: null,
-        overallInsightsSummary,
-        latestRoundUpdatedAt: null,
-        latestRoundIdentity,
+        roundFocus,
       });
     }
 
@@ -321,14 +272,6 @@ export async function GET(request: NextRequest) {
       return acc;
     }, new Map<string, number>());
     const totalRounds = modeRoundsUncapped.length;
-    const latestRoundUpdatedAt =
-      rounds.length > 0
-        ? rounds.reduce((latest: Date, round: any) => {
-            const updatedAt = round.updatedAt instanceof Date ? round.updatedAt : new Date(round.updatedAt);
-            return updatedAt > latest ? updatedAt : latest;
-          }, new Date(0)).toISOString()
-        : null;
-
      // Free users: limit to last 20 rounds (most recent)
     let roundsForStats = modeRoundsUncapped;
     if (!isPremium) {
@@ -379,9 +322,7 @@ export async function GET(request: NextRequest) {
           hbh_rounds_count: 0,
         },
         scoring_profile: emptyScoringProfile,
-        overallInsightsSummary,
-        latestRoundUpdatedAt,
-        latestRoundIdentity,
+        roundFocus,
       });
     }
 
@@ -673,9 +614,7 @@ export async function GET(request: NextRequest) {
         first_name: profile.firstName,
         last_name: profile.lastName,
       },
-      overallInsightsSummary,
-      latestRoundUpdatedAt,
-      latestRoundIdentity,
+      roundFocus,
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

@@ -107,95 +107,6 @@ const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedUseSubscription = useSubscription as unknown as jest.Mock;
 const mockedCaptureClientEvent = captureClientEvent as jest.Mock;
 
-function expectOneText(variants: readonly string[]): void {
-  const normalize = (value: string): string => value.replace(/\s+/g, ' ').trim();
-  const found = variants.some((variant) =>
-    screen.queryByText((_, element) => normalize(element?.textContent ?? '') === normalize(variant)) != null,
-  );
-  expect(found).toBe(true);
-}
-
-const OPPORTUNITY_PUTTING_NUDGES_UI = [
-  'Next round: Focus on lag speed.',
-  'Next round: Prioritize pace over perfect reads.',
-  'Next round: Leave shorter second putts.',
-] as const;
-
-const OPPORTUNITY_APPROACH_NUDGES_UI = [
-  'Next round: Play to the center of the green.',
-  'Next round: Favor the safe side of the green.',
-  'Next round: Take the short-sided miss out of play.',
-] as const;
-
-const VOLATILITY_NUDGES_UI = [
-  'Next round: Choose the safest line on risk holes.',
-  'Next round: Keep penalty trouble out of the miss.',
-  'Next round: Play for the miss that stays in play.',
-  'Next round: Play to center-green targets.',
-  'Next round: Favor the safe side of the green.',
-  'Next round: Take the short-sided miss out of play.',
-  'Next round: Prioritize in-play misses on every hole.',
-  'Next round: Keep the big miss out of play.',
-  'Next round: Choose the line that protects bogey.',
-] as const;
-
-const BALANCED_NUDGES_UI = [
-  'Next round: Play to center-green targets.',
-  'Next round: Choose targets with room to miss.',
-  'Next round: Keep the next shot simple.',
-  'Next round: Choose conservative targets after misses.',
-  'Next round: Reset the hole after trouble.',
-  'Next round: Protect bogey when the hole gets messy.',
-] as const;
-
-const EARLY_GUIDANCE_HEADLINES = [
-  'Start by keeping the round simple.',
-  'Build the round around safe targets.',
-  'Start by keeping the ball in play.',
-] as const;
-
-const EARLY_GUIDANCE_BODIES = [
-  'Your first few rounds usually come down to missed scoring chances and a few recovery-heavy holes.',
-  'Early patterns usually show up through missed chances and harder recovery holes.',
-  'At this stage, steady targets matter more than chasing one perfect stat.',
-] as const;
-
-const EARLY_GUIDANCE_NUDGES_UI = [
-  'Next round: Play to the widest target.',
-  'Next round: Choose the safest target first.',
-  'Next round: Keep the difficult miss out of play.',
-] as const;
-
-const SCORE_ONLY_WORSENING_HEADLINES = [
-  'Your scores are slipping.',
-  'Your recent scores are trending higher.',
-  'Scoring has moved the wrong way lately.',
-] as const;
-
-const SCORE_ONLY_WORSENING_BODIES_FREE_MED = [
-  'Scores are trending higher than usual. Safer choices can steady the pattern.',
-  'Recent scores are moving higher. Safer targets can help settle the round.',
-  'Scoring has slipped lately. Keeping trouble out of play is the first fix.',
-] as const;
-
-const SCORE_ONLY_WORSENING_NUDGES_UI = [
-  'Next round: Prioritize conservative targets.',
-  'Next round: Keep the ball in play first.',
-  'Next round: Avoid the miss that brings double into play.',
-] as const;
-
-const VOLATILITY_HEADLINES_HIGH = [
-  'Big score swings are the clearest focus right now.',
-  'The main issue right now is how much the scores jump around.',
-  'The scorecard is getting away on too many holes.',
-] as const;
-
-const BALANCED_HEADLINES_MED = [
-  'No single area clearly dominates right now.',
-  'No single area stands out clearly yet.',
-  'The scoring pattern is spread across a few areas.',
-] as const;
-
 function makeDashboardPayload(overrides: Partial<any> = {}) {
   return {
     handicap: 8.1,
@@ -276,39 +187,30 @@ function makeDashboardPayload(overrides: Partial<any> = {}) {
     limitedToLast20: false,
     totalRoundsInDb: 8,
     user: { first_name: 'Test', last_name: 'User' },
-    latestRoundUpdatedAt: '2026-02-24T10:00:00.000Z',
-    overallInsightsSummary: {
-      lastUpdatedAt: '2026-02-24T09:55:00.000Z',
-      mode: 'combined',
-      roundsRecent: 5,
-      recentWindow: 5,
-      scoreTrendDelta: -0.8,
-      trajectoryLabel: 'Improving',
-      consistencyLabel: 'Stable',
-      consistencySpread: 2.1,
-      projectionScore: 77.8,
-      projectionScoreRange: { low: 76.9, high: 79.1 },
-      projectionHandicap: 7.8,
-      sgComponentDelta: {
-        offTee: -0.2,
-        approach: -0.1,
-        putting: -0.5,
-        penalties: -0.3,
-        residual: 0.1,
-      },
-      biggestLeakComponent: 'putting',
-      confidence: 'medium',
-      persistenceSignal: null,
-      dataQualityFlags: {
-        insufficientRounds: false,
-        missingScoreTrend: false,
-        combinedNeedsMoreNineHoleRounds: false,
-        missingComponentData: false,
-        partialRecentStats: false,
-        residualDominant: false,
-        volatileScoring: false,
-      },
-    },
+    roundFocus: makeRoundFocus({
+      selectedCategory: 'putting',
+      confidence: 'moderate',
+      baselineDirection: 'stable',
+    }),
+    ...overrides,
+  };
+}
+
+function makeRoundFocus(overrides: Record<string, unknown> = {}) {
+  return {
+    version: 'dashboard_round_focus_v2',
+    tier: 'free',
+    source: 'trend',
+    relationship: 'trend_only',
+    selectedCategory: 'approach',
+    confidence: 'strong',
+    trendState: 'component',
+    baselineDirection: 'worse',
+    latestRoundCategory: null,
+    latestRoundPolarity: null,
+    sourceRoundId: null,
+    trendReason: 'negative_declining',
+    latestRoundUnavailableReason: 'missing_identity',
     ...overrides,
   };
 }
@@ -639,9 +541,9 @@ describe('/dashboard Round Focus card', () => {
   });
 
   it.each([
-    ['low', 'Building', 'is-low'],
-    ['medium', 'Moderate', 'is-medium'],
-    ['high', 'Strong', 'is-high'],
+    ['building', 'Building', 'is-low'],
+    ['moderate', 'Moderate', 'is-medium'],
+    ['strong', 'Strong', 'is-high'],
   ] as const)('renders Round Focus confidence pill for %s confidence', async (confidence, label, toneClass) => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -649,10 +551,7 @@ describe('/dashboard Round Focus card', () => {
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            confidence,
-          },
+          roundFocus: makeRoundFocus({ confidence }),
         }),
     });
 
@@ -671,72 +570,55 @@ describe('/dashboard Round Focus card', () => {
     const pill = await screen.findByRole('button', { name: /Focus confidence: Moderate/i });
     fireEvent.click(pill);
     expect(await screen.findByText('Focus Confidence')).toBeInTheDocument();
-    expect(screen.getByText(/How reliable your Round Focus is based on the rounds GolfIQ has so far\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Building: early read while GolfIQ learns your game\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Moderate: useful signal, but still getting sharper\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Strong: enough history to trust the pattern more\./i)).toBeInTheDocument();
+    expect(screen.getByText('Confidence reflects how much reliable tracked evidence supports this focus.')).toBeInTheDocument();
+    expect(screen.queryByText('Confidence reflects how consistently this pattern appears across your recent tracked rounds.')).not.toBeInTheDocument();
   });
 
-  it('renders contradiction guard qualifier without a standalone timeframe line when latest identity is repeat+strong', async () => {
+  it('uses the canonical relationship wording without a retired qualifier', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          latestRoundIdentity: {
-            primaryKey: 'clean_control',
-            tone: 'repeat',
-            confidence: 'strong',
-            evidenceLevel: 'hole_by_hole',
-          },
+          roundFocus: makeRoundFocus({
+            relationship: 'latest_round_improved_against_trend',
+            latestRoundCategory: 'approach',
+            latestRoundPolarity: 'strength',
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
     await screen.findByRole('button', { name: 'See Full Breakdown' });
-    expect(
-      await screen.findByText('Your latest round was strong, but your longer-term trend still points here.'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('Based on your longer-term pattern.')).not.toBeInTheDocument();
+    expect(await screen.findByText('Approach is the clearest scoring focus right now.')).toBeInTheDocument();
+    expect(screen.getByText('It was stronger in your latest round, but the broader pattern still deserves attention.')).toBeInTheDocument();
+    expect(screen.queryByText('Your latest round was strong, but your longer-term trend still points here.')).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
-        ANALYTICS_EVENTS.dashboardFocusViewed,
-        expect.objectContaining({
-          contradiction_guard_applied: true,
-          confidence: 'medium',
-          timeframe_basis: 'long_term_watch',
-        }),
-        expect.any(Object),
-      );
-    });
+    expect(screen.queryByText('Recent 5 Rounds')).not.toBeInTheDocument();
   });
 
-  it('does not render contradiction guard qualifier when latest identity confidence is not strong', async () => {
+  it('renders same-category inconclusive wording from the permanent focus contract', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          latestRoundIdentity: {
-            primaryKey: 'clean_control',
-            tone: 'repeat',
-            confidence: 'moderate',
-            evidenceLevel: 'hole_by_hole',
-          },
+          roundFocus: makeRoundFocus({
+            relationship: 'latest_round_inconclusive_same_category',
+            latestRoundCategory: 'approach',
+            latestRoundPolarity: 'neutral',
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
     await screen.findByRole('button', { name: 'See Full Breakdown' });
-    expect(
-      screen.queryByText('Your latest round was strong, but your longer-term trend still points here.'),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText('Based on your recent rounds.')).not.toBeInTheDocument();
+    expect(screen.getByText('Approach is the clearest scoring focus right now.')).toBeInTheDocument();
+    expect(screen.getByText('Your latest round did not clearly confirm or reverse that pattern.')).toBeInTheDocument();
   });
 
   it('renders Round Focus header with title and confidence pill only (no old info icon tooltip)', async () => {
@@ -751,21 +633,116 @@ describe('/dashboard Round Focus card', () => {
     expect(tooltipTexts).not.toContain('Highlights the area impacting your score the most based on recent rounds.');
   });
 
-  it('shows free focus card with directional copy and no SG numeric precision', async () => {
+  it('renders permanent free focus wording without numeric evidence or retired copy', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => makeDashboardPayload({ roundFocus: makeRoundFocus() }),
+    });
+
+    render(<DashboardPage />);
+
+    const card = await screen.findByTestId('dashboard-focus-card');
+    expect(await screen.findByText('Approach is the clearest scoring focus right now.')).toBeInTheDocument();
+    expect(card.querySelector('.dashboard-focus-headline')).toHaveTextContent('Approach is the clearest scoring focus right now.');
+    expect(card.querySelector('.dashboard-focus-headline')).not.toHaveTextContent(/^Approach$/);
+    expect(screen.getByText('It has been the most consistent area holding back your recent scoring.')).toBeInTheDocument();
+    expect(screen.getByText('Next round:')).toBeInTheDocument();
+    expect(screen.getByText('Choose targets that leave the largest margin for error.')).toBeInTheDocument();
+    expect(screen.queryByText('Recent 5 Rounds')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Focus confidence: Strong' })).toBeInTheDocument();
+    expect(card).not.toHaveTextContent(/SG/);
+    expect(screen.queryByText('Putting is costing you the most strokes.')).not.toBeInTheDocument();
+  });
+
+  it('does not render numeric evidence for the same Premium focus', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => makeDashboardPayload({
+        isPremium: true,
+        roundFocus: makeRoundFocus({
+          tier: 'premium',
+          evidence: {
+            recentAverage: -0.76,
+            baselineAverage: -0.34,
+            baselineDelta: -0.42,
+            trackedRecentCount: 5,
+            negativeRecentCount: 5,
+            lowestComponentCount: 4,
+            separation: 0.28,
+          },
+        }),
+      }),
+    });
+
+    render(<DashboardPage />);
+
+    const card = await screen.findByTestId('dashboard-focus-card');
+    expect(await screen.findByText('Approach is the clearest scoring focus right now.')).toBeInTheDocument();
+    expect(card).not.toHaveTextContent('Recent 5 Rounds');
+    expect(card).not.toHaveTextContent('Recent:');
+    expect(card).not.toHaveTextContent(/SG|Earlier:|-0\.8|-0\.3/);
+  });
+
+  it('uses safe neutral copy when the permanent focus payload is missing', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => makeDashboardPayload({ roundFocus: undefined }),
+    });
+
+    render(<DashboardPage />);
+
+    expect(await screen.findByText('There is not enough consistent evidence to name one focus yet.')).toBeInTheDocument();
+    expect(screen.queryByText('Putting is costing you the most strokes.')).not.toBeInTheDocument();
+  });
+
+  it('labels a latest-round fallback and does not create source-round navigation without a permitted ID', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => makeDashboardPayload({
+        roundFocus: makeRoundFocus({
+          source: 'latest_round',
+          relationship: 'latest_round_fallback',
+          selectedCategory: 'penalties',
+          confidence: 'moderate',
+          trendState: 'no_clear_separator',
+          baselineDirection: null,
+          latestRoundCategory: 'penalties',
+          latestRoundPolarity: 'weakness',
+          latestRoundUnavailableReason: null,
+        }),
+      }),
+    });
+
+    render(<DashboardPage />);
+
+    const card = await screen.findByTestId('dashboard-focus-card');
+    expect(await screen.findByText('Keeping penalties off the card is the clearest focus from your latest round.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Focus confidence: Moderate' })).toBeInTheDocument();
+    expect(screen.getByText('Prioritize keeping penalty trouble out of play.')).toBeInTheDocument();
+    expect(card.querySelector('a[href*="/rounds/"]')).toBeNull();
+  });
+
+  it('keeps the free card actionable without SG numeric precision', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
 
     render(<DashboardPage />);
 
-    const focusCard = await screen.findByTestId('dashboard-focus-card');
-    await screen.findByText('Round Focus');
-    expect(screen.getByText('Putting is costing you the most strokes.')).toBeInTheDocument();
-    expectOneText(OPPORTUNITY_PUTTING_NUDGES_UI);
+    await screen.findByTestId('dashboard-focus-card');
+    await screen.findByText('Putting is the clearest scoring focus right now.');
+    expect(screen.getByText('It has been the most consistent area holding back your recent scoring.')).toBeInTheDocument();
     expect(screen.queryByText(/strokes per round/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/compared to baseline/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Build on momentum.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Off the Tee is costing/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/strokes gained/i)).not.toBeInTheDocument();
-    expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
 
@@ -775,39 +752,35 @@ describe('/dashboard Round Focus card', () => {
     });
   });
 
-  it('shows premium component focus with clear leak and action', async () => {
+  it('shows the Premium component focus without compact numeric evidence', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            scoreTrendDelta: 0.6,
-            biggestLeakComponent: 'approach',
-            sgComponentDelta: {
-              offTee: -0.2,
-              approach: -0.7,
-              putting: -0.3,
-              penalties: -0.2,
-              residual: 0.0,
+          roundFocus: makeRoundFocus({
+            tier: 'premium',
+            selectedCategory: 'approach',
+            baselineDirection: 'worse',
+            evidence: {
+              recentAverage: -0.7,
+              baselineAverage: -0.3,
+              baselineDelta: -0.4,
+              trackedRecentCount: 5,
+              negativeRecentCount: 5,
+              lowestComponentCount: 4,
+              separation: 0.3,
             },
-            dataQualityFlags: {
-              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
-              volatileScoring: true,
-            },
-          },
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
-    const focusCard = await screen.findByTestId('dashboard-focus-card');
-    await screen.findByText('Approach is the clearest focus right now.');
-    expect(screen.getByText('That area is costing about 0.7 strokes per round.')).toBeInTheDocument();
-    expectOneText(OPPORTUNITY_APPROACH_NUDGES_UI);
-    expect(focusCard.querySelector('.dashboard-focus-breakdown')).toBeNull();
+    await screen.findByTestId('dashboard-focus-card');
+    await screen.findByText('Approach is the clearest scoring focus right now.');
+    expect(screen.getByTestId('dashboard-focus-card')).not.toHaveTextContent(/Recent:|Earlier:|SG|-0\.7|-0\.3/);
 
     fireEvent.click(screen.getByRole('button', { name: 'See Full Breakdown' }));
     await waitFor(() => {
@@ -815,181 +788,128 @@ describe('/dashboard Round Focus card', () => {
     });
   });
 
-  it('consumes persistence signal so recurring approach issue can win over a one-off lower SG component', async () => {
+  it('renders the all-positive conclusion without manufacturing a weakness', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            confidence: 'high',
-            sgComponentDelta: {
-              offTee: -0.08,
-              approach: -0.22,
-              putting: -0.28,
-              penalties: -0.04,
-              residual: -0.1,
-            },
-            persistenceSignal: {
-              component: 'approach',
-              count: 4,
-              window: 5,
-              tier: 'persistent',
-            },
-          },
+          roundFocus: makeRoundFocus({
+            source: 'neutral',
+            relationship: 'no_supported_focus',
+            selectedCategory: null,
+            confidence: 'building',
+            trendState: 'all_positive',
+            baselineDirection: null,
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
-    await screen.findByText('Approach is the clearest scoring focus right now.');
-    expectOneText(OPPORTUNITY_APPROACH_NUDGES_UI);
+    expect(await screen.findByText('No single area stands out as a weakness across your recent rounds.')).toBeInTheDocument();
+    expect(screen.getByText('Your recent play has been balanced, so there is no need to force a single focus yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/^Next round:/i)).not.toBeInTheDocument();
   });
 
-  it('renders improving-score bridge copy after the main Round Focus body so the headline stays primary', async () => {
+  it('renders a different-category conflict with explicit timeframe context', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            confidence: 'high',
-            scoreTrendDelta: -1.2,
-            sgComponentDelta: {
-              offTee: -0.08,
-              approach: -0.28,
-              putting: -0.12,
-              penalties: -0.04,
-              residual: -0.1,
-            },
-            persistenceSignal: null,
-          },
+          roundFocus: makeRoundFocus({
+            relationship: 'latest_round_conflicts',
+            latestRoundCategory: 'putting',
+            latestRoundPolarity: 'weakness',
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
-    const focusCard = await screen.findByTestId('dashboard-focus-card');
-    const headline = await screen.findByText('Approach is the clearest scoring focus right now.');
-    const body = await screen.findByText('Approach is costing about 0.3 strokes per round.');
-    const bridge = await screen.findByText(
-      'Your scores are improving, so this is the next area to clean up.',
-    );
-    const nextRound = focusCard.querySelector('.dashboard-focus-next-round');
-
-    expect(nextRound).toBeTruthy();
-    expect(
-      Boolean(headline.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true);
-    expect(
-      Boolean(body.compareDocumentPosition(bridge) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true);
-    expect(
-      Boolean(bridge.compareDocumentPosition(nextRound as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true);
+    expect(await screen.findByText('Approach is the clearest scoring focus right now.')).toBeInTheDocument();
+    expect(screen.getByText('Your latest round pointed more toward putting, but approach has been the more consistent pattern.')).toBeInTheDocument();
+    expect(screen.getByText('Choose targets that leave the largest margin for error.')).toBeInTheDocument();
   });
 
-  it('shows volatility-priority focus on dashboard when volatility outweighs mild component leaks', async () => {
+  it('renders a volatility fallback as latest-round guidance', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            confidence: 'high',
-            roundsRecent: 6,
-            sgComponentDelta: {
-              offTee: -0.05,
-              approach: -0.22,
-              putting: -0.08,
-              penalties: -0.03,
-              residual: 0.02,
-            },
-            dataQualityFlags: {
-              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
-              volatileScoring: true,
-            },
-          },
+          roundFocus: makeRoundFocus({
+            source: 'latest_round',
+            relationship: 'latest_round_fallback',
+            selectedCategory: 'volatility',
+            confidence: 'moderate',
+            trendState: 'no_clear_separator',
+            baselineDirection: null,
+            latestRoundCategory: 'volatility',
+            latestRoundPolarity: 'weakness',
+          }),
+        }),
+    });
+
+    render(<DashboardPage />);
+
+    expect(await screen.findByText('Improving scoring consistency is the clearest focus from your latest round.')).toBeInTheDocument();
+    expect(screen.getByText('Keep the plan simple and avoid compounding mistakes.')).toBeInTheDocument();
+  });
+
+  it('renders the projected balanced state without manufacturing an action', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () =>
+        makeDashboardPayload({
+          roundFocus: makeRoundFocus({
+            source: 'neutral',
+            relationship: 'no_supported_focus',
+            selectedCategory: null,
+            confidence: 'building',
+            trendState: 'no_clear_separator',
+            baselineDirection: null,
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
     await screen.findByTestId('dashboard-focus-card');
-    expect(
-      await screen.findByText('The main issue right now is how much the scores jump around.'),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText((_, element) =>
-        (element?.textContent ?? '').replace(/\s+/g, ' ').trim() ===
-        'Next round: Play to center-green targets.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/is the clearest focus right now/i)).not.toBeInTheDocument();
+    expect(await screen.findByText('Your recent rounds are balanced enough that no single focus stands out yet.')).toBeInTheDocument();
+    expect(screen.getByText('Keep tracking complete rounds and GolfIQ will surface a focus when one separates clearly.')).toBeInTheDocument();
+    expect(screen.queryByText(/^Next round:/i)).not.toBeInTheDocument();
   });
 
-  it('keeps balanced-state focus actionable at dashboard boundary with one clear next-round action', async () => {
-    mockedUseSubscription.mockReturnValue({ isPremium: true, loading: false });
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      headers: { get: () => 'application/json' },
-      json: async () =>
-        makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            confidence: 'medium',
-            sgComponentDelta: {
-              offTee: -0.05,
-              approach: 0.02,
-              putting: 0.14,
-              penalties: -0.14,
-              residual: 0.8,
-            },
-          },
-        }),
-    });
-
-    render(<DashboardPage />);
-
-    await screen.findByTestId('dashboard-focus-card');
-    expectOneText(BALANCED_HEADLINES_MED);
-    expectOneText(BALANCED_NUDGES_UI);
-    expect(screen.queryByText('No area clearly stands out as a weakness.')).not.toBeInTheDocument();
-    expect(screen.getAllByText(/^Next round:/i)).toHaveLength(1);
-  });
-
-  it('shows fallback focus instead of locked text when historical gating flags are present', async () => {
+  it('uses the projected Building state for insufficient history', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            roundsRecent: 2,
-            scoreTrendDelta: null,
-            dataQualityFlags: {
-              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
-              insufficientRounds: true,
-              missingScoreTrend: true,
-            },
-          },
+          roundFocus: makeRoundFocus({
+            source: 'neutral',
+            relationship: 'no_supported_focus',
+            selectedCategory: null,
+            confidence: 'building',
+            trendState: 'insufficient_evidence',
+            baselineDirection: null,
+            trendReason: 'fewer_than_five_recent',
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
     await screen.findByTestId('dashboard-focus-card');
-    expectOneText(EARLY_GUIDANCE_HEADLINES);
-    expectOneText(EARLY_GUIDANCE_BODIES);
-    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
+    expect(await screen.findByText('Keep logging rounds to build a reliable recent focus.')).toBeInTheDocument();
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();
@@ -1124,151 +1044,90 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.queryByTestId('trend-FIR & GIR Trend')).not.toBeInTheDocument();
   });
 
-  it('uses always-ready fallback copy for missing score trend after enough rounds', async () => {
+  it('uses the projected neutral result when no repeated trend is supported', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            roundsRecent: 6,
-            scoreTrendDelta: null,
-            dataQualityFlags: {
-              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
-              insufficientRounds: false,
-              missingScoreTrend: true,
-            },
-          },
+          roundFocus: makeRoundFocus({
+            source: 'neutral',
+            relationship: 'no_supported_focus',
+            selectedCategory: null,
+            confidence: 'building',
+            trendState: 'insufficient_evidence',
+            baselineDirection: null,
+            trendReason: 'no_repeated_negative_component',
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
     await screen.findByTestId('dashboard-focus-card');
-    expectOneText(EARLY_GUIDANCE_HEADLINES);
-    expectOneText(EARLY_GUIDANCE_BODIES);
-    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
+    expect(await screen.findByText('There is not enough consistent evidence to name one focus yet.')).toBeInTheDocument();
     expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
     expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
   });
 
-  it('shows score-only focus when SG component focus is unavailable after unlock', async () => {
+  it('shows the projected tracking-coverage state when component data is unavailable', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            roundsRecent: 6,
-            scoreTrendDelta: 1.2,
-            sgComponentDelta: null,
-            dataQualityFlags: {
-              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
-              insufficientRounds: false,
-              missingScoreTrend: false,
-              missingComponentData: true,
-            },
-          },
+          roundFocus: makeRoundFocus({
+            source: 'neutral',
+            relationship: 'no_supported_focus',
+            selectedCategory: null,
+            confidence: 'building',
+            trendState: 'insufficient_evidence',
+            baselineDirection: null,
+            trendReason: 'insufficient_component_coverage',
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
     await screen.findByTestId('dashboard-focus-card');
-    expectOneText(SCORE_ONLY_WORSENING_HEADLINES);
-    expectOneText(SCORE_ONLY_WORSENING_BODIES_FREE_MED);
-    expectOneText(SCORE_ONLY_WORSENING_NUDGES_UI);
+    expect(await screen.findByText('Track a few more complete rounds to identify a reliable focus.')).toBeInTheDocument();
+    expect(screen.getByText('More complete stat tracking will help GolfIQ separate the areas of your game.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'See Full Breakdown' })).toBeInTheDocument();
   });
 
-  it('uses early guidance for low-confidence mixed-signal combined states', async () => {
+  it('uses the projected early-sample state for fewer than five rounds', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            confidence: 'low',
-            roundsRecent: 3,
-            scoreTrendDelta: 0.3,
-            dataQualityFlags: {
-              ...makeDashboardPayload().overallInsightsSummary.dataQualityFlags,
-              combinedNeedsMoreNineHoleRounds: true,
-            },
-          },
+          roundFocus: makeRoundFocus({
+            source: 'neutral',
+            relationship: 'no_supported_focus',
+            selectedCategory: null,
+            confidence: 'building',
+            trendState: 'insufficient_evidence',
+            baselineDirection: null,
+            trendReason: 'fewer_than_five_recent',
+          }),
         }),
     });
 
     render(<DashboardPage />);
 
     await screen.findByTestId('dashboard-focus-card');
-    expectOneText(EARLY_GUIDANCE_HEADLINES);
-    expectOneText(EARLY_GUIDANCE_BODIES);
-    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
+    expect(await screen.findByText('Keep logging rounds to build a reliable recent focus.')).toBeInTheDocument();
     expect(screen.queryByText('Your scoring is stable.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are improving.')).not.toBeInTheDocument();
     expect(screen.queryByText('Your scores are slipping.')).not.toBeInTheDocument();
     expect(screen.queryByText('Log 5 rounds to unlock your Round Focus.')).not.toBeInTheDocument();
     expect(screen.queryByText('Round Focus is still calibrating.')).not.toBeInTheDocument();
     expect(screen.queryByText(/unlock your Round Focus/i)).not.toBeInTheDocument();
-  });
-
-  it('shows updating note when focus summary is stale versus latest round update', async () => {
-    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
-    const nowSpy = jest
-      .spyOn(Date, 'now')
-      .mockReturnValue(new Date('2026-02-24T10:00:30.000Z').getTime());
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      headers: { get: () => 'application/json' },
-      json: async () =>
-        makeDashboardPayload({
-          latestRoundUpdatedAt: '2026-02-24T10:00:00.000Z',
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            lastUpdatedAt: '2026-02-24T09:00:00.000Z',
-          },
-        }),
-    });
-
-    render(<DashboardPage />);
-
-    await screen.findByText('Updating focus...');
-    nowSpy.mockRestore();
-  });
-
-  it('hides updating note when round update is stale', async () => {
-    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
-    const nowSpy = jest
-      .spyOn(Date, 'now')
-      .mockReturnValue(new Date('2026-02-24T10:05:00.000Z').getTime());
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      headers: { get: () => 'application/json' },
-      json: async () =>
-        makeDashboardPayload({
-          latestRoundUpdatedAt: '2026-02-24T10:00:00.000Z',
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            lastUpdatedAt: '2026-02-24T09:00:00.000Z',
-          },
-        }),
-    });
-
-    render(<DashboardPage />);
-
-    await screen.findByTestId('dashboard-focus-card');
-    await waitFor(() => {
-      expect(screen.queryByText('Updating focus...')).not.toBeInTheDocument();
-    });
-    nowSpy.mockRestore();
   });
 
   it('renders focus card above limited-stats banner for free users', async () => {
@@ -1294,17 +1153,21 @@ describe('/dashboard Round Focus card', () => {
     ).toBe(true);
   });
 
-  it('captures dashboard_focus_viewed with round-focus context', async () => {
+  it('captures impression and CTA analytics with canonical categorical metadata only', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () =>
         makeDashboardPayload({
-          overallInsightsSummary: {
-            ...makeDashboardPayload().overallInsightsSummary,
-            scoreTrendDelta: 2.3,
-          },
+          roundFocus: makeRoundFocus({
+            relationship: 'reinforced_by_latest_round',
+            selectedCategory: 'off_the_tee',
+            confidence: 'strong',
+            baselineDirection: 'worse',
+            latestRoundCategory: 'off_the_tee',
+            latestRoundPolarity: 'weakness',
+          }),
         }),
     });
 
@@ -1315,18 +1178,80 @@ describe('/dashboard Round Focus card', () => {
       expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
         ANALYTICS_EVENTS.dashboardFocusViewed,
         expect.objectContaining({
-          plan: 'free',
           mode: 'combined',
-          focus_type: 'component',
-          component: 'Putting',
-          deltaScore: 2.3,
+          source: 'trend',
+          relationship: 'reinforced_by_latest_round',
+          category: 'off_the_tee',
+          confidence: 'strong',
+          trendState: 'component',
+          baselineDirection: 'worse',
+          viewerContext: 'owner',
+          subscriptionTier: 'free',
         }),
         expect.any(Object),
       );
     });
+
+    fireEvent.click(screen.getByRole('button', { name: 'See Full Breakdown' }));
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.dashboardFocusCtaClicked,
+      expect.objectContaining({
+        source: 'trend',
+        relationship: 'reinforced_by_latest_round',
+        category: 'off_the_tee',
+        confidence: 'strong',
+        viewerContext: 'owner',
+        subscriptionTier: 'free',
+      }),
+      expect.any(Object),
+    );
+    const focusCalls = mockedCaptureClientEvent.mock.calls.filter(([event]) =>
+      event === ANALYTICS_EVENTS.dashboardFocusViewed ||
+      event === ANALYTICS_EVENTS.dashboardFocusCtaClicked,
+    );
+    expect(JSON.stringify(focusCalls)).not.toMatch(/recommendation|sourceRoundId|recentAverage|baselineAverage|baselineDelta|separation/);
   });
 
-  it('does not show error toast when API responds with legacy no-rounds error message', async () => {
+  it('marks friend/public focus analytics as external without private evidence', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => makeDashboardPayload({
+        roundFocus: makeRoundFocus({
+          source: 'latest_round',
+          relationship: 'latest_round_fallback',
+          selectedCategory: 'big_numbers',
+          confidence: 'moderate',
+          trendState: 'no_clear_separator',
+          baselineDirection: null,
+          latestRoundCategory: 'big_numbers',
+          latestRoundPolarity: 'weakness',
+          sourceRoundId: null,
+        }),
+      }),
+    });
+
+    render(<DashboardPage userId={2} />);
+
+    await screen.findByText('Avoiding big numbers is the clearest focus from your latest round.');
+    await waitFor(() => {
+      expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+        ANALYTICS_EVENTS.dashboardFocusViewed,
+        expect.objectContaining({
+          source: 'latest_round',
+          relationship: 'latest_round_fallback',
+          category: 'big_numbers',
+          viewerContext: 'external',
+          subscriptionTier: 'free',
+        }),
+        expect.any(Object),
+      );
+    });
+    expect(screen.getByTestId('dashboard-focus-card').querySelector('a[href*="/rounds/"]')).toBeNull();
+  });
+
+  it('does not show an error toast for the supported no-rounds response', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
@@ -1341,9 +1266,7 @@ describe('/dashboard Round Focus card', () => {
     render(<DashboardPage />);
 
     await screen.findByText('Add your first round to start tracking progress.');
-    expectOneText(EARLY_GUIDANCE_HEADLINES);
-    expect(screen.getByText('Log your first round to begin building your scoring baseline.')).toBeInTheDocument();
-    expectOneText(EARLY_GUIDANCE_NUDGES_UI);
+    expect(screen.getByText('There is not enough consistent evidence to name one focus yet.')).toBeInTheDocument();
     expect(mockShowMessage).not.toHaveBeenCalled();
     expect(screen.queryByText('Failed to load dashboard.')).not.toBeInTheDocument();
   });

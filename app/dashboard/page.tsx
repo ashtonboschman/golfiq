@@ -33,18 +33,12 @@ import {
   isDashboardResumeCtaSnoozed,
   snoozeDashboardResumeCta,
 } from '@/lib/rounds/liveRoundResume';
-import {
-  buildRoundFocusState,
-  focusComponentLabel,
-  type DashboardLatestRoundIdentitySummary,
-  type DashboardOverallInsightsSummary,
-} from '@/lib/insights/dashboardFocus';
+import type { DashboardRoundFocusDto } from '@/lib/insights/dashboardRoundFocus/types';
+import { composeDashboardRoundFocus } from '@/lib/insights/dashboardRoundFocus/presentation';
 import { readOnboardingState } from '@/lib/onboarding/state';
-import { getEarlySampleMessage } from '@/lib/insights/earlySample';
 
 type StatsMode = 'combined' | '9' | '18';
 const dashboardFocusViewedKeys = new Set<string>();
-const ROUND_FOCUS_UPDATING_WINDOW_MS = 90_000;
 
 ChartJS.register(ArcElement, ChartTooltip, ChartLegend);
 
@@ -133,9 +127,7 @@ interface DashboardStats {
     first_name?: string | null;
     last_name?: string | null;
   };
-  overallInsightsSummary?: DashboardOverallInsightsSummary | null;
-  latestRoundUpdatedAt?: string | null;
-  latestRoundIdentity?: DashboardLatestRoundIdentitySummary;
+  roundFocus?: DashboardRoundFocusDto | null;
 }
 
 function RoundFocusSkeletonBody() {
@@ -288,9 +280,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     hbh_stats: null,
     scoring_profile: null,
     miss_tendencies: null,
-    overallInsightsSummary: null,
-    latestRoundUpdatedAt: null,
-    latestRoundIdentity: null,
+    roundFocus: null,
   });
   const isFreeTierDateFilterLocked = !subscriptionLoading && !isPremium;
 
@@ -383,55 +373,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       },
     );
   }, [pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
-
-  const trackFocusCtaClick = useCallback((
-    component: string | null,
-    focusType: string,
-    confidence: string | null,
-    deltaScore: number | null,
-    meta: {
-      tone: string | null;
-      timeframeBasis: string | null;
-      contradictionGuardApplied: boolean;
-      sampleSize: number | null;
-      roundsLifetime: number | null;
-      evidenceLevel: string | null;
-      primaryKey: string | null;
-      latestIdentityPrimary: string | null;
-    },
-  ) => {
-    captureClientEvent(
-      ANALYTICS_EVENTS.dashboardFocusCtaClicked,
-      {
-        cta: 'view_insights',
-        plan: isPremium ? 'premium' : 'free',
-        surface: 'dashboard',
-        mode: statsMode,
-        sample_size: meta.sampleSize,
-        rounds_lifetime: meta.roundsLifetime,
-        is_premium: Boolean(isPremium),
-        focus_type: focusType,
-        component,
-        deltaScore,
-        confidence,
-        tone: meta.tone,
-        evidenceLevel: meta.evidenceLevel,
-        primaryKey: meta.primaryKey,
-        latest_identity_primary: meta.latestIdentityPrimary,
-        timeframe_basis: meta.timeframeBasis,
-        contradiction_guard_applied: meta.contradictionGuardApplied,
-      },
-      {
-        pathname,
-        user: {
-          id: session?.user?.id,
-          subscription_tier: session?.user?.subscription_tier,
-          auth_provider: session?.user?.auth_provider,
-        },
-        isLoggedIn: status === 'authenticated',
-      },
-    );
-  }, [isPremium, pathname, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, statsMode, status]);
 
   // Load theme colors from CSS variables
   useEffect(() => {
@@ -555,9 +496,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               hbh_stats: null,
               scoring_profile: null,
               miss_tendencies: null,
-              overallInsightsSummary: null,
-              latestRoundUpdatedAt: null,
-              latestRoundIdentity: null,
+              roundFocus: null,
             });
             return;
           }
@@ -609,9 +548,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 hbh_stats: null,
                 scoring_profile: null,
                 miss_tendencies: null,
-                overallInsightsSummary: null,
-                latestRoundUpdatedAt: null,
-                latestRoundIdentity: null,
+                roundFocus: null,
               });
               setError(null);
               return;
@@ -1117,64 +1054,23 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     return `${Math.round(value)}%`;
   };
 
-  const formatFocusConfidenceLabel = (value: 'high' | 'medium' | 'low' | null | undefined): string => {
-    if (value === 'high') return 'Strong';
-    if (value === 'medium') return 'Moderate';
-    return 'Building';
-  };
-
-  const getFocusConfidenceTone = (value: 'high' | 'medium' | 'low' | null | undefined): 'high' | 'medium' | 'low' => {
-    if (value === 'high') return 'high';
-    if (value === 'medium') return 'medium';
-    return 'low';
-  };
-
-  const focusSummary = stats.overallInsightsSummary ?? null;
-  const latestRoundIdentity = stats.latestRoundIdentity ?? null;
-  const roundsLifetime = stats.totalRoundsInDb ?? stats.total_rounds ?? 0;
-  const roundFocusState = buildRoundFocusState(
-    focusSummary,
-    Boolean(isPremium),
-    Boolean(stats.limitedToLast20),
-    {
-      latestRoundIdentity,
-    },
-  );
-  const focusPayload = roundFocusState.focus;
-  const focusComponent = focusComponentLabel(focusPayload?.component ?? null);
-  const focusTypeForEvent = focusPayload?.focusType ?? 'score';
-  const focusConfidenceLabel = formatFocusConfidenceLabel(focusPayload?.confidence);
-  const focusConfidenceTone = getFocusConfidenceTone(focusPayload?.confidence);
-  const focusTone = focusPayload?.tone ?? null;
-  const focusTimeframeBasis = focusPayload?.timeframeBasis ?? null;
-  const earlySampleMessage = getEarlySampleMessage(roundsLifetime);
-  const scoreImprovingThreshold = statsMode === '9' ? -0.5 : -1.0;
-  const positiveBridgeCopyByTone: Record<NonNullable<typeof focusTone>, string> = {
-    fix: 'Your scores are improving, so this is the next area to clean up.',
-    build: 'Your scores are improving, so this is the next area to build on.',
-    repeat: 'Your scores are improving, and this is one part worth repeating.',
-    explain: 'Your scores are improving, so this is the next area to build on.',
-  };
-  const positiveBridgeCopy =
-    focusTone === 'fix' &&
-    (focusSummary?.scoreTrendDelta ?? 0) <= scoreImprovingThreshold
-      ? positiveBridgeCopyByTone[focusTone]
-      : null;
-
-  const parseTimestamp = (value: string | null | undefined): number | null => {
-    if (!value) return null;
-    const ts = Date.parse(value);
-    return Number.isFinite(ts) ? ts : null;
-  };
-
-  const latestRoundUpdatedAtTs = parseTimestamp(stats.latestRoundUpdatedAt);
-  const focusLastUpdatedTs = parseTimestamp(focusSummary?.lastUpdatedAt ?? null);
-  const nowTs = Date.now();
-  const showFocusUpdatingNote =
-    latestRoundUpdatedAtTs != null &&
-    focusLastUpdatedTs != null &&
-    latestRoundUpdatedAtTs > focusLastUpdatedTs &&
-    nowTs - latestRoundUpdatedAtTs <= ROUND_FOCUS_UPDATING_WINDOW_MS;
+  const roundFocus = stats.roundFocus ?? null;
+  const focusPresentation = composeDashboardRoundFocus(roundFocus);
+  const presentationConfidence = roundFocus?.confidence ?? 'building';
+  const focusConfidenceTone = presentationConfidence === 'strong'
+    ? 'high'
+    : presentationConfidence === 'moderate'
+      ? 'medium'
+      : 'low';
+  const focusConfidenceLabel = focusPresentation.confidenceLabel;
+  const focusSource = roundFocus?.source ?? 'neutral';
+  const focusRelationship = roundFocus?.relationship ?? 'no_supported_focus';
+  const focusCategory = roundFocus?.selectedCategory ?? null;
+  const focusConfidence = roundFocus?.confidence ?? 'building';
+  const focusTrendState = roundFocus?.trendState ?? 'insufficient_evidence';
+  const focusBaselineDirection = roundFocus?.baselineDirection ?? null;
+  const viewerContext = isOwnDashboard ? 'owner' : 'external';
+  const subscriptionTier = isPremium ? 'premium' : 'free';
 
   const trackDashboardFocusModeChanged = useCallback((fromMode: StatsMode, toMode: StatsMode) => {
     captureClientEvent(
@@ -1185,7 +1081,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         plan: isPremium ? 'premium' : 'free',
         surface: 'dashboard',
         is_premium: Boolean(isPremium),
-        sample_size: stats.overallInsightsSummary?.roundsRecent ?? null,
         rounds_lifetime: stats.totalRoundsInDb ?? stats.total_rounds ?? null,
       },
       {
@@ -1204,42 +1099,54 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     session?.user?.auth_provider,
     session?.user?.id,
     session?.user?.subscription_tier,
-    stats.overallInsightsSummary?.roundsRecent,
     stats.totalRoundsInDb,
     stats.total_rounds,
     status,
   ]);
 
   const runFocusAction = useCallback(() => {
-    trackFocusCtaClick(
-      focusComponent,
-      focusPayload.focusType,
-      focusPayload?.confidence ?? null,
-      focusSummary?.scoreTrendDelta ?? null,
+    captureClientEvent(
+      ANALYTICS_EVENTS.dashboardFocusCtaClicked,
       {
-        tone: focusTone,
-        timeframeBasis: focusTimeframeBasis,
-        contradictionGuardApplied: Boolean(focusPayload?.contradictionGuardApplied),
-        sampleSize: focusSummary?.roundsRecent ?? null,
-        roundsLifetime,
-        evidenceLevel: latestRoundIdentity?.evidenceLevel ?? null,
-        primaryKey: latestRoundIdentity?.primaryKey ?? null,
-        latestIdentityPrimary: latestRoundIdentity?.primaryKey ?? null,
+        cta: 'view_insights',
+        surface: 'dashboard',
+        mode: statsMode,
+        source: focusSource,
+        relationship: focusRelationship,
+        category: focusCategory,
+        confidence: focusConfidence,
+        trendState: focusTrendState,
+        baselineDirection: focusBaselineDirection,
+        viewerContext,
+        subscriptionTier,
+      },
+      {
+        pathname,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
       },
     );
     router.push('/insights');
   }, [
-    focusComponent,
-    focusPayload,
-    focusSummary?.roundsRecent,
-    focusSummary?.scoreTrendDelta,
-    focusTimeframeBasis,
-    focusTone,
-    latestRoundIdentity?.evidenceLevel,
-    latestRoundIdentity?.primaryKey,
-    roundsLifetime,
+    focusBaselineDirection,
+    focusCategory,
+    focusConfidence,
+    focusRelationship,
+    focusSource,
+    focusTrendState,
+    pathname,
     router,
-    trackFocusCtaClick,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    statsMode,
+    status,
+    subscriptionTier,
+    viewerContext,
   ]);
 
   useEffect(() => {
@@ -1285,13 +1192,14 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     const viewKey = [
       session?.user?.id ?? 'unknown',
       statsMode,
-      isPremium ? 'premium' : 'free',
-      focusTypeForEvent,
-      focusPayload?.component ?? 'none',
-      focusSummary?.scoreTrendDelta ?? 'na',
-      focusPayload?.confidence ?? 'na',
-      focusTimeframeBasis ?? 'na',
-      focusPayload?.contradictionGuardApplied ? 'guard' : 'no-guard',
+      subscriptionTier,
+      viewerContext,
+      focusSource,
+      focusRelationship,
+      focusCategory ?? 'none',
+      focusConfidence,
+      focusTrendState,
+      focusBaselineDirection ?? 'none',
     ].join('|');
 
     if (dashboardFocusViewedKeys.has(viewKey)) return;
@@ -1300,22 +1208,16 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
     captureClientEvent(
       ANALYTICS_EVENTS.dashboardFocusViewed,
       {
-        plan: isPremium ? 'premium' : 'free',
         surface: 'dashboard',
         mode: statsMode,
-        sample_size: focusSummary?.roundsRecent ?? null,
-        rounds_lifetime: roundsLifetime,
-        is_premium: Boolean(isPremium),
-        focus_type: focusTypeForEvent,
-        component: focusComponent,
-        deltaScore: focusSummary?.scoreTrendDelta ?? null,
-        confidence: focusPayload?.confidence ?? null,
-        tone: focusTone,
-        evidenceLevel: latestRoundIdentity?.evidenceLevel ?? null,
-        primaryKey: latestRoundIdentity?.primaryKey ?? null,
-        latest_identity_primary: latestRoundIdentity?.primaryKey ?? null,
-        timeframe_basis: focusTimeframeBasis,
-        contradiction_guard_applied: Boolean(focusPayload?.contradictionGuardApplied),
+        source: focusSource,
+        relationship: focusRelationship,
+        category: focusCategory,
+        confidence: focusConfidence,
+        trendState: focusTrendState,
+        baselineDirection: focusBaselineDirection,
+        viewerContext,
+        subscriptionTier,
       },
       {
         pathname,
@@ -1328,26 +1230,21 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       },
     );
   }, [
-    focusComponent,
-    focusSummary?.scoreTrendDelta,
-    focusPayload?.confidence,
-    focusPayload?.contradictionGuardApplied,
-    focusPayload?.component,
-    focusSummary?.roundsRecent,
-    focusTypeForEvent,
-    focusTimeframeBasis,
-    focusTone,
-    isPremium,
-    latestRoundIdentity?.evidenceLevel,
-    latestRoundIdentity?.primaryKey,
+    focusBaselineDirection,
+    focusCategory,
+    focusConfidence,
+    focusRelationship,
+    focusSource,
+    focusTrendState,
     loading,
     pathname,
-    roundsLifetime,
     session?.user?.auth_provider,
     session?.user?.id,
     session?.user?.subscription_tier,
     statsMode,
     status,
+    subscriptionTier,
+    viewerContext,
   ]);
 
   if (error && !loading) return <p className="error-text">{error}</p>;
@@ -1499,14 +1396,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                 <div className="info-tooltip-content center below ready dashboard-focus-confidence-popover">
                   <h4>Focus Confidence</h4>
                   <p>
-                    How reliable your Round Focus is based on the rounds GolfIQ has so far.
-                    <br />
-                    <br />
-                    Building: early read while GolfIQ learns your game.
-                    <br />
-                    Moderate: useful signal, but still getting sharper.
-                    <br />
-                    Strong: enough history to trust the pattern more.
+                    Confidence reflects how much reliable tracked evidence supports this focus.
                   </p>
                   <div className="info-tooltip-arrow center below" />
                 </div>
@@ -1518,28 +1408,15 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           <RoundFocusSkeletonBody />
         ) : (
           <>
-            <div className="dashboard-focus-content">
-              <p className="dashboard-focus-headline">{focusPayload.headline}</p>
-              {focusPayload.qualifierText && (
-                <p className="dashboard-focus-body dashboard-focus-qualifier">{focusPayload.qualifierText}</p>
+            <div className={`dashboard-focus-content is-${focusPresentation.tone}`}>
+              <p className="dashboard-focus-headline">{focusPresentation.headline}</p>
+              {focusPresentation.supportingText && (
+                <p className="dashboard-focus-body">{focusPresentation.supportingText}</p>
               )}
-              {focusPayload.body && (
-                <p className="dashboard-focus-body">{focusPayload.body}</p>
-              )}
-              {positiveBridgeCopy && (
-                <p className="dashboard-focus-body dashboard-focus-positive-bridge">{positiveBridgeCopy}</p>
-              )}
-              {earlySampleMessage && (
-                <p className="dashboard-focus-body dashboard-focus-sample-note">{earlySampleMessage}</p>
-              )}
-              {focusPayload.nextRound && (
-                <p className="dashboard-focus-body dashboard-focus-next-round">
-                  <span className="dashboard-focus-next-round-label">Next round:</span>{' '}
-                  {focusPayload.nextRound}
+              {focusPresentation.nextRoundAction && (
+                <p className="dashboard-focus-next-round">
+                  <strong>Next round:</strong> {focusPresentation.nextRoundAction}
                 </p>
-              )}
-              {showFocusUpdatingNote && (
-                <p className="dashboard-focus-updating">Updating focus...</p>
               )}
             </div>
             <div className="dashboard-focus-actions">
@@ -1929,5 +1806,3 @@ export default function DashboardPage({ userId }: { userId?: number }) {
     </Suspense>
   );
 }
-
-

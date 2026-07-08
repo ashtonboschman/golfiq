@@ -4,7 +4,10 @@ import { prisma } from '@/lib/db';
 import { isPremiumUser } from '@/lib/subscription';
 import { resolveTeeContext } from '@/lib/tee/resolveTeeContext';
 import { normalizeRoundsByMode, calculateHandicap } from '@/lib/utils/handicap';
-import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
+import {
+  buildDashboardRoundFocus,
+  createUnavailableDashboardRoundFocusDto,
+} from '@/lib/insights/dashboardRoundFocus/buildDashboardRoundFocus';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
@@ -21,8 +24,6 @@ jest.mock('@/lib/db', () => ({
     round: { findMany: jest.fn() },
     user: { findUnique: jest.fn() },
     roundHole: { findMany: jest.fn() },
-    overallInsight: { findUnique: jest.fn() },
-    roundInsight: { findUnique: jest.fn() },
   },
 }));
 
@@ -39,14 +40,17 @@ jest.mock('@/lib/utils/handicap', () => ({
   calculateHandicap: jest.fn(),
 }));
 
+jest.mock('@/lib/insights/dashboardRoundFocus/buildDashboardRoundFocus', () => ({
+  buildDashboardRoundFocus: jest.fn(),
+  createUnavailableDashboardRoundFocusDto: jest.fn(),
+}));
+
 type MockPrisma = {
   userProfile: { findUnique: jest.Mock };
   friend: { findFirst: jest.Mock };
   round: { findMany: jest.Mock };
   user: { findUnique: jest.Mock };
   roundHole: { findMany: jest.Mock };
-  overallInsight: { findUnique: jest.Mock };
-  roundInsight: { findUnique: jest.Mock };
 };
 
 const mockedRequireAuth = requireAuth as jest.Mock;
@@ -55,6 +59,40 @@ const mockedIsPremiumUser = isPremiumUser as jest.Mock;
 const mockedResolveTeeContext = resolveTeeContext as jest.Mock;
 const mockedNormalizeRoundsByMode = normalizeRoundsByMode as jest.Mock;
 const mockedCalculateHandicap = calculateHandicap as jest.Mock;
+const mockedBuildDashboardRoundFocus = buildDashboardRoundFocus as jest.Mock;
+const mockedCreateUnavailableDashboardRoundFocusDto = createUnavailableDashboardRoundFocusDto as jest.Mock;
+
+const projectedRoundFocus = {
+  version: 'dashboard_round_focus_v2',
+  tier: 'free',
+  source: 'neutral',
+  relationship: 'no_supported_focus',
+  selectedCategory: null,
+  confidence: 'building',
+  trendState: 'insufficient_evidence',
+  baselineDirection: null,
+  latestRoundCategory: null,
+  latestRoundPolarity: null,
+  sourceRoundId: null,
+  trendReason: 'fewer_than_five_recent',
+  latestRoundUnavailableReason: 'missing_identity',
+};
+
+function containsForbiddenFocusEvidence(value: unknown): boolean {
+  const forbiddenKeys = new Set([
+    'recentAverage',
+    'baselineAverage',
+    'baselineDelta',
+    'trackedRecentCount',
+    'negativeRecentCount',
+    'lowestComponentCount',
+    'separation',
+  ]);
+  if (!value || typeof value !== 'object') return false;
+  return Object.entries(value as Record<string, unknown>).some(([key, nested]) =>
+    (forbiddenKeys.has(key) && typeof nested === 'number') || containsForbiddenFocusEvidence(nested),
+  );
+}
 
 function makeDbRound(index: number) {
   const day = String(index).padStart(2, '0');
@@ -111,8 +149,116 @@ describe('/api/dashboard route contract', () => {
     mockedNormalizeRoundsByMode.mockImplementation((rounds: any[]) => rounds);
     mockedPrisma.roundHole.findMany.mockResolvedValue([]);
     mockedCalculateHandicap.mockReturnValue(10.2);
-    mockedPrisma.overallInsight.findUnique.mockResolvedValue(null);
-    mockedPrisma.roundInsight.findUnique.mockResolvedValue(null);
+    mockedBuildDashboardRoundFocus.mockResolvedValue({ dto: projectedRoundFocus });
+    mockedCreateUnavailableDashboardRoundFocusDto.mockReturnValue({
+      ...projectedRoundFocus,
+      trendReason: 'pipeline_error',
+      latestRoundUnavailableReason: 'pipeline_error',
+    });
+  });
+
+  it('returns permanent roundFocus without retired focus fields', async () => {
+    const response = await GET(new Request('http://localhost/api/dashboard?statsMode=combined') as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store, private, max-age=0');
+    expect(body.roundFocus).toEqual(projectedRoundFocus);
+    expect(body.roundFocus).not.toHaveProperty('latestRoundRecommendation');
+    expect(containsForbiddenFocusEvidence(body.roundFocus)).toBe(false);
+    expect(body).not.toHaveProperty(['round', 'Focus', 'V2'].join(''));
+    expect(body).not.toHaveProperty('overallInsightsSummary');
+    expect(body).not.toHaveProperty('latestRoundIdentity');
+    expect(body).not.toHaveProperty('latestRoundUpdatedAt');
+    expect(body).toEqual(expect.objectContaining({
+      average_score: 15.5,
+    }));
+    expect(mockedBuildDashboardRoundFocus).toHaveBeenCalledWith(expect.objectContaining({
+      dashboardOwnerId: BigInt(1),
+      viewerId: BigInt(1),
+      mode: 'combined',
+      roundContext: 'real',
+    }));
+  });
+
+  it('returns a safe permanent focus state without failing the Dashboard when the pipeline throws', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockedBuildDashboardRoundFocus.mockRejectedValueOnce(new Error('focus failure'));
+    const response = await GET(new Request('http://localhost/api/dashboard?statsMode=combined') as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.roundFocus).toEqual(expect.objectContaining({
+      source: 'neutral',
+      relationship: 'no_supported_focus',
+      trendReason: 'pipeline_error',
+    }));
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Dashboard Round Focus pipeline failed:',
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
+  });
+
+  it('does not run the focus pipeline when an external viewer is blocked by private visibility', async () => {
+    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedPrisma.userProfile.findUnique.mockResolvedValue({
+      dashboardVisibility: 'private',
+      firstName: 'Private',
+      lastName: 'Golfer',
+    });
+
+    const response = await GET(
+      new Request('http://localhost/api/dashboard?statsMode=combined&user_id=2') as any,
+    );
+
+    expect(response.status).toBe(403);
+    expect(mockedBuildDashboardRoundFocus).not.toHaveBeenCalled();
+  });
+
+  it('preserves public Dashboard access while passing distinct owner and viewer IDs', async () => {
+    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    const response = await GET(
+      new Request('http://localhost/api/dashboard?statsMode=combined&user_id=2') as any,
+    );
+
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.roundFocus.tier).toBe('free');
+    expect(body.roundFocus.sourceRoundId).toBeNull();
+    expect(containsForbiddenFocusEvidence(body.roundFocus)).toBe(false);
+    expect(mockedBuildDashboardRoundFocus).toHaveBeenCalledWith(expect.objectContaining({
+      dashboardOwnerId: BigInt(2),
+      viewerId: BigInt(1),
+    }));
+  });
+
+  it('returns approved numeric evidence for a Premium owner projection', async () => {
+    mockedBuildDashboardRoundFocus.mockResolvedValueOnce({
+      dto: {
+        ...projectedRoundFocus,
+        tier: 'premium',
+        source: 'trend',
+        relationship: 'trend_only',
+        selectedCategory: 'approach',
+        trendState: 'component',
+        evidence: {
+          recentAverage: -0.8,
+          baselineAverage: -0.3,
+          baselineDelta: -0.5,
+          trackedRecentCount: 5,
+          negativeRecentCount: 5,
+          lowestComponentCount: 4,
+          separation: 0.3,
+        },
+      },
+    });
+
+    const response = await GET(new Request('http://localhost/api/dashboard?statsMode=combined') as any);
+    const body = await response.json();
+
+    expect(body.roundFocus.tier).toBe('premium');
+    expect(body.roundFocus.evidence).toEqual(expect.objectContaining({ recentAverage: -0.8 }));
   });
 
   it('caps free-user aggregate averages to the latest 20 rounds', async () => {
@@ -130,7 +276,6 @@ describe('/api/dashboard route contract', () => {
     expect(body.all_rounds).toHaveLength(20);
     expect(body.limitedToLast20).toBe(true);
     expect(body.totalRoundsInDb).toBe(25);
-    expect(body.latestRoundIdentity).toBeNull();
     expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -149,142 +294,6 @@ describe('/api/dashboard route contract', () => {
     );
     const handicapInput = mockedCalculateHandicap.mock.calls[0][0];
     expect(handicapInput).toHaveLength(20);
-  });
-
-  it('preserves persistence and volatility signals in overallInsightsSummary contract', async () => {
-    mockedPrisma.overallInsight.findUnique.mockResolvedValue({
-      insights: {
-        generated_at: '2026-02-24T10:00:00.000Z',
-        tier_context: { recentWindow: 5 },
-        projection: { projectedHandicapIn10: 7.2 },
-        projection_by_mode: {
-          combined: {
-            projectedScoreIn10: 79.3,
-            scoreLow: 78.1,
-            scoreHigh: 80.5,
-          },
-          '9': { projectedScoreIn10: null, scoreLow: null, scoreHigh: null },
-          '18': { projectedScoreIn10: null, scoreLow: null, scoreHigh: null },
-        },
-        mode_payload: {
-          combined: {
-            kpis: {
-              roundsRecent: 5,
-              avgScoreRecent: 80.2,
-              avgScoreBaseline: 79.0,
-              deltaVsBaseline: 1.2,
-            },
-            consistency: { label: 'volatile', stdDev: 4.3 },
-            sgComponents: {
-              hasData: true,
-              recentAvg: {
-                offTee: -0.1,
-                approach: -0.3,
-                putting: -0.2,
-                penalties: -0.05,
-                residual: 0,
-              },
-              baselineAvg: {
-                offTee: 0,
-                approach: 0,
-                putting: 0,
-                penalties: 0,
-                residual: 0,
-              },
-            },
-            efficiency: {
-              fir: { recent: 0.5, baseline: 0.5, coverageRecent: '5/5' },
-              gir: { recent: 0.4, baseline: 0.4, coverageRecent: '5/5' },
-              puttsTotal: { recent: 32, baseline: 32, coverageRecent: '5/5' },
-              penaltiesPerRound: { recent: 1.4, baseline: 1.2, coverageRecent: '5/5' },
-            },
-          },
-          '9': { kpis: { roundsRecent: 0 } },
-          '18': { kpis: { roundsRecent: 5 } },
-        },
-        sg: {
-          components: {
-            latest: { confidence: 'high' },
-            worstComponentFrequencyRecent: {
-              component: 'approach',
-              count: 4,
-              window: 5,
-            },
-          },
-        },
-      },
-    });
-
-    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
-    const response = await GET(request as any);
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.type).toBe('success');
-    expect(body.overallInsightsSummary).toEqual(
-      expect.objectContaining({
-        confidence: 'high',
-        dataQualityFlags: expect.objectContaining({
-          volatileScoring: true,
-        }),
-        persistenceSignal: {
-          component: 'approach',
-          count: 4,
-          window: 5,
-          tier: 'persistent',
-        },
-      }),
-    );
-  });
-
-  it('returns normalized latestRoundIdentity summary when round insights exist', async () => {
-    mockedPrisma.roundInsight.findUnique.mockResolvedValue({
-      insights: {
-        raw_payload: {
-          round_identity_v1: {
-            version: ROUND_IDENTITY_V1_VERSION,
-            primaryKey: 'approach_carried',
-            tone: 'repeat',
-            confidence: 'strong',
-            evidenceLevel: 'hole_by_hole',
-          },
-        },
-      },
-    });
-
-    const request = new Request('http://localhost/api/dashboard?statsMode=combined');
-    const response = await GET(request as any);
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.latestRoundIdentity).toEqual({
-      primaryKey: 'approach_carried',
-      tone: 'repeat',
-      confidence: 'strong',
-      evidenceLevel: 'hole_by_hole',
-    });
-  });
-
-  it('ignores a stored latest-round identity from an older copy version', async () => {
-    mockedPrisma.roundInsight.findUnique.mockResolvedValue({
-      insights: {
-        raw_payload: {
-          round_identity_v1: {
-            version: 'round_identity_v1.4.0',
-            primaryKey: 'approach_carried',
-            tone: 'repeat',
-            confidence: 'strong',
-            evidenceLevel: 'hole_by_hole',
-          },
-        },
-      },
-    });
-
-    const response = await GET(new Request('http://localhost/api/dashboard?statsMode=combined') as any);
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.latestRoundIdentity).toBeNull();
   });
 
   it('returns FIR/GIR miss tendencies percentages from directional misses', async () => {
