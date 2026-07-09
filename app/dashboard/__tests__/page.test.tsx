@@ -1130,7 +1130,7 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.queryByText(/unlock your Round Focus/i)).not.toBeInTheDocument();
   });
 
-  it('renders focus card above limited-stats banner for free users', async () => {
+  it('renders a compact shared history-limit card below the combined note for free users', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -1144,13 +1144,32 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
+    const combinedNote = screen.getByText('9 hole rounds are doubled to approximate 18 hole stats.');
+    const historyCardCopy = await screen.findByText('Dashboard stats use most recent 20 of 28 rounds.');
+    const historyCard = historyCardCopy.closest('.info-banner');
     const focusCard = await screen.findByTestId('dashboard-focus-card');
-    const bannerHeading = await screen.findByText('Limited Stats View');
-    const banner = bannerHeading.closest('.info-banner');
-    expect(banner).toBeTruthy();
+
+    if (!historyCard) {
+      throw new Error('Expected history limit card to render.');
+    }
+
+    expect(historyCard).toHaveClass('info-banner');
+    expect(screen.getByText('Showing Your Latest 20 Rounds')).toBeInTheDocument();
+    expect(screen.queryByText('Limited Stats View')).not.toBeInTheDocument();
     expect(
-      Boolean(focusCard.compareDocumentPosition(banner as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING),
+      Boolean(combinedNote.compareDocumentPosition(historyCard) & Node.DOCUMENT_POSITION_FOLLOWING),
     ).toBe(true);
+    expect(
+      Boolean(historyCard.compareDocumentPosition(focusCard) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock Full History' }));
+    expect(mockPush).toHaveBeenCalledWith('/pricing');
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.upgradeCtaClicked,
+      expect.objectContaining({ cta_location: 'dashboard_limited_stats_banner' }),
+      expect.any(Object),
+    );
   });
 
   it('captures impression and CTA analytics with canonical categorical metadata only', async () => {
@@ -1736,5 +1755,3 @@ describe('/dashboard Round Focus card', () => {
     });
   });
 });
-
-

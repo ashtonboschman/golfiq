@@ -7,7 +7,7 @@ import { useMessage } from '@/app/providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import RoundCard from '@/components/RoundCard';
 import UpgradeModal from '@/components/UpgradeModal';
-import { Plus, TriangleAlert, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Lock, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import Select from 'react-select';
 import { Doughnut } from 'react-chartjs-2';
 import {
@@ -246,7 +246,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
   const [dangerColor, setDangerColor] = useState('#e74c3c');
   const [dangerMutedColor, setDangerMutedColor] = useState('#8B1E14');
   const [greenScaleColor, setGreenScaleColor] = useState('#28a065');
-  const [blueScaleColor, setBlueScaleColor] = useState('#3498db');
+  const [blueScaleColor, setBlueScaleColor] = useState('#2D6CFF');
   const [textColor, setTextColor] = useState('#EDEFF2');
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
@@ -385,7 +385,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       const dangerMuted =
         rootStyles.getPropertyValue('--color-scoring-triple-plus').trim() || '#8B1E14';
       const greenScale = rootStyles.getPropertyValue('--color-green').trim() || '#28a065';
-      const blueScale = rootStyles.getPropertyValue('--color-blue').trim() || '#3498db';
+      const blueScale = rootStyles.getPropertyValue('--color-blue').trim() || '#2D6CFF';
       const text = rootStyles.getPropertyValue('--color-primary-text').trim() || '#EDEFF2';
       const grid = rootStyles.getPropertyValue('--color-border').trim() || '#2A313D';
       const surface = rootStyles.getPropertyValue('--color-primary-surface').trim() || '#171C26';
@@ -1376,6 +1376,29 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
       {statsMode === 'combined' && (
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
+      {!loading && stats.limitedToLast20 && stats.totalRoundsInDb && stats.totalRoundsInDb > 20 && (
+        <div className="info-banner" role="note">
+          <div className="info-banner-content">
+            <div className="info-banner-icon">
+              <Lock size={25} aria-hidden="true" />
+            </div>
+            <div className="info-banner-text">
+              <h4>Showing Your Latest 20 Rounds</h4>
+              <p>Dashboard stats use most recent 20 of {stats.totalRoundsInDb} rounds.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-upgrade"
+            onClick={() => {
+              trackUpgradeClick('dashboard_limited_stats_banner');
+              router.push('/pricing');
+            }}
+          >
+            Unlock Full History
+          </button>
+        </div>
+      )}
 
       <div className="card dashboard-focus-card dashboard-focus-card-relative" data-testid="dashboard-focus-card">
         <div className="dashboard-focus-header">
@@ -1431,32 +1454,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           </>
         )}
       </div>
-
-      {/* Premium upgrade CTA for limited users */}
-      {!loading && stats.limitedToLast20 && stats.totalRoundsInDb && stats.totalRoundsInDb > 20 && (
-        <div className="info-banner warning">
-          <div className="info-banner-content">
-            <div className="info-banner-icon"><TriangleAlert size={50}/></div>
-            <div className="info-banner-text">
-              <h4>Limited Stats View</h4>
-              <p>
-                Stats are based on your most recent 20 of {stats.totalRoundsInDb} rounds. Upgrade to see your full history.
-              </p>
-            </div>
-            
-          </div>
-          <button
-              type="button"
-              onClick={() => {
-                trackUpgradeClick('dashboard_limited_stats_banner');
-                router.push('/pricing');
-              }}
-              className="btn btn-upgrade"
-            >
-              See Full History
-            </button>
-        </div>
-      )}
 
       {loading ? (
         <>

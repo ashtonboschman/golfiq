@@ -301,7 +301,7 @@ export function getTierBadgeColor(tier: SubscriptionTier): string {
     case 'free':
       return '#95a5a6'; // Gray
     case 'premium':
-      return '#3498db'; // Blue
+      return '#2D6CFF'; // Blue
     case 'lifetime':
       return '#f39c12'; // Gold
     default:

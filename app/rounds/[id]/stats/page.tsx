@@ -593,9 +593,9 @@ export default function RoundStatsPage() {
             </div>
             {/* Handicap required message for strokes gained */}
             {stats.handicap_at_round === null && (
-              <div className="info-banner warning stats-sg-handicap-banner">
+              <div className="info-banner stats-sg-handicap-banner">
                 <div className="info-banner-content">
-                  <div className="info-banner-icon"><Crown size={50}/></div>
+                  <div className="info-banner-icon"><Crown size={25}/></div>
                   <div className="info-banner-text">
                     <h4>Handicap Required</h4>
                     <p>

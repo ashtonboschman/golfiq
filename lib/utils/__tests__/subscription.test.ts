@@ -146,7 +146,7 @@ describe("subscription utils", () => {
   });
 
   it("returns badge colors", () => {
-    expect(getTierBadgeColor("premium")).toBe("#3498db");
+    expect(getTierBadgeColor("premium")).toBe("#2D6CFF");
     expect(getStatusBadgeColor("active")).toBe("#2ecc71");
   });
 });

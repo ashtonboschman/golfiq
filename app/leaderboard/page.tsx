@@ -251,13 +251,13 @@ export default function LeaderboardPage() {
       </div>
 
       {scope === 'global' && showingLimited && (
-        <div className="info-banner warning">
+        <div className="info-banner">
           <div className="info-banner-content">
-            <div className="info-banner-icon"><Crown size={50} /></div>
+            <div className="info-banner-icon"><Crown size={25} /></div>
             <div className="info-banner-text">
-              <h4>Want the full picture?</h4>
+              <h4>Showing the Top 50 Players</h4>
               <p>
-                Currently showing top 50 players out of {totalUsers}. Upgrade to Premium to see the entire global leaderboard and your true ranking.
+                Upgrade to Premium to view the full leaderboard and your exact global ranking.
               </p>
             </div>
           </div>
@@ -283,7 +283,7 @@ export default function LeaderboardPage() {
               router.push('/pricing');
             }}
           >
-            See Full Leaderboard
+            Unlock Full Leaderboard
           </button>
         </div>
       )}
