@@ -76,7 +76,7 @@ function headlineFromPrimary(primary: RoundIdentityPrimaryKey): string {
     case 'volatile_scoring':
       return 'There was real scoring upside, but it came with costly swings.';
     case 'big_number':
-      return 'A small number of holes did most of the damage.';
+      return 'A small number of costly holes added most of the extra strokes.';
     case 'everything_leaked':
       return 'Several parts of the round leaked at once.';
     default:

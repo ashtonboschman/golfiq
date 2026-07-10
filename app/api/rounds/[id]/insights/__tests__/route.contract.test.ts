@@ -1931,6 +1931,34 @@ describe('/api/rounds/[id]/insights route contract', () => {
         forbiddenM2: /Short Game was the strongest part of the round/i,
       },
       {
+        name: 'survival with putting strength and costly-hole weakness',
+        identity: makeStoredIdentity({
+          primaryKey: 'survival',
+          tone: 'build',
+          displayLevels: { story: 'success', worked: 'info', watch: 'info' },
+          displayEvidence: {
+            scoreText: '80 (+10)',
+            baselineDeltaText: '1.2 strokes better than your recent average of 81.2.',
+            strongestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '+1.4 SG putting',
+              detailText: 'Putts: 33 (1.83 per hole).',
+            },
+            weakestArea: {
+              area: 'big_numbers',
+              label: 'Concentrated Damage',
+              valueText: 'Two double-or-worse holes',
+              detailText: 'Two costly holes shaped too much of the final score.',
+            },
+          },
+          nextRoundFocus: 'Next round, choose the safe exit earlier. The goal is keeping bad holes from becoming round-changing holes.',
+        }),
+        expectedM2: 'Putting helped keep the round together, but the costly holes are the next thing to clean up.',
+        expectedM3: /^Next round: .*(safe exit|bad holes|round-changing holes|risky holes|double|story)/i,
+        forbiddenM2: /Concentrated Damage/i,
+      },
+      {
         name: 'everything leaked',
         identity: makeStoredIdentity({
           primaryKey: 'everything_leaked',
@@ -2033,10 +2061,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
               detailText: 'Greens in regulation: 16/18 (89%).',
             },
           },
-          nextRoundFocus: 'Next round, keep the same low-damage priority before chasing anything extra.',
+          nextRoundFocus: 'Next round, keep the same low-mistake priority before chasing anything extra.',
         }),
         expectedM2: 'Approach Play was the strongest part of the round.',
-        expectedM3: /^Next round: .*(approach|scoring control|low-damage|chasing anything extra|carries over)/i,
+        expectedM3: /^Next round: .*(approach|scoring control|low-mistake|chasing anything extra|carries over)/i,
         forbiddenM2: /Putting was the main area costing you strokes/i,
       },
     ] as const;

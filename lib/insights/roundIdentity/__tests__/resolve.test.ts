@@ -401,7 +401,7 @@ describe('resolveRoundIdentity', () => {
     expect(identity.primaryKey).toBe('scoring_chance_missed');
   });
 
-  it('selects clean_control for low-damage above-expected HBH round', () => {
+  it('selects clean_control for low-mistake above-expected HBH round', () => {
     const toPar = [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0];
     const roundHoles = holesFromToPar(toPar).map((hole, idx) => ({
       ...hole,
@@ -618,7 +618,7 @@ describe('resolveRoundIdentity', () => {
     expect(identity.primaryKey).toBe('penalty_damaged');
   });
 
-  it('prioritizes clean_control over breakthrough when low-damage control is strongest', () => {
+  it('prioritizes clean_control over breakthrough when low-mistake control is strongest', () => {
     const roundHoles = Array.from({ length: 18 }, (_, index) => ({
       holeNumber: index + 1,
       par: 4,

@@ -74,7 +74,7 @@ function identityPayload() {
         detailText: 'Fairways hit: 4/12 (33%).',
       },
       hbhStory: {
-        label: 'Scoring upside with concentrated damage',
+        label: 'Scoring upside with costly holes',
         detailText: 'You had 2 birdies and 2 double-or-worse holes.',
       },
     },

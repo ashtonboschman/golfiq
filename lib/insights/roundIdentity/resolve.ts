@@ -310,7 +310,7 @@ function nextRoundFocusFromTone(
   if (tone === 'repeat') {
     const repeatFocus: Partial<Record<RoundIdentityPrimaryKey, string>> = {
       breakthrough: 'Next round, keep what supported this score while protecting against costly holes.',
-      clean_control: 'Next round, keep the same low-damage scoring pattern and see if it holds.',
+      clean_control: 'Next round, keep the same low-mistake scoring pattern and see if it holds.',
       all_around_strong: 'Next round, keep the balanced scoring pattern in place and see if it repeats.',
       approach_carried: 'Next round, keep leaning on approach play and see if the strength carries over.',
       tee_controlled: 'Next round, keep leaning on tee-shot control and see if it carries over.',
@@ -330,7 +330,7 @@ function nextRoundFocusFromTone(
       return 'Next round, keep tracking the same areas and see whether one separates more clearly.';
     }
     if (primary === 'survival') {
-      return 'Next round, keep the damage control and look for one area that can make scoring easier.';
+      return 'Next round, keep the mistakes under control and look for one area that can make scoring easier.';
     }
     if (primary === 'steady_scoring') {
       return 'Next round, keep the steady scoring pattern in place and see if it repeats.';
@@ -378,7 +378,7 @@ function summarizePrimary(
   if (primary === 'putting_leak') return 'Putting execution left too many strokes on the greens.';
   if (primary === 'short_game_pressure') return 'Too many misses forced difficult short-game saves.';
   if (primary === 'scoring_chance_missed') return 'Green-hitting created chances, but conversion lagged.';
-  if (primary === 'volatile_scoring') return 'The round had both scoring upside and concentrated damage.';
+  if (primary === 'volatile_scoring') return 'The round had both scoring upside and costly holes.';
   if (primary === 'big_number') return 'A few doubles or worse shaped too much of the final score.';
   return evidence.evidenceLevel === 'hole_by_hole'
     ? 'Multiple leaks showed up in the same round.'
@@ -628,7 +628,7 @@ function buildDisplayEvidence(input: {
     const damageValue = input.bigNumberCount > 0 ? formatDoubleOrWorseCount(input.bigNumberCount) : `worst hole +${input.worstHoleDamage}`;
     weakestArea = {
       area: 'big_numbers',
-      label: 'Concentrated Damage',
+      label: 'Costly Holes',
       valueText: damageValue,
       detailText:
         input.oneHoleDamageShare >= 0.33
@@ -641,17 +641,17 @@ function buildDisplayEvidence(input: {
   if (input.evidenceLevel === 'hole_by_hole') {
     if (input.buckets.birdieOrBetter > 0 && input.bigNumberCount > 0) {
       hbhStory = {
-        label: 'Scoring upside with concentrated damage',
+        label: 'Scoring upside with costly holes',
         detailText: `You had ${formatBirdieCount(input.buckets.birdieOrBetter)} and ${formatDoubleOrWorseCount(input.bigNumberCount, { lowercase: true })}.`,
       };
     } else if (input.bigNumberCount > 0) {
       hbhStory = {
-        label: 'Damage concentration',
+        label: 'Costly holes',
         detailText: `${formatDoubleOrWorseCount(input.bigNumberCount)} shaped the round.`,
       };
     } else {
       hbhStory = {
-        label: 'Low-damage scorecard',
+        label: 'Low-mistake scorecard',
         detailText: 'You avoided doubles or worse across the round.',
       };
     }

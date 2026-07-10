@@ -1,4 +1,4 @@
-﻿import { composeRoundIdentityDisplay } from '@/lib/insights/roundIdentity/compose';
+import { composeRoundIdentityDisplay } from '@/lib/insights/roundIdentity/compose';
 import { POST_ROUND_MESSAGE_MAX_CHARS } from '@/lib/insights/config/postRound';
 import {
   ROUND_IDENTITY_V1_VERSION,
@@ -39,7 +39,7 @@ function baseIdentity(overrides: Partial<RoundIdentity> = {}): RoundIdentity {
         detailText: 'Fairways hit: 4/12 (33%).',
       },
       hbhStory: {
-        label: 'Scoring upside with concentrated damage',
+        label: 'Scoring upside with costly holes',
         detailText: 'You had 2 birdies and 2 double-or-worse holes.',
       },
     },
@@ -282,7 +282,7 @@ describe('composeRoundIdentityDisplay', () => {
     expect(third.progressText).toBeUndefined();
   });
 
-  it('composes breakthrough copy with repeat tone and concentrated damage as watch item', () => {
+  it('composes breakthrough copy with repeat tone and costly holes as watch item', () => {
     const display = composeRoundIdentityDisplay(
       baseIdentity({
         primaryKey: 'breakthrough',
@@ -305,7 +305,7 @@ describe('composeRoundIdentityDisplay', () => {
             detailText: 'One hole accounted for 33% of total over-par damage.',
           },
           hbhStory: {
-            label: 'Scoring upside with concentrated damage',
+            label: 'Scoring upside with costly holes',
             detailText: 'You had 3 birdies and 2 double-or-worse holes.',
           },
         },
@@ -315,7 +315,7 @@ describe('composeRoundIdentityDisplay', () => {
     expect(display.insights[0].body).toMatch(/18\.6 strokes better than your recent average of 94\.6/i);
     expect(display.insights[1].body).toMatch(/putting was the round's biggest edge|putter gave the round its biggest lift|putting did real work|greens were a strength/i);
     expect(display.insights[1].body).toMatch(/With 27 putts/i);
-    expect(display.insights[0].body).toMatch(/breakthrough|broke through|clearly ahead of your usual range|clearly better than your usual range|costly holes showed up, but they did not define the round|good holes outweighed the damage/i);
+    expect(display.insights[0].body).toMatch(/breakthrough|broke through|clearly ahead of your usual range|clearly better than your usual range|costly holes showed up, but they did not define the round|good holes outweighed the costly ones/i);
     expect(display.insights[2].title).toMatch(/repeat/i);
     expect(display.insights[2].body).toMatch(
       /big numbers|costly|doubles|make those costly holes less expensive|keep the good pattern/i,
@@ -501,16 +501,16 @@ describe('composeRoundIdentityDisplay', () => {
 
     expect(
       matchesAny(display.insights[0].body, [
-        /penalties and big numbers shaped the round more than routine mistakes/i,
+        /penalties and costly holes drove the score more than the smaller misses/i,
         /round changed quickly when penalties and big numbers showed up/i,
-        /most of the scoring damage came from penalties and costly holes/i,
+        /most of the extra strokes came from penalties and costly holes/i,
         /less about small misses and more about the holes where penalties and doubles stacked up/i,
-        /penalty strokes and big holes did most of the scoring damage/i,
+        /penalty strokes and big holes added most of the extra strokes/i,
       ]),
     ).toBe(true);
     expect(display.insights[0].body.toLowerCase()).not.toContain('recovered after mistakes');
     expect(display.insights[0].body.toLowerCase()).not.toContain('repeated bogeys');
-    expect(display.insights[1].body).toMatch(/four holes|4 holes|round got away/i);
+    expect(display.insights[1].body).toMatch(/four(?: costly)? holes|4 holes|round got away/i);
     expect(display.insights[1].body).toMatch(/penalties and doubles|penalties made those holes harder|penalty strokes entered the hole/i);
     expect(display.insights[1].body.toLowerCase()).not.toMatch(/big-number holes.*big-number holes/);
     const allCards = display.insights.map((insight) => insight.body.toLowerCase()).join(' ');
@@ -733,7 +733,7 @@ describe('composeRoundIdentityDisplay', () => {
     );
 
     expect(display.insights[2].body).toMatch(
-      /protect against the one hole|one hole starts going sideways|damage to one mistake|one bad hole from becoming the round's main memory/i,
+      /protect against the one hole|one hole starts going sideways|one mistake from turning into a big number|one bad hole from becoming the round's main memory/i,
     );
   });
 
@@ -746,7 +746,7 @@ describe('composeRoundIdentityDisplay', () => {
         displayEvidence: {
           scoreText: '84 (+12)',
           hbhStory: {
-            label: 'Scoring upside with concentrated damage',
+            label: 'Scoring upside with costly holes',
             detailText: 'You had 2 birdies and 3 double-or-worse holes.',
           },
           weakestArea: {
@@ -766,7 +766,7 @@ describe('composeRoundIdentityDisplay', () => {
         displayEvidence: {
           scoreText: '89 (+17)',
           hbhStory: {
-            label: 'Damage concentration',
+            label: 'Costly holes',
             detailText: 'Four double-or-worse holes shaped the round.',
           },
           weakestArea: {
@@ -1014,7 +1014,7 @@ describe('composeRoundIdentityDisplay', () => {
     expect(display.insights[0].body).toMatch(
       /approach misses created too much pressure|round got harder because too many approaches left work to do|missed greens put the score under pressure too often|approach play left the round relying on too many recovery shots|too many holes became harder than they needed to be after the approach shot/i,
     );
-    expect(display.insights[1].body).toMatch(/three holes|3 holes|round got away/i);
+    expect(display.insights[1].body).toMatch(/three(?: costly)? holes|3 holes|round got away/i);
     expect(display.insights[1].body).toMatch(/missed greens|approach misses/i);
     expect(display.insights[2].body).toMatch(
       /prioritize getting approaches on or near the green|part of the green that keeps the miss playable|approach goal simple: on the green or near it|choose approach targets that reduce the need for a tough save/i,
@@ -1049,8 +1049,8 @@ describe('composeRoundIdentityDisplay', () => {
   it('polishes M1 fallback tone for key non-breakthrough archetypes', () => {
     const cases: Array<{ key: RoundIdentity['primaryKey']; pattern: RegExp }> = [
       { key: 'all_around_strong', pattern: /not carried by one area|balanced golf|support from multiple areas|several parts of your game held up|more than one reason the score stayed strong/i },
-      { key: 'survival', pattern: /held-together round|damage never fully got away|not clean, but you kept it from fully slipping away|rough stretches never completely took over|did enough damage control|never fully unraveled/i },
-      { key: 'penalty_damaged', pattern: /penalty trouble changed the score more than routine mistakes|penalty strokes changed the round more than routine mistakes did|penalties made the score climb faster|score got more expensive when penalty strokes appeared|changed the score the quickest/i },
+      { key: 'survival', pattern: /held-together round|costly holes never fully took over|not clean, but you kept it from fully slipping away|rough stretches never completely took over|did enough mistake control|never fully unraveled/i },
+      { key: 'penalty_damaged', pattern: /penalty trouble changed the score more than the smaller misses|penalty strokes added more strokes than the smaller misses did|penalties made the score climb faster|score got more expensive when penalty strokes appeared|changed the score the quickest/i },
       { key: 'putting_leak', pattern: /mostly on the greens|too many strokes stayed behind|putting made it harder|needed more from the putter|putting held the score back/i },
       { key: 'scoring_chance_missed', pattern: /story was conversion|chances were there, but enough of them slipped away|had scoring chances|enough looks to score better|final number suggests/i },
       { key: 'everything_leaked', pattern: /no single issue explains this one|too many parts of the game leaked at once|several smaller problems stacking together|not one clean fix|more than one part of the game was under pressure/i },
@@ -1179,7 +1179,7 @@ describe('composeRoundIdentityDisplay', () => {
       }),
     );
 
-    expect(bounce.insights[0].body).toMatch(/recovered after mistakes|response after mistakes helped keep the round|did enough after the bad holes|mistakes happened, but the next holes were not automatic damage/i);
+    expect(bounce.insights[0].body).toMatch(/recovered after mistakes|response after mistakes helped keep the round|did enough after the bad holes|mistakes happened, but the next holes did not automatically get worse/i);
     expect(repeated.insights[0].body).toMatch(/repeated bogeys|steady bogeys|bogeys kept adding up|repeated small leaks/i);
     expect(repeated.insights[2].body).toMatch(/stop the bogey stretches early|break up the bogey runs|after one bogey, make the next hole simple|bogeys stacking quietly/i);
   });
@@ -1261,7 +1261,7 @@ describe('composeRoundIdentityDisplay', () => {
       .filter(Boolean)
       .join(' ');
     expect(combined).not.toContain('—');
-    expect(combined).not.toContain('â€”');
+    expect(combined).not.toContain('—');
   });
 
   it('avoids generic filler when strong evidence exists', () => {
@@ -1318,7 +1318,7 @@ describe('composeRoundIdentityDisplay', () => {
             detailText: 'One hole accounted for 33% of total over-par damage.',
           },
           hbhStory: {
-            label: 'Scoring upside with concentrated damage',
+            label: 'Scoring upside with costly holes',
             detailText: 'You had 3 birdies and 2 double-or-worse holes.',
           },
         },
@@ -1327,7 +1327,7 @@ describe('composeRoundIdentityDisplay', () => {
 
     expect(display.insights[0].body).toMatch(/You shot 76 \(\+6\), which was 18\.6 strokes better than your recent average of 94\.6/i);
     expect(display.insights[0].body).toMatch(
-      /enough good holes to outweigh a couple of costly mistakes|good holes outweighed the costly ones|couple of mistakes, this score was clearly ahead|costly holes showed up, but they did not define the round|good holes outweighed the damage/i,
+      /enough good holes to outweigh a couple of costly mistakes|good holes outweighed the costly ones|couple of mistakes, this score was clearly ahead|costly holes showed up, but they did not define the round/i,
     );
     expect(display.insights[1].body).toMatch(
       /strongest area|biggest lift|clearest strength/i,
@@ -1381,10 +1381,10 @@ describe('composeRoundIdentityDisplay', () => {
             area: 'big_numbers',
             label: 'Concentrated Damage',
             valueText: 'One double-or-worse hole',
-            detailText: 'One costly hole did most of the damage.',
+            detailText: 'One costly hole added most of the extra strokes.',
           },
           hbhStory: {
-            label: 'Scoring upside with concentrated damage',
+            label: 'Scoring upside with costly holes',
             detailText: 'You had 4 birdies and one double-or-worse hole.',
           },
         },
@@ -1435,10 +1435,10 @@ describe('composeRoundIdentityDisplay', () => {
             area: 'big_numbers',
             label: 'Concentrated Damage',
             valueText: 'Two double-or-worse holes',
-            detailText: 'Two holes did most of the damage.',
+            detailText: 'Two costly holes added most of the extra strokes.',
           },
           hbhStory: {
-            label: 'Scoring upside with concentrated damage',
+            label: 'Scoring upside with costly holes',
             detailText: 'You had 5 birdies and two double-or-worse holes.',
           },
         },
@@ -1467,7 +1467,7 @@ describe('composeRoundIdentityDisplay', () => {
             detailText: 'Big numbers shaped too much of the final score.',
           },
           hbhStory: {
-            label: 'Scoring upside with concentrated damage',
+            label: 'Scoring upside with costly holes',
             detailText: 'You had 2 birdies and 3 double-or-worse holes.',
           },
         },
@@ -1652,7 +1652,7 @@ describe('composeRoundIdentityDisplay', () => {
               area: 'big_numbers',
               label: 'Big Numbers',
               valueText: '2 double-or-worse holes',
-              detailText: 'Two holes did most of the damage.',
+              detailText: 'Two costly holes added most of the extra strokes.',
             },
           },
         }),
@@ -1663,7 +1663,7 @@ describe('composeRoundIdentityDisplay', () => {
 
   it('keeps every identity variant within canonical copy, style, and length safeguards', () => {
     const unsafeCopy =
-      /process area|recovery spots|stay patient|find your rhythm|settled in|club selection|make the couple|\b[a-z]+_[a-z_]+\b|—|â€”/i;
+      /process area|recovery spots|stay patient|find your rhythm|settled in|club selection|make the couple|\b[a-z]+_[a-z_]+\b|—|—/i;
     const primaryKeys = Object.keys(TONE_BY_PRIMARY) as RoundIdentityPrimaryKey[];
 
     expect(primaryKeys).toHaveLength(20);
@@ -1772,7 +1772,7 @@ describe('composeRoundIdentityDisplay', () => {
               area: 'big_numbers',
               label: 'Concentrated Damage',
               valueText: 'Two double-or-worse holes',
-              detailText: 'Two holes did most of the damage.',
+              detailText: 'Two costly holes added most of the extra strokes.',
             },
           },
         }),
@@ -1795,10 +1795,10 @@ describe('composeRoundIdentityDisplay', () => {
             area: 'big_numbers',
             label: 'Big Numbers',
             valueText: 'One double-or-worse hole',
-            detailText: 'One costly hole did most of the damage.',
+            detailText: 'One costly hole added most of the extra strokes.',
           },
           hbhStory: {
-            label: 'Damage concentration',
+            label: 'Costly holes',
             detailText: 'You had 1 birdie and one double-or-worse hole.',
           },
         },

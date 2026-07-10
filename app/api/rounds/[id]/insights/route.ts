@@ -290,8 +290,12 @@ function resolveFreeIdentityMessage2(insights: any): { text: string; level: Insi
   const level = resolveFreeNarrativeLevel(plan);
 
   if (plan.relationship === 'strength_vs_weakness' && supportLabel && actionLabel && supportLabel !== actionLabel) {
+    const actionPhrase =
+      plan.actionCategory === 'big_numbers'
+        ? 'the costly holes are the next thing to clean up'
+        : `${actionLabel} is the area to watch next`;
     return {
-      text: `${supportLabel} helped keep the round together, but ${actionLabel} is the area to watch next.`,
+      text: `${supportLabel} helped keep the round together, but ${actionPhrase}.`,
       level,
     };
   }
@@ -334,6 +338,7 @@ function resolveFreeNarrativeAreaLabel(
   area: RoundInsightNarrativePlan['supportCategory'],
 ): string | null {
   if (!area) return null;
+  if (area === 'big_numbers') return 'costly holes';
 
   const strongest = evidence?.strongestArea;
   const weakest = evidence?.weakestArea;
@@ -350,7 +355,6 @@ function resolveFreeNarrativeAreaLabel(
   if (area === 'off_tee') return 'Off The Tee';
   if (area === 'short_game') return 'Short Game';
   if (area === 'penalties') return 'Penalty Control';
-  if (area === 'big_numbers') return 'Costly holes';
   if (area === 'scoring') return 'Scoring control';
   return null;
 }

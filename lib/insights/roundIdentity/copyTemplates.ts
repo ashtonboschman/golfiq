@@ -41,11 +41,11 @@ const M1_BREAKTHROUGH_DAMAGE_VARIANTS = [
   'This was still a breakthrough because the good holes outweighed the costly ones.',
   'Even with a couple of mistakes, this score was clearly ahead of your usual range.',
   'The costly holes showed up, but they did not define the round, and the score still broke through.',
-  'This was a breakthrough round because the good holes outweighed the damage.',
+  'This was a breakthrough round because the good holes outweighed the costly ones.',
 ] as const;
 
 const M1_VOLATILE_OR_BIG_VARIANTS = [
-  'Good holes were there, but the big-number holes did too much of the damage.',
+  'Good holes were there, but the big-number holes added too many strokes.',
   'The round had playable stretches, but the costly holes pulled too much of the score upward.',
   'There were good pieces in the round, but the bad holes got too expensive.',
   'A few costly holes carried too much of the score.',
@@ -53,10 +53,10 @@ const M1_VOLATILE_OR_BIG_VARIANTS = [
 ] as const;
 
 const M1_CLEAN_CONTROL_VARIANTS = [
-  'This round stayed stable because damage never stacked for long.',
+  'This round stayed stable because costly holes never stacked for long.',
   'This was a controlled round because the costly holes never piled up.',
   'You kept the round from getting messy, and that gave the score structure.',
-  'The round worked because the damage stayed limited.',
+  'The round worked because the mistakes stayed limited.',
   'This was steady, controlled scoring without the kind of mistakes that change the whole card.',
 ] as const;
 
@@ -109,27 +109,27 @@ const M1_ALL_AROUND_STRONG_VARIANTS = [
 ] as const;
 
 const M1_SURVIVAL_VARIANTS = [
-  'This was more of a held-together round than a clean one. The damage never fully got away.',
+  'This was more of a held-together round than a clean one. The costly holes never fully took over.',
   'This round was not clean, but you kept it from fully slipping away.',
   'The score stayed manageable because the rough stretches never completely took over.',
-  'You did enough damage control to keep the round from becoming worse.',
+  'You did enough mistake control to keep the round from becoming worse.',
   'This was a grind, but the scorecard never fully unraveled.',
 ] as const;
 
 const M1_PENALTY_DAMAGED_NORMAL_VARIANTS = [
-  'Penalty trouble changed the score more than routine mistakes.',
-  'Penalty strokes changed the round more than routine mistakes did.',
+  'Penalty trouble changed the score more than the smaller misses.',
+  'Penalty strokes added more strokes than the smaller misses did.',
   'The penalties made the score climb faster than the rest of the round suggested.',
   'The score got more expensive when penalty strokes appeared.',
   'Penalty trouble was the part that changed the score the quickest.',
 ] as const;
 
 const M1_PENALTY_DAMAGED_REPEATED_VARIANTS = [
-  'Penalties and big numbers shaped the round more than routine mistakes.',
+  'Penalties and costly holes drove the score more than the smaller misses.',
   'The round changed quickly when penalties and big numbers showed up.',
-  'Most of the scoring damage came from penalties and costly holes.',
+  'Most of the extra strokes came from penalties and costly holes.',
   'This was less about small misses and more about the holes where penalties and doubles stacked up.',
-  'Penalty strokes and big holes did most of the scoring damage.',
+  'Penalty strokes and big holes added most of the extra strokes.',
 ] as const;
 
 const M1_PUTTING_LEAK_VARIANTS = [
@@ -223,7 +223,7 @@ const M2_STRENGTH_OFF_TEE_VARIANTS = [
 ] as const;
 
 const M2_STRENGTH_SHORT_GAME_VARIANTS = [
-  'The short game helped limit damage by using fewer recovery shots than expected after missed greens.',
+  'The short game helped limit the score by using fewer recovery shots than expected after missed greens.',
   'Around the greens, recovery-shot efficiency helped keep the score from slipping further.',
   'The short game finished above expectation after greens were missed.',
   'Efficient recovery work helped protect the round after missed greens.',
@@ -362,7 +362,7 @@ const M3_REPEAT_PAR5_VARIANTS = [
 ] as const;
 
 const M3_REPEAT_SLOW_START_STRONG_FINISH_VARIANTS = [
-  'Next round, bring the lower-damage pattern from the finish into the first few holes.',
+  'Next round, bring the cleaner scoring pattern from the finish into the first few holes.',
   'Next round, aim for the same scoring control early that showed up near the finish.',
   'Next round, carry the cleaner late-round scoring pattern into the opening holes.',
   'Next round, use the safer scoring pattern from the finish on the opening holes.',
@@ -371,7 +371,7 @@ const M3_REPEAT_SLOW_START_STRONG_FINISH_VARIANTS = [
 const M3_REPEAT_FAST_START_SLOW_FINISH_VARIANTS = [
   'Next round, carry the early scoring control into the finish so the cushion lasts.',
   'Next round, protect the good start by keeping the same scoring control late.',
-  'Next round, when the round starts well, keep the same damage control through the closing holes.',
+  'Next round, when the round starts well, keep the same mistake control through the closing holes.',
   'Next round, keep the early scoring control from turning into late pressure.',
 ] as const;
 
@@ -390,10 +390,10 @@ const M3_REPEAT_REPEATED_BOGEYS_VARIANTS = [
 ] as const;
 
 const M3_REPEAT_NO_DAMAGE_VARIANTS = [
-  'Next round, keep the same damage control and let the score build from clean holes.',
-  'Next round, keep the same low-damage priority before chasing anything extra.',
+  'Next round, keep the same mistake control and let the score build from clean holes.',
+  'Next round, keep the same low-mistake priority before chasing anything extra.',
   'Next round, keep avoiding the mistake that changes the whole card.',
-  'Next round, let the score build from another low-damage round.',
+  'Next round, let the score build from another low-mistake round.',
 ] as const;
 
 const M3_REPEAT_GOOD_SCORE_BAD_PROCESS_VARIANTS = [
@@ -440,15 +440,15 @@ const M3_FIX_BIG_3PLUS_VARIANTS = [
 
 const M3_FIX_BIG_2_VARIANTS = [
   'Next round, protect against those two big-number holes. Keep the risky shots simple before they turn into doubles or worse.',
-  'Next round, use the safer target on the risky holes. One simpler decision can keep a double from becoming the story.',
+  'Next round, use the safer target on the risky holes. One simpler decision can keep a bad hole from getting worse.',
   'Next round, when trouble shows up, take the boring shot back into play first.',
-  "Next round, keep those two costly holes from becoming the round's main story.",
+  'Next round, keep those two costly holes from defining the score.',
 ] as const;
 
 const M3_FIX_BIG_ONE_VARIANTS = [
   'Next round, protect against the one hole that can turn a normal score into a big number.',
   'Next round, when one hole starts going sideways, make the next shot the safe one.',
-  'Next round, keep the damage to one mistake instead of letting the hole snowball.',
+  'Next round, keep one mistake from turning into a big number.',
   "Next round, keep one bad hole from becoming the round's main memory.",
 ] as const;
 
@@ -718,8 +718,8 @@ function repeatedDamageM1Line(identity: RoundIdentity): string | null {
       identity,
       [
         'Big numbers shaped the round more than the routine holes.',
-        'The biggest scoring damage came from the costly holes.',
-        'Costly holes did more damage than the routine mistakes.',
+        'The biggest score changes came from the costly holes.',
+        'The costly holes added more strokes than the smaller misses.',
         'The round changed fastest when the big numbers showed up.',
       ],
       'm1-repeated-big-number-only',
@@ -729,10 +729,10 @@ function repeatedDamageM1Line(identity: RoundIdentity): string | null {
     return pickVariant(
       identity,
       [
-        'Penalty strokes were the clearest source of avoidable damage.',
-        'Penalty trouble changed the score more than routine mistakes.',
+        'Penalty strokes were the clearest avoidable cost.',
+        'Penalty trouble changed the score more than the smaller misses.',
         'The score got more expensive when penalty strokes appeared.',
-        'Penalty strokes did the clearest scoring damage.',
+        'Penalty strokes had the clearest scoring cost.',
       ],
       'm1-repeated-penalty-only',
     );
@@ -781,7 +781,7 @@ function areaLabel(area: AreaKey): string {
   if (area === 'off_tee') return 'tee-shot control';
   if (area === 'short_game') return 'short-game recovery';
   if (area === 'penalties') return 'risk control';
-  if (area === 'big_numbers') return 'damage control';
+  if (area === 'big_numbers') return 'costly-hole control';
   if (area === 'scoring') return 'scoring control';
   return 'this pattern';
 }
@@ -792,7 +792,7 @@ function areaSentenceLabel(area: AreaKey): string {
   if (area === 'off_tee') return 'Tee-shot control';
   if (area === 'short_game') return 'Short game';
   if (area === 'penalties') return 'Penalty control';
-  if (area === 'big_numbers') return 'Damage control';
+  if (area === 'big_numbers') return 'Costly holes';
   if (area === 'scoring') return 'Scoring';
   return 'That area';
 }
@@ -807,6 +807,11 @@ function plannedAreaEvidence(
   if (strongest?.area === category) return strongest;
   if (weakest?.area === category) return weakest;
   return undefined;
+}
+
+function publicAreaEvidenceLabel(area: RoundIdentityDisplayAreaEvidence): string {
+  if (area.area === 'big_numbers') return 'Costly holes';
+  return area.label;
 }
 
 function isStrengthPrimary(identity: RoundIdentity): boolean {
@@ -825,7 +830,7 @@ function genericPlannedSupport(identity: RoundIdentity, plan: RoundInsightNarrat
   const category = plan.supportCategory ?? plan.primaryCategory;
   if (!category) return null;
   if (identity.primaryKey === 'penalty_damaged') return 'Penalty strokes were the clearest scoring issue.';
-  if (identity.primaryKey === 'steady_scoring') return 'Damage stayed limited across the scorecard.';
+  if (identity.primaryKey === 'steady_scoring') return 'Costly mistakes stayed limited across the scorecard.';
   if (identity.primaryKey === 'scoring_chance_missed') {
     return 'Green-hitting created scoring chances, but the final score needed more from putting.';
   }
@@ -918,8 +923,8 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
     return pickVariant(
       identity,
       [
-        'One hole did more damage than the rest of the round.',
-        'Most of the damage came from one costly hole.',
+        'One costly hole added more than the rest of the round.',
+        'Most of the extra strokes came from one costly hole.',
         'One hole changed the round more than the others.',
         'The round was mostly manageable outside one costly hole.',
       ],
@@ -931,10 +936,10 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
     return pickVariant(
       identity,
       [
-        'The damage came in a stretch instead of being spread evenly.',
+        'The extra strokes came in one stretch instead of being spread evenly.',
         'One rough stretch changed the shape of the round.',
         'The round got away during a short stretch of costly holes.',
-        'A few holes in a row did more damage than the rest of the round.',
+        'A few holes in a row added more than the rest of the round.',
       ],
       'm1-addon-blow-up-stretch',
     );
@@ -975,7 +980,7 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
         'You recovered after mistakes instead of letting one hole turn into a full stretch.',
         'The response after mistakes helped keep the round from fully slipping.',
         'You did enough after the bad holes to keep the round from snowballing.',
-        'The mistakes happened, but the next holes were not automatic damage.',
+        'The mistakes happened, but the next holes did not automatically get worse.',
       ],
       'm1-addon-bounce-back',
     );
@@ -1014,7 +1019,7 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
         'This was not one disaster hole. The score leaked through repeated bogeys.',
         'The score slipped through steady bogeys more than one blow-up.',
         'Bogeys kept adding up even without one huge mistake.',
-        'The damage came from repeated small leaks instead of one round-changing hole.',
+        'The extra strokes came from repeated small leaks instead of one round-changing hole.',
       ],
       'm1-addon-repeated-bogeys',
     );
@@ -1027,7 +1032,7 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
         'You avoided the kind of big number that usually changes the whole card.',
         'The round stayed clean because the big mistake never arrived.',
         'Avoiding doubles or worse gave the round a stable floor.',
-        'The round held together because the damage stayed small.',
+        'The round held together because the costly mistakes stayed small.',
       ],
       'm1-addon-no-damage',
     );
@@ -1035,7 +1040,7 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
 
   if (hasModifier(identity, 'good_score_bad_process')) {
     const variant = pickTemplate(identity, 'm1-addon-good-score-bad-process', [
-      () => 'The score was strong, but one part of the game still needs watching.',
+      () => 'The score was strong, but one area still needs attention.',
       () => goodScoreBadProcessAreaLine(identity),
       () => 'The score held up, but one part of the game still looked shaky.',
       () => 'This was a good result with one part of the round still worth tightening.',
@@ -1071,21 +1076,21 @@ function buildM2BigNumberFirst(identity: RoundIdentity, count: number | null | u
   const countText = getCountText(count);
   const countTextLower = getCountTextLower(count);
   const variantFns: Array<(ctx: { countText: string; countTextLower: string; costlyHoleText: string }) => string> = [
-    ({ countText: c }) => `${c} holes did most of the damage.`,
+    ({ countText: c }) => `${c} costly holes added most of the extra strokes.`,
     ({ countText: c }) => `${c} holes carried too much of the score.`,
     ({ costlyHoleText: c }) => `The round got away on ${c}.`,
-    ({ countText: c }) => `${c} holes changed the score more than the rest of the round.`,
+    ({ countText: c }) => `${c} costly holes changed the score more than the rest of the round.`,
   ];
   if (count === 1) {
-    variantFns[0] = () => 'One costly hole did most of the damage.';
+    variantFns[0] = () => 'One costly hole added most of the extra strokes.';
     variantFns[1] = () => 'One costly hole carried too much of the score.';
     variantFns[3] = () => 'One costly hole changed the score more than the rest of the round.';
   }
   if (count === 2) {
-    variantFns[0] = () => 'A couple of holes did most of the damage.';
-    variantFns[1] = () => 'A couple of holes carried too much of the score.';
+    variantFns[0] = () => 'Two costly holes added most of the extra strokes.';
+    variantFns[1] = () => 'Two costly holes carried too much of the score.';
     variantFns[2] = () => 'The round got away on two costly holes.';
-    variantFns[3] = () => 'A couple of costly holes changed the score more than the rest of the round.';
+    variantFns[3] = () => 'Two costly holes changed the score more than the rest of the round.';
   }
   const variant = pickTemplate(identity, `${saltPrefix}-${count ?? 'na'}`, variantFns);
   return variant({ countText, countTextLower, costlyHoleText: costlyHolePhrase(count) });
@@ -1133,8 +1138,8 @@ function buildM2ApproachBigSecond(identity: RoundIdentity, count: number | null 
     [
       'Missed greens made those holes harder to contain.',
       'Approach misses left too much recovery work on those holes.',
-      'The damage started when the approaches left the hole under pressure.',
-      'Those holes became expensive because the green was not reached soon enough.',
+      'Those holes got expensive after approach shots left the hole under pressure.',
+      'Those holes got expensive after approach shots left too much recovery work.',
     ],
     `m2-approach-big-number-second-${count ?? 'na'}`,
   );
@@ -1323,7 +1328,7 @@ export function buildStoryCard(
         identity,
         [
           identity.summary,
-          `The main story was simple: ${safeLower}`,
+          `The main takeaway was simple: ${safeLower}`,
           `The round had a clear theme: ${safeLower}`,
           `The score pointed to this: ${safeLower}`,
         ],
@@ -1454,7 +1459,11 @@ export function buildAreaCard(
   }
 
   if (identity.primaryKey === 'survival' && plan.relationship === 'strength_vs_weakness' && strongest && weakest) {
-    return `${strongest.label} helped keep the round together, but ${weakest.label} is still the clearest area to tighten.`;
+    const weakestPhrase =
+      weakest.area === 'big_numbers'
+        ? 'the costly holes are still the first thing to clean up'
+        : `${publicAreaEvidenceLabel(weakest)} is still the clearest area to tighten`;
+    return `${publicAreaEvidenceLabel(strongest)} helped keep the round together, but ${weakestPhrase}.`;
   }
 
   if (identity.primaryKey === 'penalty_damaged') {
