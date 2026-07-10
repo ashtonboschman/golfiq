@@ -1,6 +1,7 @@
 import { GET, generateInsights } from '@/app/api/rounds/[id]/insights/route';
 import { prisma } from '@/lib/db';
 import { runMeasuredSgSelection } from '@/lib/insights/postRound/sgSelection';
+import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
 import { getServerSession } from 'next-auth';
 
 jest.mock('next-auth', () => ({
@@ -58,6 +59,77 @@ function makeTee() {
       par: index % 3 === 0 ? 3 : 4,
     })),
   };
+}
+
+function makeStoredIdentity(overrides: any = {}) {
+  return {
+    version: ROUND_IDENTITY_V1_VERSION,
+    inputHash: 'stored-hash',
+    primaryKey: 'putting_leak',
+    title: 'Putting Leak Round',
+    summary: 'Putting was the clearest leak.',
+    shapedBy: [],
+    nextRoundFocus: 'Next round, keep putting as the first area to tighten and make the goal simple.',
+    modifiers: [],
+    evidenceLevel: 'aggregate_stats',
+    confidence: 'moderate',
+    sampleContext: 'established',
+    tone: 'fix',
+    overallTone: 'warning',
+    entryMode: 'post_round',
+    statCompletenessScore: 70,
+    displayLevels: {
+      story: 'warning',
+      worked: 'warning',
+      watch: 'info',
+    },
+    displayEvidence: {
+      scoreText: '86 (+14)',
+      baselineDeltaText: '2 strokes above your recent average of 84.',
+      strongestArea: {
+        area: 'approach',
+        label: 'Approach Play',
+        valueText: '+1.0 SG approach',
+        detailText: 'Greens in regulation: 10/18 (56%).',
+      },
+      weakestArea: {
+        area: 'putting',
+        label: 'Putting',
+        valueText: '-1.2 SG putting',
+        detailText: 'Putts: 37 (2.06 per hole).',
+      },
+    },
+    ...overrides,
+  };
+}
+
+async function generateFreeStoredIdentityMessages(identity: any) {
+  mockedPrisma.round.findUnique.mockResolvedValue(null);
+  mockedPrisma.roundInsight.findUnique.mockResolvedValue({
+    userId: BigInt(1),
+    insights: {
+      messages: [
+        'You shot 86 (+14), which was 2 strokes above your recent average of 84. Premium M1 detail.',
+        'Premium M2 detail.',
+        'Next round, keep putting as the first area to tighten and make the goal simple.',
+      ],
+      message_levels: ['warning', 'warning', 'info'],
+      confidence: 'MED',
+      raw_payload: {
+        round: {
+          score: 86,
+          to_par: 14,
+          holes_played: 18,
+        },
+        historical: {
+          avg_score: 84,
+        },
+        round_identity_v1: identity,
+      },
+    },
+  });
+
+  return generateInsights(BigInt(40), BigInt(1), { isPremium: false });
 }
 
 describe('/api/rounds/[id]/insights route contract', () => {
@@ -1241,6 +1313,67 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.message_levels[0]).toBe('success');
   });
 
+  it('projects true score-only free rounds into distinct M1 M2 M3 copy without duplicate next-round wording', async () => {
+    mockedPrisma.round.findUnique.mockResolvedValue({
+      id: BigInt(40),
+      userId: BigInt(1),
+      date: new Date('2026-02-03T12:00:00.000Z'),
+      score: 92,
+      firHit: null,
+      girHit: null,
+      putts: null,
+      penalties: null,
+      teeSegment: 'full',
+      tee: makeTee(),
+    });
+
+    mockedPrisma.round.findMany.mockReset();
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(10), score: 88, date: new Date('2026-01-01T12:00:00.000Z'), createdAt: new Date('2026-01-01T12:00:00.000Z') },
+        { id: BigInt(20), score: 89, date: new Date('2026-01-10T12:00:00.000Z'), createdAt: new Date('2026-01-10T12:00:00.000Z') },
+        { id: BigInt(30), score: 90, date: new Date('2026-01-20T12:00:00.000Z'), createdAt: new Date('2026-01-20T12:00:00.000Z') },
+        { id: BigInt(40), score: 92, date: new Date('2026-02-03T12:00:00.000Z'), createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        { id: BigInt(39), score: 90, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        { id: BigInt(38), score: 89, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+      ]);
+
+    mockedRunMeasuredSgSelection.mockReturnValue({
+      components: [],
+      best: null,
+      opportunity: null,
+      opportunityIsWeak: false,
+      componentCount: 0,
+      residualDominant: false,
+      weakSeparation: false,
+    });
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue(null);
+
+    const insights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: false },
+      { forceRegenerate: true },
+    );
+
+    expect(insights.messages).toHaveLength(3);
+    expect(insights.messages[0]).toContain('You shot 92');
+    expect(insights.messages[1]).toBe(
+      'This result needs at least one optional stat before GolfIQ can explain what shaped the score.',
+    );
+    expect(insights.messages[2]).toMatch(
+      /^Next round: (add one or two optional stats|add a couple of stats, like putts or greens|even one extra stat)/,
+    );
+    expect((insights.messages[2].toLowerCase().match(/next round/g) ?? [])).toHaveLength(1);
+    expect(insights.messages.join(' ')).not.toContain('another tracked area');
+    expect(insights.messages.join(' ')).not.toMatch(/strokes gained|\bSG\b|round_identity_v1/i);
+    expect(new Set(insights.messages.map((message: string) => message.toLowerCase())).size).toBe(3);
+    expect((insights.messages.join(' ').toLowerCase().match(/starting point/g) ?? []).length).toBeLessThanOrEqual(1);
+    expect(insights.round_identity_v1).toBeNull();
+  });
+
   it('M1 worse-than-baseline is warning (regression: 89 vs recent average 80.8)', async () => {
     mockedPrisma.round.findUnique.mockResolvedValue({
       id: BigInt(40),
@@ -1671,6 +1804,255 @@ describe('/api/rounds/[id]/insights route contract', () => {
     }
   });
 
+  it('projects free M2 from the shared narrative plan instead of independently picking strongest or weakest evidence', async () => {
+    const cases = [
+      {
+        name: 'aggregate penalties plus approach weakness',
+        identity: makeStoredIdentity({
+          primaryKey: 'penalty_damaged',
+          tone: 'fix',
+          overallTone: 'warning',
+          displayLevels: { story: 'warning', worked: 'warning', watch: 'info' },
+          displayEvidence: {
+            scoreText: '89 (+17)',
+            baselineDeltaText: '5 strokes above your recent average of 84.',
+            strongestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '+0.6 SG putting',
+              detailText: 'Putts: 30 (1.67 per hole).',
+            },
+            weakestArea: {
+              area: 'approach',
+              label: 'Approach Play',
+              valueText: '-2.8 SG approach',
+              detailText: 'Greens in regulation: 3/18 (17%).',
+            },
+          },
+          nextRoundFocus: 'Next round, aim away from the penalty first and let the score come from staying in play.',
+        }),
+        expectedM2: 'Penalties were the main scoring issue.',
+        expectedM3: /^Next round: .*(penalty|trouble|safe|safer|in play)/i,
+        forbiddenM2: /Approach Play was the main area costing you strokes/i,
+      },
+      {
+        name: 'penalty damaged plus putting weakness',
+        identity: makeStoredIdentity({
+          primaryKey: 'penalty_damaged',
+          tone: 'fix',
+          displayEvidence: {
+            scoreText: '89 (+17)',
+            baselineDeltaText: '5 strokes above your recent average of 84.',
+            strongestArea: {
+              area: 'approach',
+              label: 'Approach Play',
+              valueText: '+0.9 SG approach',
+              detailText: 'Greens in regulation: 10/18 (56%).',
+            },
+            weakestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '-2.2 SG putting',
+              detailText: 'Putts: 40 (2.22 per hole).',
+            },
+          },
+          nextRoundFocus: 'Next round, aim away from penalty trouble first and let the score come from staying in play.',
+        }),
+        expectedM2: 'Penalties were the main scoring issue.',
+        expectedM3: /^Next round: .*(penalty|trouble|safe|safer|in play)/i,
+        forbiddenM2: /Putting was the main area costing you strokes/i,
+      },
+      {
+        name: 'putting leak plus approach strength',
+        identity: makeStoredIdentity({
+          primaryKey: 'putting_leak',
+          tone: 'fix',
+          overallTone: 'success',
+          displayLevels: { story: 'success', worked: 'success', watch: 'info' },
+          nextRoundFocus: 'Next round, look for cleaner finishes on the greens before changing anything else.',
+        }),
+        expectedM2: 'Putting was the main area costing you strokes.',
+        expectedM3: /^Next round: .*(putt|putting|greens)/i,
+        forbiddenM2: /Approach Play was the strongest part of the round/i,
+      },
+      {
+        name: 'short-game pressure plus putting weakness',
+        identity: makeStoredIdentity({
+          primaryKey: 'short_game_pressure',
+          tone: 'fix',
+          displayEvidence: {
+            scoreText: '84 (+12)',
+            baselineDeltaText: '2 strokes above your recent average of 82.',
+            strongestArea: {
+              area: 'off_tee',
+              label: 'Off The Tee',
+              valueText: '+0.9 SG off tee',
+              detailText: 'Fairways hit: 10/14 (71%).',
+            },
+            weakestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '-2.1 SG putting',
+              detailText: 'Putts: 40 (2.22 per hole).',
+            },
+          },
+          nextRoundFocus: 'Next round, make the first short-game goal simple: one shot on, then two putts max.',
+        }),
+        expectedM2: 'Short Game was the main area costing you strokes.',
+        expectedM3: /^Next round: .*(short-game|recovery|save|next putt)/i,
+        forbiddenM2: /Putting was the main area costing you strokes/i,
+      },
+      {
+        name: 'survival with different strongest and weakest areas',
+        identity: makeStoredIdentity({
+          primaryKey: 'survival',
+          tone: 'build',
+          displayLevels: { story: 'success', worked: 'info', watch: 'info' },
+          displayEvidence: {
+            scoreText: '78 (+6)',
+            baselineDeltaText: '2 strokes better than your recent average of 80.',
+            strongestArea: {
+              area: 'short_game',
+              label: 'Short Game',
+              valueText: '+1.2 SG short game',
+              detailText: 'Short-game shots: 8.',
+            },
+            weakestArea: {
+              area: 'approach',
+              label: 'Approach Play',
+              valueText: '-1.1 SG approach',
+              detailText: 'Greens in regulation: 7/18 (39%).',
+            },
+          },
+          nextRoundFocus: 'Next round, aim for the part of the green that keeps the miss playable.',
+        }),
+        expectedM2: 'Short Game helped keep the round together, but Approach Play is the area to watch next.',
+        expectedM3: /^Next round: aim for the part of the green/i,
+        forbiddenM2: /Short Game was the strongest part of the round/i,
+      },
+      {
+        name: 'everything leaked',
+        identity: makeStoredIdentity({
+          primaryKey: 'everything_leaked',
+          tone: 'fix',
+          displayLevels: { story: 'warning', worked: 'warning', watch: 'info' },
+          displayEvidence: {
+            scoreText: '91 (+19)',
+            baselineDeltaText: '6 strokes above your recent average of 85.',
+            strongestArea: {
+              area: 'approach',
+              label: 'Approach Play',
+              valueText: '+0.3 SG approach',
+              detailText: 'Greens in regulation: 8/18 (44%).',
+            },
+            weakestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '-2.4 SG putting',
+              detailText: 'Putts: 41 (2.28 per hole).',
+            },
+          },
+          nextRoundFocus: 'Next round, start with putting. Tighten that up before chasing fixes everywhere else.',
+        }),
+        expectedM2: 'Putting was the main area costing you strokes.',
+        expectedM3: /^Next round: .*(putt|putting|greens)/i,
+        forbiddenM2: /Approach Play was the strongest part of the round/i,
+      },
+      {
+        name: 'all-around strong',
+        identity: makeStoredIdentity({
+          primaryKey: 'all_around_strong',
+          tone: 'repeat',
+          overallTone: 'great',
+          displayLevels: { story: 'great', worked: 'success', watch: 'success' },
+          displayEvidence: {
+            scoreText: '71 (-1)',
+            baselineDeltaText: '9 strokes better than your recent average of 80.',
+            strongestArea: {
+              area: 'approach',
+              label: 'Approach Play',
+              valueText: '+1.2 SG approach',
+              detailText: 'Greens in regulation: 17/18 (94%).',
+            },
+            weakestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '-0.2 SG putting',
+              detailText: 'Putts: 33 (1.83 per hole).',
+            },
+          },
+          nextRoundFocus: 'Next round, keep the early scoring control from turning into late pressure.',
+        }),
+        expectedM2: 'Approach Play was the strongest part of the round.',
+        expectedM3: /^Next round: .*(approach|scoring control|carries over)/i,
+        forbiddenM2: /Putting was the main area costing you strokes/i,
+      },
+      {
+        name: 'no clear separator',
+        identity: makeStoredIdentity({
+          primaryKey: 'no_clear_separator',
+          tone: 'build',
+          overallTone: 'info',
+          displayLevels: { story: 'info', worked: 'info', watch: 'info' },
+          displayEvidence: {
+            scoreText: '84 (+12)',
+            baselineDeltaText: 'Right on your recent average of 84.',
+            strongestArea: {
+              area: 'approach',
+              label: 'Approach Play',
+              valueText: '+0.1 SG approach',
+              detailText: 'Greens in regulation: 8/18 (44%).',
+            },
+            weakestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '-0.1 SG putting',
+              detailText: 'Putts: 33 (1.83 per hole).',
+            },
+          },
+          nextRoundFocus: 'Next round, keep the tracking consistent and let another round confirm what matters most.',
+        }),
+        expectedM2: 'No tracked area clearly separated enough to call a clear strength or leak.',
+        expectedM3: /^Next round: .*(tracking|same areas|another round|choosing one area)/i,
+        forbiddenM2: /Approach Play was the strongest|Putting was the main area/i,
+      },
+      {
+        name: 'breakthrough',
+        identity: makeStoredIdentity({
+          primaryKey: 'breakthrough',
+          tone: 'repeat',
+          overallTone: 'great',
+          displayLevels: { story: 'great', worked: 'success', watch: 'success' },
+          displayEvidence: {
+            scoreText: '71 (-1)',
+            baselineDeltaText: '14 strokes better than your recent average of 85.',
+            strongestArea: {
+              area: 'approach',
+              label: 'Approach Play',
+              valueText: '+1.2 SG approach',
+              detailText: 'Greens in regulation: 16/18 (89%).',
+            },
+          },
+          nextRoundFocus: 'Next round, keep the same low-damage priority before chasing anything extra.',
+        }),
+        expectedM2: 'Approach Play was the strongest part of the round.',
+        expectedM3: /^Next round: .*(approach|scoring control|low-damage|chasing anything extra|carries over)/i,
+        forbiddenM2: /Putting was the main area costing you strokes/i,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const insights = await generateFreeStoredIdentityMessages(testCase.identity);
+
+      expect(insights.messages[1]).toBe(testCase.expectedM2);
+      expect(insights.messages[1]).not.toMatch(testCase.forbiddenM2);
+      expect(insights.messages[1]).not.toMatch(/\bSG\b|strokes gained|\d+\/\d+|mostly left|mostly right|mostly short/i);
+      expect(insights.messages[2]).toMatch(testCase.expectedM3);
+      expect(insights.messages[2].match(/Next round:/g)).toHaveLength(1);
+      expect(insights.round_identity_v1).toBeNull();
+    }
+  });
+
   it('keeps free no-clear-separator M2 informational and non-decisive', async () => {
     mockedPrisma.round.findUnique.mockResolvedValue({
       id: BigInt(40),
@@ -1695,7 +2077,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     );
 
     expect(insights.messages[1]).toMatch(/No tracked area clearly separated/i);
-    expect(insights.messages[1]).toMatch(/slightly lower, but not enough to define the round/i);
+    expect(insights.messages[1]).toMatch(/enough to call a clear strength or leak/i);
     expect(insights.messages[1]).not.toMatch(/clearest leak|main area costing/i);
     expect(insights.message_levels[1]).toBe('info');
   });

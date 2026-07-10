@@ -98,8 +98,24 @@ function formatBirdieCount(count: number): string {
   return `${count} ${count === 1 ? 'birdie' : 'birdies'}`;
 }
 
-function formatDoubleOrWorseCount(count: number): string {
-  return `${count} double-or-worse ${count === 1 ? 'hole' : 'holes'}`;
+function formatCountWord(value: number): string {
+  if (value === 1) return 'One';
+  if (value === 2) return 'Two';
+  if (value === 3) return 'Three';
+  if (value === 4) return 'Four';
+  if (value === 5) return 'Five';
+  if (value === 6) return 'Six';
+  if (value === 7) return 'Seven';
+  if (value === 8) return 'Eight';
+  if (value === 9) return 'Nine';
+  if (value === 10) return 'Ten';
+  return String(value);
+}
+
+function formatDoubleOrWorseCount(count: number, options: { lowercase?: boolean } = {}): string {
+  const formattedCount = count <= 10 ? formatCountWord(count) : String(count);
+  const casedCount = options.lowercase ? formattedCount.toLowerCase() : formattedCount;
+  return `${casedCount} double-or-worse ${count === 1 ? 'hole' : 'holes'}`;
 }
 
 function stableSortObject(value: unknown): unknown {
@@ -626,12 +642,12 @@ function buildDisplayEvidence(input: {
     if (input.buckets.birdieOrBetter > 0 && input.bigNumberCount > 0) {
       hbhStory = {
         label: 'Scoring upside with concentrated damage',
-        detailText: `You had ${formatBirdieCount(input.buckets.birdieOrBetter)} and ${formatDoubleOrWorseCount(input.bigNumberCount)}.`,
+        detailText: `You had ${formatBirdieCount(input.buckets.birdieOrBetter)} and ${formatDoubleOrWorseCount(input.bigNumberCount, { lowercase: true })}.`,
       };
     } else if (input.bigNumberCount > 0) {
       hbhStory = {
         label: 'Damage concentration',
-        detailText: `${formatDoubleOrWorseCount(input.bigNumberCount)} shaped the card.`,
+        detailText: `${formatDoubleOrWorseCount(input.bigNumberCount)} shaped the round.`,
       };
     } else {
       hbhStory = {
@@ -876,6 +892,7 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
     worstHoleDamage >= 2;
   const isBigNumberRound =
     evidence.hasTrustedHoleByHole &&
+    bigNumberCount >= 1 &&
     (worstHoleDamage >= 4 ||
       oneHoleDamageShare >= 0.42 ||
       ((bigNumberCount >= expectedScale(input.holesPlayed, 3.5) && !hasBirdieUpside) && !hasConcentratedPar3Damage) ||

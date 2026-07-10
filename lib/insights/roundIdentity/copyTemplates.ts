@@ -2,6 +2,10 @@
   RoundIdentity,
   RoundIdentityDisplayAreaEvidence,
 } from '@/lib/insights/roundIdentity/types';
+import {
+  buildRoundInsightNarrativePlan,
+  type RoundInsightNarrativePlan,
+} from '@/lib/insights/roundIdentity/narrativePlan';
 
 type AreaKey = NonNullable<RoundIdentityDisplayAreaEvidence['area']>;
 
@@ -17,12 +21,6 @@ const CORRECTIVE_PRIMARIES = new Set<RoundIdentity['primaryKey']>([
   'everything_leaked',
 ]);
 
-const M1_SCORE_ONLY_BASELINE_VARIANTS = [
-  'This gives GolfIQ a starting point. Add one or two optional stats next round so it can explain what shaped the number.',
-  'This is the starting point. Even one extra stat next round gives GolfIQ a clearer read on why this score happened.',
-  'This starts the picture. Add a couple of stats like putts or greens next round so GolfIQ can explain more than the final number.',
-] as const;
-
 const M1_BREAKTHROUGH_CLEAN_VARIANTS = [
   'This was a true breakthrough score that finished clearly better than your usual range.',
   'This round landed well outside your usual scoring range in the right direction.',
@@ -35,12 +33,12 @@ const M1_VOLATILE_OR_BIG_POSITIVE_VARIANTS = [
   'The good holes won out overall, even with a few costly swings.',
   'This was a positive round overall, with the scoring upside outweighing the expensive holes.',
   'You created enough good golf to stay ahead of the big numbers.',
-  'The round finished on the right side of your benchmark, even with a few costly holes.',
+  'This was a positive round overall, even with a few costly holes.',
 ] as const;
 
 const M1_BREAKTHROUGH_DAMAGE_VARIANTS = [
   'This was a true breakthrough score, with enough good holes to outweigh a couple of costly mistakes.',
-  'This round still broke through because the good holes did more than enough to offset the costly ones.',
+  'This was still a breakthrough because the good holes outweighed the costly ones.',
   'Even with a couple of mistakes, this score was clearly ahead of your usual range.',
   'The costly holes showed up, but they did not define the round, and the score still broke through.',
   'This was a breakthrough round because the good holes outweighed the damage.',
@@ -51,7 +49,7 @@ const M1_VOLATILE_OR_BIG_VARIANTS = [
   'The round had playable stretches, but the costly holes pulled too much of the score upward.',
   'There were good pieces in the round, but the bad holes got too expensive.',
   'A few costly holes carried too much of the score.',
-  'The round was not all bad, but the big holes carried too much weight.',
+  'The costly holes carried too much weight in the final score.',
 ] as const;
 
 const M1_CLEAN_CONTROL_VARIANTS = [
@@ -186,7 +184,7 @@ const M1_POSITIVE_WITH_CORRECTIVE_PRIMARY_VARIANTS = [
   'Overall, this was a positive round. One weaker area should not overshadow the result.',
   'The round finished above expectation overall, even with one area still worth tightening.',
   'The stronger parts of the round outweighed the area that needs work.',
-  'The round finished on the right side of the benchmark, with one area left to clean up.',
+  'This was a positive result overall, with one area left to clean up.',
 ] as const;
 
 const M1_NO_CLEAR_POSITIVE_VARIANTS = [
@@ -197,17 +195,17 @@ const M1_NO_CLEAR_POSITIVE_VARIANTS = [
 ] as const;
 
 const M2_SCORE_ONLY_BASELINE_VARIANTS = [
-  'This round gives GolfIQ a starting point for future comparisons.',
-  'This score gives you a starting point to compare against next time.',
-  'This one starts the picture, and future rounds will make the pattern clearer.',
-  'The score is logged. A few more details next round will make the why easier to explain.',
+  'With score-only tracking, GolfIQ cannot yet tell which part of your game shaped the result.',
+  'This score gives GolfIQ context, but there is not enough tracked detail to explain the result yet.',
+  'The score trend is useful, but the cause is still limited by score-only tracking.',
+  'The score is logged, but the why needs at least one tracked stat.',
 ] as const;
 
 const M2_STRENGTH_PUTTING_VARIANTS = [
-  'Putting was your biggest gain against your benchmark. You had {putts} putts.',
+  'Putting was your strongest area. You had {putts} putts.',
   'The putter gave the round its biggest lift. You finished with {putts} putts.',
   'Putting was your clearest strength this round. You had {putts} putts.',
-  'Putting gained the most strokes against your benchmark. You finished with {putts} putts.',
+  'Putting was your strongest area. You finished with {putts} putts.',
 ] as const;
 
 const M2_STRENGTH_APPROACH_VARIANTS = [
@@ -281,10 +279,10 @@ const M2_LEAK_SHORT_GAME_VARIANTS = [
 ] as const;
 
 const M2_LEAK_GENERIC_VARIANTS = [
-  'The score pattern is clearer than the cause right now. Add one more reliable stat next round and the main reason will be easier to see.',
+  'The score is clearer than the cause right now because one more reliable stat is needed.',
   'The score tells part of the story, but one more tracked area would make the cause clearer.',
   'The score gives a partial read, but one more tracked area would make the main cause clearer.',
-  'One more tracked area next round would make the main reason behind the score much clearer.',
+  'One more tracked area would make the main reason behind the score much clearer.',
 ] as const;
 
 const M2_EVERYTHING_FALLBACK_VARIANTS = [
@@ -302,10 +300,10 @@ const M2_ALL_AROUND_BALANCE_VARIANTS = [
 ] as const;
 
 const M2_GENERIC_SUMMARY_VARIANTS = [
-  'The score pattern is clearer than the cause right now. Add one more reliable stat next round and the main reason will be easier to see.',
+  'The score is clearer than the cause right now because one more reliable stat is needed.',
   'The score tells part of the story, but one more tracked area would make the cause clearer.',
   'The score gives a partial read, but one more tracked area would make the main cause clearer.',
-  'One more tracked area next round would make the main reason behind the score much clearer.',
+  'One more tracked area would make the main reason behind the score much clearer.',
 ] as const;
 
 const M2_NO_CLEAR_WEAKEST_VARIANTS = [
@@ -330,9 +328,9 @@ const M2_NO_CLEAR_BALANCED_VARIANTS = [
 ] as const;
 
 const M3_EXPLAIN_VARIANTS = [
-  'Add one or two optional stats next round so GolfIQ can explain more than just the score.',
-  'Add a couple of stats next round, like putts or greens, so GolfIQ can explain what shaped the score.',
-  'Even one extra stat next round gives GolfIQ a clearer read on why the score landed there.',
+  'Add one or two optional stats so GolfIQ can explain more than just the score.',
+  'Add a couple of stats, like putts or greens, so GolfIQ can explain what shaped the score.',
+  'Even one extra stat gives GolfIQ a clearer read on why the score landed there.',
 ] as const;
 
 const M3_REPEAT_DAMAGE_COUPLE_VARIANTS = [
@@ -458,7 +456,7 @@ const M3_FIX_PENALTIES_VARIANTS = [
   'Next round, choose the target with the most room when trouble is in play.',
   'Next round, aim away from the penalty first and let the score come from staying in play.',
   'Next round, when trouble is close, make the safer target the default.',
-  'Next round, keep the ball in play first. The aggressive line is not worth it if penalty is in play.',
+  'Next round, aim away from penalty trouble first and let the score come from staying in play.',
 ] as const;
 
 const M3_FIX_PUTTING_VARIANTS = [
@@ -625,7 +623,21 @@ function parsePenalties(detailText?: string): number | null {
 function parseDoubleOrWorseCount(text?: string): number | null {
   if (!text) return null;
   const match = text.match(/(\d+)\s+double-or-worse hole/i);
-  return match ? Number(match[1]) : null;
+  if (match) return Number(match[1]);
+  const wordMatch = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\s+double-or-worse hole/i);
+  if (!wordMatch) return null;
+  return {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+  }[wordMatch[1].toLowerCase() as 'one' | 'two' | 'three' | 'four' | 'five' | 'six' | 'seven' | 'eight' | 'nine' | 'ten'];
 }
 
 function countWord(count: number): string {
@@ -669,6 +681,17 @@ function getCountTextLower(count: number | null | undefined): string {
   return getCountText(count).toLowerCase();
 }
 
+function costlyHolePhrase(count: number | null | undefined): string {
+  if (count == null || count <= 0) return 'a couple of costly holes';
+  if (count === 1) return 'one costly hole';
+  if (count === 2) return 'two costly holes';
+  return `${countWord(count).toLowerCase()} costly holes`;
+}
+
+function hasTrustedHbhEvidence(identity: RoundIdentity): boolean {
+  return identity.evidenceLevel === 'hole_by_hole';
+}
+
 function hasRepeatedDamageDominance(identity: RoundIdentity): boolean {
   const bigNumberCount = getBigNumberCount(identity);
   const penaltyCount = getPenaltyCount(identity);
@@ -676,6 +699,80 @@ function hasRepeatedDamageDominance(identity: RoundIdentity): boolean {
   if (penaltyCount != null && penaltyCount >= 3) return true;
   if (identity.primaryKey === 'penalty_damaged' && bigNumberCount != null && bigNumberCount >= 2) return true;
   return false;
+}
+
+function hasTrustedRepeatedDamageDominance(identity: RoundIdentity): boolean {
+  return hasTrustedHbhEvidence(identity) && hasRepeatedDamageDominance(identity);
+}
+
+function repeatedDamageM1Line(identity: RoundIdentity): string | null {
+  const bigNumberCount = getBigNumberCount(identity) ?? 0;
+  const penaltyCount = getPenaltyCount(identity) ?? 0;
+  const hasBigNumbers = bigNumberCount > 0;
+  const hasPenalties = penaltyCount > 0;
+  if (hasBigNumbers && hasPenalties) {
+    return pickVariant(identity, M1_PENALTY_DAMAGED_REPEATED_VARIANTS, 'm1-penalty-repeated-damage');
+  }
+  if (hasBigNumbers) {
+    return pickVariant(
+      identity,
+      [
+        'Big numbers shaped the round more than the routine holes.',
+        'The biggest scoring damage came from the costly holes.',
+        'Costly holes did more damage than the routine mistakes.',
+        'The round changed fastest when the big numbers showed up.',
+      ],
+      'm1-repeated-big-number-only',
+    );
+  }
+  if (hasPenalties) {
+    return pickVariant(
+      identity,
+      [
+        'Penalty strokes were the clearest source of avoidable damage.',
+        'Penalty trouble changed the score more than routine mistakes.',
+        'The score got more expensive when penalty strokes appeared.',
+        'Penalty strokes did the clearest scoring damage.',
+      ],
+      'm1-repeated-penalty-only',
+    );
+  }
+  return null;
+}
+
+function breakthroughDamageLine(identity: RoundIdentity): string {
+  const bigNumberCount = getBigNumberCount(identity) ?? 0;
+  const penaltyCount = getPenaltyCount(identity) ?? 0;
+
+  if (bigNumberCount === 1) {
+    return pickVariant(
+      identity,
+      [
+        'This was still a breakthrough, even with one costly hole keeping it from being better.',
+        'Even with one costly hole, this score was clearly ahead of your usual range.',
+        'One costly hole showed up, but it did not define the breakthrough score.',
+      ],
+      'm1-breakthrough-damage-one',
+    );
+  }
+
+  if (bigNumberCount > 1) {
+    return pickVariant(identity, M1_BREAKTHROUGH_DAMAGE_VARIANTS, 'm1-breakthrough-damage');
+  }
+
+  if (penaltyCount > 0) {
+    return pickVariant(
+      identity,
+      [
+        'This was still a breakthrough, even with penalty strokes keeping it from being cleaner.',
+        'Penalty strokes showed up, but they did not define the breakthrough score.',
+        'Even with penalty trouble, this score was clearly ahead of your usual range.',
+      ],
+      'm1-breakthrough-damage-penalties',
+    );
+  }
+
+  return pickVariant(identity, M1_BREAKTHROUGH_DAMAGE_VARIANTS, 'm1-breakthrough-damage');
 }
 
 function areaLabel(area: AreaKey): string {
@@ -687,6 +784,68 @@ function areaLabel(area: AreaKey): string {
   if (area === 'big_numbers') return 'damage control';
   if (area === 'scoring') return 'scoring control';
   return 'this pattern';
+}
+
+function areaSentenceLabel(area: AreaKey): string {
+  if (area === 'putting') return 'Putting';
+  if (area === 'approach') return 'Approach play';
+  if (area === 'off_tee') return 'Tee-shot control';
+  if (area === 'short_game') return 'Short game';
+  if (area === 'penalties') return 'Penalty control';
+  if (area === 'big_numbers') return 'Damage control';
+  if (area === 'scoring') return 'Scoring';
+  return 'That area';
+}
+
+function plannedAreaEvidence(
+  identity: RoundIdentity,
+  category: RoundInsightNarrativePlan['supportCategory'],
+): RoundIdentityDisplayAreaEvidence | undefined {
+  if (!category) return undefined;
+  const strongest = identity.displayEvidence?.strongestArea;
+  const weakest = identity.displayEvidence?.weakestArea;
+  if (strongest?.area === category) return strongest;
+  if (weakest?.area === category) return weakest;
+  return undefined;
+}
+
+function isStrengthPrimary(identity: RoundIdentity): boolean {
+  return (
+    identity.primaryKey === 'putting_saved' ||
+    identity.primaryKey === 'approach_carried' ||
+    identity.primaryKey === 'tee_controlled' ||
+    identity.primaryKey === 'short_game_rescue' ||
+    identity.primaryKey === 'breakthrough' ||
+    identity.primaryKey === 'clean_control' ||
+    identity.primaryKey === 'all_around_strong'
+  );
+}
+
+function genericPlannedSupport(identity: RoundIdentity, plan: RoundInsightNarrativePlan): string | null {
+  const category = plan.supportCategory ?? plan.primaryCategory;
+  if (!category) return null;
+  if (identity.primaryKey === 'penalty_damaged') return 'Penalty strokes were the clearest scoring issue.';
+  if (identity.primaryKey === 'steady_scoring') return 'Damage stayed limited across the scorecard.';
+  if (identity.primaryKey === 'scoring_chance_missed') {
+    return 'Green-hitting created scoring chances, but the final score needed more from putting.';
+  }
+  if (category === 'big_numbers') return 'Costly holes were the clearest scoring issue.';
+  if (category === 'putting') return 'Putting was the clearest area tied to this round story.';
+  if (category === 'approach') return 'Approach play was the clearest area tied to this round story.';
+  if (category === 'off_tee') return 'Tee-shot control was the clearest area tied to this round story.';
+  if (category === 'short_game') return 'Short-game recovery was the clearest area tied to this round story.';
+  return null;
+}
+
+function hasSupportedNegativeArea(area?: RoundIdentityDisplayAreaEvidence): area is RoundIdentityDisplayAreaEvidence {
+  if (!area || area.area === 'penalties' || area.area === 'big_numbers') return false;
+  return /^-/.test(area.valueText.trim()) || /\b(cost|lost|below|too many|required|missed|lower)\b/i.test(area.detailText);
+}
+
+function penaltyCountDetail(area?: RoundIdentityDisplayAreaEvidence): string | null {
+  const penalties = parsePenalties(area?.detailText);
+  if (penalties == null || penalties <= 0) return null;
+  return `${penalties === 1 ? 'One penalty stroke was' : `${countWord(penalties)} penalty strokes were`} recorded.`;
 }
 
 function appendDirectionalEvidence(
@@ -752,7 +911,7 @@ function summaryLowercaseIfSafe(summary: string): string | null {
 function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; primaryCoversRepeatedDamage?: boolean }): string | null {
   const allowHBH = options?.allowHBH ?? true;
   const primaryCoversRepeatedDamage = options?.primaryCoversRepeatedDamage ?? false;
-  const repeatedDamageDominance = hasRepeatedDamageDominance(identity);
+  const repeatedDamageDominance = hasTrustedRepeatedDamageDominance(identity);
   const hbhStoryText = identity.evidenceLevel === 'hole_by_hole' ? identity.displayEvidence?.hbhStory?.detailText : null;
 
   if (hasModifier(identity, 'one_hole_damage') && !repeatedDamageDominance && !hbhStoryText) {
@@ -898,7 +1057,7 @@ function selectM1AddOn(identity: RoundIdentity, options?: { allowHBH?: boolean; 
   }
 
   if (!primaryCoversRepeatedDamage && repeatedDamageDominance) {
-    return 'Penalties and big numbers shaped the round more than routine mistakes.';
+    return repeatedDamageM1Line(identity);
   }
 
   return null;
@@ -911,10 +1070,10 @@ function applyTemplate(template: string, replacements: Record<string, string | n
 function buildM2BigNumberFirst(identity: RoundIdentity, count: number | null | undefined, saltPrefix: string): string {
   const countText = getCountText(count);
   const countTextLower = getCountTextLower(count);
-  const variantFns: Array<(ctx: { countText: string; countTextLower: string }) => string> = [
+  const variantFns: Array<(ctx: { countText: string; countTextLower: string; costlyHoleText: string }) => string> = [
     ({ countText: c }) => `${c} holes did most of the damage.`,
     ({ countText: c }) => `${c} holes carried too much of the score.`,
-    ({ countTextLower: c }) => `The round got away on ${c} costly holes.`,
+    ({ costlyHoleText: c }) => `The round got away on ${c}.`,
     ({ countText: c }) => `${c} holes changed the score more than the rest of the round.`,
   ];
   if (count === 1) {
@@ -929,10 +1088,23 @@ function buildM2BigNumberFirst(identity: RoundIdentity, count: number | null | u
     variantFns[3] = () => 'A couple of costly holes changed the score more than the rest of the round.';
   }
   const variant = pickTemplate(identity, `${saltPrefix}-${count ?? 'na'}`, variantFns);
-  return variant({ countText, countTextLower });
+  return variant({ countText, countTextLower, costlyHoleText: costlyHolePhrase(count) });
 }
 
 function buildM2BigNumberSecond(identity: RoundIdentity, count: number | null | undefined, saltPrefix: string): string {
+  if (count === 1) {
+    return pickVariant(
+      identity,
+      [
+        'That hole was the difference between a manageable score and a frustrating one.',
+        'Keeping that hole closer to bogey would have changed the round quickly.',
+        'The score climbed fastest when that hole got away.',
+        'That hole carried more of the score than the rest of the round.',
+      ],
+      `${saltPrefix}-one`,
+    );
+  }
+
   const variants = [
     'Doubles pushed the score higher than it needed to be.',
     'Those holes were the difference between a manageable score and a frustrating one.',
@@ -968,15 +1140,16 @@ function buildM2ApproachBigSecond(identity: RoundIdentity, count: number | null 
   );
 }
 
-export function buildStoryCard(identity: RoundIdentity): string {
+export function buildStoryCard(
+  identity: RoundIdentity,
+  plan: RoundInsightNarrativePlan = buildRoundInsightNarrativePlan(identity),
+): string {
   const scoreText = identity.displayEvidence?.scoreText;
   const baselineDeltaText = identity.displayEvidence?.baselineDeltaText;
 
-  if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
-    return joinSentences([
-      scoreText ? `You shot ${scoreText}` : 'Score recorded',
-      pickVariant(identity, M1_SCORE_ONLY_BASELINE_VARIANTS, 'm1-score-only-baseline'),
-    ]);
+  if (plan.supportMode === 'limited_context' && identity.primaryKey === 'score_only_baseline') {
+    const lead = scoreText ? `You shot ${scoreText}` : 'Score recorded';
+    return ensurePeriod(buildLeadWithBaseline(lead, baselineDeltaText));
   }
 
   if (identity.primaryKey === 'score_only_baseline') {
@@ -1012,9 +1185,12 @@ export function buildStoryCard(identity: RoundIdentity): string {
   }
 
   if (identity.primaryKey === 'breakthrough') {
-    const withDamage = hasDamageSignal(identity) || Boolean(identity.displayEvidence?.hbhStory?.detailText);
+    const withDamage =
+      hasDamageSignal(identity) ||
+      (getBigNumberCount(identity) ?? 0) > 0 ||
+      (getPenaltyCount(identity) ?? 0) > 0;
     const story = withDamage
-      ? pickVariant(identity, M1_BREAKTHROUGH_DAMAGE_VARIANTS, 'm1-breakthrough-damage')
+      ? breakthroughDamageLine(identity)
       : pickVariant(identity, M1_BREAKTHROUGH_CLEAN_VARIANTS, 'm1-breakthrough-clean');
     return joinSentences([
       opening,
@@ -1080,11 +1256,11 @@ export function buildStoryCard(identity: RoundIdentity): string {
   }
 
   if (identity.primaryKey === 'penalty_damaged') {
-    const repeatedDamage = hasRepeatedDamageDominance(identity);
+    const repeatedDamage = hasTrustedRepeatedDamageDominance(identity);
     return joinSentences([
       opening,
       repeatedDamage
-        ? pickVariant(identity, M1_PENALTY_DAMAGED_REPEATED_VARIANTS, 'm1-penalty-repeated-damage')
+        ? repeatedDamageM1Line(identity)
         : pickVariant(identity, M1_PENALTY_DAMAGED_NORMAL_VARIANTS, 'm1-penalty-damaged-normal'),
       repeatedDamage
         ? null
@@ -1232,7 +1408,38 @@ function buildLeakCardFromArea(identity: RoundIdentity, area: RoundIdentityDispl
   return pickVariant(identity, M2_LEAK_GENERIC_VARIANTS, 'm2-leak-generic');
 }
 
-export function buildAreaCard(identity: RoundIdentity): string {
+function buildPenaltyDamagedAreaCard(identity: RoundIdentity): string {
+  const weakest = identity.displayEvidence?.weakestArea;
+
+  if (!hasTrustedHbhEvidence(identity)) {
+    const penaltyDetail = weakest?.area === 'penalties' ? penaltyCountDetail(weakest) : null;
+    const secondary = hasSupportedNegativeArea(weakest)
+      ? `${areaSentenceLabel(weakest.area)} also cost strokes, but penalties had the clearest impact on the score.`
+      : null;
+    return joinSentences(['Penalty strokes were the clearest scoring issue.', penaltyDetail, secondary]);
+  }
+
+  if (weakest?.area === 'big_numbers') {
+    const count = parseDoubleOrWorseCount(weakest.valueText) ?? parseDoubleOrWorseCount(weakest.detailText);
+    const first = buildM2BigNumberFirst(identity, count, 'm2-penalty-big-number-first');
+    const second = buildM2PenaltyBigSecond(identity, count);
+    return joinSentences([first, second]);
+  }
+
+  if (hasSupportedNegativeArea(weakest)) {
+    return joinSentences([
+      'Penalty strokes were the clearest scoring issue.',
+      `${areaSentenceLabel(weakest.area)} also cost strokes, but penalties had the clearest impact on the score.`,
+    ]);
+  }
+
+  return joinSentences(['Penalty strokes were the clearest scoring issue.', penaltyCountDetail(weakest)]);
+}
+
+export function buildAreaCard(
+  identity: RoundIdentity,
+  plan: RoundInsightNarrativePlan = buildRoundInsightNarrativePlan(identity),
+): string {
   if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
     return pickVariant(identity, M2_SCORE_ONLY_BASELINE_VARIANTS, 'm2-score-only-baseline');
   }
@@ -1243,22 +1450,15 @@ export function buildAreaCard(identity: RoundIdentity): string {
   const useLeakFraming = !positiveOverall && (identity.tone === 'fix' || identity.primaryKey === 'penalty_damaged');
 
   if (identity.primaryKey === 'no_clear_separator') {
-    if (weakest) {
-      const template = pickVariant(identity, M2_NO_CLEAR_WEAKEST_VARIANTS, 'm2-no-clear-weakest');
-      return applyTemplate(template, { areaLabel: weakest.label });
-    }
-    if (strongest) {
-      const template = pickVariant(identity, M2_NO_CLEAR_STRONGEST_VARIANTS, 'm2-no-clear-strongest');
-      return applyTemplate(template, { areaLabel: strongest.label });
-    }
     return pickVariant(identity, M2_NO_CLEAR_BALANCED_VARIANTS, 'm2-no-clear-balanced');
   }
 
-  if (!positiveOverall && identity.primaryKey === 'penalty_damaged' && weakest?.area === 'big_numbers') {
-    const count = parseDoubleOrWorseCount(weakest.valueText) ?? parseDoubleOrWorseCount(weakest.detailText);
-    const first = buildM2BigNumberFirst(identity, count, 'm2-penalty-big-number-first');
-    const second = buildM2PenaltyBigSecond(identity, count);
-    return joinSentences([first, second]);
+  if (identity.primaryKey === 'survival' && plan.relationship === 'strength_vs_weakness' && strongest && weakest) {
+    return `${strongest.label} helped keep the round together, but ${weakest.label} is still the clearest area to tighten.`;
+  }
+
+  if (identity.primaryKey === 'penalty_damaged') {
+    return buildPenaltyDamagedAreaCard(identity);
   }
 
   if (!positiveOverall && identity.primaryKey === 'approach_leak' && weakest?.area === 'big_numbers') {
@@ -1267,6 +1467,21 @@ export function buildAreaCard(identity: RoundIdentity): string {
     const second = buildM2ApproachBigSecond(identity, count);
     return joinSentences([first, second]);
   }
+
+  const plannedArea = plannedAreaEvidence(identity, plan.supportCategory);
+  if (plannedArea) {
+    if (
+      plan.supportMode === 'strength_reinforcement' ||
+      (plan.relationship === 'strength_vs_weakness' && plannedArea.area === strongest?.area) ||
+      isStrengthPrimary(identity)
+    ) {
+      return buildStrengthCardFromArea(identity, plannedArea);
+    }
+    return appendDirectionalEvidence(identity, plannedArea, buildLeakCardFromArea(identity, plannedArea));
+  }
+
+  const plannedFallback = genericPlannedSupport(identity, plan);
+  if (plannedFallback) return plannedFallback;
 
   if (useLeakFraming && weakest) {
     return appendDirectionalEvidence(identity, weakest, buildLeakCardFromArea(identity, weakest));
@@ -1285,7 +1500,51 @@ export function buildAreaCard(identity: RoundIdentity): string {
   return pickVariant(identity, M2_GENERIC_SUMMARY_VARIANTS, 'm2-generic-summary');
 }
 
-function buildRepeatFocus(identity: RoundIdentity): string {
+function buildActionFromCategory(
+  identity: RoundIdentity,
+  category: RoundInsightNarrativePlan['actionCategory'],
+  mode: 'repeat' | 'fix' | 'build',
+): string | null {
+  if (!category) return null;
+  if (category === 'big_numbers') {
+    const weakest = identity.displayEvidence?.weakestArea;
+    const bigNumberCount = getBigNumberCount(identity);
+    if (mode === 'fix') {
+      if (bigNumberCount != null && bigNumberCount >= 3) {
+        return pickVariant(identity, M3_FIX_BIG_3PLUS_VARIANTS, `m3-fix-big-3plus-${bigNumberCount}`);
+      }
+      if (bigNumberCount === 2) return pickVariant(identity, M3_FIX_BIG_2_VARIANTS, `m3-fix-big-2-${bigNumberCount}`);
+      if (weakest?.area === 'big_numbers') {
+        return pickVariant(identity, M3_FIX_BIG_ONE_VARIANTS, `m3-fix-big-one-${bigNumberCount ?? 'na'}`);
+      }
+    }
+    return pickVariant(identity, M3_REPEAT_DAMAGE_ONE_VARIANTS, 'm3-repeat-damage-one');
+  }
+  if (category === 'penalties') return pickVariant(identity, M3_FIX_PENALTIES_VARIANTS, 'm3-fix-penalties');
+  if (category === 'putting') {
+    return mode === 'repeat'
+      ? applyTemplate(pickVariant(identity, M3_REPEAT_AREA_VARIANTS, 'm3-repeat-area'), { areaLabel: areaLabel(category) })
+      : pickVariant(identity, M3_FIX_PUTTING_VARIANTS, 'm3-fix-putting');
+  }
+  if (category === 'approach') {
+    return mode === 'repeat'
+      ? applyTemplate(pickVariant(identity, M3_REPEAT_AREA_VARIANTS, 'm3-repeat-area'), { areaLabel: areaLabel(category) })
+      : pickVariant(identity, M3_FIX_APPROACH_VARIANTS, 'm3-fix-approach');
+  }
+  if (category === 'off_tee') {
+    return mode === 'repeat'
+      ? applyTemplate(pickVariant(identity, M3_REPEAT_AREA_VARIANTS, 'm3-repeat-area'), { areaLabel: areaLabel(category) })
+      : pickVariant(identity, M3_FIX_OFF_TEE_VARIANTS, 'm3-fix-off-tee');
+  }
+  if (category === 'short_game') {
+    return mode === 'repeat'
+      ? applyTemplate(pickVariant(identity, M3_REPEAT_AREA_VARIANTS, 'm3-repeat-area'), { areaLabel: areaLabel(category) })
+      : pickVariant(identity, M3_FIX_SHORT_GAME_VARIANTS, 'm3-fix-short-game');
+  }
+  return null;
+}
+
+function buildRepeatFocus(identity: RoundIdentity, plan: RoundInsightNarrativePlan): string {
   const strongest = identity.displayEvidence?.strongestArea;
   const weakest = identity.displayEvidence?.weakestArea;
 
@@ -1326,20 +1585,22 @@ function buildRepeatFocus(identity: RoundIdentity): string {
   }
 
   if (strongest) {
-    const template = pickVariant(identity, M3_REPEAT_AREA_VARIANTS, 'm3-repeat-area');
-    return applyTemplate(template, { areaLabel: areaLabel(strongest.area) });
+    const planned = buildActionFromCategory(identity, plan.actionCategory ?? strongest.area, 'repeat');
+    if (planned) return planned;
   }
 
   return pickVariant(identity, M3_REPEAT_GENERIC_VARIANTS, 'm3-repeat-generic');
 }
 
-function buildFixFocus(identity: RoundIdentity): string {
+function buildFixFocus(identity: RoundIdentity, plan: RoundInsightNarrativePlan): string {
   if (identity.primaryKey === 'approach_leak') {
     return pickVariant(identity, M3_FIX_APPROACH_VARIANTS, 'm3-fix-approach');
   }
 
   const weakest = identity.displayEvidence?.weakestArea;
   const bigNumberCount = getBigNumberCount(identity);
+  const plannedAction = buildActionFromCategory(identity, plan.actionCategory, 'fix');
+  if (plannedAction) return plannedAction;
   const repeatedDamage = hasRepeatedDamageDominance(identity);
   if (repeatedDamage && bigNumberCount != null && bigNumberCount >= 3) {
     return pickVariant(identity, M3_FIX_BIG_3PLUS_VARIANTS, `m3-fix-big-3plus-${bigNumberCount}`);
@@ -1368,17 +1629,16 @@ function buildFixFocus(identity: RoundIdentity): string {
   return pickVariant(identity, M3_FIX_GENERIC_VARIANTS, 'm3-fix-generic');
 }
 
-function buildBuildFocus(identity: RoundIdentity): string {
+function buildBuildFocus(identity: RoundIdentity, plan: RoundInsightNarrativePlan): string {
   const strongest = identity.displayEvidence?.strongestArea;
   const weakest = identity.displayEvidence?.weakestArea;
 
   if (identity.primaryKey === 'no_clear_separator') {
-    if (weakest) {
-      const template = pickVariant(identity, M3_BUILD_NO_CLEAR_WEAKEST_VARIANTS, 'm3-build-no-clear-weakest');
-      return applyTemplate(template, { areaLabel: weakest.label });
-    }
     return pickVariant(identity, M3_BUILD_NO_CLEAR_GENERIC_VARIANTS, 'm3-build-no-clear-generic');
   }
+
+  const plannedAction = buildActionFromCategory(identity, plan.actionCategory, identity.tone === 'repeat' ? 'repeat' : 'fix');
+  if (plannedAction) return plannedAction;
 
   if (identity.sampleContext === 'first_round' && strongest) {
     const template = pickVariant(identity, M3_BUILD_FIRST_WITH_STRONG_VARIANTS, 'm3-build-first-strong');
@@ -1398,13 +1658,16 @@ function buildBuildFocus(identity: RoundIdentity): string {
   return pickVariant(identity, M3_BUILD_GENERIC_VARIANTS, 'm3-build-generic');
 }
 
-export function buildWatchCard(identity: RoundIdentity): string {
+export function buildWatchCard(
+  identity: RoundIdentity,
+  plan: RoundInsightNarrativePlan = buildRoundInsightNarrativePlan(identity),
+): string {
   if (identity.tone === 'explain' && identity.evidenceLevel === 'score_only') {
     return pickVariant(identity, M3_EXPLAIN_VARIANTS, 'sparse-watch');
   }
-  if (identity.tone === 'explain') return buildBuildFocus(identity);
-  if (identity.tone === 'repeat') return buildRepeatFocus(identity);
-  if (identity.tone === 'fix') return buildFixFocus(identity);
-  return buildBuildFocus(identity);
+  if (identity.tone === 'explain') return buildBuildFocus(identity, plan);
+  if (identity.tone === 'repeat') return buildRepeatFocus(identity, plan);
+  if (identity.tone === 'fix') return buildFixFocus(identity, plan);
+  return buildBuildFocus(identity, plan);
 }
 

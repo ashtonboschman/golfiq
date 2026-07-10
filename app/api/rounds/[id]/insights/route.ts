@@ -23,6 +23,10 @@ import { resolveRoundIdentity } from '@/lib/insights/roundIdentity/resolve';
 import { buildWatchCard } from '@/lib/insights/roundIdentity/copyTemplates';
 import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
 import {
+  buildRoundInsightNarrativePlan,
+  type RoundInsightNarrativePlan,
+} from '@/lib/insights/roundIdentity/narrativePlan';
+import {
   buildRoundIdentityResolverInput,
   computeCurrentRoundIdentityHash,
   getLastHistoricalRounds,
@@ -263,51 +267,92 @@ function resolveViewerConfidence(insights: any): PostRoundConfidence | null {
 function resolveFreeIdentityMessage2(insights: any): { text: string; level: InsightLevel } | null {
   const identity = insights?.raw_payload?.round_identity_v1;
   const evidence = identity?.displayEvidence;
-  if (!identity || !evidence || typeof evidence !== 'object') return null;
+  if (!identity || typeof identity !== 'object') return null;
 
-  const level = resolveStoredIdentityLevel(insights, 'worked');
-  const strongest = evidence.strongestArea;
-  const weakest = evidence.weakestArea;
-
-  if (identity.primaryKey === 'no_clear_separator') {
-    const slightlyLower = weakest?.label;
-    const slightlyHigher = strongest?.label;
-    if (typeof slightlyLower === 'string' && slightlyLower.trim()) {
-      return {
-        text: `No tracked area clearly separated. ${slightlyLower.trim()} was slightly lower, but not enough to define the round.`,
-        level: 'info',
-      };
-    }
-    if (typeof slightlyHigher === 'string' && slightlyHigher.trim()) {
-      return {
-        text: `No tracked area clearly separated. ${slightlyHigher.trim()} was slightly higher, but not enough to define the round.`,
-        level: 'info',
-      };
-    }
+  if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
     return {
-      text: 'No tracked area separated enough to call a clear strength or leak.',
+      text: 'This result needs at least one optional stat before GolfIQ can explain what shaped the score.',
       level: 'info',
     };
   }
 
-  const selected = level === 'success' && strongest
-    ? strongest
-    : level === 'warning' && weakest
-      ? weakest
-      : strongest ?? weakest;
-  if (!selected || typeof selected.label !== 'string' || !selected.label.trim()) return null;
+  if (identity.primaryKey === 'no_clear_separator') {
+    return {
+      text: 'No tracked area clearly separated enough to call a clear strength or leak.',
+      level: 'info',
+    };
+  }
 
-  const label = selected.label.trim();
-  if (selected === strongest) {
-    return { text: `${label} was the strongest part of the round.`, level: level ?? 'success' };
+  const plan = buildRoundInsightNarrativePlan(identity);
+  const supportCategory = plan.supportCategory ?? plan.primaryCategory;
+  const supportLabel = resolveFreeNarrativeAreaLabel(evidence, supportCategory);
+  const actionLabel = resolveFreeNarrativeAreaLabel(evidence, plan.actionCategory);
+  const level = resolveFreeNarrativeLevel(plan);
+
+  if (plan.relationship === 'strength_vs_weakness' && supportLabel && actionLabel && supportLabel !== actionLabel) {
+    return {
+      text: `${supportLabel} helped keep the round together, but ${actionLabel} is the area to watch next.`,
+      level,
+    };
   }
-  if (selected.area === 'big_numbers') {
-    return { text: 'Costly holes were the clearest scoring issue.', level: level ?? 'warning' };
+
+  if (plan.supportMode === 'strength_reinforcement' || plan.relationship === 'strength_supported') {
+    return {
+      text: `${supportLabel ?? 'Scoring control'} was the strongest part of the round.`,
+      level,
+    };
   }
-  if (selected.area === 'penalties') {
-    return { text: 'Penalty strokes were the clearest scoring issue.', level: level ?? 'warning' };
+
+  if (supportCategory === 'penalties') {
+    return { text: 'Penalties were the main scoring issue.', level };
   }
-  return { text: `${label} was the main area costing you strokes.`, level: level ?? 'warning' };
+  if (supportCategory === 'big_numbers') {
+    return { text: 'Costly holes were the clearest scoring issue.', level };
+  }
+  if (supportCategory === 'scoring') {
+    return { text: 'Scoring control was the main area to tighten.', level };
+  }
+  if (supportLabel) {
+    return { text: `${supportLabel} was the main area costing you strokes.`, level };
+  }
+
+  return {
+    text: 'GolfIQ found one clear area to carry into the next-round focus.',
+    level,
+  };
+}
+
+function resolveFreeNarrativeLevel(plan: RoundInsightNarrativePlan): InsightLevel {
+  if (plan.supportMode === 'limited_context' || plan.supportMode === 'balanced') return 'info';
+  if (plan.supportMode === 'strength_reinforcement' || plan.relationship === 'strength_supported') return 'success';
+  if (plan.supportMode === 'contrast') return 'info';
+  return 'warning';
+}
+
+function resolveFreeNarrativeAreaLabel(
+  evidence: any,
+  area: RoundInsightNarrativePlan['supportCategory'],
+): string | null {
+  if (!area) return null;
+
+  const strongest = evidence?.strongestArea;
+  const weakest = evidence?.weakestArea;
+  const matched =
+    strongest?.area === area && typeof strongest?.label === 'string'
+      ? strongest.label.trim()
+      : weakest?.area === area && typeof weakest?.label === 'string'
+        ? weakest.label.trim()
+        : null;
+  if (matched) return matched;
+
+  if (area === 'putting') return 'Putting';
+  if (area === 'approach') return 'Approach Play';
+  if (area === 'off_tee') return 'Off The Tee';
+  if (area === 'short_game') return 'Short Game';
+  if (area === 'penalties') return 'Penalty Control';
+  if (area === 'big_numbers') return 'Costly holes';
+  if (area === 'scoring') return 'Scoring control';
+  return null;
 }
 
 function buildFreeMessage1(
@@ -337,7 +382,7 @@ function resolveFreeIdentityMessage3(insights: any): { text: string; level: Insi
   const trimmed = focus.trim();
   const text = /^Next round[:,]\s*/i.test(trimmed)
     ? trimmed.replace(/^Next round[:,]\s*/i, 'Next round: ')
-    : `Next round: ${trimmed}`;
+    : `Next round: ${trimmed.replace(/^([A-Z])/, (match) => match.toLowerCase())}`;
   return {
     text,
     level: resolveStoredIdentityLevel(insights, 'watch') ?? 'info',

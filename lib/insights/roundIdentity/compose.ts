@@ -5,6 +5,7 @@ import {
 } from '@/lib/insights/roundIdentity/copyTemplates';
 import type { RoundIdentity, RoundIdentityPrimaryKey } from '@/lib/insights/roundIdentity/types';
 import { resolveRoundIdentityDisplayLevels } from '@/lib/insights/roundIdentity/presentation';
+import { buildRoundInsightNarrativePlan } from '@/lib/insights/roundIdentity/narrativePlan';
 
 export type RoundIdentityDisplayInsight = {
   kind: 'story' | 'worked' | 'watch';
@@ -111,6 +112,7 @@ export function composeRoundIdentityDisplay(
 
   const eyebrow = undefined;
   const levels = identity.displayLevels ?? resolveRoundIdentityDisplayLevels(identity);
+  const narrativePlan = buildRoundInsightNarrativePlan(identity);
 
   const display: RoundIdentityDisplay = {
     eyebrow: isFirstRound ? 'Round 1 Logged' : eyebrow,
@@ -120,19 +122,19 @@ export function composeRoundIdentityDisplay(
       {
         kind: 'story',
         title: 'Main Round Story',
-        body: buildStoryCard(identity),
+        body: buildStoryCard(identity, narrativePlan),
         level: levels.story,
       },
       {
         kind: 'worked',
-        title: 'What Worked',
-        body: buildAreaCard(identity),
+        title: 'What Stood Out',
+        body: buildAreaCard(identity, narrativePlan),
         level: levels.worked,
       },
       {
         kind: 'watch',
         title: watchTitle(identity),
-        body: buildWatchCard(identity),
+        body: buildWatchCard(identity, narrativePlan),
         level: levels.watch,
       },
     ],

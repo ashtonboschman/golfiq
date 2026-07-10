@@ -65,6 +65,15 @@ function matchesAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
 }
 
+function collectAreaCardBodies(identity: RoundIdentity, variants = 96): string[] {
+  return Array.from({ length: variants }, (_, index) =>
+    composeRoundIdentityDisplay({
+      ...identity,
+      inputHash: `${identity.inputHash}-${index}`,
+    }).insights[1].body,
+  );
+}
+
 const TONE_BY_PRIMARY: Record<RoundIdentityPrimaryKey, RoundIdentityTone> = {
   score_only_baseline: 'explain',
   no_clear_separator: 'build',
@@ -106,9 +115,47 @@ describe('composeRoundIdentityDisplay', () => {
 
     expect(display.insights).toHaveLength(3);
     expect(display.insights[0].body).toMatch(/you shot 90 \(\+18\)/i);
-    expect(display.insights[0].body).toMatch(/starting point/i);
+    expect(display.insights[0].body).not.toMatch(/starting point|optional stats|extra stat|putts or greens/i);
+    expect(display.insights[1].body).toMatch(/score-only tracking|tracked detail|score trend|score is logged/i);
     expect(display.insights[2].body).toMatch(/optional stats|extra stat|putts or greens/i);
     expect(display.insights[0].body.toLowerCase()).not.toMatch(/approach|putting|off the tee|penalty strokes were/i);
+  });
+
+  it('uses neutral M2 title semantics for composed cards', () => {
+    const display = composeRoundIdentityDisplay(baseIdentity({ primaryKey: 'putting_leak', tone: 'fix' }));
+
+    expect(display.insights[1].title).toBe('What Stood Out');
+    expect(display.insights[1].title).not.toBe('What Worked');
+  });
+
+  it.each([
+    { count: 1, valueText: 'One double-or-worse hole', expected: 'The round got away on one costly hole.' },
+    { count: 2, valueText: 'Two double-or-worse holes', expected: 'The round got away on two costly holes.' },
+    { count: 3, valueText: 'Three double-or-worse holes', expected: 'The round got away on three costly holes.' },
+  ])('uses count-aware costly-hole grammar for $count big-number holes', ({ count, valueText, expected }) => {
+    const bodies = collectAreaCardBodies(
+      baseIdentity({
+        inputHash: `big-number-count-${count}`,
+        primaryKey: 'big_number',
+        tone: 'fix',
+        displayEvidence: {
+          scoreText: '89 (+17)',
+          weakestArea: {
+            area: 'big_numbers',
+            label: 'Concentrated Damage',
+            valueText,
+            detailText:
+              count === 1
+                ? 'One hole accounted for 42% of total over-par damage.'
+                : 'Big numbers shaped too much of the final score.',
+          },
+        },
+      }),
+    );
+
+    const copy = bodies.join(' ');
+    expect(copy).not.toContain('one costly holes');
+    expect(bodies.some((body) => body.includes(expected))).toBe(true);
   });
 
   it('does not ask for stats again when aggregate evidence has no decisive separator', () => {
@@ -134,7 +181,8 @@ describe('composeRoundIdentityDisplay', () => {
 
     const copy = display.insights.map((insight) => insight.body).join(' ');
     expect(copy).toMatch(/tracked areas stayed close enough that no single one defined the round/i);
-    expect(copy).toMatch(/approach/i);
+    expect(display.insights[1].body).not.toMatch(/approach|putting|off the tee|short game/i);
+    expect(display.insights[2].body).not.toMatch(/approach|putting|off the tee|short game/i);
     expect(copy).not.toMatch(/add one or two optional stats|add a couple of stats|track one extra area/i);
   });
 
@@ -163,9 +211,9 @@ describe('composeRoundIdentityDisplay', () => {
 
     expect(display.insights[0].level).toBe('success');
     expect(display.insights[1].level).toBe('info');
-    expect(display.insights[1].body).toMatch(/not decisive|not enough to define|no clear strength or leak|not enough to call it a pattern/i);
+    expect(display.insights[1].body).toMatch(/not decisive|not enough to define|clear strength or leak|not enough to call it a pattern/i);
     expect(display.insights[1].body).not.toMatch(/held the score back|clearest leak|costing you strokes/i);
-    expect(display.insights[2].body).toMatch(/keep tracking|one more round|real pattern/i);
+    expect(display.insights[2].body).toMatch(/keep tracking|same stat set|one more round|confirm what matters/i);
   });
 
   it('keeps positive-overall M1 copy rewarding when the primary identity is a leak', () => {
@@ -189,7 +237,8 @@ describe('composeRoundIdentityDisplay', () => {
     );
 
     expect(display.insights[0].level).toBe('success');
-    expect(display.insights[0].body).toMatch(/positive round overall|finished above expectation|good outweighed|stronger parts.*outweighed|right side of the benchmark/i);
+    expect(display.insights[0].body).toMatch(/positive round overall|positive result overall|finished above expectation|good outweighed|stronger parts.*outweighed/i);
+    expect(display.insights[0].body).not.toMatch(/benchmark/i);
     expect(display.insights[0].body).not.toMatch(/round got harder|too many approaches|missed greens put the score under pressure/i);
     expect(display.insights[1].level).toBe('warning');
   });
@@ -292,8 +341,9 @@ describe('composeRoundIdentityDisplay', () => {
       }),
     );
 
-    expect(display.insights[1].body).toMatch(/Penalty strokes were the clearest leak|Penalty trouble was the clearest leak|penalties made the round more expensive|Penalty strokes changed the score quickly/i);
-    expect(display.insights[1].body).toMatch(/manageable holes into big numbers/i);
+    expect(display.insights[1].body).toContain('Penalty strokes were the clearest scoring issue.');
+    expect(display.insights[1].body).toContain('Four penalty strokes were recorded.');
+    expect(display.insights[1].body).not.toMatch(/manageable holes into big numbers|clearest leak/i);
     expect(display.insights[2].title).toMatch(/watch/i);
     expect(display.insights[2].body).toMatch(/target with the most room/i);
   });
@@ -321,6 +371,107 @@ describe('composeRoundIdentityDisplay', () => {
 
     expect(display.insights[1].body).toContain(`${countLabel} penalty strokes`);
     expect(display.insights[1].body.toLowerCase()).not.toContain('a couple of penalties');
+    expect(display.insights[1].body).not.toMatch(/costly holes|big numbers|changed quickly/i);
+  });
+
+  it('keeps aggregate penalties-only copy penalty-led without hole-level overclaims', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'aggregate-penalties-only',
+        primaryKey: 'penalty_damaged',
+        tone: 'fix',
+        evidenceLevel: 'aggregate_stats',
+        modifiers: [],
+        displayEvidence: {
+          scoreText: '91 (+19)',
+          weakestArea: {
+            area: 'penalties',
+            label: 'Penalty Control',
+            valueText: '-2.4 SG penalties',
+            detailText: 'Penalty strokes: 4.',
+          },
+          hbhStory: undefined,
+        },
+      }),
+    );
+
+    const copy = display.insights.slice(0, 2).map((insight) => insight.body).join(' ');
+    expect(copy).toContain('Penalty strokes were the clearest scoring issue.');
+    expect(copy).toContain('Four penalty strokes were recorded.');
+    expect(copy).not.toMatch(/big numbers|costly holes|changed quickly|several holes|scoring damage came from .*holes/i);
+  });
+
+  it.each([
+    {
+      area: 'putting' as const,
+      label: 'Putting',
+      valueText: '-1.2 SG putting',
+      detailText: 'Putts: 37 (2.06 per hole).',
+      secondary: 'Putting also cost strokes, but penalties had the clearest impact on the score.',
+    },
+    {
+      area: 'approach' as const,
+      label: 'Approach Play',
+      valueText: '-1.4 SG approach',
+      detailText: 'Greens in regulation: 4/18 (22%).',
+      secondary: 'Approach play also cost strokes, but penalties had the clearest impact on the score.',
+    },
+  ])('keeps penalty-damaged M2 penalty-led when $label is secondary', ({ area, label, valueText, detailText, secondary }) => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: `penalty-secondary-${area}`,
+        primaryKey: 'penalty_damaged',
+        tone: 'fix',
+        evidenceLevel: 'aggregate_stats',
+        modifiers: [],
+        displayEvidence: {
+          scoreText: '91 (+19)',
+          strongestArea: {
+            area: 'penalties',
+            label: 'Penalty Control',
+            valueText: '-2.4 SG penalties',
+            detailText: 'Penalty strokes: 4.',
+          },
+          weakestArea: {
+            area,
+            label,
+            valueText,
+            detailText,
+          },
+          hbhStory: undefined,
+        },
+      }),
+    );
+
+    expect(display.insights[1].body).toContain('Penalty strokes were the clearest scoring issue.');
+    expect(display.insights[1].body).toContain(secondary);
+    expect(display.insights[1].body).not.toMatch(/Putting was the clearest leak|Approach play was the clearest leak|clearest leak/i);
+  });
+
+  it('does not invent untracked categories for partial aggregate penalties', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'partial-aggregate-penalties',
+        primaryKey: 'penalty_damaged',
+        tone: 'fix',
+        evidenceLevel: 'aggregate_stats',
+        modifiers: [],
+        displayEvidence: {
+          scoreText: '46 (+10)',
+          weakestArea: {
+            area: 'penalties',
+            label: 'Penalty Control',
+            valueText: '-1.1 SG penalties',
+            detailText: 'Penalty strokes: 2.',
+          },
+          hbhStory: undefined,
+        },
+      }),
+    );
+
+    expect(display.insights[1].body).toContain('Penalty strokes were the clearest scoring issue.');
+    expect(display.insights[1].body).toContain('Two penalty strokes were recorded.');
+    expect(display.insights[1].body).not.toMatch(/putting|approach|off the tee|short game|big numbers|costly holes/i);
   });
 
   it('penalty-damaged with repeated big holes suppresses bounce-back and uses plural big-number M3', () => {
@@ -533,7 +684,8 @@ describe('composeRoundIdentityDisplay', () => {
       }),
     );
 
-    expect(display.insights[0].body).toContain('Penalties and big numbers shaped the round more than routine mistakes.');
+    expect(display.insights[0].body).toContain('Big numbers shaped the round more than the routine holes.');
+    expect(display.insights[0].body).not.toMatch(/penalties/i);
   });
 
   it('limits M1 to one modifier add-on sentence when many modifiers are present', () => {
@@ -573,7 +725,7 @@ describe('composeRoundIdentityDisplay', () => {
           weakestArea: {
             area: 'big_numbers',
             label: 'Concentrated Damage',
-            valueText: '1 double-or-worse hole',
+            valueText: 'One double-or-worse hole',
             detailText: 'One hole accounted for 42% of total over-par damage.',
           },
         },
@@ -615,7 +767,7 @@ describe('composeRoundIdentityDisplay', () => {
           scoreText: '89 (+17)',
           hbhStory: {
             label: 'Damage concentration',
-            detailText: '4 double-or-worse holes shaped the card.',
+            detailText: 'Four double-or-worse holes shaped the round.',
           },
           weakestArea: {
             area: 'big_numbers',
@@ -658,12 +810,165 @@ describe('composeRoundIdentityDisplay', () => {
     );
 
     expect(display.insights[0].level).toBe('success');
-    expect(display.insights[0].body).toMatch(/good holes won out|positive round overall|good golf to stay ahead|right side of your benchmark/i);
+    expect(display.insights[0].body).toMatch(/good holes won out|positive round overall|good golf to stay ahead/i);
+    expect(display.insights[0].body).not.toMatch(/benchmark/i);
     expect(display.insights[1].level).toBe('success');
     expect(display.insights[1].body).toMatch(
-      /biggest gain against your benchmark|biggest lift|clearest strength|gained the most strokes against your benchmark/i,
+      /strongest area|biggest lift|clearest strength/i,
     );
+    expect(display.insights[1].body).not.toMatch(/benchmark/i);
     expect(display.insights[2].level).toBe('info');
+  });
+
+  it('uses positive result-local copy without historical comparison when no recent baseline exists', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'positive-no-recent-baseline',
+        primaryKey: 'approach_leak',
+        tone: 'fix',
+        overallTone: 'success',
+        modifiers: [],
+        displayEvidence: {
+          scoreText: '80 (+8)',
+          weakestArea: {
+            area: 'approach',
+            label: 'Approach Play',
+            valueText: '-1.1 SG approach',
+            detailText: 'Greens in regulation: 5/18 (28%).',
+          },
+        },
+      }),
+    );
+
+    expect(display.insights[0].body).toMatch(/positive round overall|positive result overall|finished above expectation|stronger parts/i);
+    expect(display.insights[0].body).not.toMatch(/recent form|recent average|benchmark/i);
+  });
+
+  it('keeps positive HBH costly-hole copy clear without benchmark wording', () => {
+    const bodies = Array.from({ length: 96 }, (_, index) =>
+      composeRoundIdentityDisplay(
+        baseIdentity({
+          inputHash: `positive-costly-hbh-${index}`,
+          primaryKey: 'volatile_scoring',
+          tone: 'build',
+          overallTone: 'success',
+          modifiers: ['one_hole_damage'],
+          evidenceLevel: 'hole_by_hole',
+          displayEvidence: {
+            scoreText: '77 (+7)',
+            baselineDeltaText: '5.6 strokes better than your recent average of 82.6.',
+            strongestArea: {
+              area: 'putting',
+              label: 'Putting',
+              valueText: '+3.9 SG putting',
+              detailText: 'Putts: 31 (1.72 per hole).',
+            },
+            weakestArea: {
+              area: 'big_numbers',
+              label: 'Concentrated Damage',
+              valueText: 'Two double-or-worse holes',
+              detailText: 'Big numbers shaped too much of the final score.',
+            },
+          },
+        }),
+      ).insights[0].body,
+    );
+
+    expect(bodies.some((body) => body.includes('This was a positive round overall, even with a few costly holes.'))).toBe(true);
+    expect(bodies.join(' ')).not.toMatch(/benchmark/i);
+  });
+
+  it('keeps aggregate positive result copy clear without hole-level benchmark wording', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'positive-aggregate-copy',
+        primaryKey: 'approach_leak',
+        tone: 'fix',
+        overallTone: 'success',
+        evidenceLevel: 'aggregate_stats',
+        modifiers: [],
+        displayEvidence: {
+          scoreText: '80 (+8)',
+          baselineDeltaText: '2 strokes better than your recent average of 82.0.',
+          weakestArea: {
+            area: 'approach',
+            label: 'Approach Play',
+            valueText: '-1.1 SG approach',
+            detailText: 'Greens in regulation: 5/18 (28%).',
+          },
+        },
+      }),
+    );
+
+    expect(display.insights[0].body).toMatch(/positive round overall|positive result overall|finished above expectation|stronger parts/i);
+    expect(display.insights[0].body).not.toMatch(/benchmark|costly holes|big numbers/i);
+  });
+
+  it('does not expose benchmark wording in composed user-facing round identity copy', () => {
+    const identities: RoundIdentity[] = [
+      baseIdentity({
+        inputHash: 'no-benchmark-positive-corrective',
+        primaryKey: 'approach_leak',
+        tone: 'fix',
+        overallTone: 'success',
+        displayEvidence: {
+          scoreText: '80 (+8)',
+          baselineDeltaText: '2 strokes better than your recent average of 82.0.',
+          weakestArea: {
+            area: 'approach',
+            label: 'Approach Play',
+            valueText: '-1.1 SG approach',
+            detailText: 'Greens in regulation: 5/18 (28%).',
+          },
+        },
+      }),
+      baseIdentity({
+        inputHash: 'no-benchmark-volatile-positive',
+        primaryKey: 'volatile_scoring',
+        tone: 'build',
+        overallTone: 'success',
+        modifiers: ['one_hole_damage'],
+        displayEvidence: {
+          scoreText: '77 (+7)',
+          baselineDeltaText: '5.6 strokes better than your recent average of 82.6.',
+          strongestArea: {
+            area: 'putting',
+            label: 'Putting',
+            valueText: '+3.9 SG putting',
+            detailText: 'Putts: 31 (1.72 per hole).',
+          },
+          weakestArea: {
+            area: 'big_numbers',
+            label: 'Concentrated Damage',
+            valueText: 'Two double-or-worse holes',
+            detailText: 'Big numbers shaped too much of the final score.',
+          },
+        },
+      }),
+      baseIdentity({
+        inputHash: 'no-benchmark-putting-strength',
+        primaryKey: 'putting_saved',
+        tone: 'repeat',
+        overallTone: 'success',
+        displayEvidence: {
+          scoreText: '76 (+6)',
+          baselineDeltaText: '18.6 strokes better than your recent average of 94.6.',
+          strongestArea: {
+            area: 'putting',
+            label: 'Putting',
+            valueText: '+6.9 SG putting',
+            detailText: 'Putts: 27 (1.50 per hole).',
+          },
+        },
+      }),
+    ];
+    const copy = identities.flatMap((identity) =>
+      Array.from({ length: 96 }, (_, index) =>
+        allCopy(composeRoundIdentityDisplay({ ...identity, inputHash: `${identity.inputHash}-${index}` })),
+      ),
+    ).join(' ');
+
+    expect(copy).not.toMatch(/\b(your benchmark|the benchmark|benchmark)\b/i);
   });
 
   it('approach-carried rounds mention approach or GIR evidence', () => {
@@ -810,8 +1115,8 @@ describe('composeRoundIdentityDisplay', () => {
       }),
     );
 
-    expect(display.insights[1].body).toMatch(/score pattern is clearer than the cause/i);
-    expect(display.insights[1].body).toMatch(/main reason will be easier to see/i);
+    expect(display.insights[1].body).toMatch(/score is clearer than the cause/i);
+    expect(display.insights[1].body).toMatch(/one more reliable stat is needed/i);
     expect(display.insights[1].body.toLowerCase()).not.toContain('single driver');
   });
 
@@ -1022,14 +1327,128 @@ describe('composeRoundIdentityDisplay', () => {
 
     expect(display.insights[0].body).toMatch(/You shot 76 \(\+6\), which was 18\.6 strokes better than your recent average of 94\.6/i);
     expect(display.insights[0].body).toMatch(
-      /enough good holes to outweigh a couple of costly mistakes|good holes did more than enough to offset the costly ones|couple of mistakes, this score was clearly ahead|costly holes showed up, but they did not define the round|good holes outweighed the damage/i,
+      /enough good holes to outweigh a couple of costly mistakes|good holes outweighed the costly ones|couple of mistakes, this score was clearly ahead|costly holes showed up, but they did not define the round|good holes outweighed the damage/i,
     );
     expect(display.insights[1].body).toMatch(
-      /biggest gain against your benchmark|biggest lift|clearest strength|gained the most strokes against your benchmark/i,
+      /strongest area|biggest lift|clearest strength/i,
     );
+    expect(display.insights[1].body).not.toMatch(/benchmark/i);
     expect(display.insights[2].body).toMatch(
       /keep giving yourself scoring chances while protecting against the big numbers|keep the parts that worked and make the doubles harder to find|protect the good holes by keeping the costly ones closer to bogey|keep the good pattern and make those costly holes less expensive/i,
     );
+  });
+
+  it('keeps clean breakthrough HBH detail out of damage wording', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'clean-breakthrough-hbh',
+        primaryKey: 'breakthrough',
+        tone: 'repeat',
+        modifiers: ['no_damage'],
+        displayEvidence: {
+          scoreText: '68 (-4)',
+          baselineDeltaText: '17 strokes better than your recent average of 85.',
+          strongestArea: {
+            area: 'approach',
+            label: 'Approach Play',
+            valueText: '+1.2 SG approach',
+            detailText: 'Greens in regulation: 16/18 (89%).',
+          },
+          hbhStory: {
+            label: 'Low-damage scorecard',
+            detailText: 'You avoided doubles or worse across the round.',
+          },
+        },
+      }),
+    );
+
+    const story = display.insights[0].body.toLowerCase();
+    expect(story).toContain('you shot 68 (-4), which was 17 strokes better than your recent average of 85');
+    expect(story).not.toMatch(/costly|damage|offset|not all bad|surviv/i);
+  });
+
+  it('uses singular positive-first breakthrough wording with one costly hole', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'breakthrough-one-costly-hole',
+        primaryKey: 'breakthrough',
+        tone: 'repeat',
+        modifiers: ['one_hole_damage'],
+        displayEvidence: {
+          scoreText: '70 (-2)',
+          baselineDeltaText: '12 strokes better than your recent average of 82.',
+          weakestArea: {
+            area: 'big_numbers',
+            label: 'Concentrated Damage',
+            valueText: 'One double-or-worse hole',
+            detailText: 'One costly hole did most of the damage.',
+          },
+          hbhStory: {
+            label: 'Scoring upside with concentrated damage',
+            detailText: 'You had 4 birdies and one double-or-worse hole.',
+          },
+        },
+      }),
+    );
+
+    const story = display.insights[0].body;
+    expect(story).toMatch(/You shot 70 \(-2\), which was 12 strokes better/i);
+    expect(story).toMatch(/one costly hole/i);
+    expect(story).not.toMatch(/couple|costly holes|those holes/i);
+  });
+
+  it('keeps breakthrough with penalties positive-first without inventing costly holes', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'breakthrough-penalties',
+        primaryKey: 'breakthrough',
+        tone: 'repeat',
+        displayEvidence: {
+          scoreText: '72 (E)',
+          baselineDeltaText: '10 strokes better than your recent average of 82.',
+          weakestArea: {
+            area: 'penalties',
+            label: 'Penalty Control',
+            valueText: '2 penalties',
+            detailText: 'Penalty strokes: 2.',
+          },
+        },
+      }),
+    );
+
+    const story = display.insights[0].body;
+    expect(story).toMatch(/You shot 72 \(E\), which was 10 strokes better/i);
+    expect(story).toMatch(/Penalty strokes|penalty trouble/i);
+    expect(story).not.toMatch(/costly hole/i);
+  });
+
+  it('keeps breakthrough with multiple costly holes on the supported damage branch', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'breakthrough-multiple-costly-holes',
+        primaryKey: 'breakthrough',
+        tone: 'repeat',
+        displayEvidence: {
+          scoreText: '74 (+2)',
+          baselineDeltaText: '11 strokes better than your recent average of 85.',
+          weakestArea: {
+            area: 'big_numbers',
+            label: 'Concentrated Damage',
+            valueText: 'Two double-or-worse holes',
+            detailText: 'Two holes did most of the damage.',
+          },
+          hbhStory: {
+            label: 'Scoring upside with concentrated damage',
+            detailText: 'You had 5 birdies and two double-or-worse holes.',
+          },
+        },
+      }),
+    );
+
+    const story = display.insights[0].body;
+    expect(story).toMatch(/You shot 74 \(\+2\), which was 11 strokes better/i);
+    expect(story).toMatch(/costly|mistakes|damage/i);
+    expect(story).not.toMatch(/one costly hole/i);
   });
 
   it('replaces the old volatile wording with the tighter costly-holes variant', () => {
@@ -1112,7 +1531,7 @@ describe('composeRoundIdentityDisplay', () => {
           weakestArea: {
             area: 'big_numbers',
             label: 'Big Numbers',
-            valueText: '1 double-or-worse hole',
+            valueText: 'One double-or-worse hole',
             detailText: 'One costly hole pushed the score higher than needed.',
           },
           hbhStory: undefined,
@@ -1352,7 +1771,7 @@ describe('composeRoundIdentityDisplay', () => {
             weakestArea: {
               area: 'big_numbers',
               label: 'Concentrated Damage',
-              valueText: '2 double-or-worse holes',
+              valueText: 'Two double-or-worse holes',
               detailText: 'Two holes did most of the damage.',
             },
           },
@@ -1375,12 +1794,12 @@ describe('composeRoundIdentityDisplay', () => {
           weakestArea: {
             area: 'big_numbers',
             label: 'Big Numbers',
-            valueText: '1 double-or-worse hole',
+            valueText: 'One double-or-worse hole',
             detailText: 'One costly hole did most of the damage.',
           },
           hbhStory: {
             label: 'Damage concentration',
-            detailText: 'You had 1 birdie and 1 double-or-worse hole.',
+            detailText: 'You had 1 birdie and one double-or-worse hole.',
           },
         },
       }),

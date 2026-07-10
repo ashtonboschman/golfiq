@@ -282,9 +282,40 @@ describe('resolveRoundIdentity', () => {
 
     const story = identity.displayEvidence?.hbhStory?.detailText ?? '';
     expect(story).toContain('1 birdie');
-    expect(story).toContain('1 double-or-worse hole');
+    expect(story).toContain('one double-or-worse hole');
     expect(story).not.toContain('birdieies');
+    expect(story).not.toContain('1 double-or-worse hole');
     expect(story).not.toContain('1 double-or-worse holes');
+  });
+
+  it.each([
+    { label: 'one', scores: [2], expected: 'One double-or-worse hole shaped the round.' },
+    { label: 'two', scores: [2, 2], expected: 'Two double-or-worse holes shaped the round.' },
+  ])('formats $label double-or-worse HBH story without numeric singulars or card language', ({ scores, expected }) => {
+    const toPar = Array.from({ length: 18 }, (_, index) => scores[index] ?? 0);
+    const roundHoles = holesFromToPar(toPar).map((hole) => ({
+      ...hole,
+      putts: 2,
+      penalties: 0,
+      chips: 0,
+      greensideBunkerShots: 0,
+    }));
+
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: sum(PAR18) + scores.reduce((total, diff) => total + diff, 0),
+        toPar: scores.reduce((total, diff) => total + diff, 0),
+        avgScoreRecent: 82,
+        entryMode: 'live_round',
+        hasTrustedHoleByHole: true,
+        roundHoles,
+      }),
+    );
+
+    const story = identity.displayEvidence?.hbhStory?.detailText ?? '';
+    expect(story).toBe(expected);
+    expect(story).not.toMatch(/^1\s+double-or-worse hole/i);
+    expect(story).not.toContain('shaped the card');
   });
 
   it('prefers volatile_scoring when birdies and doubles coexist', () => {
@@ -536,6 +567,36 @@ describe('resolveRoundIdentity', () => {
     );
     expect(identity.primaryKey).toBe('big_number');
     expect(identity.overallTone).toBe('success');
+  });
+
+  it('does not resolve a strong no-double round to big_number from one bogey share alone', () => {
+    const toPar = [0, 0, -1, 0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0];
+    const roundHoles = holesFromToPar(toPar).map((hole, index) => ({
+      ...hole,
+      firHit: hole.par === 3 ? null : 1,
+      girHit: toPar[index] <= 0 ? 1 : 0,
+      putts: toPar[index] <= -1 ? 1 : 2,
+      penalties: 0,
+      chips: toPar[index] > 0 ? 1 : 0,
+      greensideBunkerShots: 0,
+    }));
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: sum(PAR18) - 1,
+        toPar: -1,
+        avgScoreRecent: 85,
+        firHit: 14,
+        girHit: 16,
+        putts: 33,
+        penalties: 0,
+        entryMode: 'live_round',
+        hasTrustedHoleByHole: true,
+        roundHoles,
+      }),
+    );
+
+    expect(identity.primaryKey).not.toBe('big_number');
+    expect(identity.displayEvidence?.weakestArea?.area).not.toBe('big_numbers');
   });
 
   it('prioritizes penalty_damaged over positive stories when penalties are strong', () => {

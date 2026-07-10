@@ -722,6 +722,38 @@ describe('RoundInsights confidence pill UI', () => {
     expect(icons[2]).toHaveClass('insight-level-info');
   });
 
+  it('renders final free score-only copy without duplicate next-round wording', async () => {
+    const scoreOnlyFreePayload = {
+      messages: [
+        'You shot 92 (+20).',
+        'This result needs at least one optional stat before GolfIQ can explain what shaped the score.',
+        'Next round: add a couple of stats, like putts or greens, so GolfIQ can explain what shaped the score.',
+      ],
+      message_levels: ['warning', 'info', 'info'],
+      confidence: 'LOW',
+      round_identity_v1: null,
+    };
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights: scoreOnlyFreePayload }),
+    });
+
+    render(
+      <RoundInsights
+        roundId="round-free-score-only-copy"
+        isPremium={false}
+        initialInsightsPayload={scoreOnlyFreePayload}
+      />,
+    );
+
+    await screen.findByText('You shot 92 (+20).');
+    expect(screen.getByText('This result needs at least one optional stat before GolfIQ can explain what shaped the score.')).toBeInTheDocument();
+    const action = screen.getByText('Next round: add a couple of stats, like putts or greens, so GolfIQ can explain what shaped the score.');
+    expect((action.textContent?.toLowerCase().match(/next round/g) ?? [])).toHaveLength(1);
+    expect(screen.queryByText(/another tracked area/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/strokes gained|\bSG\b/i)).not.toBeInTheDocument();
+  });
+
   it('maps putting-leak M2 icon to warning', async () => {
     const withIdentity = identityInsightsPayload({
       primaryKey: 'putting_leak',
@@ -905,7 +937,7 @@ describe('RoundInsights confidence pill UI', () => {
         weakestArea: {
           area: 'big_numbers',
           label: 'Big Numbers',
-          valueText: '1 double-or-worse hole',
+          valueText: 'One double-or-worse hole',
           detailText: 'One hole accounted for 42% of total over-par damage.',
         },
       },

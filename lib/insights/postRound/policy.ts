@@ -155,7 +155,7 @@ const M1_NO_BASELINE_SUFFIX_VARIANTS = [
 const M2_A_VARIANTS = [
   "The score is clear, but the cause needs more tracked detail.",
   "There is not enough measured detail to name the part of the game that shaped this score.",
-  "This result needs another tracked area before GolfIQ can explain the main cause.",
+  "This result needs at least one optional stat before GolfIQ can explain what shaped the score.",
   "The score gives a starting point, but the why needs more round detail.",
   "More tracked detail is needed before tying this score to one part of the game.",
   "The result is recorded, but the available stats do not support one clear cause.",
@@ -164,7 +164,7 @@ const M2_A_VARIANTS = [
 const M2_A_SINGLE_VARIANTS = [
   "One measured area is not enough to explain the full score with confidence.",
   "The available stat adds context, but it does not explain the whole round by itself.",
-  "GolfIQ needs another tracked area before naming the main cause of this score.",
+  "GolfIQ needs one more reliable stat before naming the main cause of this score.",
 ] as const;
 
 const M2_C_VARIANTS = [
@@ -327,9 +327,9 @@ const M2_GROUNDED_FIR_VARIANTS = [
 ] as const;
 
 const M2_GROUNDED_PUTTS_VARIANTS = [
-  "With {puttsTotal} putts, speed control and leaving shorter second putts are worth attention.",
-  "Higher putting totals often come from long first putts and missed pace control.",
-  "The putting total was high, so lag speed is a good focus next round.",
+  "With {puttsTotal} putts, putting is worth logging again before narrowing the cause.",
+  "The putting total was high enough to keep it on the next-round watch list.",
+  "Putting took more strokes than expected, so it is worth logging again before narrowing the cause.",
 ] as const;
 
 const M2_GROUNDED_GIR_NEUTRAL_VARIANTS = [
