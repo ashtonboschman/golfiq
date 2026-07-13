@@ -27,6 +27,7 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
   __esModule: true,
   default: function MockLiveGpsHoleMap(props: {
     hole: { holeNumber: number };
+    courseHoles?: Array<{ holeNumber: number }> | null;
     routeKey: string;
     userPosition?: { lat: number; lng: number } | null;
     userAccuracyMeters?: number | null;
@@ -41,6 +42,7 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
       <div
         data-testid="live-gps-map"
         data-physical-hole={props.hole.holeNumber}
+        data-course-hole-count={props.courseHoles?.length ?? 0}
         data-route-key={props.routeKey}
         data-user-lat={props.userPosition?.lat}
         data-user-accuracy={props.userAccuracyMeters ?? undefined}
@@ -343,6 +345,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     render(<LiveRoundSessionClient sessionId="500" />);
 
     expect(await screen.findByTestId('live-gps-map')).toHaveAttribute('data-physical-hole', '1');
+    expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-course-hole-count', '2');
     expect(document.querySelector('.live-round-gps-fullscreen')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/api/gps/live/course/11', expect.objectContaining({
       cache: 'no-store',
@@ -391,11 +394,20 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     const firstMap = await screen.findByTestId('live-gps-map');
     expect(firstMap).toHaveAttribute('data-route-key', '1001');
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
+    const handlePosition = mockWatchPosition.mock.calls[0][0] as PositionCallback;
+    act(() => {
+      handlePosition({
+        coords: { latitude: 49.9, longitude: -97.1, accuracy: 8 },
+        timestamp: 1000,
+      } as GeolocationPosition);
+    });
+    expect(firstMap).toHaveAttribute('data-user-lat', '49.9');
 
     fireEvent.click(screen.getByRole('button', { name: /Log Score/ }));
 
     await screen.findByRole('button', { name: /Next Hole/ });
     expect(firstMap.closest('.live-round-gps-fullscreen')).toHaveClass('is-hidden');
+    expect(firstMap).toHaveAttribute('data-user-lat', '49.9');
     expect(mockClearWatch).toHaveBeenCalledWith(77);
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
 
@@ -405,6 +417,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
       expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-route-key', '1002');
     });
     expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-physical-hole', '2');
+    expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-user-lat', '49.9');
     expect(screen.getByTestId('live-gps-map').closest('.live-round-gps-fullscreen')).not.toHaveClass('is-hidden');
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
     expect(mockWatchPosition).toHaveBeenCalledTimes(2);

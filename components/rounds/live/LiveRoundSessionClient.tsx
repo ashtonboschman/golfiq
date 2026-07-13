@@ -889,6 +889,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
             <LiveGpsHoleMap
               apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
               hole={activeMappedHole}
+              courseHoles={gpsMapping?.holes ?? null}
               par={activeDraft.hole?.par ?? null}
               routeKey={activeDraft.id}
               userPosition={liveLocation.position}

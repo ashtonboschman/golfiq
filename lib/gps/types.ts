@@ -33,8 +33,16 @@ export type GpsPrototypeEditField =
   | 'mapCenter';
 
 export type CurrentLocationState = {
-  status: 'idle' | 'watching' | 'granted' | 'denied' | 'unavailable' | 'error';
+  status: 'idle' | 'watching' | 'granted' | 'stale' | 'denied' | 'unavailable' | 'error';
   position: LatLng | null;
   accuracyMeters: number | null;
+  timestamp?: number | null;
   message: string | null;
+};
+
+export type AcceptedGpsFix = {
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  timestamp: number;
 };

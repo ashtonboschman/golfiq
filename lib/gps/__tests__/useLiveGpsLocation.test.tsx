@@ -1,14 +1,25 @@
 /** @jest-environment jsdom */
 
-import { act, render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { useLiveGpsLocation } from '@/lib/gps/useLiveGpsLocation';
+import { MAX_USABLE_LIVE_GPS_ACCURACY_YARDS } from '@/lib/gps/liveRoute';
 
 const mockWatchPosition = jest.fn();
 const mockClearWatch = jest.fn();
 
 function LocationHarness({ active }: { active: boolean }) {
-  useLiveGpsLocation(active);
-  return null;
+  const { location } = useLiveGpsLocation(active);
+  return (
+    <div
+      data-testid="location"
+      data-status={location.status}
+      data-lat={location.position?.lat ?? ''}
+      data-lng={location.position?.lng ?? ''}
+      data-accuracy={location.accuracyMeters ?? ''}
+      data-timestamp={location.timestamp ?? ''}
+    />
+  );
 }
 
 describe('useLiveGpsLocation visibility lifecycle', () => {
@@ -55,6 +66,40 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     act(() => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
+  }
+
+  function emitPosition(
+    callIndex: number,
+    {
+      latitude = 49.9,
+      longitude = -97.1,
+      accuracy = 8,
+      timestamp,
+    }: {
+      latitude?: number;
+      longitude?: number;
+      accuracy?: number;
+      timestamp?: number;
+    } = {},
+  ) {
+    const handlePosition = mockWatchPosition.mock.calls[callIndex][0] as PositionCallback;
+    act(() => {
+      handlePosition({
+        coords: { latitude, longitude, accuracy },
+        timestamp,
+      } as GeolocationPosition);
+    });
+  }
+
+  function emitError(callIndex: number, code = 2) {
+    const handleError = mockWatchPosition.mock.calls[callIndex][1] as PositionErrorCallback;
+    act(() => {
+      handleError({ code } as GeolocationPositionError);
+    });
+  }
+
+  function thresholdAccuracyMeters(deltaYards = 0) {
+    return (MAX_USABLE_LIVE_GPS_ACCURACY_YARDS + deltaYards) / 1.0936132983;
   }
 
   it('starts one watcher when enabled and visible', () => {
@@ -136,5 +181,111 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     setDocumentHidden(true);
     setDocumentHidden(false);
     expect(mockWatchPosition).not.toHaveBeenCalled();
+  });
+
+  it('uses no trusted position before the first acceptable device fix', () => {
+    render(<LocationHarness active />);
+
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'watching');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '');
+  });
+
+  it('accepts the first finite in-range fix at the accuracy threshold', () => {
+    render(<LocationHarness active />);
+
+    emitPosition(0, {
+      latitude: 49.901,
+      longitude: -97.101,
+      accuracy: thresholdAccuracyMeters(),
+      timestamp: 1000,
+    });
+
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'granted');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-timestamp', '1000');
+  });
+
+  it('rejects poor, missing, and invalid fixes before any accepted fix', () => {
+    render(<LocationHarness active />);
+
+    emitPosition(0, { accuracy: thresholdAccuracyMeters(1), timestamp: 1000 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '');
+
+    emitPosition(0, { accuracy: Number.NaN, timestamp: 1001 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '');
+
+    emitPosition(0, { latitude: 120, longitude: -97.1, accuracy: 8, timestamp: 1002 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '');
+  });
+
+  it('retains the accepted fix after poor, missing-accuracy, and error callbacks', () => {
+    render(<LocationHarness active />);
+
+    emitPosition(0, { latitude: 49.901, longitude: -97.101, accuracy: 8, timestamp: 1000 });
+    emitPosition(0, { latitude: 49.902, longitude: -97.102, accuracy: thresholdAccuracyMeters(1), timestamp: 1001 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'stale');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    emitPosition(0, { latitude: 49.903, longitude: -97.103, accuracy: Number.NaN, timestamp: 1002 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    emitError(0, 3);
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'stale');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+  });
+
+  it('keeps the tee fallback state when an error happens before any accepted fix', () => {
+    render(<LocationHarness active />);
+
+    emitError(0, 1);
+
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'denied');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '');
+  });
+
+  it('rejects older and equal timestamps while accepting deterministic missing timestamps', () => {
+    render(<LocationHarness active />);
+
+    emitPosition(0, { latitude: 49.901, longitude: -97.101, accuracy: 8, timestamp: 1000 });
+    emitPosition(0, { latitude: 49.902, longitude: -97.102, accuracy: 8, timestamp: 999 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    emitPosition(0, { latitude: 49.903, longitude: -97.103, accuracy: 8, timestamp: 1000 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    emitPosition(0, { latitude: 49.904, longitude: -97.104, accuracy: 8 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.904');
+    expect(Number(screen.getByTestId('location').getAttribute('data-timestamp'))).toBeGreaterThan(1000);
+  });
+
+  it('retains the accepted fix while hidden and exposes it immediately when visible', () => {
+    render(<LocationHarness active />);
+    emitPosition(0, { latitude: 49.901, longitude: -97.101, accuracy: 8, timestamp: 1000 });
+
+    setDocumentHidden(true);
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'stale');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    setDocumentHidden(false);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+  });
+
+  it('ignores success and error callbacks from superseded watcher generations', () => {
+    render(<LocationHarness active />);
+    emitPosition(0, { latitude: 49.901, longitude: -97.101, accuracy: 8, timestamp: 1000 });
+
+    setDocumentHidden(true);
+    setDocumentHidden(false);
+
+    emitPosition(0, { latitude: 49.902, longitude: -97.102, accuracy: 8, timestamp: 1001 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    emitError(0, 2);
+    expect(mockClearWatch).not.toHaveBeenCalledWith(2);
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    emitPosition(1, { latitude: 49.903, longitude: -97.103, accuracy: 8, timestamp: 1002 });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.903');
   });
 });

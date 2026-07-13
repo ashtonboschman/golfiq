@@ -1,9 +1,13 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import GoogleGpsHoleMap from '@/components/gps/GoogleGpsHoleMap';
 import { distanceYards } from '@/lib/gps/distance';
+import {
+  buildLiveGpsCoursePresenceRoutes,
+  resolveLiveGpsCoursePresenceFromRoutes,
+} from '@/lib/gps/liveCoursePresence';
 import {
   defaultLiveGpsIntermediateTargets,
   resolveLiveGpsMeasurementOrigin,
@@ -15,6 +19,7 @@ import type { CurrentLocationState, GpsHolePrototypeConfig } from '@/lib/gps/typ
 type LiveGpsHoleMapProps = {
   apiKey: string | undefined;
   hole: LiveGpsMappedHole;
+  courseHoles?: LiveGpsMappedHole[] | null;
   par: number | null;
   routeKey: string;
   userPosition?: LiveGpsPoint | null;
@@ -54,6 +59,7 @@ function midpoint(from: LiveGpsPoint, to: LiveGpsPoint): LiveGpsPoint {
 export default function LiveGpsHoleMap({
   apiKey,
   hole,
+  courseHoles = null,
   par,
   routeKey,
   userPosition = null,
@@ -76,6 +82,10 @@ export default function LiveGpsHoleMap({
     key: routeKey,
     position: null,
   });
+  const [wasCoursePresent, rememberCoursePresence] = useReducer(
+    (_current: boolean, next: boolean) => next,
+    false,
+  );
   const [autoFitRequest, setAutoFitRequest] = useState(0);
   const customTee = teeState.key === routeKey ? teeState.position : null;
   const tee = customTee ?? hole.tee;
@@ -89,6 +99,10 @@ export default function LiveGpsHoleMap({
   const holeWithTee = useMemo(
     () => ({ ...hole, tee }),
     [hole, tee],
+  );
+  const coursePresenceRoutes = useMemo(
+    () => buildLiveGpsCoursePresenceRoutes(courseHoles ?? [hole]),
+    [courseHoles, hole],
   );
   const defaultRouteTargets = useMemo(
     () => defaultLiveGpsIntermediateTargets(holeWithTee, par),
@@ -116,20 +130,55 @@ export default function LiveGpsHoleMap({
     mapBearing: 0,
     mapTilt: 0,
   }), [defaultRouteTargets, hole, par, tee]);
-  const currentLocation = useMemo<CurrentLocationState>(() => ({
-    status: effectiveUserPosition ? 'granted' : 'idle',
-    position: effectiveUserPosition,
-    accuracyMeters: effectiveUserAccuracy,
-    message: null,
-  }), [effectiveUserAccuracy, effectiveUserPosition]);
-  const measurementOrigin = useMemo(
-    () => resolveLiveGpsMeasurementOrigin({
+  const coursePresence = useMemo(
+    () => (testLocationEnabled
+      ? {
+        isOnCourse: true,
+        minimumDistanceYards: null,
+        reason: 'within_enter_distance' as const,
+      }
+      : resolveLiveGpsCoursePresenceFromRoutes({
+        position: effectiveUserPosition,
+        routes: coursePresenceRoutes,
+        wasOnCourse: wasCoursePresent,
+      })),
+    [coursePresenceRoutes, effectiveUserPosition, testLocationEnabled, wasCoursePresent],
+  );
+  useEffect(() => {
+    if (testLocationEnabled) return;
+    if (coursePresence.isOnCourse === wasCoursePresent) return;
+    rememberCoursePresence(coursePresence.isOnCourse);
+  }, [coursePresence.isOnCourse, testLocationEnabled, wasCoursePresent]);
+  const measurementOrigin = useMemo(() => {
+    if (!testLocationEnabled && effectiveUserPosition && !coursePresence.isOnCourse) {
+      return {
+        position: holeWithTee.tee,
+        usingTeeFallback: true,
+        reason: 'GPS is away from the mapped course, so distances are measured from the tee.',
+      };
+    }
+
+    return resolveLiveGpsMeasurementOrigin({
       position: effectiveUserPosition,
       accuracyMeters: effectiveUserAccuracy,
       hole: holeWithTee,
-    }),
-    [effectiveUserAccuracy, effectiveUserPosition, holeWithTee],
-  );
+    });
+  }, [
+    coursePresence.isOnCourse,
+    effectiveUserAccuracy,
+    effectiveUserPosition,
+    holeWithTee,
+    testLocationEnabled,
+  ]);
+  const trustedUserPosition = measurementOrigin.usingTeeFallback
+    ? null
+    : measurementOrigin.position;
+  const currentLocation = useMemo<CurrentLocationState>(() => ({
+    status: trustedUserPosition ? 'granted' : 'idle',
+    position: trustedUserPosition,
+    accuracyMeters: trustedUserPosition ? effectiveUserAccuracy : null,
+    message: null,
+  }), [effectiveUserAccuracy, trustedUserPosition]);
   const routeTargets = useMemo(
     () => (isManualRoute
       ? allRouteTargets

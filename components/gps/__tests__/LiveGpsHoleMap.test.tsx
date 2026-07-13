@@ -1,10 +1,13 @@
 /** @jest-environment jsdom */
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LiveGpsHoleMap from '@/components/gps/LiveGpsHoleMap';
 import { distanceYards } from '@/lib/gps/distance';
 import type { LiveGpsMappedHole, LiveGpsPoint } from '@/lib/gps/liveMappingTypes';
+
+const METERS_PER_DEGREE = 111320;
+const METERS_PER_YARD = 0.9144;
 
 type MockMapProps = {
   variant?: 'prototype' | 'live';
@@ -86,6 +89,27 @@ function mappedHole(holeNumber: number): LiveGpsMappedHole {
       { label: 'Layup', point: { lat: 49.9004, lng: -97.1004 } },
       { label: 'Carry', point: { lat: 49.9008, lng: -97.1008 } },
     ],
+  };
+}
+
+function pointBesideRoute(from: LiveGpsPoint, to: LiveGpsPoint, yards: number): LiveGpsPoint {
+  const base = {
+    lat: (from.lat + to.lat) / 2,
+    lng: (from.lng + to.lng) / 2,
+  };
+  const averageLat = ((from.lat + to.lat) / 2) * (Math.PI / 180);
+  const routeX = ((to.lng - from.lng) * METERS_PER_DEGREE * Math.cos(averageLat)) / METERS_PER_YARD;
+  const routeY = ((to.lat - from.lat) * METERS_PER_DEGREE) / METERS_PER_YARD;
+  const routeLength = Math.hypot(routeX, routeY) || 1;
+  const perpendicularX = (-routeY / routeLength) * yards;
+  const perpendicularY = (routeX / routeLength) * yards;
+
+  return {
+    lat: base.lat + ((perpendicularY * METERS_PER_YARD) / METERS_PER_DEGREE),
+    lng: base.lng + (
+      (perpendicularX * METERS_PER_YARD)
+      / (METERS_PER_DEGREE * Math.cos((base.lat * Math.PI) / 180))
+    ),
   };
 }
 
@@ -279,12 +303,280 @@ describe('LiveGpsHoleMap', () => {
       />,
     );
 
-    expect(currentMapProps().currentLocation.position).toEqual(poorAccuracyPosition);
+    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().currentLocation.accuracyMeters).toBeNull();
     expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
     expect(currentMapProps().greenDistances.middle).toBeCloseTo(
       distanceYards(hole.tee, hole.green.center),
     );
     expect(currentMapProps().routeTargets).toEqual([hole.targets[0].point]);
+  });
+
+  it('uses tee fallback for a hole-unsuitable accepted fix without showing it as the golfer marker', () => {
+    const hole = mappedHole(4);
+    const offCoursePosition = { lat: 50.5, lng: -98 };
+    const { rerender } = render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        par={4}
+        routeKey="draft-4"
+        userPosition={offCoursePosition}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        par={4}
+        routeKey="draft-4"
+        userPosition={{ lat: 49.901, lng: -97.101 }}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().currentLocation.position).toEqual({ lat: 49.901, lng: -97.101 });
+    expect(currentMapProps().measurementOrigin).toEqual({ lat: 49.901, lng: -97.101 });
+  });
+
+  it('uses tee fallback for an accepted fix near but outside the mapped course routes', () => {
+    const hole = mappedHole(4);
+    const nearbyHome = pointBesideRoute(hole.tee, hole.green.center, 300);
+    render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={nearbyHome}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
+    expect(currentMapProps().greenDistances.middle).toBeCloseTo(
+      distanceYards(hole.tee, hole.green.center),
+    );
+    expect(currentMapProps().routeTargets).toEqual([hole.targets[0].point]);
+  });
+
+  it('uses the device origin when an accepted fix is inside the mapped course route envelope', () => {
+    const hole = mappedHole(4);
+    const courseBoundary = pointBesideRoute(hole.tee, hole.green.center, 150);
+    render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={courseBoundary}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().currentLocation.position).toEqual(courseBoundary);
+    expect(currentMapProps().measurementOrigin).toEqual(courseBoundary);
+  });
+
+  it('keeps the accepted fix available when course-present but active-hole suitability rejects it', () => {
+    const activeHole = mappedHole(4);
+    const adjacentHole: LiveGpsMappedHole = {
+      ...mappedHole(5),
+      holeNumber: 5,
+      tee: { lat: 50.2, lng: -97.4 },
+      green: {
+        front: { lat: 50.2018, lng: -97.4018 },
+        center: { lat: 50.202, lng: -97.402 },
+        back: { lat: 50.2022, lng: -97.4022 },
+      },
+      targets: [],
+    };
+    const acceptedPosition = adjacentHole.tee;
+    const { rerender } = render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={activeHole}
+        courseHoles={[activeHole, adjacentHole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={acceptedPosition}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().measurementOrigin).toEqual(activeHole.tee);
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={adjacentHole}
+        courseHoles={[activeHole, adjacentHole]}
+        par={5}
+        routeKey="draft-5"
+        userPosition={acceptedPosition}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().currentLocation.position).toEqual(acceptedPosition);
+    expect(currentMapProps().measurementOrigin).toEqual(acceptedPosition);
+  });
+
+  it('uses enter and exit hysteresis so boundary movement does not oscillate', async () => {
+    const hole = mappedHole(4);
+    const insideEnter = pointBesideRoute(hole.tee, hole.green.center, 150);
+    const betweenEnterAndExit = pointBesideRoute(hole.tee, hole.green.center, 225);
+    const outsideExit = pointBesideRoute(hole.tee, hole.green.center, 275);
+    const { rerender } = render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={insideEnter}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().measurementOrigin).toEqual(insideEnter);
+    await waitFor(() => expect(currentMapProps().measurementOrigin).toEqual(insideEnter));
+    const initialAutoFitRequest = currentMapProps().autoFitRequest;
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={betweenEnterAndExit}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().measurementOrigin).toEqual(betweenEnterAndExit);
+    expect(currentMapProps().autoFitRequest).toBe(initialAutoFitRequest);
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={outsideExit}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
+    expect(currentMapProps().currentLocation.position).toBeNull();
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={betweenEnterAndExit}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={insideEnter}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().measurementOrigin).toEqual(insideEnter);
+  });
+
+  it('does not reset course-presence state when the active hole changes', async () => {
+    const firstHole = mappedHole(4);
+    const secondHole: LiveGpsMappedHole = {
+      ...mappedHole(5),
+      holeNumber: 5,
+      tee: { lat: 49.9006, lng: -97.1006 },
+      green: {
+        front: { lat: 49.9025, lng: -97.1025 },
+        center: { lat: 49.9027, lng: -97.1027 },
+        back: { lat: 49.9029, lng: -97.1029 },
+      },
+    };
+    const insideEnter = pointBesideRoute(firstHole.tee, firstHole.green.center, 150);
+    const betweenEnterAndExit = pointBesideRoute(firstHole.tee, firstHole.green.center, 225);
+    const { rerender } = render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={firstHole}
+        courseHoles={[firstHole, secondHole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={insideEnter}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().measurementOrigin).toEqual(insideEnter);
+    await waitFor(() => expect(currentMapProps().measurementOrigin).toEqual(insideEnter));
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={secondHole}
+        courseHoles={[firstHole, secondHole]}
+        par={5}
+        routeKey="draft-5"
+        userPosition={betweenEnterAndExit}
+        userAccuracyMeters={8}
+      />,
+    );
+
+    expect(currentMapProps().measurementOrigin).toEqual(betweenEnterAndExit);
+  });
+
+  it('lets Test GPS bypass course-presence rejection for route testing', () => {
+    const hole = mappedHole(4);
+    const nearbyHome = pointBesideRoute(hole.tee, hole.green.center, 300);
+    render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        courseHoles={[hole]}
+        par={4}
+        routeKey="draft-4"
+        userPosition={nearbyHome}
+        userAccuracyMeters={8}
+        testLocationEnabled
+      />,
+    );
+
+    act(() => {
+      currentMapProps().onUserPositionChange?.(nearbyHome);
+    });
+
+    expect(currentMapProps().currentLocation.position).toEqual(nearbyHome);
+    expect(currentMapProps().measurementOrigin).toEqual(nearbyHome);
   });
 
   it('keeps automatic intermediate targets pruned inside 200 yards', () => {
