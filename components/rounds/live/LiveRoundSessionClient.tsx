@@ -935,8 +935,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
         title: 'Switch round type?',
         message: `Scores outside ${nextSegmentLabel} will be removed from this live round.`,
         cancelText: 'Cancel',
-        confirmText: 'Confirm',
-        variant: 'neutral',
+        confirmText: 'Remove Scores',
+        variant: 'warning',
         confirmVariant: 'danger',
         onConfirm: applyChange,
       });
@@ -1011,10 +1011,10 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     if (!session) return;
 
     showConfirm({
-      title: 'Discard live round?',
+      title: 'Delete live round?',
       message: 'This removes it from your resume list. This cannot be undone.',
       cancelText: 'Keep Round',
-      confirmText: 'Discard',
+      confirmText: 'Delete',
       variant: 'danger',
       confirmVariant: 'danger',
       onConfirm: async () => {
@@ -1029,9 +1029,9 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
           const data = await readApiResponse<{ session: LiveRoundSession }>(response);
           setSession(data.session);
           setAutosaveStatus('idle');
-          setAutosaveMessage('Discarded');
+          setAutosaveMessage('Deleted');
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Unable to discard live round');
+          setError(err instanceof Error ? err.message : 'Unable to delete live round');
         } finally {
           setDiscarding(false);
         }
@@ -1069,7 +1069,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       <div className="page-stack">
         <section className="card">
           <div className="live-round-alert">
-            This live round has been discarded.
+            This live round has been deleted.
           </div>
           <button type="button" className="btn btn-accent" onClick={() => router.push('/rounds/add?mode=live')}>
             Start Another Round
@@ -1434,7 +1434,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
               disabled={discarding || finalizing}
             >
               <Trash2 size={18} />
-              {discarding ? 'Discarding...' : 'Discard Round'}
+              {discarding ? 'Deleting...' : 'Delete Round'}
             </button>
           </div>
         ) : (

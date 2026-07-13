@@ -94,9 +94,12 @@ export default function Footer() {
       });
     } else if (isOnEditRoundPage || hasUnsavedChanges) {
       showConfirm({
-        message: isOnEditRoundPage
-          ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
-          : 'You have unsaved changes. Are you sure you want to leave?',
+        title: 'Discard changes?',
+        message: 'Any unsaved changes will be lost.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
         onConfirm: () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');

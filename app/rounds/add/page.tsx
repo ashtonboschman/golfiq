@@ -1699,10 +1699,10 @@ function AddRoundContent() {
   const handleDiscardLiveSession = (liveSession: LiveRoundSession) => {
     const courseLabel = sessionCourseLabel(liveSession);
     showConfirm({
-      title: 'Discard live round?',
+      title: 'Delete live round?',
       message: `This removes ${courseLabel} from your resume list. This cannot be undone.`,
       cancelText: 'Keep Round',
-      confirmText: 'Discard',
+      confirmText: 'Delete',
       variant: 'danger',
       confirmVariant: 'danger',
       onConfirm: async () => {
@@ -1716,7 +1716,7 @@ function AddRoundContent() {
           setActiveLiveSessions((current) => current.filter((sessionItem) => sessionItem.id !== liveSession.id));
           setShowLiveStartSetup(true);
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unable to discard live round';
+          const message = error instanceof Error ? error.message : 'Unable to delete live round';
           setLiveStartError(message);
           showMessage(message, 'error');
         } finally {
@@ -1986,8 +1986,8 @@ function AddRoundContent() {
                     className="btn btn-cancel live-round-session-icon-button live-round-discard-button"
                     onClick={() => handleDiscardLiveSession(liveSession)}
                     disabled={isDiscarding}
-                    aria-label={isDiscarding ? 'Discarding live round' : 'Discard live round'}
-                    title={isDiscarding ? 'Discarding live round' : 'Discard live round'}
+                    aria-label={isDiscarding ? 'Deleting live round' : 'Delete live round'}
+                    title={isDiscarding ? 'Deleting live round' : 'Delete live round'}
                   >
                     <Trash2 size={18} />
                   </button>

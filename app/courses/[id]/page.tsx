@@ -312,10 +312,13 @@ export default function CourseDetailsPage() {
 
     if (decision.action === 'prompt') {
       showConfirm({
+        title: 'Delete active live round?',
         message:
-          'You already have an active Live Round. Resume it, or start a new round and discard the current one.',
+          'You already have an active Live Round. Resume it, or start a new round and delete the current one.',
         cancelText: 'Resume Round',
-        confirmText: 'Start New Round',
+        confirmText: 'Delete & Start',
+        variant: 'danger',
+        confirmVariant: 'danger',
         onCancel: () => {
           router.push(decision.resumeTarget);
         },

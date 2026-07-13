@@ -306,6 +306,20 @@ describe('/settings page', () => {
     expect(screen.getByRole('button', { name: /delete account/i })).toBeInTheDocument();
   });
 
+  it('uses danger treatment for account deletion confirmation', async () => {
+    await renderSettingsPage();
+
+    fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+
+    expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Delete account?',
+      cancelText: 'Keep Account',
+      confirmText: 'Delete Account',
+      variant: 'danger',
+      confirmVariant: 'danger',
+    }));
+  });
+
   it('shows admin actions for admin user', async () => {
     mockedUseSession.mockReturnValue({
       status: 'authenticated',

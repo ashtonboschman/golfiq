@@ -201,7 +201,11 @@ export default function RoundStatsPage() {
 
   const handleDelete = async () => {
     showConfirm({
-      message: 'Are you sure you want to delete this round?',
+      title: 'Delete round?',
+      message: 'This round will be permanently deleted.',
+      confirmText: 'Delete',
+      variant: 'danger',
+      confirmVariant: 'danger',
       onConfirm: async () => {
         try {
           const res = await fetch(`/api/rounds/${roundId}`, {
@@ -412,12 +416,16 @@ export default function RoundStatsPage() {
             <Link
               href={`/rounds/edit/${roundId}?from=stats`}
               className="btn btn-edit"
+              aria-label="Edit Round"
+              title="Edit Round"
             >
               <Edit/>
             </Link>
             <button
               onClick={handleDelete}
               className="btn btn-cancel"
+              aria-label="Delete Round"
+              title="Delete Round"
             >
               <Trash2/>
             </button>

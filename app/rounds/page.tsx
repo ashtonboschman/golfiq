@@ -251,7 +251,11 @@ export default function RoundsPage() {
 
   const handleDelete = async (id: number) => {
     showConfirm({
-      message: 'Are you sure you want to delete this round?',
+      title: 'Delete round?',
+      message: 'This round will be permanently deleted.',
+      confirmText: 'Delete',
+      variant: 'danger',
+      confirmVariant: 'danger',
       onConfirm: async () => {
         try {
           const res = await fetch(`/api/rounds/${id}`, {
@@ -292,10 +296,13 @@ export default function RoundsPage() {
 
     if (decision.action === 'prompt') {
       showConfirm({
+        title: 'Delete active live round?',
         message:
-          'You already have an active Live Round. Resume it, or start a new round and discard the current one.',
+          'You already have an active Live Round. Resume it, or start a new round and delete the current one.',
         cancelText: 'Resume Round',
-        confirmText: 'Start New Round',
+        confirmText: 'Delete & Start',
+        variant: 'danger',
+        confirmVariant: 'danger',
         onCancel: () => {
           router.push(decision.resumeTarget);
         },
@@ -313,10 +320,10 @@ export default function RoundsPage() {
   const handleDiscardLiveSession = (liveSession: LiveRoundSession) => {
     const courseLabel = sessionCourseLabel(liveSession);
     showConfirm({
-      title: 'Discard live round?',
+      title: 'Delete live round?',
       message: `This removes ${courseLabel} from your resume list. This cannot be undone.`,
       cancelText: 'Keep Round',
-      confirmText: 'Discard',
+      confirmText: 'Delete',
       variant: 'danger',
       confirmVariant: 'danger',
       onConfirm: async () => {
@@ -330,7 +337,7 @@ export default function RoundsPage() {
           );
           setActiveLiveSessions((current) => current.filter((sessionItem) => sessionItem.id !== liveSession.id));
         } catch (err: any) {
-          const message = err?.message || 'Unable to discard live round';
+          const message = err?.message || 'Unable to delete live round';
           setLiveSessionsError(message);
           showMessage(message, 'error');
         } finally {
@@ -392,8 +399,8 @@ export default function RoundsPage() {
                     className="btn btn-cancel live-round-session-icon-button live-round-discard-button"
                     onClick={() => handleDiscardLiveSession(liveSession)}
                     disabled={isDiscarding}
-                    aria-label={isDiscarding ? 'Discarding live round' : 'Discard live round'}
-                    title={isDiscarding ? 'Discarding live round' : 'Discard live round'}
+                    aria-label={isDiscarding ? 'Deleting live round' : 'Delete live round'}
+                    title={isDiscarding ? 'Deleting live round' : 'Delete live round'}
                   >
                     <Trash2 size={18} />
                   </button>

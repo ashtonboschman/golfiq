@@ -84,9 +84,12 @@ export default function Header() {
       showAddRoundDiscardConfirm(() => router.push(path));
     } else if (isOnEditRoundPage || hasUnsavedChanges) {
       showConfirm({
-        message: isOnEditRoundPage
-          ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
-          : 'You have unsaved changes. Are you sure you want to leave?',
+        title: 'Discard changes?',
+        message: 'Any unsaved changes will be lost.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
         onConfirm: () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
@@ -125,9 +128,12 @@ export default function Header() {
       });
     } else if (isOnEditRoundPage || hasUnsavedChanges) {
       showConfirm({
-        message: isOnEditRoundPage
-          ? 'Are you sure you want to leave? Any unsaved changes will be lost.'
-          : 'You have unsaved changes. Are you sure you want to leave?',
+        title: 'Discard changes?',
+        message: 'Any unsaved changes will be lost.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
         onConfirm: async () => {
           if (hasUnsavedChanges) {
             sessionStorage.removeItem('profile-has-changes');
@@ -204,7 +210,12 @@ export default function Header() {
       const roundId = pathname.split('/')[3];
 
       showConfirm({
-        message: 'Are you sure you want to leave? Any unsaved changes will be lost.',
+        title: 'Discard changes?',
+        message: 'Any unsaved changes will be lost.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
         onConfirm: () => {
           if (from === 'rounds') {
             router.replace('/rounds');
@@ -217,7 +228,12 @@ export default function Header() {
     // On profile with unsaved changes, warn before navigating away
     else if (hasUnsavedChanges) {
       showConfirm({
-        message: 'You have unsaved changes. Are you sure you want to leave?',
+        title: 'Discard changes?',
+        message: 'Any unsaved changes will be lost.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
         onConfirm: () => {
           sessionStorage.removeItem('profile-has-changes');
           window.history.back();

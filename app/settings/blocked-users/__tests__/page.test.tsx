@@ -125,9 +125,12 @@ describe('/settings/blocked-users page', () => {
 
     expect(mockShowConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'Unblock user?\n\nThis user will be able to send you friend requests again.',
+        title: 'Unblock user?',
+        message: 'This user will be able to send you friend requests again.',
         cancelText: 'Cancel',
         confirmText: 'Unblock',
+        variant: 'neutral',
+        confirmVariant: 'neutral',
       }),
     );
   });

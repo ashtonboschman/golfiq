@@ -109,6 +109,28 @@ describe('UserActionsCard safety actions', () => {
     expect(mockFetchAll).toHaveBeenCalled();
   });
 
+  it('uses danger treatment for block confirmation', () => {
+    mockShowConfirm.mockImplementation(() => undefined);
+
+    render(
+      <UserActionsCard
+        userId={12}
+        relationship={{ is_self: false }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /block user/i }));
+
+    expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Block user?',
+      message: 'Blocked users cannot send you friend requests.',
+      cancelText: 'Cancel',
+      confirmText: 'Block',
+      variant: 'danger',
+      confirmVariant: 'danger',
+    }));
+  });
+
   it('refreshes shared friends state after unblocking a user', async () => {
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -130,6 +152,28 @@ describe('UserActionsCard safety actions', () => {
       });
     });
     expect(mockFetchAll).toHaveBeenCalled();
+  });
+
+  it('uses neutral treatment for unblock confirmation', () => {
+    mockShowConfirm.mockImplementation(() => undefined);
+
+    render(
+      <UserActionsCard
+        userId={12}
+        relationship={{ is_self: false, blocked_by_viewer: true }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /unblock user/i }));
+
+    expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Unblock user?',
+      message: 'This user will be able to send you friend requests again.',
+      cancelText: 'Cancel',
+      confirmText: 'Unblock',
+      variant: 'neutral',
+      confirmVariant: 'neutral',
+    }));
   });
 
   it('hides all actions for self profile', () => {

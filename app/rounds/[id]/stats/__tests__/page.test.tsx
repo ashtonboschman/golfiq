@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RoundStatsPage from '@/app/rounds/[id]/stats/page';
 import { useSession } from 'next-auth/react';
@@ -179,6 +179,26 @@ describe('/rounds/[id]/stats page', () => {
 
     const allCalls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
     expect(allCalls.some((url) => url.includes('/api/users/profile'))).toBe(false);
+  });
+
+  it('uses danger treatment for the delete round confirmation', async () => {
+    mockedUseSubscription.mockReturnValue({
+      isPremium: true,
+      loading: false,
+    });
+
+    render(<RoundStatsPage />);
+
+    await screen.findByText('Pebble Beach');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Round' }));
+
+    expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Delete round?',
+      message: 'This round will be permanently deleted.',
+      confirmText: 'Delete',
+      variant: 'danger',
+      confirmVariant: 'danger',
+    }));
   });
 
   it('hides strokes gained placeholder while subscription is still loading', async () => {

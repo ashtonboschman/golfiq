@@ -482,7 +482,12 @@ export default function ProfilePage() {
 
     if (hasChanges) {
       showConfirm({
-        message: 'You have unsaved changes. Are you sure you want to leave?',
+        title: 'Discard changes?',
+        message: 'Any unsaved changes will be lost.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
         onConfirm: async () => {
           sessionStorage.removeItem('profile-has-changes');
           clearThemeAuthMarker();
@@ -500,7 +505,12 @@ export default function ProfilePage() {
   const handleNavigation = (path: string) => {
     if (hasChanges) {
       showConfirm({
-        message: 'You have unsaved changes. Are you sure you want to leave?',
+        title: 'Discard changes?',
+        message: 'Any unsaved changes will be lost.',
+        cancelText: 'Stay',
+        confirmText: 'Discard',
+        variant: 'warning',
+        confirmVariant: 'danger',
         onConfirm: () => {
           sessionStorage.removeItem('profile-has-changes');
           router.push(path);

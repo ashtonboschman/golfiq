@@ -1458,7 +1458,12 @@ function EditRoundContent() {
               type="button"
               onClick={() => {
                 showConfirm({
-                  message: 'Are you sure you want to cancel? Any unsaved changes will be lost.',
+                  title: 'Discard changes?',
+                  message: 'Any unsaved changes will be lost.',
+                  cancelText: 'Stay',
+                  confirmText: 'Discard',
+                  variant: 'warning',
+                  confirmVariant: 'danger',
                   onConfirm: () => {
                     clearRoundEditDraft();
                     if (from === 'rounds') {

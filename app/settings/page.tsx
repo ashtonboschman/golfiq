@@ -216,8 +216,13 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = () => {
     showConfirm({
+      title: 'Delete account?',
       message:
         'Delete your account permanently? This cannot be undone and will remove your rounds, insights, friends, profile, and subscription access.',
+      cancelText: 'Keep Account',
+      confirmText: 'Delete Account',
+      variant: 'danger',
+      confirmVariant: 'danger',
       onConfirm: async () => {
         setDeletingAccount(true);
         try {

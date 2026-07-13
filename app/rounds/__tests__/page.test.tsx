@@ -176,7 +176,7 @@ describe('/rounds page', () => {
     expect(consumeLiveRoundExitRedirect('500')).toBe(false);
   });
 
-  it('confirms and discards an active live round', async () => {
+  it('confirms and deletes an active live round', async () => {
     global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === '/api/rounds/live/sessions') {
@@ -201,11 +201,11 @@ describe('/rounds page', () => {
     render(<RoundsPage />);
 
     expect(await screen.findByText('GolfIQ Club - North')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Discard live round' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete live round' }));
 
     expect(showConfirm).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Discard live round?',
-      confirmText: 'Discard',
+      title: 'Delete live round?',
+      confirmText: 'Delete',
       confirmVariant: 'danger',
     }));
 

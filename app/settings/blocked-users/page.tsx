@@ -64,9 +64,12 @@ export default function BlockedUsersPage() {
 
   const handleUnblockUser = (blockedUserId: string) => {
     showConfirm({
-      message: 'Unblock user?\n\nThis user will be able to send you friend requests again.',
+      title: 'Unblock user?',
+      message: 'This user will be able to send you friend requests again.',
       confirmText: 'Unblock',
       cancelText: 'Cancel',
+      variant: 'neutral',
+      confirmVariant: 'neutral',
       onConfirm: async () => {
         setUnblockingUserId(blockedUserId);
         try {

@@ -146,12 +146,16 @@ export default function UserActionsCard({ userId, permissions, relationship }: U
 
   const toggleBlock = () => {
     const targetAction = isBlockedByViewer ? 'unblock' : 'block';
-    const confirmMessage = isBlockedByViewer
-      ? 'Unblock this user?'
-      : 'Block this user? Blocked users cannot send you friend requests.';
 
     showConfirm({
-      message: confirmMessage,
+      title: targetAction === 'block' ? 'Block user?' : 'Unblock user?',
+      message: targetAction === 'block'
+        ? 'Blocked users cannot send you friend requests.'
+        : 'This user will be able to send you friend requests again.',
+      confirmText: targetAction === 'block' ? 'Block' : 'Unblock',
+      cancelText: 'Cancel',
+      variant: targetAction === 'block' ? 'danger' : 'neutral',
+      confirmVariant: targetAction === 'block' ? 'danger' : 'neutral',
       onConfirm: async () => {
         setBlockActionLoading(true);
         try {
