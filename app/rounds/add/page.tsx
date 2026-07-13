@@ -275,6 +275,8 @@ function AddRoundContent() {
   const restoredDraftRef = useRef(false);
   const draftHydrationAttemptedRef = useRef(false);
   const unauthDraftWarningShownRef = useRef(false);
+  const gpsAvailabilityTrackedKeyRef = useRef<string | null>(null);
+  const gpsToggleViewedKeyRef = useRef<string | null>(null);
   const latestModeRef = useRef<'live_round' | 'after_round'>(
     searchParams.get('mode') === 'after' ? 'after_round' : 'live_round',
   );
@@ -527,6 +529,20 @@ function AddRoundContent() {
           setLiveGpsAvailability(data.availability);
           const hasFullCoverage = data.availability.available && data.availability.coverage === 'full';
           setLiveGpsEnabled(hasFullCoverage);
+          const availabilityKey = `${selectedCourse.value}:${data.availability.coverage}:${data.availability.available}`;
+          if (gpsAvailabilityTrackedKeyRef.current !== availabilityKey) {
+            gpsAvailabilityTrackedKeyRef.current = availabilityKey;
+            trackEvent(ANALYTICS_EVENTS.gpsAvailable, {
+              source_surface: 'add_round',
+              course_id: selectedCourse.value,
+              available: data.availability.available,
+              coverage: data.availability.coverage,
+              expected_hole_count: data.availability.expectedHoleNumbers.length,
+              available_hole_count: data.availability.availableHoleNumbers.length,
+              unavailable_hole_count: data.availability.unavailableHoleNumbers.length,
+              reason: data.availability.reason,
+            });
+          }
 
           if (!hasFullCoverage) {
             setLoadingGpsCourseRequest(true);
@@ -562,7 +578,42 @@ function AddRoundContent() {
     })();
 
     return () => controller.abort();
-  }, [roundEntryMode, selectedCourse]);
+  }, [roundEntryMode, selectedCourse, trackEvent]);
+
+  useEffect(() => {
+    if (
+      roundEntryMode !== 'live' ||
+      !selectedCourse ||
+      !selectedTee ||
+      !(showLiveStartSetup || activeLiveSessions.length === 0) ||
+      loadingLiveGpsAvailability ||
+      !liveGpsAvailability?.available ||
+      liveGpsAvailability.coverage !== 'full'
+    ) {
+      return;
+    }
+
+    const key = `${selectedCourse.value}:${selectedTee.value}`;
+    if (gpsToggleViewedKeyRef.current === key) return;
+    gpsToggleViewedKeyRef.current = key;
+    trackEvent(ANALYTICS_EVENTS.gpsToggleViewed, {
+      source_surface: 'add_round',
+      course_id: selectedCourse.value,
+      tee_id: selectedTee.value,
+      default_enabled: liveGpsEnabled,
+      coverage: liveGpsAvailability.coverage,
+    });
+  }, [
+    liveGpsAvailability,
+    liveGpsEnabled,
+    loadingLiveGpsAvailability,
+    activeLiveSessions.length,
+    roundEntryMode,
+    selectedCourse,
+    selectedTee,
+    showLiveStartSetup,
+    trackEvent,
+  ]);
 
   const buildCurrentDraft = useCallback((): AddRoundDraft => ({
     version: 1,
@@ -1569,7 +1620,24 @@ function AddRoundContent() {
     try {
       if (liveGpsEnabled && !liveGpsTestLocationEnabled) {
         const gpsFix = await requestLiveRoundGpsPermission();
-        if (gpsFix) setUserLocation(gpsFix.position);
+        if (gpsFix) {
+          setUserLocation(gpsFix.position);
+          trackEvent(ANALYTICS_EVENTS.gpsLocationAllowed, {
+            source_surface: 'add_round',
+            course_id: Number(round.course_id),
+            tee_id: Number(round.tee_id),
+            tee_segment: round.tee_segment,
+            location_source: 'get_current_position',
+          });
+        } else {
+          trackEvent(ANALYTICS_EVENTS.gpsLocationDenied, {
+            source_surface: 'add_round',
+            course_id: Number(round.course_id),
+            tee_id: Number(round.tee_id),
+            tee_segment: round.tee_segment,
+            location_source: 'get_current_position',
+          });
+        }
       }
 
       const startHoleNumber = liveStartHoleOptions.some((option) => option.value === liveStartHoleNumber)
@@ -1601,6 +1669,17 @@ function AddRoundContent() {
 
       const data = await readApiResponse<{ session: LiveRoundSession }>(response);
       hasSubmittedRef.current = true;
+      if (liveGpsEnabled) {
+        trackEvent(ANALYTICS_EVENTS.gpsEnabledForRound, {
+          source_surface: 'add_round',
+          live_session_id: data.session.id,
+          course_id: data.session.course_id,
+          tee_id: data.session.tee_id,
+          tee_segment: data.session.tee_segment,
+          start_hole_number: data.session.start_hole_number,
+          test_location_enabled: liveGpsTestLocationEnabled,
+        });
+      }
       clearRoundDraft();
       clearAddRoundDirtyState();
       const liveRoundPath = `/rounds/live/${data.session.id}`;
@@ -1659,12 +1738,19 @@ function AddRoundContent() {
         body: JSON.stringify({ courseId: selectedCourse.value }),
       });
       await readApiResponse<{ requested: boolean; status: 'REQUESTED'; message: string }>(response);
-      setGpsCourseRequest((current) => ({
+      const nextRequestCount =
+        (gpsCourseRequest?.requestCount ?? 0) + (gpsCourseRequest?.requestedByCurrentUser ? 0 : 1);
+      setGpsCourseRequest({
         requestedByCurrentUser: true,
         status: 'REQUESTED',
-        requestCount:
-          (current?.requestCount ?? 0) + (current?.requestedByCurrentUser ? 0 : 1),
-      }));
+        requestCount: nextRequestCount,
+      });
+      trackEvent(ANALYTICS_EVENTS.gpsMappingRequested, {
+        source_surface: 'add_round',
+        course_id: selectedCourse.value,
+        tee_id: selectedTee?.value ?? null,
+        request_count: nextRequestCount,
+      });
     } catch (error) {
       setGpsCourseRequestError(
         error instanceof Error ? error.message : 'Unable to request GPS mapping',

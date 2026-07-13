@@ -154,6 +154,8 @@ type GoogleGpsHoleMapProps = {
   onTargetToGreenCenter: () => void;
   onTeeChange?: (tee: LatLng) => void;
   onUserPositionChange?: (position: LatLng) => void;
+  onMapReady?: () => void;
+  onMapError?: (message: string) => void;
   editModeEnabled: boolean;
   selectedEditField: GpsPrototypeEditField;
   onEditFieldSelect: (field: GpsPrototypeEditField) => void;
@@ -461,6 +463,8 @@ export default function GoogleGpsHoleMap({
   onTargetToGreenCenter,
   onTeeChange,
   onUserPositionChange,
+  onMapReady,
+  onMapError,
   editModeEnabled,
   selectedEditField,
   onEditFieldSelect,
@@ -905,7 +909,9 @@ export default function GoogleGpsHoleMap({
         if (disposed || !containerRef.current || mapRef.current) return;
         const googleMaps = getGoogleMaps();
         if (!googleMaps?.Map) {
-          setLoadError('Google Maps failed to load.');
+          const message = 'Google Maps failed to load.';
+          setLoadError(message);
+          onMapError?.(message);
           return;
         }
 
@@ -1069,10 +1075,13 @@ export default function GoogleGpsHoleMap({
         });
 
         setMapReady(true);
+        onMapReady?.();
       })
       .catch((error: unknown) => {
         if (disposed) return;
-        setLoadError(error instanceof Error ? error.message : 'Google Maps failed to load.');
+        const message = error instanceof Error ? error.message : 'Google Maps failed to load.';
+        setLoadError(message);
+        onMapError?.(message);
       });
 
     return () => {

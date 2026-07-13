@@ -57,6 +57,18 @@ export const ANALYTICS_EVENTS = {
   pwaInstallPromptShown: 'pwa_install_prompt_shown',
   pwaInstallAccepted: 'pwa_install_accepted',
   pwaUpdateApplied: 'pwa_update_applied',
+  gpsAvailable: 'gps_available',
+  gpsToggleViewed: 'gps_toggle_viewed',
+  gpsEnabledForRound: 'gps_enabled_for_round',
+  gpsLocationAllowed: 'gps_location_allowed',
+  gpsLocationDenied: 'gps_location_denied',
+  gpsMapLoaded: 'gps_map_loaded',
+  gpsMapFailed: 'gps_map_failed',
+  gpsHoleViewed: 'gps_hole_viewed',
+  gpsLogScoreTapped: 'gps_log_score_tapped',
+  gpsMappingRequested: 'gps_mapping_requested',
+  gpsRoundCompleted: 'gps_round_completed',
+  gpsSecondRoundCompleted: 'gps_second_round_completed',
 } as const;
 
 export type AnalyticsEventName =

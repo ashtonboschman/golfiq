@@ -29,6 +29,8 @@ import { selectLiveGpsMappedHoleForDraft } from '@/lib/gps/liveHoleSelection';
 import type { LiveGpsMapping } from '@/lib/gps/liveMappingTypes';
 import { useLiveGpsLocation } from '@/lib/gps/useLiveGpsLocation';
 import { isAdminUserId } from '@/lib/admin';
+import { captureClientEvent } from '@/lib/analytics/client';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 
 type LiveRoundSessionClientProps = {
   sessionId: string;
@@ -176,6 +178,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const [session, setSession] = useState<LiveRoundSession | null>(null);
   const [gpsMapping, setGpsMapping] = useState<LiveGpsMapping | null>(null);
   const [gpsMappingLoading, setGpsMappingLoading] = useState(false);
+  const [gpsMappingLoadFailed, setGpsMappingLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle');
@@ -196,6 +199,11 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const hasPushedBackGuardRef = useRef(false);
   const allowBrowserBackRef = useRef(false);
   const navigationPendingRef = useRef(false);
+  const gpsHoleViewKeyRef = useRef<string | null>(null);
+  const gpsMapLoadedRef = useRef(false);
+  const gpsMapFailedRef = useRef(false);
+  const gpsLocationAllowedRef = useRef(false);
+  const gpsLocationDeniedRef = useRef(false);
 
   const draftSaveQueue = useMemo(() => createLatestAutosaveQueue({
     save: async (draft: LiveRoundHoleDraft) => {
@@ -332,12 +340,14 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     if (!session?.gpsEnabled) {
       setGpsMapping(null);
       setGpsMappingLoading(false);
+      setGpsMappingLoadFailed(false);
       return;
     }
 
     const controller = new AbortController();
     setGpsMapping(null);
     setGpsMappingLoading(true);
+    setGpsMappingLoadFailed(false);
 
     void (async () => {
       try {
@@ -352,9 +362,13 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
           setGpsMapping(data);
         } else {
           setGpsMapping(null);
+          setGpsMappingLoadFailed(true);
         }
       } catch {
-        if (!controller.signal.aborted) setGpsMapping(null);
+        if (!controller.signal.aborted) {
+          setGpsMapping(null);
+          setGpsMappingLoadFailed(true);
+        }
       } finally {
         if (!controller.signal.aborted) setGpsMappingLoading(false);
       }
@@ -400,6 +414,36 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     return selectLiveGpsMappedHoleForDraft(gpsMapping.holes, activeDraft);
   }, [activeDraft, gpsMapping]);
 
+  const captureGpsAnalytics = useCallback((
+    event: (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS],
+    properties: Record<string, unknown> = {},
+  ) => {
+    if (!session) return;
+
+    captureClientEvent(
+      event,
+      {
+        source_surface: 'live_round',
+        live_session_id: session.id,
+        course_id: session.course_id,
+        tee_id: session.tee_id,
+        tee_segment: session.tee_segment,
+        gps_enabled: session.gpsEnabled,
+        test_location_enabled: gpsTestLocationEnabled,
+        active_step: session.active_step,
+        active_display_hole_number: activeDraft?.display_hole_number ?? session.active_hole_number,
+        active_physical_hole_number: activeDraft?.hole_number ?? null,
+        active_hole_pass: activeDraft?.pass ?? session.active_hole_pass,
+        ...properties,
+      },
+      {
+        sourcePage: '/rounds/live/[sessionId]',
+        user: { id: session.user_id },
+        isLoggedIn: true,
+      },
+    );
+  }, [activeDraft, gpsTestLocationEnabled, session]);
+
   const liveLocationActive = Boolean(
     session?.status === 'ACTIVE' &&
     session.gpsEnabled &&
@@ -409,6 +453,94 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     activeMappedHole,
   );
   const { location: liveLocation } = useLiveGpsLocation(liveLocationActive);
+
+  useEffect(() => {
+    if (
+      viewMode !== 'score' ||
+      session?.active_step !== 'GPS' ||
+      !session.gpsEnabled ||
+      !activeDraft ||
+      !activeMappedHole
+    ) {
+      return;
+    }
+
+    const key = `${session.id}:${activeDraft.id}:GPS`;
+    if (gpsHoleViewKeyRef.current === key) return;
+    gpsHoleViewKeyRef.current = key;
+
+    captureGpsAnalytics(ANALYTICS_EVENTS.gpsHoleViewed, {
+      mapped_hole_number: activeMappedHole.holeNumber,
+    });
+  }, [activeDraft, activeMappedHole, captureGpsAnalytics, session, viewMode]);
+
+  useEffect(() => {
+    if (!session?.gpsEnabled || gpsTestLocationEnabled) return;
+
+    if (liveLocation.status === 'granted' && !gpsLocationAllowedRef.current) {
+      gpsLocationAllowedRef.current = true;
+      captureGpsAnalytics(ANALYTICS_EVENTS.gpsLocationAllowed, {
+        location_source: 'watch_position',
+      });
+    }
+
+    if (
+      (liveLocation.status === 'denied' || liveLocation.status === 'unavailable') &&
+      !gpsLocationDeniedRef.current
+    ) {
+      gpsLocationDeniedRef.current = true;
+      captureGpsAnalytics(ANALYTICS_EVENTS.gpsLocationDenied, {
+        location_source: 'watch_position',
+        location_status: liveLocation.status,
+      });
+    }
+  }, [captureGpsAnalytics, gpsTestLocationEnabled, liveLocation.status, session?.gpsEnabled]);
+
+  useEffect(() => {
+    if (
+      !session?.gpsEnabled ||
+      gpsMappingLoading ||
+      viewMode !== 'score' ||
+      session.active_step !== 'GPS' ||
+      activeMappedHole ||
+      (!gpsMappingLoadFailed && !gpsMapping) ||
+      gpsMapFailedRef.current
+    ) {
+      return;
+    }
+
+    gpsMapFailedRef.current = true;
+    captureGpsAnalytics(ANALYTICS_EVENTS.gpsMapFailed, {
+      failure_stage: 'hole_mapping',
+      reason: gpsMapping ? 'missing_active_hole_mapping' : 'mapping_unavailable',
+    });
+  }, [
+    activeMappedHole,
+    captureGpsAnalytics,
+    gpsMapping,
+    gpsMappingLoadFailed,
+    gpsMappingLoading,
+    session,
+    viewMode,
+  ]);
+
+  const handleLiveGpsMapReady = useCallback(() => {
+    if (gpsMapLoadedRef.current) return;
+    gpsMapLoadedRef.current = true;
+    captureGpsAnalytics(ANALYTICS_EVENTS.gpsMapLoaded, {
+      map_provider: 'google_maps',
+    });
+  }, [captureGpsAnalytics]);
+
+  const handleLiveGpsMapError = useCallback((message: string) => {
+    if (gpsMapFailedRef.current) return;
+    gpsMapFailedRef.current = true;
+    captureGpsAnalytics(ANALYTICS_EVENTS.gpsMapFailed, {
+      map_provider: 'google_maps',
+      failure_stage: 'map_load',
+      error_message: message,
+    });
+  }, [captureGpsAnalytics]);
 
   const missingScoreDrafts = useMemo(
     () => sortedDrafts.filter((draft) => draft.score === null),
@@ -746,6 +878,9 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       draftCount: playOrderDrafts.length,
     });
     if (!target) return;
+    if (session.gpsEnabled && session.active_step === 'GPS' && target.activeStep === 'SCORE') {
+      captureGpsAnalytics(ANALYTICS_EVENTS.gpsLogScoreTapped);
+    }
     setReturnToReviewAvailable(false);
     void moveToDraft(playOrderDrafts[target.draftIndex], { activeStep: target.activeStep });
   };
@@ -1021,6 +1156,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
               userPosition={liveLocation.position}
               userAccuracyMeters={liveLocation.accuracyMeters}
               testLocationEnabled={gpsTestLocationEnabled}
+              onMapReady={handleLiveGpsMapReady}
+              onMapError={handleLiveGpsMapError}
             />
           ) : (
             <div className="live-round-gps-unavailable" role="status">

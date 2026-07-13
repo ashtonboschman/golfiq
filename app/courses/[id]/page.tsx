@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
@@ -10,6 +10,8 @@ import { Landmark, MapPin, MapPinned, Plus } from 'lucide-react';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
 import type { LiveGpsAvailability } from '@/lib/gps/liveMappingTypes';
+import { captureClientEvent } from '@/lib/analytics/client';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 
 async function readApiResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -78,6 +80,36 @@ export default function CourseDetailsPage() {
   const [loadingGpsCourseRequest, setLoadingGpsCourseRequest] = useState(false);
   const [requestingGpsCourse, setRequestingGpsCourse] = useState(false);
   const [gpsCourseRequestError, setGpsCourseRequestError] = useState<string | null>(null);
+
+  const trackGpsEvent = useCallback((
+    event: (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS],
+    properties: Record<string, unknown> = {},
+  ) => {
+    captureClientEvent(
+      event,
+      {
+        source_surface: 'course_details',
+        course_id: course?.id ?? Number(id),
+        ...properties,
+      },
+      {
+        pathname: `/courses/${id}`,
+        user: {
+          id: session?.user?.id,
+          subscription_tier: session?.user?.subscription_tier,
+          auth_provider: session?.user?.auth_provider,
+        },
+        isLoggedIn: status === 'authenticated',
+      },
+    );
+  }, [
+    course?.id,
+    id,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    status,
+  ]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -176,6 +208,14 @@ export default function CourseDetailsPage() {
 
         setLiveGpsAvailability(data.availability);
         const hasFullCoverage = data.availability.available && data.availability.coverage === 'full';
+        trackGpsEvent(ANALYTICS_EVENTS.gpsAvailable, {
+          available: data.availability.available,
+          coverage: data.availability.coverage,
+          expected_hole_count: data.availability.expectedHoleNumbers.length,
+          available_hole_count: data.availability.availableHoleNumbers.length,
+          unavailable_hole_count: data.availability.unavailableHoleNumbers.length,
+          reason: data.availability.reason,
+        });
 
         if (!hasFullCoverage) {
           setLoadingGpsCourseRequest(true);
@@ -206,7 +246,7 @@ export default function CourseDetailsPage() {
     })();
 
     return () => controller.abort();
-  }, [course, status]);
+  }, [course, status, trackGpsEvent]);
 
   const allTees = useMemo(
     () => [...(course?.tees.male || []), ...(course?.tees.female || [])],
@@ -302,12 +342,16 @@ export default function CourseDetailsPage() {
         body: JSON.stringify({ courseId: course.id }),
       });
       await readApiResponse<{ requested: boolean; status: 'REQUESTED'; message: string }>(response);
-      setGpsCourseRequest((current) => ({
+      const nextRequestCount =
+        (gpsCourseRequest?.requestCount ?? 0) + (gpsCourseRequest?.requestedByCurrentUser ? 0 : 1);
+      setGpsCourseRequest({
         requestedByCurrentUser: true,
         status: 'REQUESTED',
-        requestCount:
-          (current?.requestCount ?? 0) + (current?.requestedByCurrentUser ? 0 : 1),
-      }));
+        requestCount: nextRequestCount,
+      });
+      trackGpsEvent(ANALYTICS_EVENTS.gpsMappingRequested, {
+        request_count: nextRequestCount,
+      });
     } catch (error) {
       setGpsCourseRequestError(
         error instanceof Error ? error.message : 'Unable to request GPS mapping',

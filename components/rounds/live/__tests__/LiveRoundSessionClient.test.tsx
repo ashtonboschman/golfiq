@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import LiveRoundSessionClient from '@/components/rounds/live/LiveRoundSessionClient';
+import { captureClientEvent } from '@/lib/analytics/client';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import {
   consumeLiveRoundExitRedirect,
   markLiveRoundExitRedirect,
@@ -27,6 +29,10 @@ jest.mock('@/app/providers', () => ({
   useMessage: jest.fn(),
 }));
 
+jest.mock('@/lib/analytics/client', () => ({
+  captureClientEvent: jest.fn(),
+}));
+
 jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
   __esModule: true,
   default: function MockLiveGpsHoleMap(props: {
@@ -36,10 +42,14 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
     userPosition?: { lat: number; lng: number } | null;
     userAccuracyMeters?: number | null;
     testLocationEnabled?: boolean;
+    onMapReady?: () => void;
   }) {
     const React = jest.requireActual<typeof import('react')>('react');
+    const onMapReadyRef = React.useRef(props.onMapReady);
+    onMapReadyRef.current = props.onMapReady;
     React.useEffect(() => {
       mockLiveGpsMapMount();
+      onMapReadyRef.current?.();
     }, []);
 
     return (
@@ -61,6 +71,7 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
 const mockedUseRouter = useRouter as jest.Mock;
 const mockedUseSession = useSession as jest.Mock;
 const mockedUseMessage = useMessage as jest.Mock;
+const mockedCaptureClientEvent = captureClientEvent as jest.Mock;
 const mockGetCurrentPosition = jest.fn();
 const mockWatchPosition = jest.fn();
 const mockClearWatch = jest.fn();
@@ -411,9 +422,39 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(screen.getByText('Par 4 · 400 yd · HCP 1')).toBeInTheDocument();
     expect(mockGetCurrentPosition).not.toHaveBeenCalled();
     expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.gpsMapLoaded,
+      expect.objectContaining({
+        source_surface: 'live_round',
+        live_session_id: '500',
+        course_id: '11',
+        map_provider: 'google_maps',
+      }),
+      expect.objectContaining({ sourcePage: '/rounds/live/[sessionId]' }),
+    );
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.gpsHoleViewed,
+      expect.objectContaining({
+        source_surface: 'live_round',
+        live_session_id: '500',
+        active_display_hole_number: 1,
+        active_physical_hole_number: 1,
+        mapped_hole_number: 1,
+      }),
+      expect.objectContaining({ sourcePage: '/rounds/live/[sessionId]' }),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Log Score/ }));
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true));
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.gpsLogScoreTapped,
+      expect.objectContaining({
+        source_surface: 'live_round',
+        live_session_id: '500',
+        active_display_hole_number: 1,
+      }),
+      expect.objectContaining({ sourcePage: '/rounds/live/[sessionId]' }),
+    );
     const patchRequest = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
     const patchBody = JSON.parse(patchRequest?.[1]?.body as string);
     expect(patchBody).toEqual(expect.objectContaining({
@@ -610,6 +651,15 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     const map = await screen.findByTestId('live-gps-map');
     expect(map).toHaveAttribute('data-user-lat', '49.9');
     expect(map).toHaveAttribute('data-user-accuracy', '8');
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.gpsLocationAllowed,
+      expect.objectContaining({
+        source_surface: 'live_round',
+        live_session_id: '500',
+        location_source: 'watch_position',
+      }),
+      expect.objectContaining({ sourcePage: '/rounds/live/[sessionId]' }),
+    );
   });
 
   it('enables draggable test GPS for the admin query flag', async () => {
@@ -667,6 +717,16 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(await screen.findByTestId('live-gps-map')).not.toHaveAttribute('data-user-lat');
     expect(screen.queryByText('Location unavailable. You can still use the hole map.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Log Score/ })).toBeEnabled();
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.gpsLocationDenied,
+      expect.objectContaining({
+        source_surface: 'live_round',
+        live_session_id: '500',
+        location_source: 'watch_position',
+        location_status: 'denied',
+      }),
+      expect.objectContaining({ sourcePage: '/rounds/live/[sessionId]' }),
+    );
   });
 
   it('clears the location watch on the score step and never sends coordinates in API payloads', async () => {

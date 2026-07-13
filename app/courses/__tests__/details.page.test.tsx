@@ -6,6 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import CourseDetailsPage from '@/app/courses/[id]/page';
+import { captureClientEvent } from '@/lib/analytics/client';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 
 jest.mock('next/navigation', () => ({
   useParams: jest.fn(),
@@ -20,6 +22,10 @@ jest.mock('@/app/providers', () => ({
   useMessage: jest.fn(),
 }));
 
+jest.mock('@/lib/analytics/client', () => ({
+  captureClientEvent: jest.fn(),
+}));
+
 jest.mock('react-select', () => ({
   __esModule: true,
   default: function MockSelect({ value }: { value: { label: string } | null }) {
@@ -31,6 +37,7 @@ const mockedUseParams = useParams as jest.Mock;
 const mockedUseRouter = useRouter as jest.Mock;
 const mockedUseSession = useSession as jest.Mock;
 const mockedUseMessage = useMessage as jest.Mock;
+const mockedCaptureClientEvent = captureClientEvent as jest.Mock;
 const push = jest.fn();
 const replace = jest.fn();
 const showMessage = jest.fn();
@@ -116,6 +123,16 @@ describe('/courses/[id] page GPS status', () => {
     expect(await screen.findByText('Available')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Request GPS' })).not.toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalledWith('/api/gps/course-requests?courseId=42', expect.anything());
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.gpsAvailable,
+      expect.objectContaining({
+        source_surface: 'course_details',
+        course_id: 42,
+        available: true,
+        coverage: 'full',
+      }),
+      expect.objectContaining({ pathname: '/courses/42' }),
+    );
   });
 
   it('lets the user request GPS mapping when the course is not mapped', async () => {
@@ -165,5 +182,14 @@ describe('/courses/[id] page GPS status', () => {
     });
     expect(await screen.findByRole('button', { name: 'Requested' })).toBeDisabled();
     expect(screen.getByText('GPS mapping requested. We will prioritize this course.')).toBeInTheDocument();
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.gpsMappingRequested,
+      expect.objectContaining({
+        source_surface: 'course_details',
+        course_id: 42,
+        request_count: 1,
+      }),
+      expect.objectContaining({ pathname: '/courses/42' }),
+    );
   });
 });

@@ -25,6 +25,8 @@ type LiveGpsHoleMapProps = {
   userPosition?: LiveGpsPoint | null;
   userAccuracyMeters?: number | null;
   testLocationEnabled?: boolean;
+  onMapReady?: () => void;
+  onMapError?: (message: string) => void;
 };
 
 type RouteState = {
@@ -65,6 +67,8 @@ export default function LiveGpsHoleMap({
   userPosition = null,
   userAccuracyMeters = null,
   testLocationEnabled = false,
+  onMapReady,
+  onMapError,
 }: LiveGpsHoleMapProps) {
   const [routeState, setRouteState] = useState<RouteState>({
     key: routeKey,
@@ -266,6 +270,8 @@ export default function LiveGpsHoleMap({
         onEditPointChange={noop}
         onCameraChange={noop}
         onCameraInteraction={handleCameraInteraction}
+        onMapReady={onMapReady}
+        onMapError={onMapError}
         useDerivedCamera
         autoFitRequest={autoFitRequest}
       />
