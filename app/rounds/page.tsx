@@ -5,9 +5,11 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import RoundCard from '@/components/RoundCard';
-import { Plus } from 'lucide-react';
+import { CalendarDays, Clock, Play, Plus, Trash2 } from 'lucide-react';
 import { RoundListSkeleton } from '@/components/skeleton/PageSkeletons';
 import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
+import { teeSegmentLabel, type LiveRoundSession } from '@/components/rounds/live/types';
+import { clearLiveRoundExitRedirect } from '@/lib/rounds/liveRoundNavigation';
 
 interface Round {
   round_context?: 'real' | 'simulator' | 'practice' | null;
@@ -33,6 +35,32 @@ interface Round {
 
 const ROUNDS_REQUEST_DEDUPE_MS = 1200;
 const roundsRequestCache = new Map<string, { startedAt: number; promise: Promise<{ status: number; data: any }> }>();
+
+async function readApiResponse<T>(response: Response): Promise<T> {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || 'Request failed');
+  }
+  return data as T;
+}
+
+function sessionCourseLabel(session: LiveRoundSession) {
+  if (!session.course) return 'Selected Course';
+  return session.course.club_name === session.course.course_name
+    ? session.course.course_name
+    : `${session.course.club_name} - ${session.course.course_name}`;
+}
+
+function formatSessionDate(date: string) {
+  return date ? date.slice(0, 10) : '';
+}
+
+function formatSavedTime(value: string | null) {
+  if (!value) return 'Not saved yet';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Saved recently';
+  return `Saved ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
 
 function fetchRoundsWithDedupe(url: string, userId: string): Promise<{ status: number; data: any }> {
   const requestKey = `${userId}:${url}`;
@@ -63,6 +91,10 @@ export default function RoundsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [activeLiveSessions, setActiveLiveSessions] = useState<LiveRoundSession[]>([]);
+  const [loadingLiveSessions, setLoadingLiveSessions] = useState(false);
+  const [liveSessionsError, setLiveSessionsError] = useState<string | null>(null);
+  const [discardingLiveSessionId, setDiscardingLiveSessionId] = useState<string | null>(null);
 
   const observer = useRef<IntersectionObserver | null>(null);
   const didInitialFetchRef = useRef(false);
@@ -155,6 +187,25 @@ export default function RoundsPage() {
     }
   }, [router, clearMessage, showMessage, userId]);
 
+  const fetchActiveLiveSessions = useCallback(async () => {
+    if (status !== 'authenticated') return;
+
+    setLoadingLiveSessions(true);
+    setLiveSessionsError(null);
+    try {
+      const data = await readApiResponse<{ sessions: LiveRoundSession[] }>(
+        await fetch('/api/rounds/live/sessions', { cache: 'no-store' }),
+      );
+      setActiveLiveSessions(data.sessions || []);
+    } catch (err: any) {
+      const message = err?.message || 'Unable to load active live rounds';
+      setLiveSessionsError(message);
+      showMessage(message, 'error');
+    } finally {
+      setLoadingLiveSessions(false);
+    }
+  }, [showMessage, status]);
+
   // Initial load
   useEffect(() => {
     if (status === 'authenticated' && userId) {
@@ -162,6 +213,7 @@ export default function RoundsPage() {
       setPage(1);
       setHasMore(true);
       fetchRounds(1, '', true);
+      fetchActiveLiveSessions();
       didInitialFetchRef.current = true;
       prevDebouncedSearchRef.current = '';
     }
@@ -258,6 +310,102 @@ export default function RoundsPage() {
     router.push(decision.startNewTarget);
   };
 
+  const handleDiscardLiveSession = (liveSession: LiveRoundSession) => {
+    const courseLabel = sessionCourseLabel(liveSession);
+    showConfirm({
+      title: 'Discard live round?',
+      message: `This removes ${courseLabel} from your resume list. This cannot be undone.`,
+      cancelText: 'Keep Round',
+      confirmText: 'Discard',
+      variant: 'danger',
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        setDiscardingLiveSessionId(liveSession.id);
+        setLiveSessionsError(null);
+        try {
+          await readApiResponse<{ session: LiveRoundSession }>(
+            await fetch(`/api/rounds/live/sessions/${liveSession.id}/discard`, {
+              method: 'POST',
+            }),
+          );
+          setActiveLiveSessions((current) => current.filter((sessionItem) => sessionItem.id !== liveSession.id));
+        } catch (err: any) {
+          const message = err?.message || 'Unable to discard live round';
+          setLiveSessionsError(message);
+          showMessage(message, 'error');
+        } finally {
+          setDiscardingLiveSessionId(null);
+        }
+      },
+    });
+  };
+
+  const renderActiveLiveSessions = () => {
+    if (activeLiveSessions.length === 0) return null;
+
+    return (
+      <section className="live-round-add-panel">
+        <div className="card last-five-rounds-card">
+          <h3>In Progress</h3>
+        </div>
+
+        <div className="live-round-session-list">
+          {activeLiveSessions.map((liveSession) => {
+            const isDiscarding = discardingLiveSessionId === liveSession.id;
+
+            return (
+              <div className="live-round-session-row" key={liveSession.id}>
+                <div>
+                  <strong>{sessionCourseLabel(liveSession)}</strong>
+                  <span>
+                    <CalendarDays size={14} />
+                    {formatSessionDate(liveSession.date)}
+                    {' '}
+                    {liveSession.tee?.tee_name || 'Selected Tee'}
+                    {' '}
+                    {teeSegmentLabel(liveSession.tee_segment, liveSession.tee?.number_of_holes)}
+                  </span>
+                  <span>
+                    <Clock size={14} />
+                    {formatSavedTime(liveSession.last_saved_at)}
+                  </span>
+                  {liveSession.active_hole_number && (
+                    <span>Hole {liveSession.active_hole_number}</span>
+                  )}
+                </div>
+                <div className="live-round-session-actions">
+                  <button
+                    type="button"
+                    className="btn btn-edit live-round-session-icon-button live-round-resume-button"
+                    onClick={() => {
+                      clearLiveRoundExitRedirect(liveSession.id);
+                      router.push(`/rounds/live/${liveSession.id}`);
+                    }}
+                    disabled={isDiscarding}
+                    aria-label="Continue live round"
+                    title="Continue live round"
+                  >
+                    <Play size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-cancel live-round-session-icon-button live-round-discard-button"
+                    onClick={() => handleDiscardLiveSession(liveSession)}
+                    disabled={isDiscarding}
+                    aria-label={isDiscarding ? 'Discarding live round' : 'Discard live round'}
+                    title={isDiscarding ? 'Discarding live round' : 'Discard live round'}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
   if (status === 'unauthenticated') {
     return null;
   }
@@ -273,6 +421,9 @@ export default function RoundsPage() {
       >
         <Plus/> Add Round
       </button>
+
+      {liveSessionsError && <div className="live-round-alert is-error">{liveSessionsError}</div>}
+      {loadingLiveSessions && activeLiveSessions.length === 0 ? null : renderActiveLiveSessions()}
 
       <input
         type="text"

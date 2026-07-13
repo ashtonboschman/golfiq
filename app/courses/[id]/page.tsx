@@ -6,9 +6,18 @@ import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
-import { Landmark, MapPin, Plus } from 'lucide-react';
+import { Landmark, MapPin, MapPinned, Plus } from 'lucide-react';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
+import type { LiveGpsAvailability } from '@/lib/gps/liveMappingTypes';
+
+async function readApiResponse<T>(response: Response): Promise<T> {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || 'Request failed');
+  }
+  return data as T;
+}
 
 interface Hole {
   id: number;
@@ -46,6 +55,12 @@ interface Course {
   };
 }
 
+type GpsCourseRequestState = {
+  requestedByCurrentUser: boolean;
+  status: 'REQUESTED' | 'MAPPED' | 'DISMISSED' | null;
+  requestCount: number;
+};
+
 export default function CourseDetailsPage() {
   const params = useParams();
   const id = params?.id as string;
@@ -57,6 +72,12 @@ export default function CourseDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTeeId, setSelectedTeeId] = useState('');
   const [teesGrouped, setTeesGrouped] = useState<Record<string, Tee[]>>({});
+  const [liveGpsAvailability, setLiveGpsAvailability] = useState<LiveGpsAvailability | null>(null);
+  const [loadingLiveGpsAvailability, setLoadingLiveGpsAvailability] = useState(false);
+  const [gpsCourseRequest, setGpsCourseRequest] = useState<GpsCourseRequestState | null>(null);
+  const [loadingGpsCourseRequest, setLoadingGpsCourseRequest] = useState(false);
+  const [requestingGpsCourse, setRequestingGpsCourse] = useState(false);
+  const [gpsCourseRequestError, setGpsCourseRequestError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -124,6 +145,68 @@ export default function CourseDetailsPage() {
 
     fetchCourse();
   }, [id, status, router, showMessage, clearMessage]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !course) {
+      setLiveGpsAvailability(null);
+      setGpsCourseRequest(null);
+      setGpsCourseRequestError(null);
+      setLoadingLiveGpsAvailability(false);
+      setLoadingGpsCourseRequest(false);
+      setRequestingGpsCourse(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setLiveGpsAvailability(null);
+    setGpsCourseRequest(null);
+    setGpsCourseRequestError(null);
+    setLoadingLiveGpsAvailability(true);
+    setLoadingGpsCourseRequest(false);
+    setRequestingGpsCourse(false);
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/gps/live/course/${course.id}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const data = await readApiResponse<{ availability: LiveGpsAvailability }>(response);
+        if (controller.signal.aborted) return;
+
+        setLiveGpsAvailability(data.availability);
+        const hasFullCoverage = data.availability.available && data.availability.coverage === 'full';
+
+        if (!hasFullCoverage) {
+          setLoadingGpsCourseRequest(true);
+          try {
+            const requestResponse = await fetch(
+              `/api/gps/course-requests?courseId=${course.id}`,
+              { cache: 'no-store', signal: controller.signal },
+            );
+            const requestData = await readApiResponse<GpsCourseRequestState>(requestResponse);
+            if (!controller.signal.aborted) setGpsCourseRequest(requestData);
+          } catch (requestError) {
+            if (!controller.signal.aborted) {
+              setGpsCourseRequestError(
+                requestError instanceof Error
+                  ? requestError.message
+                  : 'Unable to load GPS request status',
+              );
+            }
+          } finally {
+            if (!controller.signal.aborted) setLoadingGpsCourseRequest(false);
+          }
+        }
+      } catch {
+        if (!controller.signal.aborted) setLiveGpsAvailability(null);
+      } finally {
+        if (!controller.signal.aborted) setLoadingLiveGpsAvailability(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [course, status]);
 
   const allTees = useMemo(
     () => [...(course?.tees.male || []), ...(course?.tees.female || [])],
@@ -207,6 +290,37 @@ export default function CourseDetailsPage() {
     router.push(decision.startNewTarget);
   };
 
+  const handleRequestGpsCourse = async () => {
+    if (!course || requestingGpsCourse) return;
+
+    setRequestingGpsCourse(true);
+    setGpsCourseRequestError(null);
+    try {
+      const response = await fetch('/api/gps/course-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId: course.id }),
+      });
+      await readApiResponse<{ requested: boolean; status: 'REQUESTED'; message: string }>(response);
+      setGpsCourseRequest((current) => ({
+        requestedByCurrentUser: true,
+        status: 'REQUESTED',
+        requestCount:
+          (current?.requestCount ?? 0) + (current?.requestedByCurrentUser ? 0 : 1),
+      }));
+    } catch (error) {
+      setGpsCourseRequestError(
+        error instanceof Error ? error.message : 'Unable to request GPS mapping',
+      );
+    } finally {
+      setRequestingGpsCourse(false);
+    }
+  };
+
+  const hasFullGpsCoverage = Boolean(
+    liveGpsAvailability?.available && liveGpsAvailability.coverage === 'full',
+  );
+
   return (
     <div className="page-stack">
       <button
@@ -249,6 +363,59 @@ export default function CourseDetailsPage() {
           )}
         </div>
       </div>
+
+      {!showDataSkeleton && course && (
+        <section className="card course-gps-status-card" aria-label="Live GPS status">
+          <div className="course-gps-status-row">
+            <div className="course-gps-status-copy">
+              <span className={`course-gps-status-icon ${hasFullGpsCoverage ? 'is-available' : ''}`}>
+                <MapPinned size={18} aria-hidden="true" />
+              </span>
+              <div>
+                <strong>Live GPS</strong>
+                <p className="combined-note">
+                  {loadingLiveGpsAvailability || loadingGpsCourseRequest
+                    ? 'Checking GPS mapping...'
+                    : hasFullGpsCoverage
+                      ? 'Hole maps and distances are ready for live rounds.'
+                      : gpsCourseRequest?.requestedByCurrentUser
+                        ? 'GPS mapping requested. We will prioritize this course.'
+                        : 'Hole maps are not available for this course yet.'}
+                </p>
+              </div>
+            </div>
+
+            {loadingLiveGpsAvailability || loadingGpsCourseRequest ? (
+              <SkeletonBlock width={94} height={36} />
+            ) : hasFullGpsCoverage ? (
+              <span className="course-gps-status-pill">Available</span>
+            ) : (
+              <button
+                type="button"
+                className={`btn btn-secondary live-gps-request-button ${
+                  gpsCourseRequest?.requestedByCurrentUser
+                    ? 'live-gps-request-status'
+                    : ''
+                }`}
+                disabled={requestingGpsCourse || gpsCourseRequest?.requestedByCurrentUser}
+                onClick={handleRequestGpsCourse}
+              >
+                {gpsCourseRequest?.requestedByCurrentUser
+                  ? 'Requested'
+                  : requestingGpsCourse
+                    ? 'Requesting...'
+                    : 'Request GPS'}
+              </button>
+            )}
+          </div>
+
+          {gpsCourseRequestError && (
+            <span className="live-gps-request-error" role="alert">
+              {gpsCourseRequestError}
+            </span>
+          )}
+        </section>
+      )}
 
       <div className="card tee-select-card">
         <label htmlFor="tee-select">

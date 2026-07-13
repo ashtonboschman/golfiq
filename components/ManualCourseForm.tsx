@@ -23,6 +23,10 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
     tee_name: '',
     course_rating: '',
     slope_rating: '',
+    front_course_rating: '',
+    front_slope_rating: '',
+    back_course_rating: '',
+    back_slope_rating: '',
     number_of_holes: '18',
     par_total: '',
   });
@@ -59,7 +63,18 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
   const handleTeeChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
 
-    setCurrentTee({ ...currentTee, [name]: value });
+    setCurrentTee((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === 'number_of_holes' && value !== '18'
+        ? {
+          front_course_rating: '',
+          front_slope_rating: '',
+          back_course_rating: '',
+          back_slope_rating: '',
+        }
+        : {}),
+    }));
 
     if (name === 'number_of_holes' && holes.length > 0) {
       const numHoles = parseInt(value, 10);
@@ -80,9 +95,62 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
     setHoles(updatedHoles);
   };
 
+  const estimateNineHoleRatings = () => {
+    const courseRating = Number(currentTee.course_rating);
+    const slopeRating = Number(currentTee.slope_rating);
+
+    if (
+      !currentTee.course_rating
+      || !currentTee.slope_rating
+      || !Number.isFinite(courseRating)
+      || !Number.isFinite(slopeRating)
+      || courseRating <= 0
+      || slopeRating <= 0
+    ) {
+      alert('Please enter full course rating and slope first');
+      return;
+    }
+
+    const frontHoles = holes.filter((hole) => hole.hole_number >= 1 && hole.hole_number <= 9);
+    const backHoles = holes.filter((hole) => hole.hole_number >= 10 && hole.hole_number <= 18);
+    const frontPar = frontHoles.reduce((sum, hole) => sum + (hole.par || 0), 0);
+    const backPar = backHoles.reduce((sum, hole) => sum + (hole.par || 0), 0);
+    const frontYards = frontHoles.reduce((sum, hole) => sum + (hole.yardage || 0), 0);
+    const backYards = backHoles.reduce((sum, hole) => sum + (hole.yardage || 0), 0);
+    const totalPar = frontPar + backPar;
+    const totalYards = frontYards + backYards;
+    const frontWeight = totalPar > 0 && totalYards > 0
+      ? ((frontPar / totalPar) * 0.65) + ((frontYards / totalYards) * 0.35)
+      : 0.5;
+    const frontRating = Math.round(courseRating * frontWeight * 10) / 10;
+    const backRating = Math.round((courseRating - frontRating) * 10) / 10;
+
+    setCurrentTee((current) => ({
+      ...current,
+      front_course_rating: frontRating.toFixed(1),
+      front_slope_rating: Math.round(slopeRating).toString(),
+      back_course_rating: backRating.toFixed(1),
+      back_slope_rating: Math.round(slopeRating).toString(),
+    }));
+  };
+
   const addTee = () => {
     if (!currentTee.tee_name || !currentTee.course_rating || !currentTee.slope_rating || holes.length === 0) {
       alert('Please fill in all tee information and hole data');
+      return;
+    }
+
+    const isEighteenHoleTee = currentTee.number_of_holes === '18';
+    if (
+      isEighteenHoleTee
+      && (
+        !currentTee.front_course_rating
+        || !currentTee.front_slope_rating
+        || !currentTee.back_course_rating
+        || !currentTee.back_slope_rating
+      )
+    ) {
+      alert('Please fill in front and back 9 rating and slope for 18-hole tees');
       return;
     }
 
@@ -93,6 +161,10 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
       tee_name: currentTee.tee_name,
       course_rating: parseFloat(currentTee.course_rating),
       slope_rating: parseInt(currentTee.slope_rating),
+      front_course_rating: isEighteenHoleTee ? parseFloat(currentTee.front_course_rating) : null,
+      front_slope_rating: isEighteenHoleTee ? parseInt(currentTee.front_slope_rating) : null,
+      back_course_rating: isEighteenHoleTee ? parseFloat(currentTee.back_course_rating) : null,
+      back_slope_rating: isEighteenHoleTee ? parseInt(currentTee.back_slope_rating) : null,
       total_yards: totalYards,
       number_of_holes: parseInt(currentTee.number_of_holes),
       par_total: calculatedPar,
@@ -106,6 +178,10 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
       tee_name: '',
       course_rating: '',
       slope_rating: '',
+      front_course_rating: '',
+      front_slope_rating: '',
+      back_course_rating: '',
+      back_slope_rating: '',
       number_of_holes: '18',
       par_total: '',
     });
@@ -125,6 +201,10 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
       tee_name: teeToDuplicate.tee_name || '',
       course_rating: teeToDuplicate.course_rating?.toString() || '',
       slope_rating: teeToDuplicate.slope_rating?.toString() || '',
+      front_course_rating: teeToDuplicate.front_course_rating?.toString() || '',
+      front_slope_rating: teeToDuplicate.front_slope_rating?.toString() || '',
+      back_course_rating: teeToDuplicate.back_course_rating?.toString() || '',
+      back_slope_rating: teeToDuplicate.back_slope_rating?.toString() || '',
       number_of_holes: numberOfHoles.toString(),
       par_total: teeToDuplicate.par_total?.toString() || '',
     });
@@ -303,6 +383,73 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
           </div>
         </div>
 
+        {currentTee.number_of_holes === '18' && (
+          <>
+            <div className="manual-course-section-heading">
+              <h4>9-Hole Ratings</h4>
+              <button
+                type="button"
+                onClick={estimateNineHoleRatings}
+                className="btn btn-toggle u-px-12-py-6 u-fs-085"
+              >
+                Estimate From Full Rating
+              </button>
+            </div>
+            <div className="manual-course-grid-2">
+              <div>
+                <label className="form-label">Front 9 Rating *</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  name="front_course_rating"
+                  value={currentTee.front_course_rating}
+                  onChange={handleTeeChange}
+                  className="form-input"
+                  placeholder="e.g., 36.2"
+                  max={99}
+                />
+              </div>
+              <div>
+                <label className="form-label">Front 9 Slope *</label>
+                <input
+                  type="number"
+                  name="front_slope_rating"
+                  value={currentTee.front_slope_rating}
+                  onChange={handleTeeChange}
+                  className="form-input"
+                  placeholder="e.g., 134"
+                  max={250}
+                />
+              </div>
+              <div>
+                <label className="form-label">Back 9 Rating *</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  name="back_course_rating"
+                  value={currentTee.back_course_rating}
+                  onChange={handleTeeChange}
+                  className="form-input"
+                  placeholder="e.g., 36.3"
+                  max={99}
+                />
+              </div>
+              <div>
+                <label className="form-label">Back 9 Slope *</label>
+                <input
+                  type="number"
+                  name="back_slope_rating"
+                  value={currentTee.back_slope_rating}
+                  onChange={handleTeeChange}
+                  className="form-input"
+                  placeholder="e.g., 136"
+                  max={250}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
         {holes.length === 0 ? (
           <button
             type="button"
@@ -404,6 +551,12 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                   Par {tee.par_total}, Rating: {tee.course_rating}, Slope: {tee.slope_rating}
                   <div className="manual-course-tee-meta">
                     {tee.number_of_holes} holes
+                    {tee.number_of_holes === 18 && tee.front_course_rating && tee.front_slope_rating
+                      ? ` | Front 9: ${tee.front_course_rating}/${tee.front_slope_rating}`
+                      : ''}
+                    {tee.number_of_holes === 18 && tee.back_course_rating && tee.back_slope_rating
+                      ? ` | Back 9: ${tee.back_course_rating}/${tee.back_slope_rating}`
+                      : ''}
                   </div>
                 </div>
                 <div className="manual-course-inline-actions">

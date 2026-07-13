@@ -1,6 +1,7 @@
 'use client';
 
 export const LIVE_ROUND_NAVIGATION_EVENT = 'golfiq-live-round-navigation-request';
+const LIVE_ROUND_EXIT_REDIRECT_PREFIX = 'golfiq:live-round:exit-redirect:v1:';
 
 export type LiveRoundNavigationRequest = {
   path?: string;
@@ -74,4 +75,38 @@ export function requestLiveRoundNavigation(detail: LiveRoundNavigationRequest) {
 
   window.dispatchEvent(event);
   return event.defaultPrevented;
+}
+
+function liveRoundExitRedirectKey(sessionId: string) {
+  return `${LIVE_ROUND_EXIT_REDIRECT_PREFIX}${sessionId}`;
+}
+
+export function markLiveRoundExitRedirect(sessionId: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(liveRoundExitRedirectKey(sessionId), '1');
+  } catch {
+    // Ignore storage failures. This is a history cleanup nicety, not core state.
+  }
+}
+
+export function clearLiveRoundExitRedirect(sessionId: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(liveRoundExitRedirectKey(sessionId));
+  } catch {
+    // noop
+  }
+}
+
+export function consumeLiveRoundExitRedirect(sessionId: string) {
+  if (typeof window === 'undefined') return false;
+  try {
+    const key = liveRoundExitRedirectKey(sessionId);
+    const shouldRedirect = window.sessionStorage.getItem(key) === '1';
+    if (shouldRedirect) window.sessionStorage.removeItem(key);
+    return shouldRedirect;
+  } catch {
+    return false;
+  }
 }

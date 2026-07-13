@@ -1,6 +1,11 @@
+/** @jest-environment jsdom */
+
 import {
+  clearLiveRoundExitRedirect,
+  consumeLiveRoundExitRedirect,
   getNextLiveRoundStep,
   getPreviousLiveRoundStep,
+  markLiveRoundExitRedirect,
 } from '@/lib/rounds/liveRoundNavigation';
 
 describe('live round step navigation', () => {
@@ -52,5 +57,16 @@ describe('live round step navigation', () => {
       activeIndex: 1,
       draftCount: 3,
     })).toEqual({ draftIndex: 0, activeStep: 'SCORE' });
+  });
+
+  it('stores live round exit redirects as one-shot markers', () => {
+    clearLiveRoundExitRedirect('500');
+
+    expect(consumeLiveRoundExitRedirect('500')).toBe(false);
+
+    markLiveRoundExitRedirect('500');
+
+    expect(consumeLiveRoundExitRedirect('500')).toBe(true);
+    expect(consumeLiveRoundExitRedirect('500')).toBe(false);
   });
 });

@@ -1177,6 +1177,71 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   overflow: hidden;
 }
 
+.course-gps-status-card {
+  display: grid;
+  gap: var(--gap-small);
+  color: var(--color-primary-text);
+}
+
+.course-gps-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.course-gps-status-copy {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  min-width: 0;
+  text-align: left;
+}
+
+.course-gps-status-copy strong {
+  display: block;
+  line-height: 1.15;
+}
+
+.course-gps-status-copy p {
+  margin: 4px 0 0;
+  text-align: left;
+}
+
+.course-gps-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-secondary-text);
+  background: var(--color-primary-surface);
+}
+
+.course-gps-status-icon.is-available {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-primary-surface));
+}
+
+.course-gps-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+  border-radius: 999px;
+  padding: 0 var(--padding);
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
 .tee-select-card select {
   width: 100%;
   max-width: 100%;
@@ -2616,6 +2681,13 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 }
 
 .info-tooltip-content.measuring {
+  position: fixed;
+  top: 0;
+  right: auto;
+  bottom: auto;
+  left: 0;
+  margin: 0;
+  transform: none;
   visibility: hidden;
 }
 
@@ -9019,6 +9091,7 @@ input[type='date'].form-input {
 .manual-course-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .manual-course-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .manual-course-section { padding: 10px; border-radius: 8px; background: var(--color-secondary-surface); color: var(--color-primary-text); border: 1px solid var(--color-border); }
+.manual-course-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-small); }
 .manual-course-holes-wrap { max-height: 400px; overflow-y: auto; margin-bottom: 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-primary-surface); }
 .manual-course-holes-table { background: var(--color-primary-surface); color: var(--color-primary-text); }
 .manual-course-holes-table th { background: var(--color-secondary-surface); color: var(--color-primary-text); }
@@ -9355,7 +9428,7 @@ input[type='date'].form-input {
   inset: var(--gps-green-distance-inset) var(--gps-green-distance-inset) auto auto;
   z-index: 2;
   display: grid;
-  min-width: 70px;
+  min-width: 82px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--border-radius);
@@ -9369,8 +9442,8 @@ input[type='date'].form-input {
   display: grid;
   grid-template-columns: 1fr;
   justify-items: center;
-  gap: var(--gap-small);
-  padding: var(--padding-small) var(--padding);
+  gap: 6px;
+  padding: 7px 12px;
   text-align: center;
 }
 
@@ -9381,7 +9454,7 @@ input[type='date'].form-input {
 .gps-green-distance-overlay span {
   display: block;
   color: rgba(248, 250, 252, 0.72);
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -9390,7 +9463,7 @@ input[type='date'].form-input {
 
 .gps-green-distance-overlay strong {
   display: block;
-  font-size: 1.18rem;
+  font-size: 1.42rem;
   line-height: 1;
   white-space: nowrap;
 }
@@ -10727,7 +10800,7 @@ input[type='date'].form-input {
 }
 
 .live-round-gps-fullscreen {
-  --live-round-gps-green-card-width: 70px;
+  --live-round-gps-green-card-width: 82px;
   position: fixed;
   z-index: 90;
   top: 80px;
@@ -10813,7 +10886,16 @@ input[type='date'].form-input {
   pointer-events: auto;
 }
 
+.live-round-gps-hole-menu {
+  position: relative;
+  display: grid;
+  justify-self: start;
+  width: 100%;
+  max-width: 100%;
+}
+
 .live-round-gps-hole-card {
+  appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--border-radius);
   padding: var(--padding);
@@ -10821,11 +10903,22 @@ input[type='date'].form-input {
   background: rgba(15, 23, 42, 0.86);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(8px);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.live-round-gps-hole-card:disabled {
+  cursor: progress;
+  opacity: 0.76;
+}
+
+.live-round-gps-hole-card.is-open {
+  border-color: rgba(255, 255, 255, 0.32);
 }
 
 .live-round-gps-hole-card {
   display: grid;
-  justify-self: start;
   gap: var(--gap-small);
   width: max-content;
   max-width: 100%;
@@ -10838,9 +10931,131 @@ input[type='date'].form-input {
 }
 
 .live-round-gps-hole-card strong {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-small);
   font-size: 1.25rem;
   line-height: 1.1;
   white-space: nowrap;
+}
+
+.live-round-gps-hole-card strong svg {
+  flex: 0 0 auto;
+  opacity: 0.82;
+}
+
+.live-round-gps-hole-card.is-open strong svg {
+  transform: rotate(180deg);
+}
+
+.live-round-gps-hole-picker {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + var(--gap-small));
+  left: 0;
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--border-radius);
+  padding: var(--padding) var(--padding) 0;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(8px);
+}
+
+.live-round-gps-hole-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--gap-small);
+}
+
+.live-round-gps-hole-picker-option,
+.live-round-gps-hole-picker-review {
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--border-radius);
+  color: #f8fafc;
+  background: transparent !important;
+  box-shadow: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0;
+}
+
+.live-round-gps-hole-picker-option {
+  display: grid;
+  place-items: center;
+  height: clamp(34px, 8vw, 42px);
+  min-height: 0;
+  font-size: clamp(0.95rem, 4.1vw, 1.16rem);
+  line-height: 1;
+}
+
+.live-round-gps-hole-picker-option.is-active,
+.live-round-gps-hole-picker-option[aria-current="true"] {
+  color: var(--color-accent-text);
+  background: var(--color-accent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+.live-round-gps-hole-picker-option:focus,
+.live-round-gps-hole-picker-option:focus-visible {
+  outline: 0;
+}
+
+.live-round-gps-hole-picker-review:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 72%, white);
+  outline-offset: 2px;
+}
+
+.live-round-gps-hole-picker-option.is-complete:not(.is-active)::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.live-round-gps-hole-picker-review {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-small);
+  width: calc(100% + (var(--padding) * 2));
+  height: 46px;
+  margin-top: var(--gap-small);
+  margin-right: calc(var(--padding) * -1);
+  margin-left: calc(var(--padding) * -1);
+  border-radius: 0 0 calc(var(--border-radius) - 1px) calc(var(--border-radius) - 1px);
+  color: var(--color-accent);
+  line-height: 1;
+}
+
+.live-round-gps-hole-picker-review::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.live-round-gps-hole-picker-review svg {
+  flex: 0 0 auto;
+}
+
+.live-round-gps-hole-picker-option:disabled,
+.live-round-gps-hole-picker-review:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 .live-round-gps-hole-meta {
@@ -10883,7 +11098,7 @@ input[type='date'].form-input {
 
 @media (max-width: 640px) {
   .live-round-gps-fullscreen {
-    --live-round-gps-green-card-width: 66px;
+    --live-round-gps-green-card-width: 82px;
   }
 }
 
@@ -10891,6 +11106,16 @@ input[type='date'].form-input {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+
+.live-round-segment-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.live-round-segment-switcher select {
+  width: 100%;
 }
 
 .live-round-review-heading {

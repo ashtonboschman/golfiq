@@ -8,7 +8,7 @@ import {
   ROUND_MISS_DIRECTION_VALUES,
   type RoundContext,
 } from '@/lib/rounds/finalizeRound';
-import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
+import { getValidTeeSegments, resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { getLiveGpsAvailabilityForCourse } from '@/lib/gps/liveMapping';
 
 const TEE_SEGMENT_VALUES = ['full', 'front9', 'back9', 'double9'] as const;
@@ -184,11 +184,13 @@ const updateLiveRoundNavigationSchema = z.object({
   active_hole_number: z.number().int().min(1).max(18).optional(),
   active_hole_pass: z.number().int().min(1).max(2).optional().default(1),
   active_step: z.enum(LIVE_ROUND_STEP_VALUES).optional(),
+  tee_segment: z.enum(TEE_SEGMENT_VALUES).optional(),
   round_context: z.enum(ROUND_CONTEXT_VALUES).optional(),
   notes: z.string().max(4000).nullable().optional(),
 }).refine((value) => (
   value.active_hole_number !== undefined ||
   value.active_step !== undefined ||
+  value.tee_segment !== undefined ||
   value.round_context !== undefined ||
   value.notes !== undefined
 ), {
@@ -292,6 +294,15 @@ function resolveSessionTeeContext(session: LiveRoundSessionRow) {
   }
 }
 
+function serializeAvailableTeeSegments(tee: TeeWithCourseAndHoles | undefined) {
+  if (!tee) return [];
+
+  return getValidTeeSegments(tee).map((segment) => ({
+    value: segment.value,
+    label: segment.label,
+  }));
+}
+
 export function serializeLiveRoundSession(session: LiveRoundSessionRow) {
   const teeContext = resolveSessionTeeContext(session);
 
@@ -339,6 +350,7 @@ export function serializeLiveRoundSession(session: LiveRoundSessionRow) {
       course_rating: teeContext?.courseRating ?? null,
       slope_rating: teeContext?.slopeRating ?? null,
     } : null,
+    available_tee_segments: serializeAvailableTeeSegments(session.tee),
     final_round: session.finalRound ? {
       id: session.finalRound.id.toString(),
       score: session.finalRound.score,
@@ -393,6 +405,60 @@ function buildExpectedDrafts(tee: TeeWithCourseAndHoles, teeSegment: TeeSegment)
       pass: 1,
     };
   });
+}
+
+async function reconcileLiveRoundDraftsForSegment(
+  tx: Prisma.TransactionClient,
+  session: LiveRoundSessionRow,
+  nextSegment: TeeSegment,
+) {
+  if (!session.tee || !session.holeDrafts) {
+    throw liveRoundError('Live round session is missing tee or hole drafts', 400, 'invalid_session_state');
+  }
+
+  const expectedDrafts = buildExpectedDrafts(session.tee, nextSegment);
+  if (expectedDrafts.length === 0) {
+    throw liveRoundError('Tee has no playable holes', 400, 'missing_tee_holes');
+  }
+
+  const existingKeys = new Set(session.holeDrafts.map((draft) => `${draft.holeId.toString()}:${draft.pass}`));
+  const missingDrafts = expectedDrafts.filter((draft) => !existingKeys.has(`${draft.holeId.toString()}:${draft.pass}`));
+  const keepConditions = expectedDrafts.map((draft) => ({
+    holeId: draft.holeId,
+    pass: draft.pass,
+  }));
+
+  await tx.liveRoundHoleDraft.deleteMany({
+    where: {
+      sessionId: session.id,
+      NOT: { OR: keepConditions },
+    },
+  });
+
+  if (missingDrafts.length > 0) {
+    await tx.liveRoundHoleDraft.createMany({
+      data: missingDrafts.map((draft) => ({
+        sessionId: session.id,
+        holeId: draft.holeId,
+        holeNumber: draft.holeNumber,
+        displayHoleNumber: draft.displayHoleNumber,
+        pass: draft.pass,
+      })),
+    });
+  }
+
+  const activeStillExists = expectedDrafts.some((draft) => (
+    draft.displayHoleNumber === session.activeHoleNumber &&
+    draft.pass === session.activeHolePass
+  ));
+  const startStillExists = expectedDrafts.some((draft) => draft.displayHoleNumber === session.startHoleNumber);
+  const firstDraft = expectedDrafts[0];
+
+  return {
+    activeHoleNumber: activeStillExists ? session.activeHoleNumber : firstDraft.displayHoleNumber,
+    activeHolePass: activeStillExists ? session.activeHolePass : firstDraft.pass,
+    startHoleNumber: startStillExists ? session.startHoleNumber : firstDraft.displayHoleNumber,
+  };
 }
 
 function assertActiveSession(session: LiveRoundSessionRow | null): LiveRoundSessionRow {
@@ -710,6 +776,8 @@ export async function updateLiveRoundNavigation(
       activeHoleNumber?: number;
       activeHolePass?: number;
       activeStep?: LiveRoundActiveStep;
+      teeSegment?: TeeSegment;
+      startHoleNumber?: number;
       roundContext?: RoundContext;
       notes?: string | null;
       lastSavedAt: Date;
@@ -738,7 +806,20 @@ export async function updateLiveRoundNavigation(
       await lockLiveRoundSessionForUpdate(tx, userId, sessionId);
       const session = assertActiveSession(await tx.liveRoundSession.findFirst({
         where: activeSessionWhere(userId, sessionId),
+        include: sessionInclude,
       }) as LiveRoundSessionRow | null);
+
+      if (data.tee_segment !== undefined && data.tee_segment !== session.teeSegment) {
+        const segmentState = await reconcileLiveRoundDraftsForSegment(tx, session, data.tee_segment);
+        updateData.teeSegment = data.tee_segment;
+        updateData.startHoleNumber = segmentState.startHoleNumber;
+
+        if (data.active_hole_number === undefined) {
+          updateData.activeHoleNumber = segmentState.activeHoleNumber;
+          updateData.activeHolePass = segmentState.activeHolePass;
+          updateData.activeStep = data.active_step ?? (session.gpsEnabled ? 'GPS' : 'SCORE');
+        }
+      }
 
       if (data.active_hole_number !== undefined) {
         const targetDraft = await tx.liveRoundHoleDraft.findFirst({

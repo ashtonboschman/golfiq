@@ -86,6 +86,10 @@ export type LiveRoundSession = {
     course_rating: number | null;
     slope_rating: number | null;
   } | null;
+  available_tee_segments: Array<{
+    value: TeeSegment;
+    label: string;
+  }>;
   final_round: {
     id: string;
     score: number;

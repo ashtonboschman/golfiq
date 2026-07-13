@@ -10,6 +10,26 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { isAdminUserId } from '@/lib/admin';
 
+function formatNineRating(tee: any, segment: 'front' | 'back') {
+  const rating = tee[`${segment}_course_rating`];
+  const slope = tee[`${segment}_slope_rating`];
+
+  return rating != null && slope != null
+    ? `${segment === 'front' ? 'Front 9' : 'Back 9'}: ${rating}/${slope}`
+    : null;
+}
+
+function formatTeePreviewText(tee: any) {
+  const segmentRatings = [
+    formatNineRating(tee, 'front'),
+    formatNineRating(tee, 'back'),
+  ].filter(Boolean);
+
+  return segmentRatings.length > 0
+    ? ` - ${segmentRatings.join(', ')}`
+    : '';
+}
+
 export default function ImportCoursePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -488,7 +508,7 @@ export default function ImportCoursePage() {
                         />
                         <span className="admin-course-tee-text">
                           <strong>{tee.tee_name}</strong> - {tee.total_yards} yd (Rating: {tee.course_rating}
-                          /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes
+                          /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes{formatTeePreviewText(tee)}
                         </span>
                       </label>
                     ))}
@@ -513,7 +533,7 @@ export default function ImportCoursePage() {
                         />
                         <span className="admin-course-tee-text">
                           <strong>{tee.tee_name}</strong> - {tee.total_yards} yd (Rating: {tee.course_rating}
-                          /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes
+                          /Slope: {tee.slope_rating}) - {tee.number_of_holes} holes{formatTeePreviewText(tee)}
                         </span>
                       </label>
                     ))}
@@ -621,6 +641,10 @@ export default function ImportCoursePage() {
                   "tee_name": "Blue",
                   "course_rating": 72.5,
                   "slope_rating": 135,
+                  "front_course_rating": 36.2,
+                  "front_slope_rating": 134,
+                  "back_course_rating": 36.3,
+                  "back_slope_rating": 136,
                   "total_yards": 6800,
                   "number_of_holes": 18,
                   "par_total": 72,

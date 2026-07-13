@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { createCompletedRoundFromInput } from '@/lib/rounds/finalizeRound';
-import { resolveTeeContext } from '@/lib/tee/resolveTeeContext';
+import { getValidTeeSegments, resolveTeeContext } from '@/lib/tee/resolveTeeContext';
 import { getLiveGpsAvailabilityForCourse } from '@/lib/gps/liveMapping';
 import {
   createLiveRoundSession,
@@ -28,6 +28,7 @@ jest.mock('@/lib/db', () => ({
       update: jest.fn(),
     },
     liveRoundHoleDraft: {
+      createMany: jest.fn(),
       deleteMany: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -49,6 +50,7 @@ jest.mock('@/lib/rounds/finalizeRound', () => ({
 }));
 
 jest.mock('@/lib/tee/resolveTeeContext', () => ({
+  getValidTeeSegments: jest.fn(),
   resolveTeeContext: jest.fn(),
 }));
 
@@ -71,6 +73,7 @@ type MockPrisma = {
     update: jest.Mock;
   };
   liveRoundHoleDraft: {
+    createMany: jest.Mock;
     deleteMany: jest.Mock;
     findFirst: jest.Mock;
     update: jest.Mock;
@@ -80,6 +83,7 @@ type MockPrisma = {
 };
 
 const mockedPrisma = prisma as unknown as MockPrisma;
+const mockedGetValidTeeSegments = getValidTeeSegments as jest.Mock;
 const mockedResolveTeeContext = resolveTeeContext as jest.Mock;
 const mockedGetLiveGpsAvailabilityForCourse = getLiveGpsAvailabilityForCourse as jest.Mock;
 const mockedCreateCompletedRoundFromInput = createCompletedRoundFromInput as jest.Mock;
@@ -200,6 +204,11 @@ describe('liveRoundSessionService', () => {
       slopeRating: 120,
       holeRange: [1, 2],
     });
+    mockedGetValidTeeSegments.mockReturnValue([
+      { value: 'full', label: '18 Holes' },
+      { value: 'front9', label: 'Front 9' },
+      { value: 'back9', label: 'Back 9' },
+    ]);
     mockedPrisma.userProfile.findUnique.mockResolvedValue({
       liveRoundTrackFir: true,
       liveRoundTrackGir: false,
@@ -546,6 +555,124 @@ describe('liveRoundSessionService', () => {
     );
     expect(result.session.round_context).toBe('practice');
     expect(result.session.notes).toBe('Worked on wedges');
+  });
+
+  it('expands a front 9 live round to 18 holes without losing existing front scores', async () => {
+    mockedResolveTeeContext.mockReturnValueOnce({
+      holes: 18,
+      parTotal: 72,
+      nonPar3Holes: 14,
+      courseRating: 72,
+      slopeRating: 120,
+      holeRange: Array.from({ length: 18 }, (_, index) => index + 1),
+    });
+    const frontDrafts = Array.from({ length: 9 }, (_, index) => makeDraft(index + 1));
+    const session = makeSession({
+      tee: makeTee(18, 18),
+      teeSegment: 'front9',
+      activeHoleNumber: 9,
+      holeDrafts: frontDrafts,
+    });
+    mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(session);
+    mockedPrisma.liveRoundSession.update.mockResolvedValue(makeSession({
+      ...session,
+      teeSegment: 'full',
+      holeDrafts: [
+        ...frontDrafts,
+        ...Array.from({ length: 9 }, (_, index) => makeDraft(index + 10, { score: null })),
+      ],
+    }));
+
+    await updateLiveRoundNavigation(BigInt(1), '500', {
+      tee_segment: 'full',
+    });
+
+    expect(mockedPrisma.liveRoundHoleDraft.deleteMany).toHaveBeenCalledWith({
+      where: {
+        sessionId: BigInt(500),
+        NOT: {
+          OR: expect.arrayContaining([
+            { holeId: BigInt(101), pass: 1 },
+            { holeId: BigInt(118), pass: 1 },
+          ]),
+        },
+      },
+    });
+    expect(mockedPrisma.liveRoundHoleDraft.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ sessionId: BigInt(500), holeId: BigInt(110), displayHoleNumber: 10, pass: 1 }),
+        expect.objectContaining({ sessionId: BigInt(500), holeId: BigInt(118), displayHoleNumber: 18, pass: 1 }),
+      ]),
+    });
+    expect(mockedPrisma.liveRoundHoleDraft.createMany.mock.calls[0][0].data).toHaveLength(9);
+    expect(mockedPrisma.liveRoundSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          teeSegment: 'full',
+          startHoleNumber: 1,
+          activeHoleNumber: 9,
+          activeHolePass: 1,
+        }),
+      }),
+    );
+  });
+
+  it('trims an 18-hole live round to the front 9 and moves the active hole back into range', async () => {
+    mockedResolveTeeContext.mockReturnValueOnce({
+      holes: 9,
+      parTotal: 36,
+      nonPar3Holes: 7,
+      courseRating: 36,
+      slopeRating: 118,
+      holeRange: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    });
+    const fullDrafts = Array.from({ length: 18 }, (_, index) => makeDraft(index + 1));
+    const session = makeSession({
+      tee: makeTee(18, 18),
+      activeHoleNumber: 12,
+      holeDrafts: fullDrafts,
+    });
+    mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(session);
+    mockedPrisma.liveRoundSession.update.mockResolvedValue(makeSession({
+      ...session,
+      teeSegment: 'front9',
+      activeHoleNumber: 1,
+      holeDrafts: fullDrafts.slice(0, 9),
+    }));
+
+    await updateLiveRoundNavigation(BigInt(1), '500', {
+      tee_segment: 'front9',
+    });
+
+    expect(mockedPrisma.liveRoundHoleDraft.deleteMany).toHaveBeenCalledWith({
+      where: {
+        sessionId: BigInt(500),
+        NOT: {
+          OR: [
+            { holeId: BigInt(101), pass: 1 },
+            { holeId: BigInt(102), pass: 1 },
+            { holeId: BigInt(103), pass: 1 },
+            { holeId: BigInt(104), pass: 1 },
+            { holeId: BigInt(105), pass: 1 },
+            { holeId: BigInt(106), pass: 1 },
+            { holeId: BigInt(107), pass: 1 },
+            { holeId: BigInt(108), pass: 1 },
+            { holeId: BigInt(109), pass: 1 },
+          ],
+        },
+      },
+    });
+    expect(mockedPrisma.liveRoundHoleDraft.createMany).not.toHaveBeenCalled();
+    expect(mockedPrisma.liveRoundSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          teeSegment: 'front9',
+          startHoleNumber: 1,
+          activeHoleNumber: 1,
+          activeHolePass: 1,
+        }),
+      }),
+    );
   });
 
   it('rechecks active status under the session lock before updating review details', async () => {

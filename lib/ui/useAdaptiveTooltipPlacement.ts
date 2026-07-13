@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 type TooltipHorizontalPosition = 'center' | 'left' | 'right';
 type TooltipVerticalPosition = 'above' | 'below';
@@ -11,6 +11,9 @@ export function useAdaptiveTooltipPlacement(show: boolean) {
   const [isPositioned, setIsPositioned] = useState(false);
   const displayPosition = isPositioned ? position : 'center';
   const displayVertical = isPositioned ? vertical : 'above';
+  const resetPlacement = useCallback(() => {
+    setIsPositioned(false);
+  }, []);
 
   useLayoutEffect(() => {
     if (!show) return;
@@ -31,9 +34,12 @@ export function useAdaptiveTooltipPlacement(show: boolean) {
         headerEl instanceof HTMLElement ? headerEl.getBoundingClientRect().bottom : 0;
       const topSafeBoundary = Math.max(edgePadding, headerBottom + edgePadding);
 
-      if (rect.right > viewportWidth - edgePadding) {
+      const centeredLeft = containerRect.left + (containerRect.width / 2) - (rect.width / 2);
+      const centeredRight = centeredLeft + rect.width;
+
+      if (centeredRight > viewportWidth - edgePadding) {
         setPosition('right');
-      } else if (rect.left < edgePadding) {
+      } else if (centeredLeft < edgePadding) {
         setPosition('left');
       } else {
         setPosition('center');
@@ -71,6 +77,6 @@ export function useAdaptiveTooltipPlacement(show: boolean) {
     displayPosition,
     displayVertical,
     isPositioned,
+    resetPlacement,
   };
 }
-

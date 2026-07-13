@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Flag, LoaderCircle, Trash2 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Flag, LoaderCircle, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
@@ -14,11 +14,14 @@ import {
   type LiveRoundHoleDraft,
   type LiveRoundSession,
   type RoundContext,
+  type TeeSegment,
 } from '@/components/rounds/live/types';
 import {
+  consumeLiveRoundExitRedirect,
   getNextLiveRoundStep,
   getPreviousLiveRoundStep,
   LIVE_ROUND_NAVIGATION_EVENT,
+  markLiveRoundExitRedirect,
   type LiveRoundNavigationRequest,
 } from '@/lib/rounds/liveRoundNavigation';
 import { createLatestAutosaveQueue } from '@/lib/rounds/latestAutosaveQueue';
@@ -126,6 +129,20 @@ function orderDraftsForPlay(drafts: LiveRoundHoleDraft[], startHoleNumber: numbe
   return [...drafts.slice(startIndex), ...drafts.slice(0, startIndex)];
 }
 
+function draftBelongsToSegment(draft: LiveRoundHoleDraft, segment: TeeSegment, teeHoles?: number | null) {
+  switch (segment) {
+    case 'front9':
+      return draft.pass === 1 && draft.display_hole_number >= 1 && draft.display_hole_number <= 9;
+    case 'back9':
+      return draft.pass === 1 && draft.display_hole_number >= 10 && draft.display_hole_number <= 18;
+    case 'double9':
+      return draft.display_hole_number >= 1 && draft.display_hole_number <= 18;
+    case 'full':
+    default:
+      return draft.pass === 1 && draft.display_hole_number >= 1 && draft.display_hole_number <= (teeHoles === 9 ? 9 : 18);
+  }
+}
+
 function scrollLiveRoundToTop({ defer = false }: { defer?: boolean } = {}) {
   if (typeof window === 'undefined') return;
 
@@ -166,9 +183,11 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const [finalizing, setFinalizing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [navigationPending, setNavigationPending] = useState(false);
+  const [segmentChanging, setSegmentChanging] = useState(false);
   const [viewMode, setViewMode] = useState<LiveRoundViewMode>('score');
   const [returnToReviewAvailable, setReturnToReviewAvailable] = useState(false);
   const [reviewReturnDraftId, setReviewReturnDraftId] = useState<string | null>(null);
+  const [showGpsHolePicker, setShowGpsHolePicker] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [showRoundTagPicker, setShowRoundTagPicker] = useState(false);
   const [hasPendingNotes, setHasPendingNotes] = useState(false);
@@ -278,6 +297,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
 
   const loadSession = useCallback(async () => {
     if (status !== 'authenticated') return;
+
+    if (consumeLiveRoundExitRedirect(sessionId)) {
+      setLoading(false);
+      router.replace('/rounds');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -586,8 +611,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       navigationEvent.preventDefault();
       confirmLeaveLiveRound(() => {
         if (detail.back) {
-          allowBrowserBackRef.current = true;
-          window.history.go(-2);
+          markLiveRoundExitRedirect(session?.id ?? sessionId);
+          router.replace('/rounds');
           return;
         }
 
@@ -627,7 +652,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       window.removeEventListener(LIVE_ROUND_NAVIGATION_EVENT, handleLiveRoundNavigationRequest);
       document.removeEventListener('click', handleDocumentClick, true);
     };
-  }, [confirmLeaveLiveRound, router, session]);
+  }, [confirmLeaveLiveRound, router, session, sessionId]);
 
   const moveToDraft = async (
     targetDraft: LiveRoundHoleDraft,
@@ -679,8 +704,27 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     }
   };
 
+  const handleGpsHolePickerSelect = (targetDraft: LiveRoundHoleDraft) => {
+    setShowGpsHolePicker(false);
+    if (
+      session?.active_hole_number === targetDraft.display_hole_number &&
+      session.active_hole_pass === targetDraft.pass &&
+      session.active_step === 'GPS'
+    ) {
+      return;
+    }
+
+    void moveToDraft(targetDraft, { activeStep: 'GPS' });
+  };
+
+  const handleGpsHolePickerReview = () => {
+    setShowGpsHolePicker(false);
+    void handleReview();
+  };
+
   const handlePrevious = () => {
     if (!session) return;
+    setShowGpsHolePicker(false);
     const target = getPreviousLiveRoundStep({
       gpsEnabled: session.gpsEnabled,
       activeStep: session.active_step,
@@ -694,6 +738,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
 
   const handleNext = () => {
     if (!session) return;
+    setShowGpsHolePicker(false);
     const target = getNextLiveRoundStep({
       gpsEnabled: session.gpsEnabled,
       activeStep: session.active_step,
@@ -705,10 +750,72 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     void moveToDraft(playOrderDrafts[target.draftIndex], { activeStep: target.activeStep });
   };
 
+  const handleSegmentChange = (nextSegment: TeeSegment) => {
+    if (!session || nextSegment === session.tee_segment || navigationPendingRef.current || segmentChanging) return;
+
+    const nextSegmentLabel = (session.available_tee_segments ?? []).find((segment) => segment.value === nextSegment)?.label
+      ?? teeSegmentLabel(nextSegment, session.tee?.number_of_holes);
+    const dropsScoredDrafts = session.hole_drafts.some((draft) => (
+      draft.score !== null && !draftBelongsToSegment(draft, nextSegment, session.tee?.number_of_holes)
+    ));
+
+    const applyChange = async () => {
+      navigationPendingRef.current = true;
+      setNavigationPending(true);
+      setSegmentChanging(true);
+      setError(null);
+      setAutosaveStatus('saving');
+      setAutosaveMessage('Saving...');
+
+      try {
+        const saved = await flushAll();
+        if (!saved) return;
+
+        const response = await fetch(`/api/rounds/live/sessions/${session.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tee_segment: nextSegment }),
+        });
+        const data = await readApiResponse<{ session: LiveRoundSession }>(response);
+        setSession(data.session);
+        setNotesDraft(data.session.notes ?? '');
+        setReturnToReviewAvailable(false);
+        setReviewReturnDraftId(null);
+        setAutosaveStatus('saved');
+        setAutosaveMessage('Saved');
+        scrollLiveRoundToTop();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to change round type');
+        setAutosaveStatus('error');
+        setAutosaveMessage(err instanceof Error ? err.message : 'Unable to change round type');
+      } finally {
+        navigationPendingRef.current = false;
+        setNavigationPending(false);
+        setSegmentChanging(false);
+      }
+    };
+
+    if (dropsScoredDrafts) {
+      showConfirm({
+        title: 'Switch round type?',
+        message: `Scores outside ${nextSegmentLabel} will be removed from this live round.`,
+        cancelText: 'Cancel',
+        confirmText: 'Confirm',
+        variant: 'neutral',
+        confirmVariant: 'danger',
+        onConfirm: applyChange,
+      });
+      return;
+    }
+
+    void applyChange();
+  };
+
   const handleReview = async () => {
     if (navigationPendingRef.current) return;
     navigationPendingRef.current = true;
     setNavigationPending(true);
+    setShowGpsHolePicker(false);
     try {
       const saved = await flushAll();
       if (!saved) return;
@@ -874,6 +981,25 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const physicalHoleNote = session.tee_segment === 'double9' && activeDraft.pass === 2
     ? `Physical Hole ${activeDraft.hole_number}, Pass 2`
     : null;
+  const availableTeeSegments = session.available_tee_segments ?? [];
+  const liveRoundTypeSwitcher = availableTeeSegments.length > 1 ? (
+    <div className="live-round-segment-switcher">
+      <label className="form-label" htmlFor="live-round-tee-segment">Round Type</label>
+      <select
+        id="live-round-tee-segment"
+        className="form-input"
+        value={session.tee_segment}
+        onChange={(event) => handleSegmentChange(event.target.value as TeeSegment)}
+        disabled={navigationPending || segmentChanging || finalizing || discarding}
+      >
+        {availableTeeSegments.map((segment) => (
+          <option key={segment.value} value={segment.value}>
+            {segment.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  ) : null;
 
   const persistentGpsLayer = session.gpsEnabled ? (
       <div
@@ -904,11 +1030,59 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
         </div>
 
         <div className="live-round-gps-hud">
-          <div className="live-round-gps-hole-card">
-            <strong>Hole {activeDraft.display_hole_number}</strong>
-            <small className="live-round-gps-hole-meta">{activeHoleContextLabel}</small>
-            {physicalHoleNote && (
-              <small className="live-round-gps-physical-hole-note">{physicalHoleNote}</small>
+          <div className="live-round-gps-hole-menu">
+            <button
+              type="button"
+              className={`live-round-gps-hole-card${showGpsHolePicker ? ' is-open' : ''}`}
+              onClick={() => setShowGpsHolePicker((prev) => !prev)}
+              aria-expanded={showGpsHolePicker}
+              aria-controls="live-round-gps-hole-picker"
+              disabled={navigationPending}
+            >
+              <strong>
+                Hole {activeDraft.display_hole_number}
+                <ChevronDown size={18} aria-hidden="true" />
+              </strong>
+              <small className="live-round-gps-hole-meta">{activeHoleContextLabel}</small>
+              {physicalHoleNote && (
+                <small className="live-round-gps-physical-hole-note">{physicalHoleNote}</small>
+              )}
+            </button>
+
+            {showGpsHolePicker && (
+              <div
+                id="live-round-gps-hole-picker"
+                className="live-round-gps-hole-picker"
+                role="dialog"
+                aria-label="Choose Hole"
+              >
+                <div className="live-round-gps-hole-picker-grid">
+                  {sortedDrafts.map((draft) => {
+                    const isActive = draft.id === activeDraft.id;
+                    return (
+                      <button
+                        key={draft.id}
+                        type="button"
+                        className={`live-round-gps-hole-picker-option${isActive ? ' is-active' : ''}${draft.score !== null ? ' is-complete' : ''}`}
+                        onClick={() => handleGpsHolePickerSelect(draft)}
+                        disabled={navigationPending}
+                        aria-current={isActive ? 'true' : undefined}
+                      >
+                        {draft.display_hole_number}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="live-round-gps-hole-picker-review"
+                  onClick={handleGpsHolePickerReview}
+                  disabled={navigationPending}
+                >
+                  <Flag size={18} aria-hidden="true" />
+                  Review
+                </button>
+              </div>
             )}
           </div>
 
@@ -998,6 +1172,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
             <div className="live-round-review-heading">
               <h2>Round Summary</h2>
             </div>
+
+            {liveRoundTypeSwitcher}
 
             <div className="live-round-review-grid">
               <div>

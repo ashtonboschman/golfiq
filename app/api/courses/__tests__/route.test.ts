@@ -160,4 +160,95 @@ describe('/api/courses route', () => {
     expect(body.message).toMatch(/invalid/i);
     expect(mockedPrisma.course.create).not.toHaveBeenCalled();
   });
+
+  it('persists front and back 9 rating and slope from admin imports', async () => {
+    mockedPrisma.course.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: BigInt(123),
+        clubName: 'Test Club',
+        courseName: 'Test Course',
+        verified: false,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+        location: null,
+        tees: [
+          {
+            id: BigInt(456),
+            teeName: 'Blue',
+            gender: 'male',
+            courseRating: '72.5',
+            slopeRating: 135,
+            bogeyRating: null,
+            totalYards: 6800,
+            totalMeters: null,
+            numberOfHoles: 18,
+            nonPar3Holes: 14,
+            parTotal: 72,
+            frontCourseRating: '36.2',
+            frontSlopeRating: 134,
+            frontBogeyRating: null,
+            backCourseRating: '36.3',
+            backSlopeRating: 136,
+            backBogeyRating: null,
+            holes: [],
+          },
+        ],
+      });
+    mockedPrisma.course.create.mockResolvedValue({
+      id: BigInt(123),
+      clubName: 'Test Club',
+      courseName: 'Test Course',
+    });
+    mockedPrisma.tee.create.mockResolvedValue({ id: BigInt(456) });
+    mockedPrisma.hole.createMany.mockResolvedValue({ count: 0 });
+
+    const request = new Request('http://localhost/api/courses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 123,
+        club_name: 'Test Club',
+        course_name: 'Test Course',
+        tees: {
+          male: [
+            {
+              tee_name: 'Blue',
+              course_rating: 72.5,
+              slope_rating: 135,
+              front_course_rating: 36.2,
+              front_slope_rating: 134,
+              back_course_rating: 36.3,
+              back_slope_rating: 136,
+              total_yards: 6800,
+              number_of_holes: 18,
+              par_total: 72,
+              holes: [],
+            },
+          ],
+        },
+      }),
+    });
+
+    const response = await POST(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.tee.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          frontCourseRating: '36.2',
+          frontSlopeRating: 134,
+          backCourseRating: '36.3',
+          backSlopeRating: 136,
+        }),
+      }),
+    );
+    expect(body.course.tees.male[0]).toEqual(expect.objectContaining({
+      front_course_rating: 36.2,
+      front_slope_rating: 134,
+      back_course_rating: 36.3,
+      back_slope_rating: 136,
+    }));
+  });
 });
