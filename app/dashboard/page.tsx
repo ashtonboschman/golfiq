@@ -1734,11 +1734,6 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           )}
           <MissTendenciesChart
             data={stats.miss_tendencies ?? null}
-            accentColor={accentColor}
-            accentHighlight={accentHighlight}
-            surfaceColor={surfaceColor}
-            textColor={textColor}
-            gridColor={gridColor}
           />
         </div>
       )}

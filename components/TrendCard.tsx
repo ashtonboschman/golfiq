@@ -28,6 +28,12 @@ function formatSignedNumber(value: number): string {
   return rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1);
 }
 
+function formatSignedInteger(value: number): string {
+  const rounded = Math.round(value);
+  if (rounded === 0 || Object.is(rounded, -0)) return '0';
+  return rounded > 0 ? `+${rounded}` : `${rounded}`;
+}
+
 function formatHandicapInteger(value: number): string {
   const rounded = Math.round(value);
   if (rounded === 0 || Object.is(rounded, -0)) return '0';
@@ -138,14 +144,15 @@ export default function TrendCard({
         ticks: {
           color: textColor,
           stepSize: yStep ?? 5,
-          autoSkip: false,
+          autoSkip: true,
+          maxTicksLimit: 7,
           callback: (value: any) => {
             const firstDatasetLabel = String(trendData.datasets[0]?.label ?? '');
             if (firstDatasetLabel === 'Score to Par') {
               return formatToPar(Number(value));
             }
             if (firstDatasetLabel === 'Strokes Gained Total' || firstDatasetLabel === 'SG Total') {
-              return formatSignedNumber(Number(value));
+              return formatSignedInteger(Number(value));
             }
             if (firstDatasetLabel === 'Handicap Trend' || firstDatasetLabel === 'Handicap') {
               return formatHandicapInteger(Number(value));
@@ -174,4 +181,3 @@ export default function TrendCard({
     </div>
   );
 }
-

@@ -490,14 +490,17 @@ export async function GET(request: NextRequest) {
     let girTotalMisses = 0;
 
     roundHoles.forEach((rh: any) => {
-      if (rh.firHit === 0) firTotalMisses += 1;
-      if (rh.girHit === 0) girTotalMisses += 1;
-
-      if (rh.firDirection && MISS_DIRECTION_KEYS.includes(rh.firDirection)) {
-        firDirectionCounts[rh.firDirection as MissDirectionKey] += 1;
+      if (rh.firHit === 0) {
+        firTotalMisses += 1;
+        if (rh.firDirection && MISS_DIRECTION_KEYS.includes(rh.firDirection)) {
+          firDirectionCounts[rh.firDirection as MissDirectionKey] += 1;
+        }
       }
-      if (rh.girDirection && MISS_DIRECTION_KEYS.includes(rh.girDirection)) {
-        girDirectionCounts[rh.girDirection as MissDirectionKey] += 1;
+      if (rh.girHit === 0) {
+        girTotalMisses += 1;
+        if (rh.girDirection && MISS_DIRECTION_KEYS.includes(rh.girDirection)) {
+          girDirectionCounts[rh.girDirection as MissDirectionKey] += 1;
+        }
       }
     });
 

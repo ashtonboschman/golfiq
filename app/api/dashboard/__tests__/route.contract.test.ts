@@ -294,14 +294,40 @@ describe('/api/dashboard route contract', () => {
     );
     const handicapInput = mockedCalculateHandicap.mock.calls[0][0];
     expect(handicapInput).toHaveLength(20);
+    const cappedRoundHoleIds = mockedPrisma.roundHole.findMany.mock.calls[0][0].where.roundId.in;
+    expect(cappedRoundHoleIds).toHaveLength(20);
+    expect(cappedRoundHoleIds).toContain(BigInt(25));
+    expect(cappedRoundHoleIds).toContain(BigInt(6));
+    expect(cappedRoundHoleIds).not.toContain(BigInt(5));
   });
 
-  it('returns FIR/GIR miss tendencies percentages from directional misses', async () => {
+  it('applies the selected date period to the same real-round source used by miss tendencies', async () => {
+    const response = await GET(
+      new Request('http://localhost/api/dashboard?statsMode=combined&dateFilter=30') as any,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: BigInt(1),
+          roundContext: 'real',
+          date: expect.objectContaining({
+            gte: expect.any(Date),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('returns FIR/GIR miss tendencies from recognized directions on missed outcomes only', async () => {
     mockedPrisma.roundHole.findMany.mockResolvedValue([
       { roundId: BigInt(25), firHit: 0, firDirection: 'miss_left', girHit: 0, girDirection: 'miss_short', hole: { par: 4 }, score: 5 },
       { roundId: BigInt(24), firHit: 0, firDirection: 'miss_right', girHit: 0, girDirection: 'miss_short', hole: { par: 4 }, score: 5 },
       { roundId: BigInt(23), firHit: 0, firDirection: 'miss_right', girHit: 0, girDirection: 'miss_long', hole: { par: 5 }, score: 6 },
       { roundId: BigInt(22), firHit: 0, firDirection: null, girHit: 0, girDirection: null, hole: { par: 4 }, score: 5 },
+      { roundId: BigInt(21), firHit: 1, firDirection: 'miss_long', girHit: 1, girDirection: 'miss_left', hole: { par: 4 }, score: 4 },
+      { roundId: BigInt(20), firHit: 0, firDirection: 'unknown', girHit: 0, girDirection: 'unknown', hole: { par: 4 }, score: 5 },
     ]);
 
     const request = new Request('http://localhost/api/dashboard?statsMode=combined');
@@ -316,14 +342,14 @@ describe('/api/dashboard route contract', () => {
         fir: expect.objectContaining({
           counts: [1, 2, 0, 0],
           tracked_misses: 3,
-          total_misses: 4,
-          untracked_misses: 1,
+          total_misses: 5,
+          untracked_misses: 2,
         }),
         gir: expect.objectContaining({
           counts: [0, 0, 2, 1],
           tracked_misses: 3,
-          total_misses: 4,
-          untracked_misses: 1,
+          total_misses: 5,
+          untracked_misses: 2,
         }),
       }),
     );
@@ -742,6 +768,13 @@ describe('/api/dashboard route contract', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(mockedPrisma.roundHole.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          roundId: { in: [BigInt(201)] },
+        },
+      }),
+    );
     expect(body.scoring_profile.normalized_counts).toEqual({
       birdie_plus: 2,
       par: 3,

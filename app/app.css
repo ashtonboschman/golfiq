@@ -2850,6 +2850,279 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 }
 
 /* ===========================
+   Dashboard Miss Tendencies
+=========================== */
+
+.miss-tendencies-card {
+  align-items: stretch;
+  height: auto;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.miss-tendencies-card > h3,
+.directional-miss-section h4,
+.directional-miss-section p,
+.directional-miss-direction dt,
+.directional-miss-direction dd {
+  margin: 0;
+}
+
+.miss-tendencies-card > h3 {
+  text-align: center;
+}
+
+.miss-tendencies-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.miss-tendencies-divider {
+  height: 1px;
+  background-color: var(--color-border);
+}
+
+.directional-miss-section {
+  --direction-color: var(--color-accent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+  min-width: 0;
+}
+
+.directional-miss-section.is-green {
+  --direction-color: var(--color-accent-highlight);
+}
+
+.directional-miss-section-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap);
+  text-align: center;
+}
+
+.directional-miss-section-header h4 {
+  width: 100%;
+  color: var(--color-primary-text);
+  font-size: 1rem;
+}
+
+.directional-miss-limited {
+  position: absolute;
+  right: 0;
+  flex-shrink: 0;
+  padding: 2px var(--padding-small);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-secondary-text);
+  background-color: var(--color-secondary-surface);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.directional-miss-grid {
+  display: grid;
+  grid-template-columns: minmax(62px, 1fr) minmax(152px, 190px) minmax(62px, 1fr);
+  grid-template-rows: auto minmax(152px, 190px) auto;
+  align-items: center;
+  column-gap: var(--gap-small);
+  row-gap: var(--gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.directional-miss-values {
+  display: contents;
+}
+
+.directional-miss-direction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: var(--color-primary-text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.directional-miss-direction dt {
+  color: var(--color-secondary-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.directional-miss-direction dd {
+  font-family: var(--font-space-grotesk), monospace;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.directional-miss-direction.is-strongest dd {
+  color: var(--direction-color);
+  font-weight: 800;
+}
+
+.directional-miss-direction.is-long {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.directional-miss-direction.is-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.directional-miss-direction.is-right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.directional-miss-direction.is-short {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.directional-miss-target {
+  grid-column: 2;
+  grid-row: 2;
+  display: block;
+  width: 100%;
+  max-width: 190px;
+  aspect-ratio: 1;
+  color: var(--direction-color);
+  overflow: visible;
+}
+
+.directional-miss-region {
+  stroke: transparent;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.directional-miss-region.is-strongest {
+  stroke: currentColor;
+}
+
+.directional-miss-arrows {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.directional-miss-arrow-line {
+  stroke-dasharray: 3 5;
+  opacity: 0.48;
+}
+
+.directional-miss-arrow-head {
+  opacity: 0.78;
+}
+
+.directional-miss-target-core {
+  color: var(--color-green);
+}
+
+.directional-miss-fairway-rough {
+  fill: color-mix(in srgb, var(--color-green) 38%, var(--color-primary-surface));
+  stroke: color-mix(in srgb, var(--color-green) 68%, var(--color-primary-text));
+  stroke-width: 1.5;
+}
+
+.directional-miss-fairway-main,
+.directional-miss-green-main {
+  fill: color-mix(in srgb, var(--color-green) 62%, var(--color-primary-surface));
+  stroke: var(--color-green);
+  stroke-width: 1.5;
+}
+
+.directional-miss-target-centerline,
+.directional-miss-target-stripe,
+.directional-miss-target-ring,
+.directional-miss-green-pin {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-green) 40%, var(--color-primary-text));
+}
+
+.directional-miss-target-centerline {
+  stroke-dasharray: 4 4;
+  stroke-width: 1;
+}
+
+.directional-miss-target-stripe {
+  opacity: 0.24;
+  stroke-width: 0.8;
+}
+
+.directional-miss-target-ring {
+  opacity: 0.72;
+  stroke-width: 1;
+}
+
+.directional-miss-green-pin {
+  stroke-width: 1.5;
+}
+
+.directional-miss-green-flag {
+  fill: var(--color-red);
+  stroke: var(--color-red);
+  stroke-width: 1;
+}
+
+.directional-miss-target-core circle {
+  fill: var(--color-primary-text);
+  stroke: none;
+}
+
+.directional-miss-empty,
+.miss-tendencies-empty {
+  color: var(--color-secondary-text);
+  text-align: center;
+}
+
+.directional-miss-empty {
+  padding: var(--padding-large) var(--padding);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--border-radius);
+}
+
+.miss-tendencies-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-small);
+  padding: var(--padding-large) var(--padding);
+}
+
+.miss-tendencies-empty-title {
+  margin: 0;
+  color: var(--color-primary-text);
+  font-weight: 700;
+}
+
+.miss-tendencies-empty p {
+  margin: 0;
+}
+
+@media (max-width: 360px) {
+  .directional-miss-grid {
+    grid-template-columns: minmax(58px, 1fr) minmax(118px, 137px) minmax(58px, 1fr);
+    grid-template-rows: auto minmax(118px, 137px) auto;
+  }
+
+  .directional-miss-direction dd {
+    font-size: 1.1rem;
+  }
+}
+
+/* ===========================
    Settings Page Styles
 =========================== */
 
