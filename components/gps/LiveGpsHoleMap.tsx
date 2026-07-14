@@ -13,6 +13,11 @@ import {
   resolveLiveGpsMeasurementOrigin,
 } from '@/lib/gps/liveRoute';
 import { selectRelevantLiveRouteTargets } from '@/lib/gps/liveTargetRelevance';
+import {
+  resolveClubSuggestion,
+  type ClubSuggestionClub,
+} from '@/lib/clubs/clubSuggestion';
+import { resolveActiveTargetYards } from '@/lib/gps/routeYardage';
 import type { LiveGpsMappedHole, LiveGpsPoint } from '@/lib/gps/liveMappingTypes';
 import type { CurrentLocationState, GpsHolePrototypeConfig } from '@/lib/gps/types';
 
@@ -25,6 +30,7 @@ type LiveGpsHoleMapProps = {
   userPosition?: LiveGpsPoint | null;
   userAccuracyMeters?: number | null;
   testLocationEnabled?: boolean;
+  suggestionClubs?: ClubSuggestionClub[];
   onMapReady?: () => void;
   onMapError?: (message: string) => void;
 };
@@ -50,6 +56,11 @@ type TestLocationState = {
 };
 
 const noop = () => {};
+const EMPTY_SUGGESTION_CLUBS: ClubSuggestionClub[] = [];
+
+function samePoint(a: LiveGpsPoint | null | undefined, b: LiveGpsPoint | null | undefined) {
+  return a?.lat === b?.lat && a?.lng === b?.lng;
+}
 
 function midpoint(from: LiveGpsPoint, to: LiveGpsPoint): LiveGpsPoint {
   return {
@@ -67,6 +78,7 @@ export default function LiveGpsHoleMap({
   userPosition = null,
   userAccuracyMeters = null,
   testLocationEnabled = false,
+  suggestionClubs = EMPTY_SUGGESTION_CLUBS,
   onMapReady,
   onMapError,
 }: LiveGpsHoleMapProps) {
@@ -207,6 +219,16 @@ export default function LiveGpsHoleMap({
     middle: distanceYards(measurementOrigin.position, hole.green.center),
     back: distanceYards(measurementOrigin.position, hole.green.back),
   }), [hole.green, measurementOrigin.position]);
+  const activeTargetYards = useMemo(
+    () => resolveActiveTargetYards(measurementOrigin.position, targetPath),
+    [measurementOrigin.position, targetPath],
+  );
+  const displayedSuggestion = useMemo(
+    () => (activeTargetYards === null
+      ? null
+      : resolveClubSuggestion({ targetYards: activeTargetYards, clubs: suggestionClubs })),
+    [activeTargetYards, suggestionClubs],
+  );
 
   const handleTargetChange = useCallback((nextTarget: LiveGpsPoint, targetIndex = 0) => {
     setRouteState((current) => {
@@ -216,6 +238,9 @@ export default function LiveGpsHoleMap({
         ? [...baseTargets]
         : [hole.green.center];
       const boundedTargetIndex = Math.max(0, Math.min(targetIndex, nextTargets.length - 1));
+      if (samePoint(nextTargets[boundedTargetIndex], nextTarget)) {
+        return current;
+      }
       nextTargets[boundedTargetIndex] = nextTarget;
       return { key: routeKey, targets: nextTargets };
     });
@@ -256,6 +281,7 @@ export default function LiveGpsHoleMap({
         activeHoleIndex={routeKey}
         routeTargets={routeTargets}
         targetPath={targetPath}
+        clubSuggestion={displayedSuggestion}
         currentLocation={currentLocation}
         measurementOrigin={measurementOrigin.position}
         greenDistances={greenDistances}

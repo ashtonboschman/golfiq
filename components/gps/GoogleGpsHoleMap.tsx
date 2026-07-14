@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { distanceYards, formatYardNumber } from '@/lib/gps/distance';
 import { deriveAnchoredGpsCamera, normalizeDegrees } from '@/lib/gps/derivedCamera';
 import { loadGoogleMaps } from '@/lib/gps/googleMapsLoader';
+import {
+  resolveRouteLineMetrics,
+  roundRouteSegmentYards,
+} from '@/lib/gps/routeYardage';
 import type {
   CurrentLocationState,
   GpsHolePrototypeConfig,
@@ -142,6 +146,7 @@ type GoogleGpsHoleMapProps = {
   activeHoleIndex: number | string;
   routeTargets: LatLng[];
   targetPath: LatLng[];
+  clubSuggestion?: { shortLabel: string } | null;
   currentLocation: CurrentLocationState;
   measurementOrigin: LatLng | null;
   greenDistances: {
@@ -179,7 +184,6 @@ const CAMERA_ZOOM_TOLERANCE = 0.05;
 const CAMERA_ANGLE_TOLERANCE_DEGREES = 1;
 const PLAY_TEE_MARKER_COLOR = '#94a3b8';
 const PLAY_ENDPOINT_MARKER_SCALE = 6.25;
-const ROUTE_LINE_DUPLICATE_TOLERANCE_YARDS = 0.5;
 const ROUTE_LINE_OPTIONS = {
   clickable: false,
   geodesic: true,
@@ -223,37 +227,6 @@ function getGoogleMaps(): GoogleMapsNamespace | null {
 
 function toGoogleLatLngLiteral(point: LatLng): LatLng {
   return { lat: point.lat, lng: point.lng };
-}
-
-function isValidRoutePoint(point: LatLng | null | undefined): point is LatLng {
-  return Boolean(
-    point
-    && Number.isFinite(point.lat)
-    && Number.isFinite(point.lng)
-    && point.lat >= -90
-    && point.lat <= 90
-    && point.lng >= -180
-    && point.lng <= 180
-  );
-}
-
-function normalizeRouteLinePath(origin: LatLng | null, targetPath: readonly LatLng[]) {
-  if (!isValidRoutePoint(origin)) return [];
-
-  return [origin, ...targetPath]
-    .filter(isValidRoutePoint)
-    .reduce<LatLng[]>((points, point) => {
-      const previous = points.at(-1);
-      if (
-        previous
-        && distanceYards(previous, point) <= ROUTE_LINE_DUPLICATE_TOLERANCE_YARDS
-      ) {
-        return points;
-      }
-
-      points.push(point);
-      return points;
-    }, []);
 }
 
 function fromGooglePosition(position: GoogleLatLng): LatLng {
@@ -354,8 +327,8 @@ function distanceLabelIcon(): GoogleMarkerIcon {
   };
 }
 
-function formatMapDistanceLabel(from: LatLng, to: LatLng) {
-  return formatYardNumber(distanceYards(from, to));
+function formatMapDistanceLabel(from: LatLng, to: LatLng, canonicalYards?: number | null) {
+  return formatYardNumber(canonicalYards ?? roundRouteSegmentYards(from, to));
 }
 
 function snapToGreenCenterIfClose(point: LatLng, greenCenter: LatLng): LatLng {
@@ -455,6 +428,7 @@ export default function GoogleGpsHoleMap({
   activeHoleIndex,
   routeTargets,
   targetPath,
+  clubSuggestion = null,
   currentLocation,
   measurementOrigin,
   greenDistances,
@@ -778,7 +752,7 @@ export default function GoogleGpsHoleMap({
     const googleMaps = getGoogleMaps();
     if (!map || !polylineRef.current || !googleMaps) return;
 
-    const routePoints = normalizeRouteLinePath(origin, nextTargetPath);
+    const { routePoints, activeTargetYards } = resolveRouteLineMetrics(origin, nextTargetPath);
     polylineRef.current.setMap(map);
     polylineRef.current.setOptions(ROUTE_LINE_OPTIONS);
 
@@ -807,7 +781,7 @@ export default function GoogleGpsHoleMap({
 
       distanceLabelRefs.current[index].setPosition(toGoogleLatLngLiteral(labelPosition));
       distanceLabelRefs.current[index].setLabel({
-        text: formatMapDistanceLabel(previous, point),
+        text: formatMapDistanceLabel(previous, point, index === 0 ? activeTargetYards : undefined),
         color: '#f8fafc',
         fontSize: '16px',
         fontWeight: '700',
@@ -815,7 +789,12 @@ export default function GoogleGpsHoleMap({
     });
   }
 
-  function setTargetAtIndex(nextTarget: LatLng, targetIndex: number) {
+  function setTargetAtIndex(
+    nextTarget: LatLng,
+    targetIndex: number,
+    options: { syncMarkerPosition?: boolean } = {},
+  ) {
+    const { syncMarkerPosition = true } = options;
     const nextPath = targetPathRef.current.length > 0
       ? [...targetPathRef.current]
       : [nextTarget, configRef.current.greenCenter];
@@ -829,15 +808,20 @@ export default function GoogleGpsHoleMap({
       nextPath.push(configRef.current.greenCenter);
     }
     targetPathRef.current = nextPath;
-    targetMarkerRefs.current[boundedIndex]?.setPosition(toGoogleLatLngLiteral(nextTarget));
+    if (syncMarkerPosition) {
+      targetMarkerRefs.current[boundedIndex]?.setPosition(toGoogleLatLngLiteral(nextTarget));
+    }
     updateMeasurementOverlay(nextPath);
     onTargetChangeRef.current(nextTarget, boundedIndex);
   }
 
-  function setTargetToGreenCenter() {
+  function setTargetToGreenCenter(options: { syncMarkerPosition?: boolean } = {}) {
+    const { syncMarkerPosition = true } = options;
     const nextPath = [configRef.current.greenCenter];
     targetPathRef.current = nextPath;
-    targetMarkerRefs.current[0]?.setPosition(toGoogleLatLngLiteral(configRef.current.greenCenter));
+    if (syncMarkerPosition) {
+      targetMarkerRefs.current[0]?.setPosition(toGoogleLatLngLiteral(configRef.current.greenCenter));
+    }
     removeExtraTargetMarkers(1);
     updateMeasurementOverlay(nextPath);
     onTargetToGreenCenterRef.current();
@@ -1259,10 +1243,10 @@ export default function GoogleGpsHoleMap({
             configRef.current.greenCenter,
           );
           if (nextTarget === configRef.current.greenCenter) {
-            setTargetToGreenCenter();
+            setTargetToGreenCenter({ syncMarkerPosition: false });
             return;
           }
-          setTargetAtIndex(nextTarget, index);
+          setTargetAtIndex(nextTarget, index, { syncMarkerPosition: false });
         };
 
         addMarkerListener(marker, 'drag', updateTargetFromMarker);
@@ -1376,6 +1360,12 @@ export default function GoogleGpsHoleMap({
       </div>
     </div>
   );
+  const clubSuggestionOverlay = clubSuggestion ? (
+    <div className="gps-club-suggestion-overlay" aria-label="Club suggestion">
+      <span>Club</span>
+      <strong>{clubSuggestion.shortLabel}</strong>
+    </div>
+  ) : null;
 
   if (variant === 'live') {
     return (
@@ -1386,7 +1376,10 @@ export default function GoogleGpsHoleMap({
             className="live-round-gps-map"
             aria-label={`Google satellite map for physical hole ${config.holeNumber}`}
           />
-          {greenDistanceOverlay}
+          <div className="gps-distance-stack-overlay">
+            {greenDistanceOverlay}
+            {clubSuggestionOverlay}
+          </div>
         </div>
       </div>
     );

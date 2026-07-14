@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import GoogleGpsHoleMap from '@/components/gps/GoogleGpsHoleMap';
 import { loadGoogleMaps } from '@/lib/gps/googleMapsLoader';
+import { resolveActiveTargetYards } from '@/lib/gps/routeYardage';
 import type { GpsHolePrototypeConfig } from '@/lib/gps/types';
 
 jest.mock('@/lib/gps/googleMapsLoader', () => ({
@@ -16,6 +17,7 @@ const mockPolylineConstructor = jest.fn();
 const mockPolylineSetMap = jest.fn();
 const mockPolylineSetOptions = jest.fn();
 const mockPolylineSetPath = jest.fn();
+const mockMarkerSetLabel = jest.fn();
 
 const listener = () => ({ remove: jest.fn() });
 const latLng = (point: { lat: number; lng: number }) => ({
@@ -62,7 +64,7 @@ function installGoogleMapsMock() {
     getPosition() { return this.position; }
     setDraggable() {}
     setIcon() {}
-    setLabel() {}
+    setLabel(label: unknown) { mockMarkerSetLabel(label); }
     setMap() {}
     setPosition(point: { lat: number; lng: number }) { this.position = latLng(point); }
     setZIndex() {}
@@ -237,6 +239,16 @@ describe('GoogleGpsHoleMap lifecycle', () => {
       config.defaultTarget,
       config.greenCenter,
     ]));
+    expect(mockMarkerSetLabel).toHaveBeenCalledWith(expect.objectContaining({
+      text: String(resolveActiveTargetYards(config.tee, [
+        config.tee,
+        { lat: Number.NaN, lng: -97.101 },
+        config.defaultTarget,
+        config.defaultTarget,
+        config.greenCenter,
+        config.greenCenter,
+      ])),
+    }));
 
     rerender(
       <GoogleGpsHoleMap

@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom';
 import LiveGpsHoleMap from '@/components/gps/LiveGpsHoleMap';
 import { distanceYards } from '@/lib/gps/distance';
+import { resolveActiveTargetYards } from '@/lib/gps/routeYardage';
 import type { LiveGpsMappedHole, LiveGpsPoint } from '@/lib/gps/liveMappingTypes';
 
 const METERS_PER_DEGREE = 111320;
@@ -15,6 +16,7 @@ type MockMapProps = {
   config: { holeNumber: number; tee: LiveGpsPoint };
   routeTargets: LiveGpsPoint[];
   targetPath: LiveGpsPoint[];
+  clubSuggestion?: { shortLabel: string } | null;
   measurementOrigin: LiveGpsPoint | null;
   greenDistances: { front: number | null; middle: number | null; back: number | null };
   currentLocation: { position: LiveGpsPoint | null; accuracyMeters: number | null };
@@ -32,6 +34,11 @@ jest.mock('@/components/gps/GoogleGpsHoleMap', () => ({
   __esModule: true,
   default: (props: MockMapProps) => {
     mockMapProps = props;
+    const targetYardsFromTee = (yards: number): LiveGpsPoint => ({
+      lat: 49.9 + ((yards * 0.9144) / 111320),
+      lng: -97.1,
+    });
+
     return (
       <div
         data-testid="prototype-map"
@@ -64,6 +71,24 @@ jest.mock('@/components/gps/GoogleGpsHoleMap', () => ({
           onClick={() => props.onUserPositionChange?.({ lat: 49.9011, lng: -97.1011 })}
         >
           Move Test User
+        </button>
+        <button type="button" onClick={() => props.onTargetChange(targetYardsFromTee(155), 0)}>
+          Target 155
+        </button>
+        <button type="button" onClick={() => props.onTargetChange(targetYardsFromTee(154), 0)}>
+          Target 154
+        </button>
+        <button type="button" onClick={() => props.onTargetChange(targetYardsFromTee(153), 0)}>
+          Target 153
+        </button>
+        <button type="button" onClick={() => props.onTargetChange(targetYardsFromTee(100), 0)}>
+          Target 100
+        </button>
+        <button type="button" onClick={() => props.onTargetChange(targetYardsFromTee(98), 0)}>
+          Target 98
+        </button>
+        <button type="button" onClick={() => props.onTargetChange(targetYardsFromTee(97), 0)}>
+          Target 97
         </button>
         <button type="button" onClick={() => props.onCameraInteraction?.(true)}>
           Move Camera
@@ -144,6 +169,151 @@ describe('LiveGpsHoleMap', () => {
     expect(screen.getByTestId('prototype-map')).toHaveAttribute('data-variant', 'live');
     expect(currentMapProps().routeTargets).toHaveLength(expectedTargets);
     expect(currentMapProps().targetPath).toHaveLength(expectedPath);
+  });
+
+  it('updates the club suggestion at the closest-club boundary from either direction', async () => {
+    render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={mappedHole(4)}
+        par={4}
+        routeKey="draft-4"
+        suggestionClubs={[
+          { clubDefinitionId: '100', shortLabel: '100', carryYards: 100, catalogueOrder: 1 },
+          { clubDefinitionId: '97', shortLabel: '97', carryYards: 97, catalogueOrder: 2 },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 100' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('100'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 98' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('97'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 97' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('97'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 100' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('100'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 98' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('97'));
+  });
+
+  it('updates the club suggestion from active target and bag changes', async () => {
+    const hole = mappedHole(4);
+    const suggestionClubs = [
+      { clubDefinitionId: 'pitching-wedge', shortLabel: 'PW', carryYards: 100, catalogueOrder: 310 },
+      { clubDefinitionId: '7', shortLabel: '7I', carryYards: 160, catalogueOrder: 280 },
+    ];
+    const { rerender } = render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        par={4}
+        routeKey="draft-4"
+        suggestionClubs={suggestionClubs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 155' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('7I'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 100' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('PW'));
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={mappedHole(5)}
+        par={5}
+        routeKey="draft-5"
+        suggestionClubs={suggestionClubs}
+      />,
+    );
+    await waitFor(() => expect(currentMapProps().clubSuggestion).not.toBeNull());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target 155' }));
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('7I'));
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={mappedHole(5)}
+        par={5}
+        routeKey="draft-5"
+        suggestionClubs={[]}
+      />,
+    );
+    await waitFor(() => expect(currentMapProps().clubSuggestion).toBeNull());
+  });
+
+  it('uses the normalized first route segment for club suggestions', async () => {
+    const hole = {
+      ...mappedHole(4),
+      targets: [
+        { label: 'Duplicate tee', point: { lat: 49.9, lng: -97.1 } },
+      ],
+    };
+    const canonicalYards = resolveActiveTargetYards(hole.tee, [hole.tee, hole.green.center]);
+    expect(canonicalYards).not.toBeNull();
+
+    render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        par={4}
+        routeKey="draft-duplicate-target"
+        suggestionClubs={[
+          { clubDefinitionId: 'near-zero', shortLabel: 'NZ', carryYards: 1, catalogueOrder: 1 },
+          { clubDefinitionId: 'normalized', shortLabel: 'NRM', carryYards: canonicalYards!, catalogueOrder: 2 },
+        ]}
+      />,
+    );
+
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('NRM'));
+  });
+
+  it('clears the club suggestion when no normalized first segment is available', async () => {
+    const validHole = mappedHole(3);
+    const blockedHole: LiveGpsMappedHole = {
+      ...validHole,
+      green: {
+        front: validHole.tee,
+        center: validHole.tee,
+        back: validHole.tee,
+      },
+    };
+    const canonicalYards = resolveActiveTargetYards(validHole.tee, [validHole.green.center]);
+    expect(canonicalYards).not.toBeNull();
+    const suggestionClubs = [
+      { clubDefinitionId: 'valid', shortLabel: 'OK', carryYards: canonicalYards!, catalogueOrder: 1 },
+    ];
+
+    const { rerender } = render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={validHole}
+        par={3}
+        routeKey="draft-no-segment"
+        suggestionClubs={suggestionClubs}
+      />,
+    );
+
+    await waitFor(() => expect(currentMapProps().clubSuggestion?.shortLabel).toBe('OK'));
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={blockedHole}
+        par={3}
+        routeKey="draft-no-segment"
+        suggestionClubs={suggestionClubs}
+      />,
+    );
+
+    await waitFor(() => expect(currentMapProps().clubSuggestion).toBeNull());
   });
 
   it('supports custom targeting, green lock, and resetting the route', () => {

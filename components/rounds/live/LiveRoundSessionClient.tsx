@@ -31,6 +31,7 @@ import { useLiveGpsLocation } from '@/lib/gps/useLiveGpsLocation';
 import { isAdminUserId } from '@/lib/admin';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import type { ClubSuggestionClub } from '@/lib/clubs/clubSuggestion';
 
 type LiveRoundSessionClientProps = {
   sessionId: string;
@@ -44,6 +45,14 @@ type ApiResponse<T> = T & {
 type AutosaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 type LiveRoundViewMode = 'score' | 'review';
 type TaggedRoundContext = Exclude<RoundContext, 'real'>;
+type LiveBagClubPayload = {
+  clubDefinitionId?: unknown;
+  carryYards?: unknown;
+  clubDefinition?: {
+    shortLabel?: unknown;
+    catalogueOrder?: unknown;
+  };
+};
 
 const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'simulator', label: 'Simulator Round' },
@@ -194,6 +203,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const [notesDraft, setNotesDraft] = useState('');
   const [showRoundTagPicker, setShowRoundTagPicker] = useState(false);
   const [hasPendingNotes, setHasPendingNotes] = useState(false);
+  const [bagSuggestionClubs, setBagSuggestionClubs] = useState<ClubSuggestionClub[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasPushedBackGuardRef = useRef(false);
@@ -302,6 +312,59 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       router.replace('/login');
     }
   }, [router, status]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.gpsEnabled) {
+      setBagSuggestionClubs([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/my-bag?mode=clubs', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Unable to load bag');
+        const data = await response.json();
+        if (controller.signal.aborted) return;
+
+        const clubs: unknown[] = Array.isArray(data?.clubs) ? data.clubs : [];
+        setBagSuggestionClubs(
+          clubs
+            .map((club) => {
+              if (!club || typeof club !== 'object') return null;
+              const payload = club as LiveBagClubPayload;
+              if (
+                typeof payload.clubDefinitionId !== 'string'
+                || typeof payload.carryYards !== 'number'
+                || !Number.isInteger(payload.carryYards)
+                || typeof payload.clubDefinition?.shortLabel !== 'string'
+                || typeof payload.clubDefinition?.catalogueOrder !== 'number'
+              ) {
+                return null;
+              }
+
+              return {
+                clubDefinitionId: payload.clubDefinitionId,
+                shortLabel: payload.clubDefinition.shortLabel,
+                carryYards: payload.carryYards,
+                catalogueOrder: payload.clubDefinition.catalogueOrder,
+              };
+            })
+            .filter((club): club is ClubSuggestionClub => club !== null),
+        );
+      } catch {
+        if (!controller.signal.aborted) {
+          setBagSuggestionClubs([]);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [session?.gpsEnabled, sessionId, status]);
 
   const loadSession = useCallback(async () => {
     if (status !== 'authenticated') return;
@@ -1156,6 +1219,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
               userPosition={liveLocation.position}
               userAccuracyMeters={liveLocation.accuracyMeters}
               testLocationEnabled={gpsTestLocationEnabled}
+              suggestionClubs={bagSuggestionClubs}
               onMapReady={handleLiveGpsMapReady}
               onMapError={handleLiveGpsMapError}
             />

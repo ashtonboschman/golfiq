@@ -42,6 +42,7 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
     userPosition?: { lat: number; lng: number } | null;
     userAccuracyMeters?: number | null;
     testLocationEnabled?: boolean;
+    suggestionClubs?: Array<{ shortLabel: string; carryYards: number }>;
     onMapReady?: () => void;
   }) {
     const React = jest.requireActual<typeof import('react')>('react');
@@ -61,6 +62,7 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
         data-user-lat={props.userPosition?.lat}
         data-user-accuracy={props.userAccuracyMeters ?? undefined}
         data-test-location-enabled={props.testLocationEnabled ? 'true' : 'false'}
+        data-suggestion-clubs={props.suggestionClubs?.map((club) => club.shortLabel).join(',') ?? ''}
       >
         Google satellite map
       </div>
@@ -402,6 +404,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     const movedSession = makeSession({ gpsEnabled: true, active_step: 'SCORE' });
     const fetchMock = jest.fn((url: string, init?: RequestInit) => {
       if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (url === '/api/my-bag?mode=clubs') return Promise.resolve(apiResponse({ clubs: [] }));
       if (!init?.method) return Promise.resolve(apiResponse({ session: initialSession }));
       if (init.method === 'PATCH') return Promise.resolve(apiResponse({ session: movedSession }));
       throw new Error(`Unexpected request: ${init.method} ${url}`);
@@ -462,6 +465,44 @@ describe('LiveRoundSessionClient autosave navigation', () => {
       active_hole_pass: 1,
       active_step: 'SCORE',
     }));
+  });
+
+  it('loads My Bag once for live GPS club suggestions', async () => {
+    const initialSession = makeSession({ gpsEnabled: true, active_step: 'GPS' });
+    const movedSession = makeSession({ gpsEnabled: true, active_step: 'SCORE' });
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (url === '/api/my-bag?mode=clubs') {
+        return Promise.resolve(apiResponse({
+          clubs: [
+            {
+              clubDefinitionId: '10',
+              carryYards: 250,
+              clubDefinition: { shortLabel: 'DR', catalogueOrder: 10 },
+            },
+            {
+              clubDefinitionId: '20',
+              carryYards: 160,
+              clubDefinition: { shortLabel: '7I', catalogueOrder: 280 },
+            },
+          ],
+        }));
+      }
+      if (!init?.method) return Promise.resolve(apiResponse({ session: initialSession }));
+      if (init.method === 'PATCH') return Promise.resolve(apiResponse({ session: movedSession }));
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    const map = await screen.findByTestId('live-gps-map');
+    await waitFor(() => expect(map).toHaveAttribute('data-suggestion-clubs', 'DR,7I'));
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/my-bag?mode=clubs')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /Log Score/ }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true));
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/my-bag?mode=clubs')).toHaveLength(1);
   });
 
   it('keeps one GPS map mounted across score entry and the next hole', async () => {

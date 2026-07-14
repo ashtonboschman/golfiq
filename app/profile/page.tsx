@@ -788,6 +788,17 @@ export default function ProfilePage() {
         )}
       </form>
 
+      <div className="card">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => handleNavigation('/profile/my-bag')}
+          disabled={disableActions}
+        >
+          My Bag
+        </button>
+      </div>
+
       {showPasswordForm ? (
         <form onSubmit={handlePasswordChange} className="card">
           <label className="form-label">Current Password</label>
@@ -905,7 +916,7 @@ export default function ProfilePage() {
         <div className="card flex justify-center">
           <button
             type="button"
-            className="btn btn-edit"
+            className="btn btn-secondary"
             onClick={() => setShowPasswordForm(true)}
             disabled={disableActions}
           >
@@ -917,7 +928,7 @@ export default function ProfilePage() {
       <div className="card">
         <button
           type="button"
-          className="btn btn-edit"
+          className="btn btn-secondary"
           onClick={() => handleNavigation('/settings')}
           disabled={disableActions}
         >

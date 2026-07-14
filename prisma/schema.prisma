@@ -45,6 +45,7 @@ model User {
   userAchievementEvents         UserAchievementEvent[]
   userAchievementProgress       UserAchievementProgress?
   userAchievements              UserAchievement[]
+  userClubs                     UserClub[]
   leaderboardStats              UserLeaderboardStats?
   profile                       UserProfile?
   oauthAccounts                 OAuthAccount[]
@@ -600,6 +601,39 @@ model UserFeedback {
   @@map("user_feedback")
 }
 
+model ClubDefinition {
+  id             BigInt       @id @default(autoincrement())
+  key            String       @unique @db.VarChar(64)
+  name           String       @db.VarChar(100)
+  shortLabel     String       @map("short_label") @db.VarChar(12)
+  category       ClubCategory
+  catalogueOrder Int          @map("catalogue_order")
+  isActive       Boolean      @default(true) @map("is_active")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userClubs      UserClub[]
+
+  @@index([category, catalogueOrder], map: "idx_club_definitions_category_order")
+  @@index([isActive, catalogueOrder], map: "idx_club_definitions_active_order")
+  @@map("club_definitions")
+}
+
+model UserClub {
+  id               BigInt         @id @default(autoincrement())
+  userId           BigInt         @map("user_id")
+  clubDefinitionId BigInt         @map("club_definition_id")
+  carryYards       Int            @map("carry_yards")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubDefinition   ClubDefinition @relation(fields: [clubDefinitionId], references: [id])
+
+  @@unique([userId, clubDefinitionId], map: "uq_user_clubs_user_definition")
+  @@index([userId], map: "idx_user_clubs_user")
+  @@index([clubDefinitionId], map: "idx_user_clubs_definition")
+  @@map("user_clubs")
+}
+
 model CourseRequest {
   id         BigInt              @id @default(autoincrement())
   userId     BigInt              @map("user_id")
@@ -878,6 +912,15 @@ enum FeedbackStatus {
   in_review
   resolved
   closed
+}
+
+enum ClubCategory {
+  WOOD
+  HYBRID
+  UTILITY_IRON
+  IRON
+  NAMED_WEDGE
+  LOFTED_WEDGE
 }
 
 enum CourseRequestStatus {
