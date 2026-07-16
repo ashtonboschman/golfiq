@@ -1,4 +1,5 @@
 import { DASHBOARD_TREND_CONFIG } from './config';
+import { normalizeTrendValue } from '@/lib/insights/trendEvidence';
 import type {
   DashboardTrendCategory,
   DashboardTrendResolverInput,
@@ -49,7 +50,7 @@ function normalizedValue(
   if (!component.tracked || component.value == null || !Number.isFinite(component.value)) return null;
   if (category === 'short_game' && !round.shortGameOpportunityEligible) return null;
 
-  return mode === 'combined' && round.holes === 9 ? component.value * 2 : component.value;
+  return normalizeTrendValue(component.value, round.holes, mode);
 }
 
 function buildEvidence(

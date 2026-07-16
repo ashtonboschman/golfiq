@@ -108,7 +108,6 @@ describe('/api/rounds/[id]/stats route contract', () => {
         sgPutting: 0.1,
         sgPenalties: -0.2,
         sgResidual: 0,
-        confidence: 'medium',
         messages: ['ok'],
       },
     });

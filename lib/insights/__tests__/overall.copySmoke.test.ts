@@ -39,7 +39,6 @@ function mkRound(partial: Partial<OverallRoundPoint>): OverallRoundPoint {
     sgPutting: -0.1,
     sgPenalties: 0.2,
     sgResidual: -0.5,
-    sgConfidence: null,
     sgPartialAnalysis: null,
     firDirections: [],
     girDirections: [],

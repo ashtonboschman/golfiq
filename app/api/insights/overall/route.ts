@@ -15,20 +15,12 @@ import {
   pickDeterministicDrillSeeded,
   shouldAutoRefreshOverall,
 } from '@/lib/insights/overall';
+import { buildCachedGameTrends, computeGameTrendsInputHash } from '@/lib/insights/gameTrends/cache';
+import { parseCachedGameTrends } from '@/lib/insights/gameTrends/types';
+import { projectGameTrendsForViewer } from '@/lib/insights/gameTrends/presentation';
+import { isShortGameOpportunityEligible, type TrendEvidenceRound } from '@/lib/insights/trendEvidence';
 
-function normalizeSgConfidence(raw: unknown): 'high' | 'medium' | 'low' | null {
-  if (raw == null) return null;
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    if (raw >= 0.8) return 'high';
-    if (raw >= 0.5) return 'medium';
-    return 'low';
-  }
-  const value = String(raw).trim().toLowerCase();
-  if (value === 'high') return 'high';
-  if (value === 'medium' || value === 'med') return 'medium';
-  if (value === 'low') return 'low';
-  return null;
-}
+const OVERALL_INSIGHTS_LOAD_ERROR = 'GolfIQ couldn’t load insights right now. Please try again.';
 
 function parseMode(searchParams: URLSearchParams): StatsMode {
   const mode = searchParams.get('statsMode');
@@ -56,14 +48,16 @@ function selectCardsForMode(payload: any, mode: StatsMode): any {
 }
 
 function applyTierSafety(payload: any, isPremium: boolean, roundsUsed: number): any {
-  const next = payload && typeof payload === 'object' ? { ...payload } : {};
+  const next = payload && typeof payload === 'object'
+    ? JSON.parse(JSON.stringify(payload))
+    : {};
   const prevTier =
     next.tier_context && typeof next.tier_context === 'object' ? next.tier_context : {};
   next.tier_context = {
     ...prevTier,
     isPremium,
     baseline: isPremium ? 'alltime' : 'last20',
-    maxRoundsUsed: roundsUsed,
+    maxRoundsUsed: isPremium ? roundsUsed : Math.min(roundsUsed, 20),
     recentWindow: 5,
   };
 
@@ -85,6 +79,10 @@ function applyTierSafety(payload: any, isPremium: boolean, roundsUsed: number): 
           projectedScoreIn10: null,
           scoreLow: null,
           scoreHigh: null,
+          handicapCurrent: null,
+          projectedHandicapIn10: null,
+          handicapLow: null,
+          handicapHigh: null,
         };
       }
     }
@@ -92,12 +90,21 @@ function applyTierSafety(payload: any, isPremium: boolean, roundsUsed: number): 
 
   if (!isPremium) {
     next.sg_locked = true;
+    delete next.sg;
+    if (next.analysis && typeof next.analysis === 'object') {
+      if (next.analysis.strength && typeof next.analysis.strength === 'object') next.analysis.strength.value = null;
+      if (next.analysis.opportunity && typeof next.analysis.opportunity === 'object') next.analysis.opportunity.value = null;
+    }
     if (next.mode_payload && typeof next.mode_payload === 'object') {
       for (const mode of Object.keys(next.mode_payload)) {
         const modePayload = next.mode_payload[mode];
         if (modePayload?.kpis && typeof modePayload.kpis === 'object') {
           modePayload.kpis.avgSgTotalRecent = null;
         }
+        if (modePayload?.narrative?.strength) modePayload.narrative.strength.value = null;
+        if (modePayload?.narrative?.opportunity) modePayload.narrative.opportunity.value = null;
+        if (modePayload && typeof modePayload === 'object') delete modePayload.sgComponents;
+        if (modePayload?.trend && typeof modePayload.trend === 'object') delete modePayload.trend.sgTotal;
       }
     }
     if (next.projection && typeof next.projection === 'object') {
@@ -125,6 +132,7 @@ async function loadRoundsForOverall(
   userId: bigint,
   options?: {
     maxRounds?: number | null;
+    holesPlayed?: 9 | 18;
   },
 ): Promise<OverallRoundPoint[]> {
   const take =
@@ -135,6 +143,8 @@ async function loadRoundsForOverall(
     where: {
       userId,
       roundContext: 'real',
+      date: { lte: new Date() },
+      ...(options?.holesPlayed != null ? { holesPlayed: options.holesPlayed } : {}),
     },
     include: {
       tee: { include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } } },
@@ -147,7 +157,7 @@ async function loadRoundsForOverall(
         },
       },
     },
-    orderBy: [{ date: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
     ...(take != null ? { take } : {}),
   });
 
@@ -167,6 +177,7 @@ async function loadRoundsForOverall(
     return {
       id: r.id,
       date: r.date,
+      createdAt: r.createdAt ?? r.date,
       holes: ctx.holes,
       nonPar3Holes: ctx.nonPar3Holes,
       score: Number(r.score),
@@ -184,7 +195,6 @@ async function loadRoundsForOverall(
       sgPutting: r.roundStrokesGained?.sgPutting != null ? Number(r.roundStrokesGained.sgPutting) : null,
       sgPenalties: r.roundStrokesGained?.sgPenalties != null ? Number(r.roundStrokesGained.sgPenalties) : null,
       sgResidual: r.roundStrokesGained?.sgResidual != null ? Number(r.roundStrokesGained.sgResidual) : null,
-      sgConfidence: normalizeSgConfidence(r.roundStrokesGained?.confidence),
       sgPartialAnalysis: r.roundStrokesGained?.partialAnalysis ?? null,
       firDirections: Array.isArray(r.roundHoles)
         ? r.roundHoles.map((h: any) => h?.firDirection ?? null)
@@ -192,8 +202,64 @@ async function loadRoundsForOverall(
       girDirections: Array.isArray(r.roundHoles)
         ? r.roundHoles.map((h: any) => h?.girDirection ?? null)
         : [],
+      teeContextKey: [r.teeId?.toString?.() ?? r.teeId ?? 'none', seg, ctx.holes, ctx.parTotal, ctx.nonPar3Holes].join('|'),
     } as OverallRoundPoint;
   });
+}
+
+function compareOverallRoundsDescending(left: OverallRoundPoint, right: OverallRoundPoint): number {
+  const dateDelta = right.date.getTime() - left.date.getTime();
+  if (dateDelta !== 0) return dateDelta;
+  const createdDelta = (right.createdAt ?? right.date).getTime() - (left.createdAt ?? left.date).getTime();
+  if (createdDelta !== 0) return createdDelta;
+  if (left.id === right.id) return 0;
+  return left.id > right.id ? -1 : 1;
+}
+
+async function loadOverallRoundEnvelope(userId: bigint, isPremium: boolean): Promise<OverallRoundPoint[]> {
+  if (isPremium) return loadRoundsForOverall(userId);
+
+  // Keep free history bounded while retaining enough source rows for each mode
+  // to independently resolve its latest 20-round evidence envelope.
+  const [combined, nineHole, eighteenHole] = await Promise.all([
+    loadRoundsForOverall(userId, { maxRounds: 20 }),
+    loadRoundsForOverall(userId, { maxRounds: 20, holesPlayed: 9 }),
+    loadRoundsForOverall(userId, { maxRounds: 20, holesPlayed: 18 }),
+  ]);
+  const boundedUnion = new Map<bigint, OverallRoundPoint>();
+  for (const round of [...combined, ...nineHole, ...eighteenHole]) boundedUnion.set(round.id, round);
+  return [...boundedUnion.values()].sort(compareOverallRoundsDescending);
+}
+
+function toGameTrendRounds(rounds: OverallRoundPoint[]): TrendEvidenceRound[] {
+  return rounds.map((round) => ({
+    roundId: round.id.toString(),
+    date: round.date,
+    createdAt: round.createdAt ?? round.date,
+    holes: round.holes === 9 ? 9 : 18,
+    roundContext: 'real',
+    completed: true,
+    score: round.score,
+    toPar: round.toPar,
+    sgPartialAnalysis: round.sgPartialAnalysis,
+    shortGameOpportunityEligible: isShortGameOpportunityEligible(round.holes === 9 ? 9 : 18, round.girHit),
+    components: {
+      off_the_tee: round.sgOffTee,
+      approach: round.sgApproach,
+      short_game: round.sgShortGame ?? null,
+      putting: round.sgPutting,
+      penalties: round.sgPenalties,
+    },
+    hashContext: {
+      nonPar3Holes: round.nonPar3Holes,
+      firHit: round.firHit,
+      girHit: round.girHit,
+      putts: round.putts,
+      penalties: round.penalties,
+      shortGameShots: round.shortGameShots ?? null,
+      teeContextKey: round.teeContextKey ?? null,
+    },
+  }));
 }
 
 export async function generateAndStoreOverallInsights(
@@ -217,7 +283,7 @@ export async function generateAndStoreOverallInsights(
   });
   if (!user) throw new Error('User not found');
   const isPremium = isPremiumUser(user);
-  const model = 'overall-deterministic-v5';
+  const model = 'overall-deterministic-v9';
   const leaderboardStats = await prisma.userLeaderboardStats.findUnique({
     where: { userId },
     select: { handicap: true },
@@ -227,10 +293,10 @@ export async function generateAndStoreOverallInsights(
       ? Number(leaderboardStats.handicap)
       : null;
 
-  const rounds = await loadRoundsForOverall(userId, {
-    maxRounds: isPremium ? null : 20,
-  });
-  const dataHash = computeOverallDataHash(rounds, isPremium);
+  const rounds = await loadOverallRoundEnvelope(userId, isPremium);
+  const gameTrendRounds = toGameTrendRounds(rounds);
+  const gameTrendsInputHash = computeGameTrendsInputHash(gameTrendRounds);
+  const dataHash = computeOverallDataHash(rounds, isPremium, currentHandicapOverride);
 
   const existing = await overallInsightModel.findUnique({
     where: { userId },
@@ -244,6 +310,7 @@ export async function generateAndStoreOverallInsights(
     const persistedCardsByMode = (existing?.insights as any)?.cards_by_mode;
     const persistedEfficiency = (existing?.insights as any)?.efficiency;
     const persistedProjectionByMode = (existing?.insights as any)?.projection_by_mode;
+    const persistedGameTrends = parseCachedGameTrends((existing?.insights as any)?.game_trends_v2);
     const persistedHasNewEfficiencyShape = Boolean(
       persistedEfficiency &&
       typeof persistedEfficiency === 'object' &&
@@ -278,7 +345,8 @@ export async function generateAndStoreOverallInsights(
       persistedCards.length === 3 &&
       persistedHasCardsByMode &&
       persistedHasNewEfficiencyShape &&
-      persistedHasProjectionByMode;
+      persistedHasProjectionByMode &&
+      persistedGameTrends?.inputHash === gameTrendsInputHash;
 
     if (canReusePersisted) {
       const safePersisted = applyTierSafety(existing?.insights as any, isPremium, rounds.length);
@@ -298,9 +366,15 @@ export async function generateAndStoreOverallInsights(
             updatedAt: new Date(),
           },
         });
-        return selectCardsForMode(touchedPayload, selectedMode);
+        const selected = selectCardsForMode(touchedPayload, selectedMode);
+        selected.game_trends = projectGameTrendsForViewer(persistedGameTrends!.byMode[selectedMode], isPremium ? 'premium' : 'free');
+        delete selected.game_trends_v2;
+        return selected;
       }
-      return selectCardsForMode(safePersisted, selectedMode);
+      const selected = selectCardsForMode(safePersisted, selectedMode);
+      selected.game_trends = projectGameTrendsForViewer(persistedGameTrends!.byMode[selectedMode], isPremium ? 'premium' : 'free');
+      delete selected.game_trends_v2;
+      return selected;
     }
   }
 
@@ -369,6 +443,7 @@ export async function generateAndStoreOverallInsights(
   (payload as any).recommended_drill_by_mode = recommendedDrillByMode;
   (payload as any).data_hash = dataHash;
   (payload as any).model = model;
+  (payload as any).game_trends_v2 = buildCachedGameTrends(gameTrendRounds);
 
   const safePayload = applyTierSafety(payload as any, isPremium, rounds.length);
 
@@ -391,14 +466,19 @@ export async function generateAndStoreOverallInsights(
     },
   });
 
-  return selectCardsForMode(safePayload, selectedMode);
+  const selected = selectCardsForMode(safePayload, selectedMode);
+  const cachedGameTrends = parseCachedGameTrends((payload as any).game_trends_v2);
+  selected.game_trends = projectGameTrendsForViewer(cachedGameTrends!.byMode[selectedMode], isPremium ? 'premium' : 'free');
+  delete selected.game_trends_v2;
+  return selected;
 }
 
 export async function GET(request: NextRequest) {
   try {
     const overallInsightModel = (prisma as any).overallInsight;
     if (!overallInsightModel) {
-      return errorResponse('Prisma client is missing model "overallInsight". Run `npx prisma generate` and restart the server.', 500);
+      console.error('[Overall Insights] Missing generated Prisma model: overallInsight');
+      return errorResponse(OVERALL_INSIGHTS_LOAD_ERROR, 500);
     }
 
     const userId = await requireAuth(request);
@@ -410,10 +490,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
-      return errorResponse('Database table "overall_insights" is missing. Apply the latest SQL migration.', 500);
+      console.error('[Overall Insights] Prisma P2021 while loading insights');
+      return errorResponse(OVERALL_INSIGHTS_LOAD_ERROR, 500);
     }
     if (error instanceof Error && error.message === 'Unauthorized') return errorResponse('Unauthorized', 401);
-    return errorResponse('Failed to load overall insights', 500);
+    console.error('[Overall Insights] Unexpected failure while loading insights', error);
+    return errorResponse(OVERALL_INSIGHTS_LOAD_ERROR, 500);
   }
 }
 

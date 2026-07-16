@@ -172,7 +172,6 @@ describe('/api/rounds route contract', () => {
       sgPutting: 0.1,
       sgPenalties: -0.1,
       sgResidual: 0.1,
-      confidence: 'medium',
       messages: ['ok'],
       partialAnalysis: false,
     });

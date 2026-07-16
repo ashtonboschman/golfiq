@@ -47,7 +47,6 @@ function makeRound(partial: Partial<OverallRoundPoint>): OverallRoundPoint {
     sgPutting: -0.3,
     sgPenalties: -0.1,
     sgResidual: 0.2,
-    sgConfidence: null,
     sgPartialAnalysis: null,
     firDirections: [],
     girDirections: [],

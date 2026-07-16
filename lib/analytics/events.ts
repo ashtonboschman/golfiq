@@ -39,6 +39,7 @@ export const ANALYTICS_EVENTS = {
   dashboardFocusModeChanged: 'dashboard_focus_mode_changed',
   insightsTabClicked: 'insights_tab_clicked',
   overallCardViewed: 'overall_card_viewed',
+  gameTrendConclusionViewed: 'game_trend_conclusion_viewed',
   paywallViewed: 'paywall_viewed',
   pricingPageViewed: 'pricing_page_viewed',
   upgradeCtaClicked: 'upgrade_cta_clicked',

@@ -8,6 +8,9 @@ import { useSession } from 'next-auth/react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { resolveGameTrendsMode } from '@/lib/insights/gameTrends/resolve';
+import { projectGameTrendsForViewer } from '@/lib/insights/gameTrends/presentation';
+import type { TrendEvidenceRound } from '@/lib/insights/trendEvidence';
 
 const mockPush = jest.fn();
 const mockRouter = { push: mockPush };
@@ -61,6 +64,37 @@ jest.mock('@/lib/analytics/client', () => ({
 
 type StatsMode = 'combined' | '9' | '18';
 
+function makeGameTrends(
+  isPremium: boolean,
+  count = 5,
+  mode: StatsMode = 'combined',
+  scores: { recent: number; baseline: number } = { recent: 74, baseline: 78 },
+) {
+  const rounds: TrendEvidenceRound[] = Array.from({ length: count }, (_, index) => ({
+    roundId: String(index + 1),
+    date: new Date(Date.UTC(2026, 5, 15 - index)),
+    createdAt: new Date(Date.UTC(2026, 5, 15 - index, 1)),
+    holes: mode === '9' ? 9 : 18,
+    roundContext: 'real',
+    completed: true,
+    score: index < 3 ? scores.recent : scores.baseline,
+    toPar: index < 3 ? scores.recent - (mode === '9' ? 36 : 72) : scores.baseline - (mode === '9' ? 36 : 72),
+    sgPartialAnalysis: false,
+    shortGameOpportunityEligible: true,
+    components: {
+      off_the_tee: 0.4,
+      approach: 0.8,
+      short_game: -0.2,
+      putting: -0.5,
+      penalties: -0.1,
+    },
+  }));
+  return projectGameTrendsForViewer(
+    resolveGameTrendsMode({ rounds, mode, now: new Date('2026-06-30T00:00:00Z') }),
+    isPremium ? 'premium' : 'free',
+  );
+}
+
 function makeModePayload(overrides?: Partial<any>) {
   return {
     kpis: {
@@ -100,12 +134,26 @@ function makeModePayload(overrides?: Partial<any>) {
   };
 }
 
-function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMode, Partial<any>>>) {
+function makeInsights(
+  isPremium: boolean,
+  modeOverrides?: Partial<Record<StatsMode, Partial<any>>>,
+  gameTrendsMode: StatsMode = 'combined',
+) {
   const card2 = isPremium
     ? "Approach is starting to show up as the main area costing you strokes. You're losing about 0.8 strokes compared with your recent level."
     : 'Approach is starting to show up as the main area holding scores back. The full breakdown shows exactly how much.';
   return {
     generated_at: '2026-02-12T10:00:00.000Z',
+    game_trends: makeGameTrends(
+      isPremium,
+      5,
+      gameTrendsMode,
+      gameTrendsMode === '9'
+        ? { recent: 39.4, baseline: 41 }
+        : gameTrendsMode === '18'
+          ? { recent: 76.2, baseline: 76.3 }
+          : { recent: 74, baseline: 78 },
+    ),
     cards: [
       'Your recent scores are holding close to your normal range.',
       card2,
@@ -131,6 +179,10 @@ function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMo
         scoreLow: 72,
         scoreHigh: 75,
         roundsUsed: 20,
+        handicapCurrent: 3.4,
+        projectedHandicapIn10: 3.0,
+        handicapLow: 2.8,
+        handicapHigh: 4.6,
       },
       '9': {
         trajectory: 'improving',
@@ -138,6 +190,10 @@ function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMo
         scoreLow: 38.1,
         scoreHigh: 40.9,
         roundsUsed: 14,
+        handicapCurrent: 5.1,
+        projectedHandicapIn10: 4.7,
+        handicapLow: 4.2,
+        handicapHigh: 5.4,
       },
       '18': {
         trajectory: 'flat',
@@ -145,6 +201,10 @@ function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMo
         scoreLow: 74.9,
         scoreHigh: 77.8,
         roundsUsed: 12,
+        handicapCurrent: 3.6,
+        projectedHandicapIn10: 3.5,
+        handicapLow: 3.0,
+        handicapHigh: 4.1,
       },
     },
     tier_context: {
@@ -179,7 +239,6 @@ function makeInsights(isPremium: boolean, modeOverrides?: Partial<Record<StatsMo
           putting: -0.6,
           penalties: 0.1,
           residual: 0.1,
-          confidence: 'medium',
           partialAnalysis: false,
         },
         recentAvg: { total: -0.5, offTee: 0.2, approach: -0.8, shortGame: -0.2, putting: -0.6, penalties: 0.1, residual: 0.1 },
@@ -239,7 +298,7 @@ describe('/insights page', () => {
     (global as any).fetch = jest.fn();
   });
 
-  it('renders all 3 overall insight cards for free with no lock overlay CTA', async () => {
+  it('renders the structured free Game Trends roles with no lock overlay CTA', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ insights: makeInsights(false) }),
@@ -247,18 +306,21 @@ describe('/insights page', () => {
 
     const { container } = render(<InsightsPage />);
 
-    await screen.findByText('Your recent scores are holding close to your normal range.');
+    await screen.findByText('Recent Form');
     expect(screen.queryByText('Insights')).not.toBeInTheDocument();
     expect(
       screen.queryByText('See what is changing across your recent rounds and usual scoring patterns.'),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Overall insights confidence: Strong' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Game Trends confidence: Moderate' })).toBeInTheDocument();
     expect(container.querySelector('.insights-badge')).toBeNull();
     expect(screen.queryByRole('button', { name: /Regenerate/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Overall Insights compares your recent rounds (up to 5) against your overall average to detect form trends.')).not.toBeInTheDocument();
     expect(screen.queryByText('Overall Insights compares your recent rounds (up to 5) against your last 20 rounds to detect form trends.')).not.toBeInTheDocument();
-    expect(screen.getByText('Approach is starting to show up as the main area holding scores back. The full breakdown shows exactly how much.')).toBeInTheDocument();
-    expect(screen.getByText('Your scores have some movement to them, but the pattern is still forming.')).toBeInTheDocument();
+    expect(screen.queryByText('Game Profile')).not.toBeInTheDocument();
+    expect(screen.getByText('Strength')).toBeInTheDocument();
+    expect(screen.getByText('Opportunity')).toBeInTheDocument();
+    expect(screen.getByText('Stability')).toBeInTheDocument();
+    expect(container.querySelector('.game-trends-card')?.textContent).not.toMatch(/strokes gained|gaining strokes|losing strokes|\bSG\b/i);
     expect(screen.queryByText(/Last updated/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
@@ -312,7 +374,7 @@ describe('/insights page', () => {
     expect(ctaButtons).toHaveLength(1);
   });
 
-  it('renders premium with all 3 insight cards and no unlock CTA', async () => {
+  it('renders premium Game Trends evidence and no unlock CTA', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: true });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -321,26 +383,26 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('Your scores have some movement to them, but the pattern is still forming.');
-    expect(screen.getByRole('button', { name: 'Overall insights confidence: Strong' })).toBeInTheDocument();
-    expect(screen.getByText('Your recent scores are holding close to your normal range.')).toBeInTheDocument();
-    expect(screen.getByText("Approach is starting to show up as the main area costing you strokes. You're losing about 0.8 strokes compared with your recent level.")).toBeInTheDocument();
+    await screen.findByText('Strength');
+    expect(screen.getByRole('button', { name: 'Game Trends confidence: Moderate' })).toBeInTheDocument();
+    expect(screen.getByText('Strength')).toBeInTheDocument();
+    expect(screen.getByText('Opportunity')).toBeInTheDocument();
     expect(screen.getByText('\u25BC -1.4 Short Game Shots')).toBeInTheDocument();
     expect(screen.queryByText(/The full breakdown shows exactly how much\./i)).not.toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'See Premium Plans' })).not.toBeInTheDocument();
+    expect(screen.getByText('2.8-4.6')).toBeInTheDocument();
 
     const sgLabels = Array.from(document.querySelectorAll('.sg-delta-row .sg-delta-label')).map((node) =>
       node.textContent?.trim() ?? '',
     );
     expect(sgLabels).toEqual([
-      'Off The Tee',
+      'Off the Tee',
       'Approach',
       'Short Game',
       'Putting',
       'Penalties',
-      'Untracked',
     ]);
 
     const perfTitles = Array.from(document.querySelectorAll('.insights-performance-grid .comparison-bar-header h3')).map(
@@ -355,7 +417,7 @@ describe('/insights page', () => {
     ]);
   });
 
-  it('shows absolute SG component averages for early samples under 10 rounds', async () => {
+  it('shows absolute recent SG component averages without a historical comparison', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: true });
     const insights = makeInsights(true);
     insights.projection_by_mode.combined.roundsUsed = 8;
@@ -388,16 +450,16 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText("Approach is starting to show up as the main area costing you strokes. You're losing about 0.8 strokes compared with your recent level.");
+    await screen.findByText('Game Trends');
     await screen.findAllByText('Strokes Gained by Area');
     expect(
       screen.getByText(
-        'Early sample: showing recent SG by area from your last 5 rounds. GolfIQ starts comparing it to your usual level after 10 rounds.',
+        'Shows your average strokes gained or lost in each area over your latest five rounds, using rounds with usable tracking. Positive values gained strokes; negative values lost strokes.',
       ),
     ).toBeInTheDocument();
 
     const offTeeRow = Array.from(document.querySelectorAll('.sg-delta-row')).find(
-      (row) => row.querySelector('.sg-delta-label')?.textContent?.trim() === 'Off The Tee',
+      (row) => row.querySelector('.sg-delta-label')?.textContent?.trim() === 'Off the Tee',
     );
     const approachRow = Array.from(document.querySelectorAll('.sg-delta-row')).find(
       (row) => row.querySelector('.sg-delta-label')?.textContent?.trim() === 'Approach',
@@ -406,7 +468,146 @@ describe('/insights page', () => {
     expect(approachRow?.querySelector('.sg-delta-value')).toHaveTextContent('-0.2');
   });
 
-  it('shows Overall Insights confidence tooltip copy', async () => {
+  it.each([
+    [0, ['Recent']],
+    [1, ['Current']],
+    [2, ['Current']],
+    [3, ['Current']],
+    [4, ['Recent', 'Previous']],
+    [5, ['Recent', 'Previous']],
+    [6, ['Recent', 'Previous']],
+    [9, ['Recent', 'Previous']],
+    [10, ['Recent', 'Usual']],
+    [19, ['Recent', 'Usual']],
+    [20, ['Recent', 'Usual']],
+  ] as const)('renders canonical Scoring labels for a %i-round Recent Form sample', async (count, expectedLabels) => {
+    const insights = makeInsights(true);
+    insights.game_trends = makeGameTrends(true, count);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    const { container } = render(<InsightsPage />);
+    await screen.findByText('Game Trends');
+    const scoringCard = container.querySelector('.insights-top-grid .comparison-bar-card');
+    const labels = Array.from(scoringCard?.querySelectorAll('.comparison-bar-label') ?? [])
+      .map((node) => node.textContent?.trim());
+    expect(labels).toEqual(expectedLabels);
+  });
+
+  it('renders Scoring from the exact canonical Recent Form evidence', async () => {
+    const insights = makeInsights(true);
+    insights.game_trends.recentForm = {
+      ...insights.game_trends.recentForm,
+      maturity: 'established',
+      evidence: {
+        ...insights.game_trends.recentForm.evidence,
+        recentCount: 5,
+        baselineCount: 8,
+        averageScore: 92.4,
+        baselineAverageScore: 93.9,
+        deltaVsBaseline: -1.5,
+      },
+    };
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    const { container } = render(<InsightsPage />);
+    await screen.findByText('Game Trends');
+    const scoringCard = container.querySelector('.insights-top-grid .comparison-bar-card');
+    expect(scoringCard).toHaveTextContent('Recent');
+    expect(scoringCard).toHaveTextContent('92.4');
+    expect(scoringCard).toHaveTextContent('Usual');
+    expect(scoringCard).toHaveTextContent('93.9');
+    expect(scoringCard).toHaveTextContent('\u25BC -1.5 Strokes');
+  });
+
+  it('renders the observed profile with baseline-only Recent Form and a contextual Softening Outlook', async () => {
+    const insights = makeInsights(true);
+    insights.game_trends.recentForm = {
+      ...insights.game_trends.recentForm,
+      state: 'better_than_established',
+      maturity: 'established',
+      evidence: {
+        ...insights.game_trends.recentForm.evidence,
+        recentCount: 5,
+        baselineCount: 8,
+        averageScore: 92.4,
+        baselineAverageScore: 93.9,
+        deltaVsBaseline: -1.5,
+        momentum: {
+          state: 'worsening',
+          recentCount: 5,
+          comparisonCount: 5,
+          recentAverageScore: 92.4,
+          comparisonAverageScore: 90.8,
+          deltaVsPrevious: 1.6,
+        },
+      },
+    };
+    insights.projection_by_mode.combined = {
+      ...insights.projection_by_mode.combined,
+      trajectory: 'worsening',
+      projectedScoreIn10: 92.7,
+      scoreLow: 87.7,
+      scoreHigh: 97.7,
+      projectedHandicapIn10: 17.4,
+      handicapLow: 16.4,
+      handicapHigh: 18.4,
+    };
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    const { container } = render(<InsightsPage />);
+    await screen.findByText('Softening');
+
+    const recentForm = container.querySelector('[data-conclusion-type="recent_form"]');
+    expect(recentForm).toHaveTextContent('Your recent scoring has been better than your usual level.');
+    expect(recentForm).toHaveTextContent('Your latest 5 rounds average 92.4 compared with 93.9 across the previous 8.');
+    expect(recentForm).not.toHaveTextContent('five rounds before them');
+
+    const outlook = container.querySelector('.trajectory-card');
+    expect(outlook?.querySelector('[data-outlook-status="softening"]')).toHaveTextContent('Softening');
+    expect(outlook?.querySelector('.trajectory-momentum-copy')).toBeNull();
+    expect(outlook).toHaveTextContent('87-98');
+    expect(outlook).toHaveTextContent('16.4-18.4');
+    expect(outlook?.querySelector('[data-outlook-status="worsening"]')).toBeNull();
+  });
+
+  it('uses clear high-level tooltip copy across Overall Insights', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights: makeInsights(true) }),
+    });
+
+    render(<InsightsPage />);
+    await screen.findByText(
+      'Combines how your recent scoring compares with your usual level and how your latest five rounds compare with the five before them. Score Range balances recent and usual scoring, and widens when recent rounds are less consistent. Handicap Range uses your recent handicap history.',
+    );
+    expect(screen.getByText(
+      'Shows how your recent scores compare with your usual scoring across the non-overlapping rounds before your recent window. Lower is better.',
+    )).toBeInTheDocument();
+    expect(screen.getByText(
+      'Combines how your recent scoring compares with your usual level and how your latest five rounds compare with the five before them. Score Range balances recent and usual scoring, and widens when recent rounds are less consistent. Handicap Range uses your recent handicap history.',
+    )).toBeInTheDocument();
+    expect(screen.getByText(
+      'Shows how much your score relative to par changes from round to round across your last five rounds. Less variation means more consistent scoring.',
+    )).toBeInTheDocument();
+
+    const tooltipTexts = screen.getAllByTestId('info-tooltip').map((tooltip) => tooltip.textContent ?? '');
+    expect(tooltipTexts.some((text) => text.startsWith('Shows the percentage of fairways you hit.'))).toBe(true);
+    expect(tooltipTexts.some((text) => text.startsWith('Shows the percentage of greens you hit in regulation.'))).toBe(true);
+    expect(tooltipTexts.some((text) => text.startsWith('Shows your average chips and greenside bunker shots per round.'))).toBe(true);
+    expect(tooltipTexts.some((text) => text.startsWith('Shows your average putts per round.'))).toBe(true);
+    expect(tooltipTexts.some((text) => text.startsWith('Shows your average penalties per round.'))).toBe(true);
+  });
+
+  it('shows Game Trends confidence tooltip copy', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ insights: makeInsights(false) }),
@@ -414,17 +615,17 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    const confidencePill = await screen.findByRole('button', { name: 'Overall insights confidence: Strong' });
+    const confidencePill = await screen.findByRole('button', { name: 'Game Trends confidence: Moderate' });
     fireEvent.click(confidencePill);
-    expect(screen.getByText('Insight Confidence')).toBeInTheDocument();
+    expect(screen.getByText('Game Trends Confidence')).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This shows how much data GolfIQ has behind your Overall Insights. Building means an early read. Moderate means useful signal, but still getting sharper. Strong means enough history to trust the pattern more.",
+        'Building means an early read. Moderate means useful evidence is forming. Strong means every available conclusion has strong support.',
       ),
     ).toBeInTheDocument();
   });
 
-  it('derives Building/Moderate/Strong confidence pill labels and tone classes', async () => {
+  it('renders Building/Moderate/Strong aggregate confidence values and tone classes', async () => {
     const lowInsights = makeInsights(false, {
       combined: {
         kpis: { roundsRecent: 1, avgScoreRecent: null, avgScoreBaseline: null, avgToParRecent: null, avgSgTotalRecent: null, bestScoreRecent: null, deltaVsBaseline: null },
@@ -443,15 +644,24 @@ describe('/insights page', () => {
         consistency: { label: 'stable', stdDev: 1.4 },
       },
     });
+    lowInsights.game_trends.confidence = 'building';
+    mediumInsights.game_trends.confidence = 'moderate';
+    highInsights.game_trends.confidence = 'strong';
+    lowInsights.game_trends.stability = {
+      ...lowInsights.game_trends.stability,
+      state: 'building',
+      confidence: 'building',
+      evidence: { recentCount: 1, standardDeviation: null, scoreRange: null },
+    };
 
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ insights: lowInsights }),
     });
     const lowRender = render(<InsightsPage />);
-    const lowPill = await screen.findByRole('button', { name: 'Overall insights confidence: Building' });
+    const lowPill = await screen.findByRole('button', { name: 'Game Trends confidence: Building' });
     expect(lowPill).toHaveClass('is-low');
-    expect(lowRender.container.querySelector('.consistency-badge')).toHaveTextContent('Needs more rounds');
+    expect(lowRender.container.querySelector('.consistency-badge')).toHaveTextContent('Building');
     expect(screen.queryByText('Not enough data')).not.toBeInTheDocument();
     lowRender.unmount();
 
@@ -460,7 +670,7 @@ describe('/insights page', () => {
       json: async () => ({ insights: mediumInsights }),
     });
     const mediumRender = render(<InsightsPage />);
-    const mediumPill = await screen.findByRole('button', { name: 'Overall insights confidence: Moderate' });
+    const mediumPill = await screen.findByRole('button', { name: 'Game Trends confidence: Moderate' });
     expect(mediumPill).toHaveClass('is-medium');
     mediumRender.unmount();
 
@@ -469,13 +679,13 @@ describe('/insights page', () => {
       json: async () => ({ insights: highInsights }),
     });
     render(<InsightsPage />);
-    const highPill = await screen.findByRole('button', { name: 'Overall insights confidence: Strong' });
+    const highPill = await screen.findByRole('button', { name: 'Game Trends confidence: Strong' });
     expect(highPill).toHaveClass('is-high');
   });
 
   it('uses backend confidence value when provided', async () => {
     const insights = makeInsights(false);
-    (insights as any).confidence = 'low';
+    insights.game_trends.confidence = 'building';
     insights.mode_payload.combined.kpis.roundsRecent = 6;
     insights.mode_payload.combined.consistency = { label: 'stable', stdDev: 1.2 };
 
@@ -486,7 +696,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    const pill = await screen.findByRole('button', { name: 'Overall insights confidence: Building' });
+    const pill = await screen.findByRole('button', { name: 'Game Trends confidence: Building' });
     expect(pill).toHaveClass('is-low');
   });
 
@@ -535,7 +745,7 @@ describe('/insights page', () => {
     await screen.findByText('Still early, but a pattern is starting to show.');
   });
 
-  it('renders 0-round state safely with building confidence and still-building trajectory', async () => {
+  it('renders 0-round state safely with building confidence and a neutral outlook', async () => {
     const zeroRoundInsights: any = makeInsights(false, {
       combined: {
         kpis: {
@@ -566,6 +776,7 @@ describe('/insights page', () => {
     zeroRoundInsights.projection_by_mode.combined.trajectory = 'unknown';
     zeroRoundInsights.projection.projectedScoreIn10 = null;
     zeroRoundInsights.projection_by_mode.combined.projectedScoreIn10 = null;
+    zeroRoundInsights.game_trends = makeGameTrends(false, 0);
     zeroRoundInsights.generated_at = '2026-02-12T10:00:09.000Z';
     zeroRoundInsights.mode_payload.combined.trend = {
       labels: [],
@@ -586,17 +797,19 @@ describe('/insights page', () => {
     await screen.findByText(
       'GolfIQ can spot early signals from your first rounds. A few more rounds will make the picture clearer.',
     );
-    await screen.findByText(
-      'Early read: your score pattern is starting to form. A few more rounds will make this stronger.',
-    );
-    expect(screen.getByRole('button', { name: 'Overall insights confidence: Building' })).toBeInTheDocument();
+    await screen.findByText('Log your first round to start building Game Trends.');
+    expect(screen.getByRole('button', { name: 'Game Trends confidence: Building' })).toBeInTheDocument();
+    expect(screen.getByText('Scoring Direction')).toBeInTheDocument();
     expect(screen.getByText('Still Building')).toBeInTheDocument();
     expect(screen.queryByText(/You're losing about/i)).not.toBeInTheDocument();
 
-    const viewedCalls = mockedCaptureClientEvent.mock.calls.filter(
-      (call) => call[0] === ANALYTICS_EVENTS.insightsViewed,
-    );
-    expect(viewedCalls.length).toBeGreaterThan(0);
+    let viewedCalls: any[] = [];
+    await waitFor(() => {
+      viewedCalls = mockedCaptureClientEvent.mock.calls.filter(
+        (call) => call[0] === ANALYTICS_EVENTS.insightsViewed,
+      );
+      expect(viewedCalls.length).toBeGreaterThan(0);
+    });
     expect(viewedCalls[0][1]).toEqual(expect.objectContaining({ sample_size: 0 }));
   });
 
@@ -609,12 +822,15 @@ describe('/insights page', () => {
     });
 
     render(<InsightsPage />);
-    await screen.findByText('Your recent scores are holding close to your normal range.');
+    await screen.findByText('Game Trends');
 
-    const viewedCalls = mockedCaptureClientEvent.mock.calls.filter(
-      (call) => call[0] === ANALYTICS_EVENTS.insightsViewed,
-    );
-    expect(viewedCalls.length).toBeGreaterThan(0);
+    let viewedCalls: any[] = [];
+    await waitFor(() => {
+      viewedCalls = mockedCaptureClientEvent.mock.calls.filter(
+        (call) => call[0] === ANALYTICS_EVENTS.insightsViewed,
+      );
+      expect(viewedCalls.length).toBeGreaterThan(0);
+    });
     expect(viewedCalls[0][1]).toEqual(
       expect.objectContaining({
         surface: 'overall_insights',
@@ -669,7 +885,7 @@ describe('/insights page', () => {
       ['sg_component_delta', 'sg_trend', 'trajectory'],
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Overall insights confidence: Strong' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Game Trends confidence: Moderate' }));
 
     await waitFor(() => {
       const afterRerenderPaywallCalls = mockedCaptureClientEvent.mock.calls.filter(
@@ -698,7 +914,7 @@ describe('/insights page', () => {
     expect(paywallCalls).toHaveLength(0);
   });
 
-  it('enriches overall_card_viewed with message metadata and visibility context', async () => {
+  it('captures structured Game Trends conclusions without copy hashes or indices', async () => {
     const insights = makeInsights(false);
     insights.generated_at = '2026-02-12T10:00:12.000Z';
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -708,124 +924,73 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('Your recent scores are holding close to your normal range.');
+    await screen.findByText('Game Trends');
 
     let cardCalls = mockedCaptureClientEvent.mock.calls.filter(
-      (call) => call[0] === ANALYTICS_EVENTS.overallCardViewed,
+      (call) => call[0] === ANALYTICS_EVENTS.gameTrendConclusionViewed,
     );
     await waitFor(() => {
       cardCalls = mockedCaptureClientEvent.mock.calls.filter(
-        (call) => call[0] === ANALYTICS_EVENTS.overallCardViewed,
+        (call) => call[0] === ANALYTICS_EVENTS.gameTrendConclusionViewed,
       );
-      expect(cardCalls).toHaveLength(3);
+      expect(cardCalls).toHaveLength(4);
     });
     expect(cardCalls[0][1]).toEqual(
       expect.objectContaining({
         surface: 'overall_insights',
-        message_index: 0,
-        message_type: 'score_trend',
-        visible_cards_count: 3,
+        version: 2,
+        conclusion_type: 'recent_form',
+        momentum_state: 'unavailable',
+        outlook_status: 'building',
+        mode: 'combined',
+        entitlement: 'free',
       }),
     );
-    expect(cardCalls[1][1]).toEqual(
-      expect.objectContaining({
-        message_index: 1,
-        message_type: 'component_signal',
-      }),
-    );
-    expect(cardCalls[2][1]).toEqual(
-      expect.objectContaining({
-        message_index: 2,
-        message_type: 'consistency_signal',
-      }),
-    );
+    expect(cardCalls.map((call) => call[1]?.conclusion_type)).toEqual([
+      'recent_form',
+      'strength',
+      'opportunity',
+      'stability',
+    ]);
     cardCalls.forEach((call) => {
-      expect(typeof call[1]?.message_hash).toBe('string');
-      expect((call[1]?.message_hash as string).length).toBeGreaterThan(0);
+      expect(call[1]).not.toHaveProperty('message_hash');
+      expect(call[1]).not.toHaveProperty('message_index');
+      expect(call[1]).not.toHaveProperty('copy');
     });
   });
 
-  it('uses backend trajectory when projection_by_mode trajectory exists', async () => {
-    const insights = makeInsights(true, {
-      combined: {
-        kpis: {
-          roundsRecent: 5,
-          avgScoreRecent: 70,
-          avgScoreBaseline: 80,
-          avgToParRecent: -2,
-          avgSgTotalRecent: 0.2,
-          bestScoreRecent: 69,
-          deltaVsBaseline: -10,
+  it.each(['flat', 'unknown', undefined] as const)(
+    'derives Scoring Direction from canonical Game Trends when internal trajectory is %s',
+    async (trajectory) => {
+      const insights = makeInsights(true, {
+        combined: {
+          kpis: {
+            roundsRecent: 5,
+            avgScoreRecent: 70,
+            avgScoreBaseline: 80,
+            avgToParRecent: -2,
+            avgSgTotalRecent: 0.2,
+            bestScoreRecent: 69,
+            deltaVsBaseline: -10,
+          },
         },
-      },
-    });
-    insights.projection_by_mode.combined.trajectory = 'flat';
+      });
+      insights.projection_by_mode.combined.trajectory = trajectory as any;
 
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => ({ insights }),
-    });
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ insights }),
+      });
 
-    render(<InsightsPage />);
+      render(<InsightsPage />);
 
-    await screen.findByText('Flat');
-    expect(screen.getByText('Flat')).toBeInTheDocument();
-  });
-
-  it('shows building trajectory label for early-state backend trajectory', async () => {
-    const insights = makeInsights(true, {
-      combined: {
-        kpis: {
-          roundsRecent: 5,
-          avgScoreRecent: 93.2,
-          avgScoreBaseline: 97.7,
-          avgToParRecent: 21.2,
-          avgSgTotalRecent: 0.1,
-          bestScoreRecent: 88,
-          deltaVsBaseline: -4.5,
-        },
-      },
-    });
-    insights.projection_by_mode.combined.trajectory = 'unknown';
-
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => ({ insights }),
-    });
-
-    render(<InsightsPage />);
-
-    await screen.findByText('Still Building');
-    expect(screen.queryByText('Worsening')).not.toBeInTheDocument();
-    expect(screen.queryByText('Improving')).not.toBeInTheDocument();
-  });
-
-  it('falls back to frontend trajectory classification when backend trajectory is missing', async () => {
-    const insights = makeInsights(true, {
-      combined: {
-        kpis: {
-          roundsRecent: 5,
-          avgScoreRecent: 70,
-          avgScoreBaseline: 80,
-          avgToParRecent: -2,
-          avgSgTotalRecent: 0.2,
-          bestScoreRecent: 69,
-          deltaVsBaseline: -10,
-        },
-      },
-    });
-    insights.projection_by_mode.combined.trajectory = undefined as any;
-
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => ({ insights }),
-    });
-
-    render(<InsightsPage />);
-
-    await screen.findByText('Improving');
-    expect(screen.getByText('Improving')).toBeInTheDocument();
-  });
+      await screen.findByText('Still Building');
+      expect(screen.queryByText('Flat')).not.toBeInTheDocument();
+      expect(screen.getByText('Still Building')).toBeInTheDocument();
+      expect(screen.queryByText('Improving')).not.toBeInTheDocument();
+      expect(screen.queryByText('Worsening')).not.toBeInTheDocument();
+    },
+  );
 
   it('updates mode-specific sections after dropdown change', async () => {
     const combinedInsights = makeInsights(true);
@@ -841,7 +1006,7 @@ describe('/insights page', () => {
           deltaVsBaseline: -1.6,
         },
       },
-    });
+    }, '9');
 
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({
@@ -855,7 +1020,7 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('75.2');
+    await screen.findByText('74.0');
 
     fireEvent.change(screen.getByTestId('stats-mode-select'), { target: { value: '9' } });
 
@@ -868,6 +1033,38 @@ describe('/insights page', () => {
 
     await screen.findByText('39.4');
     expect(screen.getByText('41.0')).toBeInTheDocument();
+    expect(screen.getByText('4.2-5.4')).toBeInTheDocument();
+  });
+
+  it('uses the native 18-hole handicap range when 18-hole mode is selected', async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ insights: makeInsights(true) }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ insights: makeInsights(true, undefined, '18') }) });
+
+    render(<InsightsPage />);
+    await screen.findByText('2.8-4.6');
+    fireEvent.change(screen.getByTestId('stats-mode-select'), { target: { value: '18' } });
+    await screen.findByText('76.2');
+    expect(Array.from(document.querySelectorAll('.trajectory-pill-value')).map((node) => node.textContent?.trim()))
+      .toContain('3-4.1');
+    expect(screen.queryByText('2.8-4.6')).not.toBeInTheDocument();
+  });
+
+  it('does not borrow the Combined handicap range for an unsupported selected mode', async () => {
+    const nineInsights = makeInsights(true, undefined, '9');
+    (nineInsights.projection_by_mode['9'] as any).projectedHandicapIn10 = null;
+    (nineInsights.projection_by_mode['9'] as any).handicapLow = null;
+    (nineInsights.projection_by_mode['9'] as any).handicapHigh = null;
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ insights: makeInsights(true) }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ insights: nineInsights }) });
+
+    render(<InsightsPage />);
+    await screen.findByText('2.8-4.6');
+    fireEvent.change(screen.getByTestId('stats-mode-select'), { target: { value: '9' } });
+    await screen.findByText('39.4');
+    expect(screen.queryByText('2.8-4.6')).not.toBeInTheDocument();
+    expect(screen.getByText('GolfIQ needs a little more handicap history before showing a handicap outlook.')).toBeInTheDocument();
   });
 
   it('does not show mode-switch error state when stale insights request fails after switching mode', async () => {
@@ -883,7 +1080,7 @@ describe('/insights page', () => {
           deltaVsBaseline: -1.6,
         },
       },
-    });
+    }, '9');
 
     let rejectCombinedRequest: (reason?: unknown) => void = () => {};
     (global.fetch as jest.Mock).mockImplementation((url: string) => {
@@ -926,10 +1123,11 @@ describe('/insights page', () => {
 
     render(<InsightsPage />);
 
-    await screen.findByText('75.2');
+    await screen.findByText('74.0');
 
     fireEvent.change(screen.getByTestId('stats-mode-select'), { target: { value: '9' } });
 
-    await screen.findByText('Insights mode load failed');
+    await screen.findByText('GolfIQ couldn’t load Game Trends right now. Please try again.');
+    expect(screen.queryByText('Insights mode load failed')).not.toBeInTheDocument();
   });
 });

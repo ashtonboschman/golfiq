@@ -694,7 +694,6 @@ model RoundStrokesGained {
   sgResidual      Decimal?    @map("sg_residual") @db.Decimal(5, 1)
   sgPutting       Decimal?    @map("sg_putting") @db.Decimal(5, 1)
   sgPenalties     Decimal?    @map("sg_penalties") @db.Decimal(5, 1)
-  confidence      Confidence? @map("confidence")
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   messages        Json?
   partialAnalysis Boolean?    @map("partial_analysis")
@@ -885,12 +884,6 @@ enum DashboardVisibility {
 enum TeeGender {
   male
   female
-}
-
-enum Confidence {
-  low
-  medium
-  high
 }
 
 enum Tier {

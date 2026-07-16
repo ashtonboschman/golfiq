@@ -1,4 +1,5 @@
 import { DASHBOARD_TREND_CONFIG } from './config';
+import { compareStableIdsDescending } from '@/lib/insights/trendEvidence';
 import type { DashboardTrendMode, TrendRoundInput } from './types';
 
 export type DashboardFocusRoundContext = 'real' | 'simulator' | 'practice';
@@ -75,17 +76,6 @@ function modeMatches(round: ValidDashboardFocusRoundCandidate, mode: DashboardTr
   return round.holes === 9 || round.holes === 18;
 }
 
-/** Numeric IDs sort numerically; any non-numeric stable IDs sort lexically. */
-function compareStableIdDescending(left: string, right: string): number {
-  if (/^\d+$/.test(left) && /^\d+$/.test(right)) {
-    const leftId = BigInt(left);
-    const rightId = BigInt(right);
-    if (leftId === rightId) return 0;
-    return leftId > rightId ? -1 : 1;
-  }
-  return right.localeCompare(left);
-}
-
 function toTrendRound(round: ValidDashboardFocusRoundCandidate): TrendRoundInput {
   return {
     roundId: round.roundId,
@@ -99,7 +89,6 @@ function toTrendRound(round: ValidDashboardFocusRoundCandidate): TrendRoundInput
     },
     residual: round.residual ? { ...round.residual } : undefined,
     shortGameOpportunityEligible: round.shortGameOpportunityEligible,
-    sgConfidence: round.sgConfidence,
     sgPartialAnalysis: round.sgPartialAnalysis,
   };
 }
@@ -151,7 +140,7 @@ export function selectDashboardRoundEnvelope(
   eligible.sort((left, right) => {
     if (left.dateMs !== right.dateMs) return right.dateMs - left.dateMs;
     if (left.createdAtMs !== right.createdAtMs) return right.createdAtMs - left.createdAtMs;
-    return compareStableIdDescending(left.source.roundId, right.source.roundId);
+    return compareStableIdsDescending(left.source.roundId, right.source.roundId);
   });
 
   const recentCandidates = eligible.slice(0, DASHBOARD_TREND_CONFIG.recentWindowSize);

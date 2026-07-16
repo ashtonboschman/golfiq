@@ -32,8 +32,7 @@ export type TrendRoundInput = {
   residual?: TrendComponentValue;
   /** Short Game only counts when this round had enough opportunities. */
   shortGameOpportunityEligible: boolean;
-  /** Diagnostic metadata; neither field directly determines trend confidence. */
-  sgConfidence?: 'high' | 'medium' | 'low' | null;
+  /** Diagnostic metadata; this does not determine trend confidence. */
   sgPartialAnalysis?: boolean | null;
 };
 

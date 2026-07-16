@@ -37,6 +37,9 @@ describe('sharedSignals', () => {
       classifyVolatilitySignal({ consistencyLabel: 'moderate', stdDev: 1.2 }).severity,
     ).toBe('moderate');
     expect(
+      classifyVolatilitySignal({ consistencyLabel: 'variable', stdDev: 1.2 }).severity,
+    ).toBe('moderate');
+    expect(
       classifyVolatilitySignal({ consistencyLabel: 'stable', stdDev: 1.3 }).severity,
     ).toBe('insufficient');
 

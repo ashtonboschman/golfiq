@@ -1240,7 +1240,6 @@ async function seedRoundsForUser(userId: bigint, options: SeedOptions): Promise<
         sgPutting: sg.sgPutting,
         sgPenalties: sg.sgPenalties,
         sgResidual: sg.sgResidual,
-        confidence: sg.confidence,
         messages: sg.messages,
         partialAnalysis: sg.partialAnalysis,
       },

@@ -1562,7 +1562,6 @@ describe('/api/rounds/[id]/insights route contract', () => {
       sgPutting: 0.1,
       sgPenalties: 0,
       sgResidual: 0,
-      confidence: 'medium',
     });
 
     const insights = await generateInsights(
@@ -1612,7 +1611,6 @@ describe('/api/rounds/[id]/insights route contract', () => {
       sgPutting: -0.1,
       sgPenalties: 0,
       sgResidual: 0,
-      confidence: 'medium',
     });
 
     const insights = await generateInsights(
@@ -2206,7 +2204,6 @@ describe('/api/rounds/[id]/insights route contract', () => {
       sgPutting: 0,
       sgPenalties: -2,
       sgResidual: 0,
-      confidence: 'medium',
     });
 
     const insights = await generateInsights(

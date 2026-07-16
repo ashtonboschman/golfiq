@@ -12,7 +12,6 @@ export type SGComponents = {
   sgPutting: number | null;
   sgPenalties: number | null;
   sgResidual: number | null;
-  confidence: "high" | "medium" | "low" | null;
   messages: string[];
   partialAnalysis: boolean;
 };
@@ -45,7 +44,6 @@ export async function calculateStrokesGained(
       sgPutting: null,
       sgPenalties: null,
       sgResidual: null,
-      confidence: null,
       partialAnalysis: true,
       messages: [],
     };
@@ -119,7 +117,6 @@ export async function calculateStrokesGained(
       sgPutting: null,
       sgPenalties: null,
       sgResidual: null,
-      confidence: null,
       partialAnalysis: true,
       messages: ["Round has fewer than 9 holes - strokes gained not applicable"],
     };
@@ -222,67 +219,6 @@ export async function calculateStrokesGained(
     .reduce((sum, v) => sum + v, 0);
   const sgResidual = sgTotal - knownSGSum;
 
-  // --- Overall Confidence Calculation ---
-  const shortGameOpps = actualMissedGreens ?? 0;
-  let confidence: "high" | "medium" | "low" = "low"; // default low
-  const essentialDataMissing =
-    actualGIR === null || actualPutts === null || actualPenalties === null;
-
-  if (essentialDataMissing) {
-    confidence = "low";
-    messages.push("Missing essential data reduces overall confidence");
-  } else {
-    const puttingValue = sgComponentsMap.putting ?? 0;
-
-    // Residual check
-    const residualHigh = Math.abs(sgResidual) < C.CONFIDENCE_RESIDUAL_HIGH;
-
-    // Short game opportunities check
-    const shortGameHigh = shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_HIGH_PCT;
-    const shortGameMedium =
-      shortGameOpps >= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT &&
-      shortGameOpps <= totalHoles * C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT;
-
-    // Putting check
-    const puttingHigh = Math.abs(puttingValue) <= puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT;
-    const puttingMedium =
-      Math.abs(puttingValue) > puttingCap * C.CONFIDENCE_PUTTING_HIGH_PCT &&
-      Math.abs(puttingValue) <= puttingCap;
-
-    // --- Determine confidence ---
-    if (residualHigh && shortGameHigh && puttingHigh) {
-      confidence = "high";
-    } else if (residualHigh || shortGameMedium || puttingMedium) {
-      confidence = "medium";
-      messages.push("Short game estimate based on residual calculation - interpret with context");
-
-      if (shortGameMedium) {
-        messages.push(
-          `Only ${shortGameOpps} short game opportunities - moderate confidence`
-        );
-      }
-
-      if (puttingMedium) {
-        messages.push(
-          puttingValue > 0
-            ? `Strong putting performance (+${puttingValue.toFixed(
-                1
-              )}) may inflate short game results`
-            : `Poor putting performance (${puttingValue.toFixed(
-                1
-              )}) likely contributed significantly to score`
-        );
-      }
-    } else {
-      confidence = "low";
-      messages.push(
-        `Residual, putting, and short game opportunities indicate low confidence (${shortGameOpps} short game opportunities, putting ${puttingValue.toFixed(
-          1
-        )}, residual ${sgResidual.toFixed(1)})`
-      );
-    }
-  }
-
   // --- Round and return ---
   // Persist SG at 1 decimal so stored values match UI precision.
   // Keep conservation true at persisted precision by deriving residual from rounded totals/components.
@@ -309,7 +245,6 @@ export async function calculateStrokesGained(
     sgPutting: sgPuttingRounded,
     sgPenalties: sgPenaltiesRounded,
     sgResidual: sgResidualRounded,
-    confidence,
     messages,
     partialAnalysis,
   };

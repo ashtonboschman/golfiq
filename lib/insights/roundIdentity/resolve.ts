@@ -164,7 +164,6 @@ export function buildRoundIdentityInputHash(
       sgPutting: input.sgPutting,
       sgPenalties: input.sgPenalties,
       sgResidual: input.sgResidual,
-      sgConfidence: input.sgConfidence,
       sgPartialAnalysis: input.sgPartialAnalysis,
     },
     context: {

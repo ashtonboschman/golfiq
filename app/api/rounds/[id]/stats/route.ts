@@ -169,7 +169,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const sgPutting = roundOneDecimal(round.roundStrokesGained?.sgPutting);
     const sgPenalties = roundOneDecimal(round.roundStrokesGained?.sgPenalties);
     const sgResidual = roundOneDecimal(round.roundStrokesGained?.sgResidual);
-    const confidence = round.roundStrokesGained?.confidence;
     const messages = round.roundStrokesGained?.messages;
 
     // Response
@@ -219,7 +218,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
       sg_putting: sgPutting,
       sg_penalties: sgPenalties,
       sg_residual: sgResidual,
-      sg_confidence: confidence,
       sg_messages: messages,
     };
 

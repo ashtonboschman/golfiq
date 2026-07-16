@@ -93,7 +93,6 @@ describe('/api/export/rounds route contract', () => {
           sgPutting: 0.2,
           sgPenalties: -0.5,
           sgResidual: 0.7,
-          confidence: 'medium',
         },
         roundHoles: [
           {
@@ -144,7 +143,7 @@ describe('/api/export/rounds route contract', () => {
     expect(body.data[0].sg_putting).toBe(0.2);
     expect(body.data[0].sg_penalties).toBe(-0.5);
     expect(body.data[0].sg_residual).toBe(0.7);
-    expect(body.data[0].sg_confidence).toBe('medium');
+    expect(body.data[0]).not.toHaveProperty('sg_confidence');
 
     const holesFromJsonString = JSON.parse(body.data[0].round_holes_json);
     expect(holesFromJsonString[0]).toMatchObject({

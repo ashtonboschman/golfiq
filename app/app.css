@@ -7775,6 +7775,7 @@ input[type='date'].form-input {
 
 .insights-confidence-tooltip {
   position: relative !important;
+  z-index: auto;
   top: 0 !important;
   right: auto !important;
   display: inline-flex;
@@ -7836,6 +7837,114 @@ input[type='date'].form-input {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+}
+
+.game-trends-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding-top: var(--gap);
+}
+
+.insight-message-content.game-trends-message-content {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  column-gap: var(--gap-small);
+}
+
+.game-trends-message-content > .game-trends-row-heading {
+  grid-column: 2;
+}
+
+.game-trends-message-content > .game-trends-copy,
+.game-trends-message-content > .game-trends-skeleton-copy {
+  grid-column: 1 / -1;
+  margin-top: var(--gap-small);
+}
+
+.game-trends-row-heading h4,
+.game-trends-state h4 {
+  margin: 0;
+}
+
+.game-trends-row-heading h4 {
+  font-family: var(--font-space-grotesk), monospace;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--color-primary-text);
+}
+
+.game-trends-row-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-small);
+}
+
+.game-trends-message-content > .game-trends-message-icon {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--color-accent);
+}
+
+.game-trends-message.insight-message-skeleton .game-trends-message-content {
+  width: 100%;
+  padding-left: 0;
+}
+
+.game-trends-copy {
+  display: block;
+}
+
+.game-trends-copy p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.game-trends-copy .game-trends-conclusion {
+  color: var(--color-primary-text);
+}
+
+.game-trends-inline-confidence,
+.game-trends-context-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.game-trends-inline-confidence {
+  color: var(--color-secondary-text);
+}
+
+.game-trends-context-label {
+  color: var(--color-accent);
+}
+
+.game-trends-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-small);
+  padding-top: var(--gap);
+}
+
+.game-trends-state p {
+  margin: 0;
+  color: var(--color-secondary-text);
+}
+
+.game-trends-state .btn {
+  width: auto;
+}
+
+.game-trends-skeleton-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+  width: 100%;
 }
 
 .round-identity-sample-note {
@@ -8327,11 +8436,15 @@ input[type='date'].form-input {
   justify-content: center;
   align-self: unset;
   width: auto;
+  max-width: 100%;
   min-width: 140px;
   border-radius: 999px;
   border: 1px solid var(--color-border);
   background: var(--color-secondary-surface);
   padding: 0.35rem 0.75rem;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .trajectory-chip.is-none {
@@ -9615,8 +9728,6 @@ input[type='date'].form-input {
 .comparison-bar-fill.is-negative { background: #ef4444; }
 .comparison-bar-delta.is-up { color: #16a34a; }
 .comparison-bar-delta.is-down { color: #ef4444; }
-.trajectory-chip.is-up { color: #16a34a; border-color: #16a34a; }
-.trajectory-chip.is-down { color: #ef4444; border-color: #ef4444; }
 .sg-skeleton-bar {
   display: block;
   position: absolute;

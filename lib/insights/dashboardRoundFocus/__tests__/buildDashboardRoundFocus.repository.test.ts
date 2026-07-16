@@ -43,7 +43,6 @@ function makeDbRound(id: number, holesPlayed: unknown = 18) {
       sgShortGame: 0.2,
       sgPutting: 0.2,
       sgResidual: 0,
-      confidence: 'high',
       partialAnalysis: false,
     },
   };

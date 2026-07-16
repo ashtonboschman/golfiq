@@ -7,7 +7,6 @@ import { useMessage } from '@/app/providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import Link from 'next/link';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Crown, Edit, Trash2, X } from 'lucide-react';
-import { Confidence } from '@prisma/client';
 import RoundInsights from '@/components/RoundInsights';
 import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -83,7 +82,6 @@ interface RoundStats {
   sg_putting: number | null;
   sg_penalties: number | null;
   sg_residual: number | null;
-  confidence: Confidence;
   message: string;
 }
 

@@ -21,7 +21,6 @@ function mkRound(index: number, partial: Partial<OverallRoundPoint>): OverallRou
     sgPutting: -0.1,
     sgPenalties: 0,
     sgResidual: 0,
-    sgConfidence: null,
     sgPartialAnalysis: null,
     firDirections: [],
     girDirections: [],
@@ -75,9 +74,39 @@ describe('overall projection + trajectory', () => {
     expect(payload.projection_by_mode.combined.projectedScoreIn10).not.toBeNull();
     expect(payload.projection_by_mode['9'].projectedScoreIn10).not.toBeNull();
     expect(payload.projection_by_mode['18'].projectedScoreIn10).not.toBeNull();
+    for (const mode of ['combined', '9', '18'] as const) {
+      expect(payload.projection_by_mode[mode].projectedHandicapIn10).not.toBeNull();
+      expect(payload.projection_by_mode[mode].handicapLow).not.toBeNull();
+      expect(payload.projection_by_mode[mode].handicapHigh).not.toBeNull();
+    }
     expect(payload.projection_by_mode['9'].projectedScoreIn10!).toBeLessThan(
       payload.projection_by_mode['18'].projectedScoreIn10!,
     );
+  });
+
+  it('keeps an empty native mode projection empty instead of borrowing Combined', () => {
+    const rounds = Array.from({ length: 12 }, (_, index) => mkRound(index, {
+      holes: 18,
+      nonPar3Holes: 14,
+      score: 76 + (index % 2),
+      toPar: 4 + (index % 2),
+      handicapAtRound: 4 + (index * 0.05),
+    }));
+    const payload = computeOverallPayload({
+      rounds,
+      isPremium: true,
+      model: 'overall-deterministic-v1',
+      cards: Array.from({ length: 3 }, () => ''),
+    });
+
+    expect(payload.projection_by_mode.combined.projectedHandicapIn10).not.toBeNull();
+    expect(payload.projection_by_mode['9']).toMatchObject({
+      projectedScoreIn10: null,
+      projectedHandicapIn10: null,
+      handicapLow: null,
+      handicapHigh: null,
+      roundsUsed: 0,
+    });
   });
 
   it('classifies improving trajectory when recent scoring slope is down', () => {
@@ -245,6 +274,59 @@ describe('overall projection + trajectory', () => {
     expect(handicapMid).toBeCloseTo(payload.projection.projectedHandicapIn10!, 1);
     expect(ranges.handicapLow!).toBeGreaterThanOrEqual(1);
     expect(ranges.handicapHigh!).toBeLessThanOrEqual(2.8);
+  });
+
+  it('makes a volatile latest-five scoring profile wider than a stable profile with the same average', () => {
+    const handicaps = Array.from({ length: 10 }, () => 18);
+    const stable = computeOverallPayload({
+      rounds: buildRounds(Array.from({ length: 10 }, () => 92), handicaps),
+      isPremium: true,
+      model: 'overall-deterministic-v9',
+      cards: [],
+    });
+    const volatile = computeOverallPayload({
+      rounds: buildRounds([84, 100, 84, 100, 92, 92, 92, 92, 92, 92], handicaps),
+      isPremium: true,
+      model: 'overall-deterministic-v9',
+      cards: [],
+    });
+
+    const stableWidth = stable.projection_by_mode['18'].scoreHigh! - stable.projection_by_mode['18'].scoreLow!;
+    const volatileWidth = volatile.projection_by_mode['18'].scoreHigh! - volatile.projection_by_mode['18'].scoreLow!;
+    expect(stableWidth).toBeCloseTo(3, 1);
+    expect(volatileWidth).toBeGreaterThan(stableWidth);
+  });
+
+  it('widens for one blow-up round without allowing that round to control the full range', () => {
+    const payload = computeOverallPayload({
+      rounds: buildRounds(
+        [112, 90, 91, 92, 93, 92, 92, 92, 92, 92],
+        Array.from({ length: 10 }, () => 18),
+      ),
+      isPremium: true,
+      model: 'overall-deterministic-v9',
+      cards: [],
+    });
+    const range = payload.projection_by_mode['18'];
+
+    expect(range.scoreHigh! - range.scoreLow!).toBeCloseTo(10, 1);
+    expect(range.scoreHigh!).toBeLessThan(112);
+  });
+
+  it('scales the minimum score-range width for native 9-hole projections', () => {
+    const nineHoleRounds = buildRounds(
+      Array.from({ length: 10 }, () => 45),
+      Array.from({ length: 10 }, () => 18),
+    ).map((round) => ({ ...round, holes: 9, nonPar3Holes: 7, toPar: 9 }));
+    const payload = computeOverallPayload({
+      rounds: nineHoleRounds,
+      isPremium: true,
+      model: 'overall-deterministic-v9',
+      cards: [],
+    });
+    const range = payload.projection_by_mode['9'];
+
+    expect(range.scoreHigh! - range.scoreLow!).toBeCloseTo(1.5, 1);
   });
 
   it('floors handicap low range to avoid overly optimistic 10-round drop', () => {

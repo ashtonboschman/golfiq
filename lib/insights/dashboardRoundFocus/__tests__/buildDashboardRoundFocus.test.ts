@@ -42,7 +42,6 @@ function makeRound(
       },
     },
     shortGameOpportunityEligible: true,
-    sgConfidence: 'high',
     sgPartialAnalysis: false,
   };
 }

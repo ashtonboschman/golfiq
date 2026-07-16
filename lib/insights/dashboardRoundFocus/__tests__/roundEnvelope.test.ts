@@ -38,7 +38,6 @@ function makeCandidate(
       putting: { value: 0.1, tracked: true },
     },
     shortGameOpportunityEligible: true,
-    sgConfidence: 'high',
     sgPartialAnalysis: false,
   };
 }

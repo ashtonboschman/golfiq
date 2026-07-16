@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { GET, generateAndStoreOverallInsights } from '@/app/api/insights/overall/route';
 import { requireAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/db';
@@ -75,8 +76,31 @@ function makeRound(index: number) {
       sgPutting: 0.1 - index * 0.1,
       sgPenalties: -0.1 + index * 0.1,
       sgResidual: 0.1 - index * 0.1,
-      confidence: 'medium',
       partialAnalysis: false,
+    },
+  };
+}
+
+function makeNineHoleRound(index: number) {
+  const round = makeRound(index);
+  return {
+    ...round,
+    id: BigInt(101 + index),
+    date: new Date(Date.UTC(2025, 11, 20 - index, 12)),
+    score: 42 + index,
+    toPar: 6 + index,
+    tee: {
+      ...makeTee(),
+      numberOfHoles: 9,
+      courseRating: 36,
+      slopeRating: 65,
+      bogeyRating: 47.7,
+      parTotal: 36,
+      nonPar3Holes: 7,
+      holes: Array.from({ length: 9 }, (_, holeIndex) => ({
+        holeNumber: holeIndex + 1,
+        par: holeIndex % 4 === 0 ? 3 : 4,
+      })),
     },
   };
 }
@@ -108,8 +132,16 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.sg_locked).toBe(true);
     expect(body.insights.confidence).toBeDefined();
     expect(['low', 'medium', 'high']).toContain(body.insights.confidence);
-    expect(body.insights.sg).toBeTruthy();
-    expect(body.insights.sg.trend.sgTotal.length).toBeGreaterThan(0);
+    expect(body.insights.sg).toBeUndefined();
+    expect(body.insights.game_trends).toEqual(expect.objectContaining({
+      version: 2,
+      tier: 'free',
+      mode: '9',
+    }));
+    [body.insights.game_trends.gameProfile.strength, body.insights.game_trends.gameProfile.opportunity]
+      .filter(Boolean)
+      .forEach((conclusion) => expect(conclusion.evidence.kind).toBe('free_safe'));
+    expect(body.insights.game_trends_v2).toBeUndefined();
     expect(body.insights.cards).toHaveLength(3);
     expect(body.insights.cards_locked_count).toBe(0);
     expect(body.insights.cards_by_mode).toBeTruthy();
@@ -118,6 +150,7 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.cards_by_mode).toHaveProperty('18');
     expect(body.insights.cards).toEqual(body.insights.cards_by_mode['9']);
     expect(body.insights.mode_payload.combined.kpis.avgSgTotalRecent).toBeNull();
+    expect(body.insights.mode_payload.combined.sgComponents).toBeUndefined();
     expect(body.insights.mode_payload.combined.efficiency.shortGameShots).toBeDefined();
     expect(body.insights.projection.projectedScoreIn10).toBeNull();
     expect(body.insights.projection.projectedHandicapIn10).toBeNull();
@@ -125,18 +158,35 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.projection_ranges).toBeUndefined();
     expect(body.insights.refresh).toBeUndefined();
     expect(body.insights.refresh?.manual_cooldown_hours).toBeUndefined();
+    const freePayloadText = JSON.stringify(body.insights).toLowerCase();
+    expect(freePayloadText).not.toContain('recentsgaverage');
+    expect(freePayloadText).not.toContain('sgdelta');
+    expect(freePayloadText).not.toContain('sgcomponents');
     const freeCardsText = body.insights.cards.join(' ').toLowerCase();
     expect(freeCardsText).not.toContain('priority first');
     expect(freeCardsText).not.toContain('on-course strategy');
     expect(freeCardsText).not.toContain('projection:');
     expect(freeCardsText).not.toContain('baseline');
     expect(freeCardsText).not.toContain('not enough data');
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledTimes(3);
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      take: 20,
+      where: expect.not.objectContaining({ holesPlayed: expect.anything() }),
+    }));
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      take: 20,
+      where: expect.objectContaining({ holesPlayed: 9 }),
+    }));
+    expect(mockedPrisma.round.findMany).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      take: 20,
+      where: expect.objectContaining({ holesPlayed: 18 }),
+    }));
     expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
+        where: expect.objectContaining({
           userId: BigInt(1),
           roundContext: 'real',
-        },
+        }),
       }),
     );
   });
@@ -158,7 +208,17 @@ describe('/api/insights/overall contract', () => {
     expect(body.insights.sg_locked).toBe(false);
     expect(body.insights.confidence).toBeDefined();
     expect(body.insights.sg).toBeTruthy();
+    expect(body.insights.game_trends).toEqual(expect.objectContaining({
+      version: 2,
+      tier: 'premium',
+      mode: '18',
+    }));
+    [body.insights.game_trends.gameProfile.strength, body.insights.game_trends.gameProfile.opportunity]
+      .filter(Boolean)
+      .forEach((conclusion) => expect(conclusion.evidence.kind).toBe('premium'));
+    expect(body.insights.game_trends_v2).toBeUndefined();
     expect(body.insights.sg.components.recentAvg.shortGame).toBeDefined();
+    expect(body.insights.sg.components.latest).not.toHaveProperty('confidence');
     expect(body.insights.cards).toHaveLength(3);
     expect(body.insights.cards_locked_count).toBe(0);
     expect(body.insights.cards_by_mode).toBeTruthy();
@@ -179,6 +239,35 @@ describe('/api/insights/overall contract', () => {
     expect(premiumCardsText).not.toContain('projection:');
     expect(premiumCardsText).toMatch(/usual level|normal range|recent level|normally play to|what you've been shooting lately|score swings|tracked stats|more detail|balanced/);
     expect(premiumCardsText).not.toContain('not enough data');
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledTimes(1);
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(expect.not.objectContaining({ take: expect.anything() }));
+  });
+
+  it('keeps sparse free 9-hole evidence available without exceeding per-mode limits', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      subscriptionTier: 'free',
+      subscriptionStatus: 'active',
+    });
+    const recentEighteen = Array.from({ length: 20 }, (_, index) => makeRound(index));
+    const olderNine = Array.from({ length: 5 }, (_, index) => makeNineHoleRound(index));
+    mockedPrisma.round.findMany.mockImplementation(({ where }: any) => {
+      if (where.holesPlayed === 9) return Promise.resolve(olderNine);
+      return Promise.resolve(recentEighteen);
+    });
+
+    const response = await GET(new Request('http://localhost/api/insights/overall?statsMode=9') as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.insights.game_trends.mode).toBe('9');
+    expect(body.insights.game_trends.recentForm.evidence.recentCount).toBe(3);
+    expect(body.insights.game_trends.recentForm.evidence.baselineCount).toBe(2);
+    expect(body.insights.mode_payload['9'].kpis.roundsRecent).toBe(5);
+    expect(body.insights.mode_payload['9'].kpis.avgScoreRecent).toBe(44);
+    expect(body.insights.mode_payload.combined.kpis.roundsRecent).toBe(5);
+    expect(body.insights.tier_context.maxRoundsUsed).toBe(20);
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledTimes(3);
+    mockedPrisma.round.findMany.mock.calls.forEach(([args]) => expect(args.take).toBe(20));
   });
 
   it('keeps trajectory in building state for premium users with fewer than 10 rounds', async () => {
@@ -214,6 +303,8 @@ describe('/api/insights/overall contract', () => {
     expect(response.status).toBe(200);
     expect(body.type).toBe('success');
     expect(body.insights.mode_payload.combined.kpis.roundsRecent).toBe(0);
+    expect(body.insights.game_trends.recentForm.state).toBe('unavailable');
+    expect(body.insights.game_trends.stability.state).toBe('unavailable');
     expect(body.insights.confidence).toBe('low');
     expect(body.insights.cards).toHaveLength(3);
     expect(body.insights.projection.trajectory).toBe('unknown');
@@ -280,8 +371,56 @@ describe('/api/insights/overall contract', () => {
 
     expect(response.status).toBe(500);
     expect(body.type).toBe('error');
-    expect(body.message).toBe('Failed to load overall insights');
+    expect(body.message).toBe('GolfIQ couldn’t load insights right now. Please try again.');
     expect(body.message).not.toContain('sensitive');
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Overall Insights] Unexpected failure while loading insights',
+      expect.any(Error),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('sanitizes a missing Prisma model failure', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const overallInsightModel = mockedPrisma.overallInsight;
+    (mockedPrisma as any).overallInsight = undefined;
+
+    try {
+      const response = await GET(new Request('http://localhost/api/insights/overall') as any);
+      const body = await response.json();
+      const serializedBody = JSON.stringify(body);
+
+      expect(response.status).toBe(500);
+      expect(body.type).toBe('error');
+      expect(body.message).toBe('GolfIQ couldn’t load insights right now. Please try again.');
+      expect(serializedBody).not.toMatch(/Prisma|overallInsight|prisma generate|model|schema|stack trace/i);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[Overall Insights] Missing generated Prisma model: overallInsight',
+      );
+    } finally {
+      (mockedPrisma as any).overallInsight = overallInsightModel;
+      consoleErrorSpy.mockRestore();
+    }
+  });
+
+  it('sanitizes a Prisma P2021 failure', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockedRequireAuth.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('sensitive table detail', {
+      code: 'P2021',
+      clientVersion: 'test',
+    }));
+
+    const response = await GET(new Request('http://localhost/api/insights/overall') as any);
+    const body = await response.json();
+    const serializedBody = JSON.stringify(body);
+
+    expect(response.status).toBe(500);
+    expect(body.type).toBe('error');
+    expect(body.message).toBe('GolfIQ couldn’t load insights right now. Please try again.');
+    expect(serializedBody).not.toMatch(/P2021|overall_insights|database|table|migration|SQL|stack trace/i);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Overall Insights] Prisma P2021 while loading insights',
+    );
     consoleErrorSpy.mockRestore();
   });
 });

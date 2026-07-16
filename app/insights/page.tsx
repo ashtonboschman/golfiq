@@ -4,21 +4,21 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import Select from 'react-select';
-import { Sparkles, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
 import { useSubscription } from '@/hooks/useSubscription';
 import TrendCard from '@/components/TrendCard';
 import InfoTooltip from '@/components/InfoTooltip';
-import OverallInsightMessage from '@/components/insights/OverallInsightMessage';
+import GameTrendsCard from '@/components/insights/GameTrendsCard';
 import { formatHandicap, formatNumber } from '@/lib/formatters';
-import { SkeletonText } from '@/components/skeleton/Skeleton';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
-import { useAdaptiveTooltipPlacement } from '@/lib/ui/useAdaptiveTooltipPlacement';
 import { getEarlySampleMessage } from '@/lib/insights/earlySample';
+import type { GameTrendsV2Dto } from '@/lib/insights/gameTrends/types';
+import { composeScoringOutlookPresentation } from '@/lib/insights/gameTrends/presentation';
 
 const insightsViewedKeys = new Set<string>();
-const overallCardViewedKeys = new Set<string>();
+const gameTrendViewedKeys = new Set<string>();
 const paywallViewedKeys = new Set<string>();
 
 type StatsMode = 'combined' | '9' | '18';
@@ -43,8 +43,9 @@ type ModePayload = {
     deltaVsBaseline: number | null;
   };
   consistency?: {
-    label: 'stable' | 'moderate' | 'volatile' | 'insufficient';
+    label: 'stable' | 'variable' | 'moderate' | 'volatile' | 'insufficient';
     stdDev: number | null;
+    scoreRange?: number | null;
   };
   efficiency?: {
     fir: EfficiencyMetric;
@@ -74,6 +75,15 @@ type ModePayload = {
       penalties: number | null;
       residual: number | null;
     };
+    recentTrackedCount?: {
+      total: number;
+      offTee: number;
+      approach: number;
+      shortGame: number;
+      putting: number;
+      penalties: number;
+      residual: number;
+    };
     hasData: boolean;
   };
   trend: TrendSeries;
@@ -85,7 +95,7 @@ type EfficiencyMetric = {
   coverageRecent: string;
 };
 
-type SGComponentKey = 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties' | 'residual';
+type SGComponentKey = 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties';
 type DeltaTone = 'up' | 'down' | 'flat' | 'none';
 type OverallConfidence = 'low' | 'medium' | 'high';
 
@@ -93,9 +103,10 @@ type OverallInsightsPayload = {
   generated_at: string;
   confidence?: 'high' | 'medium' | 'low' | null;
   cards: string[];
+  game_trends: GameTrendsV2Dto;
   cards_locked_count: number;
   projection: {
-    trajectory: 'improving' | 'flat' | 'worsening' | 'volatile' | 'unknown';
+    trajectory: 'improving' | 'flat' | 'worsening' | 'unknown';
     projectedScoreIn10: number | null;
     handicapCurrent: number | null;
     projectedHandicapIn10: number | null;
@@ -107,10 +118,14 @@ type OverallInsightsPayload = {
     handicapHigh: number | null;
   };
   projection_by_mode?: Record<StatsMode, {
-    trajectory: 'improving' | 'flat' | 'worsening' | 'volatile' | 'unknown';
+    trajectory: 'improving' | 'flat' | 'worsening' | 'unknown';
     projectedScoreIn10: number | null;
     scoreLow: number | null;
     scoreHigh: number | null;
+    handicapCurrent?: number | null;
+    projectedHandicapIn10?: number | null;
+    handicapLow?: number | null;
+    handicapHigh?: number | null;
     roundsUsed: number;
   }>;
   tier_context: {
@@ -120,8 +135,9 @@ type OverallInsightsPayload = {
     recentWindow: number;
   };
   consistency: {
-    label: 'stable' | 'moderate' | 'volatile' | 'insufficient';
+    label: 'stable' | 'variable' | 'moderate' | 'volatile' | 'insufficient';
     stdDev: number | null;
+    scoreRange?: number | null;
   };
   efficiency: {
     fir: EfficiencyMetric;
@@ -148,7 +164,6 @@ type OverallInsightsPayload = {
         putting: number | null;
         penalties: number | null;
         residual: number | null;
-        confidence: 'high' | 'medium' | 'low' | null;
         partialAnalysis: boolean | null;
       };
       recentAvg: {
@@ -168,6 +183,15 @@ type OverallInsightsPayload = {
         putting: number | null;
         penalties: number | null;
         residual: number | null;
+      };
+      recentTrackedCount?: {
+        total: number;
+        offTee: number;
+        approach: number;
+        shortGame: number;
+        putting: number;
+        penalties: number;
+        residual: number;
       };
       mostCostlyComponent: 'offTee' | 'approach' | 'shortGame' | 'putting' | 'penalties' | 'residual' | null;
       worstComponentFrequencyRecent: {
@@ -193,7 +217,6 @@ const DEFAULT_EFFICIENCY_METRIC: EfficiencyMetric = {
 
 const INSIGHTS_POSITIVE_COLOR = '#16a34a';
 const INSIGHTS_NEGATIVE_COLOR = '#ef4444';
-const SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS = 10;
 
 function formatSigned(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '-';
@@ -202,10 +225,12 @@ function formatSigned(v: number | null | undefined): string {
   return rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1);
 }
 
-function formatConsistencyLabel(label: OverallInsightsPayload['consistency']['label']): string {
+function formatConsistencyLabel(label: OverallInsightsPayload['consistency']['label'] | 'building' | 'unavailable'): string {
   if (label === 'stable') return 'Stable';
+  if (label === 'variable') return 'Variable';
   if (label === 'moderate') return 'Moderate';
   if (label === 'volatile') return 'Volatile';
+  if (label === 'building') return 'Building';
   return 'Needs more rounds';
 }
 
@@ -230,7 +255,7 @@ function getRoundedOneDecimalDelta(recent: number, typical: number): number {
 }
 
 function sgComponentLabel(component: SGComponentKey): string {
-  if (component === 'offTee') return 'Off The Tee';
+  if (component === 'offTee') return 'Off the Tee';
   if (component === 'approach') return 'Approach';
   if (component === 'shortGame') return 'Short Game';
   if (component === 'putting') return 'Putting';
@@ -266,21 +291,6 @@ function parseCoverageCounts(coverageRecent: string | null | undefined): { track
 
 function formatRoundCountLabel(count: number): string {
   return `${count} ${count === 1 ? 'round' : 'rounds'}`;
-}
-
-function resolveOverallCardMessageType(index: number): 'score_trend' | 'component_signal' | 'consistency_signal' {
-  if (index === 0) return 'score_trend';
-  if (index === 1) return 'component_signal';
-  return 'consistency_signal';
-}
-
-function hashMessageText(value: string): string {
-  let hash = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16);
 }
 
 function getMagnitudeWidths(
@@ -388,44 +398,15 @@ function getDeltaToneClass(tone: DeltaTone): string {
   return 'is-flat';
 }
 
-function formatTrajectoryLabel(
-  trajectory: OverallInsightsPayload['projection']['trajectory'] | null | undefined,
-): string {
-  if (trajectory === 'improving') return 'Improving';
-  if (trajectory === 'flat') return 'Flat';
-  if (trajectory === 'worsening') return 'Worsening';
-  if (trajectory === 'volatile') return 'Volatile';
-  return 'Still Building';
-}
-
-function getScoreNearThresholdForMode(mode: StatsMode): number {
-  return mode === '9' ? 0.5 : 1.0;
-}
-
-function classifyTrajectoryFromScoringDelta(
-  mode: StatsMode,
-  roundsRecent: number | null | undefined,
-  scoreRecent: number | null | undefined,
-  scoreBaseline: number | null | undefined,
-): OverallInsightsPayload['projection']['trajectory'] {
-  if (roundsRecent == null || roundsRecent <= 0) return 'unknown';
-  if (scoreRecent == null || !Number.isFinite(scoreRecent)) return 'unknown';
-  if (scoreBaseline == null || !Number.isFinite(scoreBaseline)) return 'unknown';
-
-  const delta = scoreRecent - scoreBaseline;
-  if (Math.abs(delta) <= getScoreNearThresholdForMode(mode)) return 'flat';
-  return delta < 0 ? 'improving' : 'worsening';
-}
-
 function deriveOverallConfidence(args: {
   hasInsights: boolean;
   modePayload: ModePayload | undefined;
   roundsRecent: number;
-  consistencyLabel: OverallInsightsPayload['consistency']['label'] | undefined;
+  consistencyLabel: OverallInsightsPayload['consistency']['label'] | 'building' | 'unavailable' | undefined;
 }): OverallConfidence {
   if (!args.hasInsights || !args.modePayload) return 'low';
   if (args.roundsRecent <= 1) return 'low';
-  if (args.consistencyLabel === 'insufficient') return 'low';
+  if (args.consistencyLabel === 'insufficient' || args.consistencyLabel === 'building' || args.consistencyLabel === 'unavailable') return 'low';
   if (args.roundsRecent >= 5) return 'high';
   return 'medium';
 }
@@ -456,6 +437,8 @@ type ComparisonBarCardProps = {
   accentColor: string;
   accentHighlight: string;
   dangerColor: string;
+  showTypical?: boolean;
+  showDelta?: boolean;
 };
 
 type LockedSectionProps = {
@@ -488,6 +471,8 @@ function ComparisonBarCard({
   accentColor,
   accentHighlight,
   dangerColor,
+  showTypical = true,
+  showDelta = true,
 }: ComparisonBarCardProps) {
   const tooltipWithCoverage = coverageText
     ? `${tooltipText}${tooltipText.trim().endsWith('.') ? '' : '.'} ${coverageText}.`
@@ -530,23 +515,27 @@ function ComparisonBarCard({
         <span className="comparison-bar-value">{recentValueText}</span>
       </div>
 
-      <div className="comparison-bar-row">
-        <span className="comparison-bar-label">{typicalLabel}</span>
-        <div className="comparison-bar-track">
-          {hasData && typicalBarWidth > 0 && (
-            <span
-              className={`comparison-bar-fill ${typicalFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(typicalBarWidth)))}`}
-            />
-          )}
+      {showTypical && (
+        <div className="comparison-bar-row">
+          <span className="comparison-bar-label">{typicalLabel}</span>
+          <div className="comparison-bar-track">
+            {hasData && typicalBarWidth > 0 && (
+              <span
+                className={`comparison-bar-fill ${typicalFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(typicalBarWidth)))}`}
+              />
+            )}
+          </div>
+          <span className="comparison-bar-value">{typicalValueText}</span>
         </div>
-        <span className="comparison-bar-value">{typicalValueText}</span>
-      </div>
+      )}
 
-      <span
-        className={`comparison-bar-delta ${getDeltaToneClass(deltaTone)}`}
-      >
-        {deltaText}
-      </span>
+      {showDelta && (
+        <span
+          className={`comparison-bar-delta ${getDeltaToneClass(deltaTone)}`}
+        >
+          {deltaText}
+        </span>
+      )}
     </div>
   );
 }
@@ -594,18 +583,9 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<OverallInsightsPayload | null>(null);
-  const [showOverallConfidenceInfo, setShowOverallConfidenceInfo] = useState(false);
-  const {
-    containerRef: overallConfidenceTooltipRef,
-    tooltipRef: overallConfidenceContentRef,
-    displayPosition: overallConfidenceTooltipPosition,
-    displayVertical: overallConfidenceTooltipVertical,
-    isPositioned: overallConfidenceTooltipIsPositioned,
-  } = useAdaptiveTooltipPlacement(showOverallConfidenceInfo);
 
   const [accentColor, setAccentColor] = useState('#2D6CFF');
   const [accentHighlight, setAccentHighlight] = useState('#36ad64');
-  const [warningColor, setWarningColor] = useState('#f59e0b');
   const [textColor, setTextColor] = useState('#EDEFF2');
   const [gridColor, setGridColor] = useState('#2A313D');
   const [surfaceColor, setSurfaceColor] = useState('#171C26');
@@ -675,17 +655,12 @@ export default function InsightsPage() {
       const rootStyles = getComputedStyle(document.documentElement);
       const accent = rootStyles.getPropertyValue('--color-accent').trim() || '#2D6CFF';
       const highlight = rootStyles.getPropertyValue('--color-accent-highlight').trim() || '#36ad64';
-      const warning =
-        rootStyles.getPropertyValue('--color-warning').trim() ||
-        rootStyles.getPropertyValue('--color-accent-warm').trim() ||
-        '#f59e0b';
       const text = rootStyles.getPropertyValue('--color-primary-text').trim() || '#EDEFF2';
       const grid = rootStyles.getPropertyValue('--color-border').trim() || '#2A313D';
       const surface = rootStyles.getPropertyValue('--color-primary-surface').trim() || '#171C26';
 
       setAccentColor(accent);
       setAccentHighlight(highlight);
-      setWarningColor(warning);
       setTextColor(text);
       setGridColor(grid);
       setSurfaceColor(surface);
@@ -705,23 +680,6 @@ export default function InsightsPage() {
     }
   }, [status, router]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        overallConfidenceTooltipRef.current &&
-        !overallConfidenceTooltipRef.current.contains(event.target as Node)
-      ) {
-        setShowOverallConfidenceInfo(false);
-      }
-    };
-
-    if (showOverallConfidenceInfo) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-    return;
-  }, [overallConfidenceTooltipRef, showOverallConfidenceInfo]);
-
   const fetchInsights = useCallback(async (mode: StatsMode) => {
     insightsAbortControllerRef.current?.abort();
     const controller = new AbortController();
@@ -732,6 +690,7 @@ export default function InsightsPage() {
       controller.signal.aborted || requestId !== insightsRequestIdRef.current;
 
     setLoading(true);
+    setInsights(null);
     let capturedFailure = false;
     try {
       const res = await fetch(`/api/insights/overall?statsMode=${mode}`, {
@@ -820,7 +779,18 @@ export default function InsightsPage() {
 
   const modePayload = insights?.mode_payload?.[statsMode];
   const isPremiumContext = insights ? insights.tier_context.isPremium : isPremium;
-  const consistency = modePayload?.consistency ?? insights?.consistency ?? { label: 'insufficient' as const, stdDev: null };
+  const recentForm = insights?.game_trends?.recentForm ?? null;
+  const scoringOutlook = insights?.game_trends
+    ? composeScoringOutlookPresentation(insights.game_trends)
+    : null;
+  const canonicalStability = insights?.game_trends?.stability ?? null;
+  const consistency = canonicalStability
+    ? {
+        label: canonicalStability.state,
+        stdDev: canonicalStability.evidence.standardDeviation,
+        scoreRange: canonicalStability.evidence.scoreRange,
+      }
+    : modePayload?.consistency ?? insights?.consistency ?? { label: 'insufficient' as const, stdDev: null, scoreRange: null };
   const consistencyLabel = consistency.label;
   const roundsRecent = modePayload?.kpis.roundsRecent ?? 0;
   const earlySampleMessage = getEarlySampleMessage(roundsRecent);
@@ -831,11 +801,6 @@ export default function InsightsPage() {
     consistencyLabel,
   });
   const overallConfidence = normalizeOverallConfidence(insights?.confidence) ?? fallbackConfidence;
-  const overallConfidenceLabel = overallConfidence === 'high'
-    ? 'Strong'
-    : overallConfidence === 'medium'
-      ? 'Moderate'
-      : 'Building';
   const efficiency = modePayload?.efficiency ?? insights?.efficiency ?? {
     fir: DEFAULT_EFFICIENCY_METRIC,
     gir: DEFAULT_EFFICIENCY_METRIC,
@@ -846,40 +811,11 @@ export default function InsightsPage() {
   const shortGameMetric = efficiency.shortGameShots ?? DEFAULT_EFFICIENCY_METRIC;
   const puttsMetric = efficiency.puttsTotal ?? efficiency.puttsPerHole ?? DEFAULT_EFFICIENCY_METRIC;
   const penaltiesMetric = efficiency.penaltiesPerRound ?? efficiency.penaltiesPerHole ?? DEFAULT_EFFICIENCY_METRIC;
-  const projection = insights?.projection;
   const projectionRanges = insights?.projection_ranges;
   const selectedModeProjection = insights?.projection_by_mode?.[statsMode] ?? null;
   const sgComponents = modePayload?.sgComponents ?? insights?.sg?.components;
   const sgHasComponentData = Boolean(sgComponents?.hasData);
-  const selectedTrajectory = selectedModeProjection?.trajectory
-    ?? classifyTrajectoryFromScoringDelta(
-      statsMode,
-      modePayload?.kpis.roundsRecent,
-      modePayload?.kpis.avgScoreRecent,
-      modePayload?.kpis.avgScoreBaseline,
-    );
-  const trajectoryLabel = formatTrajectoryLabel(selectedTrajectory);
-  const trajectoryChipTone =
-    selectedTrajectory === 'improving'
-      ? 'up'
-      : selectedTrajectory === 'worsening'
-        ? 'down'
-        : selectedTrajectory === 'volatile'
-          ? 'warn'
-          : selectedTrajectory === 'flat' || selectedTrajectory === 'unknown'
-            ? 'flat'
-            : 'none';
-  const trajectoryChipColor =
-    trajectoryChipTone === 'up'
-      ? INSIGHTS_POSITIVE_COLOR
-      : trajectoryChipTone === 'down'
-        ? INSIGHTS_NEGATIVE_COLOR
-        : trajectoryChipTone === 'warn'
-          ? warningColor
-          : trajectoryChipTone === 'flat'
-            ? 'var(--color-primary-text)'
-            : 'var(--color-secondary-text)';
-  const handicapProjectionPointCount = insights?.handicap_trend?.handicap
+  const handicapProjectionPointCount = modePayload?.trend?.handicap
     ?.filter((v): v is number => v != null && Number.isFinite(v))
     .length ?? 0;
   const hasEnoughHandicapHistory = handicapProjectionPointCount >= 5;
@@ -888,9 +824,9 @@ export default function InsightsPage() {
       selectedModeProjection?.projectedScoreIn10 != null,
   );
   const premiumHandicapProjectionUnlocked = Boolean(
-    isPremiumContext &&
+      isPremiumContext &&
       hasEnoughHandicapHistory &&
-      projection?.projectedHandicapIn10 != null,
+      selectedModeProjection?.projectedHandicapIn10 != null,
   );
   const hasModeStdDevForRanges = consistency.stdDev != null && Number.isFinite(consistency.stdDev);
   const combinedStdDev = insights?.consistency?.stdDev ?? null;
@@ -917,31 +853,41 @@ export default function InsightsPage() {
     if (!premiumHandicapProjectionUnlocked) return null;
     let rawLow: number | null = null;
     let rawHigh: number | null = null;
-    if (projectionRanges?.handicapLow != null && projectionRanges?.handicapHigh != null) {
+    if (selectedModeProjection?.handicapLow != null && selectedModeProjection?.handicapHigh != null) {
+      rawLow = selectedModeProjection.handicapLow;
+      rawHigh = selectedModeProjection.handicapHigh;
+    } else if (statsMode === 'combined' && projectionRanges?.handicapLow != null && projectionRanges?.handicapHigh != null) {
       rawLow = projectionRanges.handicapLow;
       rawHigh = projectionRanges.handicapHigh;
-    } else if (hasCombinedStdDevForRanges && projection?.projectedHandicapIn10 != null) {
-      rawLow = projection.projectedHandicapIn10 - (combinedStdDev! / 2);
-      rawHigh = projection.projectedHandicapIn10 + (combinedStdDev! / 2);
+    } else if (statsMode === 'combined' && hasCombinedStdDevForRanges && selectedModeProjection?.projectedHandicapIn10 != null) {
+      rawLow = selectedModeProjection.projectedHandicapIn10 - (combinedStdDev! / 2);
+      rawHigh = selectedModeProjection.projectedHandicapIn10 + (combinedStdDev! / 2);
     }
     if (rawLow == null || rawHigh == null) return null;
     const minRealisticLow =
-      projection?.handicapCurrent != null ? projection.handicapCurrent - 1.0 : rawLow;
+      selectedModeProjection?.handicapCurrent != null ? selectedModeProjection.handicapCurrent - 1.0 : rawLow;
     const boundedLow = Math.max(rawLow, minRealisticLow);
     const boundedHigh = Math.max(rawHigh, boundedLow);
     return {
       low: boundedLow,
       high: boundedHigh,
     };
-  }, [premiumHandicapProjectionUnlocked, projectionRanges, hasCombinedStdDevForRanges, projection, combinedStdDev]);
+  }, [premiumHandicapProjectionUnlocked, selectedModeProjection, statsMode, projectionRanges, hasCombinedStdDevForRanges, combinedStdDev]);
 
+  const scoringRecent = recentForm?.evidence.averageScore ?? null;
+  const scoringBaseline = recentForm?.evidence.baselineAverageScore ?? null;
+  const scoringHasComparison = scoringBaseline != null;
+  const scoringRecentLabel = recentForm?.maturity === 'snapshot' || recentForm?.maturity === 'early_level' || recentForm?.maturity === 'current_form'
+    ? 'Current'
+    : 'Recent';
+  const scoringBaselineLabel = recentForm?.maturity === 'early_comparison' ? 'Previous' : 'Usual';
   const scoringWidths = useMemo(
-    () => getMagnitudeWidths(modePayload?.kpis.avgScoreRecent ?? null, modePayload?.kpis.avgScoreBaseline ?? null, 10),
-    [modePayload?.kpis.avgScoreRecent, modePayload?.kpis.avgScoreBaseline],
+    () => getMagnitudeWidths(scoringRecent, scoringBaseline ?? scoringRecent, 10),
+    [scoringBaseline, scoringRecent],
   );
   const scoringDelta = useMemo(
-    () => getScoringDeltaSummary(modePayload?.kpis.avgScoreRecent ?? null, modePayload?.kpis.avgScoreBaseline ?? null),
-    [modePayload],
+    () => getScoringDeltaSummary(scoringRecent, scoringBaseline),
+    [scoringBaseline, scoringRecent],
   );
 
   const firWidths = useMemo(
@@ -986,80 +932,42 @@ export default function InsightsPage() {
     [penaltiesMetric.recent, penaltiesMetric.baseline],
   );
 
-  const sgRecentWindowRounds = useMemo(() => {
-    const raw = modePayload?.kpis.roundsRecent ?? insights?.tier_context?.recentWindow ?? 5;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return 5;
-    return Math.max(1, Math.round(parsed));
-  }, [modePayload?.kpis.roundsRecent, insights?.tier_context?.recentWindow]);
-  const sgBaselineWindowRounds = useMemo(() => {
-    const raw =
-      selectedModeProjection?.roundsUsed ??
-      modePayload?.trend?.labels?.length ??
-      insights?.tier_context?.maxRoundsUsed ??
-      sgRecentWindowRounds;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return sgRecentWindowRounds;
-    return Math.max(sgRecentWindowRounds, Math.round(parsed));
-  }, [
-    selectedModeProjection?.roundsUsed,
-    modePayload?.trend?.labels?.length,
-    insights?.tier_context?.maxRoundsUsed,
-    sgRecentWindowRounds,
-  ]);
-  const sgUseRecentAbsolute = sgBaselineWindowRounds < SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS;
-  const sgDeltaRows = useMemo(() => {
+  const sgAreaRows = useMemo(() => {
     if (!sgHasComponentData || !sgComponents) return [];
     const recent = sgComponents.recentAvg;
-    const baseline = sgComponents.baselineAvg;
-    const keys: SGComponentKey[] = ['offTee', 'approach', 'shortGame', 'putting', 'penalties', 'residual'];
+    const keys: SGComponentKey[] = ['offTee', 'approach', 'shortGame', 'putting', 'penalties'];
     return keys.map((key) => {
       const recentVal = recent[key];
-      const baselineVal = baseline[key];
-      const rawDelta = sgUseRecentAbsolute
-        ? (recentVal != null && Number.isFinite(recentVal) ? recentVal : null)
-        : recentVal != null &&
-            baselineVal != null &&
-            Number.isFinite(recentVal) &&
-            Number.isFinite(baselineVal)
-          ? recentVal - baselineVal
-          : null;
       return {
         key,
         label: sgComponentLabel(key),
-        delta: normalizeDelta(rawDelta),
+        delta: normalizeDelta(recentVal),
       };
     });
-  }, [sgHasComponentData, sgComponents, sgUseRecentAbsolute]);
+  }, [sgHasComponentData, sgComponents]);
 
-  const sgMaxAbsDelta = useMemo(() => {
-    const vals = sgDeltaRows
+  const sgMaxAbsAreaValue = useMemo(() => {
+    const vals = sgAreaRows
       .map((row) => row.delta)
       .filter((v): v is number => v != null && Number.isFinite(v))
       .map((v) => Math.abs(v));
     return vals.length ? Math.max(...vals) : 0;
-  }, [sgDeltaRows]);
+  }, [sgAreaRows]);
 
-  const sgHasAnyDelta = useMemo(
-    () => sgDeltaRows.some((row) => row.delta != null && Number.isFinite(row.delta)),
-    [sgDeltaRows],
+  const sgHasAnyAreaValue = useMemo(
+    () => sgAreaRows.some((row) => row.delta != null && Number.isFinite(row.delta)),
+    [sgAreaRows],
   );
   const sgDisplayRows = useMemo(() => {
-    if (sgHasAnyDelta) return sgDeltaRows;
-    const keys: SGComponentKey[] = ['offTee', 'approach', 'shortGame', 'putting', 'penalties', 'residual'];
+    if (sgHasAnyAreaValue) return sgAreaRows;
+    const keys: SGComponentKey[] = ['offTee', 'approach', 'shortGame', 'putting', 'penalties'];
     return keys.map((key) => ({
       key,
       label: sgComponentLabel(key),
       delta: null as number | null,
     }));
-  }, [sgHasAnyDelta, sgDeltaRows]);
-  const sgComponentDeltaTooltip = useMemo(
-    () =>
-      sgUseRecentAbsolute
-        ? `Early sample: showing recent SG by area from your last ${sgRecentWindowRounds} rounds. GolfIQ starts comparing it to your usual level after ${SG_COMPONENT_DELTA_MIN_BASELINE_ROUNDS} rounds.`
-        : `Shows how each part of your game compares over your last ${sgRecentWindowRounds} rounds versus your usual level.`,
-    [sgBaselineWindowRounds, sgRecentWindowRounds, sgUseRecentAbsolute],
-  );
+  }, [sgHasAnyAreaValue, sgAreaRows]);
+  const sgAreaTooltip = 'Shows your average strokes gained or lost in each area over your latest five rounds, using rounds with usable tracking. Positive values gained strokes; negative values lost strokes.';
   const sgTrendData = useMemo(() => {
     if (!insights) return null;
     const modeTrend = modePayload?.trend;
@@ -1160,7 +1068,7 @@ export default function InsightsPage() {
 
   useEffect(() => {
     if (status !== 'authenticated') return;
-    if (loading || !insights) return;
+    if (loading || !insights?.game_trends) return;
 
     const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:insights_viewed`;
     if (insightsViewedKeys.has(dedupeKey)) return;
@@ -1267,31 +1175,82 @@ export default function InsightsPage() {
   useEffect(() => {
     if (status !== 'authenticated') return;
     if (loading || !insights) return;
-    const cards = Array.isArray(insights.cards) ? insights.cards : [];
-    cards.forEach((card, index) => {
-      const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:${statsMode}:card:${index}`;
-      if (overallCardViewedKeys.has(dedupeKey)) return;
-      overallCardViewedKeys.add(dedupeKey);
+    const trends = insights.game_trends;
+    const conclusions = [
+      {
+        conclusionType: 'recent_form',
+        state: trends.recentForm.state,
+        component: null,
+        confidence: trends.recentForm.confidence,
+        maturity: trends.recentForm.maturity,
+        recentCount: trends.recentForm.evidence.recentCount,
+        baselineCount: trends.recentForm.evidence.baselineCount,
+      },
+      ...(trends.gameProfile.strength ? [{
+        conclusionType: 'strength',
+        state: trends.gameProfile.state,
+        component: trends.gameProfile.strength.component,
+        confidence: trends.gameProfile.strength.confidence,
+        maturity: trends.gameProfile.strength.maturity,
+        recentCount: trends.gameProfile.strength.evidence.recentWindowCount,
+        baselineCount: null,
+      }] : []),
+      ...(trends.gameProfile.opportunity ? [{
+        conclusionType: 'opportunity',
+        state: trends.gameProfile.state,
+        component: trends.gameProfile.opportunity.component,
+        confidence: trends.gameProfile.opportunity.confidence,
+        maturity: trends.gameProfile.opportunity.maturity,
+        recentCount: trends.gameProfile.opportunity.evidence.recentWindowCount,
+        baselineCount: null,
+      }] : []),
+      ...(!trends.gameProfile.strength && !trends.gameProfile.opportunity ? [{
+        conclusionType: 'game_profile',
+        state: trends.gameProfile.state,
+        component: null,
+        confidence: trends.gameProfile.confidence,
+        maturity: trends.gameProfile.state === 'building' ? 'none' : 'established',
+        recentCount: modePayload?.kpis?.roundsRecent ?? 0,
+        baselineCount: null,
+      }] : []),
+      {
+        conclusionType: 'stability',
+        state: trends.stability.state,
+        component: null,
+        confidence: trends.stability.confidence,
+        maturity: trends.stability.state === 'building' ? 'none' : 'current_form',
+        recentCount: trends.stability.evidence.recentCount,
+        baselineCount: null,
+      },
+    ];
+    conclusions.forEach((conclusion) => {
+      const momentumState = conclusion.conclusionType === 'recent_form'
+        ? trends.recentForm.evidence.momentum.state
+        : null;
+      const outlookStatus = conclusion.conclusionType === 'recent_form'
+        ? composeScoringOutlookPresentation(trends).status
+        : null;
+      const dedupeKey = `${session?.user?.id ?? 'anon'}:${pathname}:${insights.generated_at}:${statsMode}:${conclusion.conclusionType}:${conclusion.state}:${momentumState ?? 'none'}:${outlookStatus ?? 'none'}:${conclusion.component ?? 'none'}`;
+      if (gameTrendViewedKeys.has(dedupeKey)) return;
+      gameTrendViewedKeys.add(dedupeKey);
       captureClientEvent(
-        ANALYTICS_EVENTS.overallCardViewed,
+        ANALYTICS_EVENTS.gameTrendConclusionViewed,
         {
           surface: 'overall_insights',
+          version: 2,
           mode: statsMode,
-          card_index: index,
-          message_index: index,
-          message_type: resolveOverallCardMessageType(index),
-          message_hash: hashMessageText(String(card ?? '')),
-          card_length: String(card ?? '').length,
-          sample_size: modePayload?.kpis?.roundsRecent ?? null,
-          rounds_lifetime: insights?.tier_context?.maxRoundsUsed ?? null,
-          is_premium: isPremiumContext,
-          confidence: overallConfidence,
-          ...analyticsContext,
-          tone: null,
-          evidenceLevel: null,
-          primaryKey: null,
-          latest_identity_primary: null,
-          timeframe_basis: 'recent_window',
+          conclusion_type: conclusion.conclusionType,
+          state: conclusion.state,
+          momentum_state: momentumState,
+          outlook_status: outlookStatus,
+          component: conclusion.component,
+          confidence: conclusion.confidence,
+          overall_confidence: trends.confidence,
+          recent_count: conclusion.recentCount,
+          baseline_count: conclusion.baselineCount,
+          entitlement: trends.tier,
+          evidence_maturity: conclusion.maturity,
+          profile_state: trends.gameProfile.state,
         },
         {
           pathname,
@@ -1306,11 +1265,8 @@ export default function InsightsPage() {
     });
   }, [
     insights,
-    isPremiumContext,
     loading,
     modePayload?.kpis?.roundsRecent,
-    overallConfidence,
-    analyticsContext,
     pathname,
     session?.user?.auth_provider,
     session?.user?.id,
@@ -1344,16 +1300,20 @@ export default function InsightsPage() {
     <div className="card dashboard-stat-card trajectory-card">
       <div className="trajectory-header">
         <h3>Scoring Direction</h3>
-        <InfoTooltip text="Shows where your scoring is trending based on recent rounds. More rounds make this read stronger." />
+        <InfoTooltip text="Combines how your recent scoring compares with your usual level and how your latest five rounds compare with the five before them. Score Range balances recent and usual scoring, and widens when recent rounds are less consistent. Handicap Range uses your recent handicap history." />
       </div>
-      <div className="trajectory-status-row">
-        <span
-          className={`trajectory-label trajectory-chip is-${trajectoryChipTone}`}
-
-        >
-          {trajectoryLabel}
-        </span>
-      </div>
+      {scoringOutlook && (
+        <>
+          <div className="trajectory-status-row">
+            <span
+              className={`trajectory-label trajectory-chip is-${scoringOutlook.tone}`}
+              data-outlook-status={scoringOutlook.status}
+            >
+              {scoringOutlook.label}
+            </span>
+          </div>
+        </>
+      )}
 
       {isPremiumContext ? (
         premiumScoreProjectionUnlocked ? (
@@ -1363,7 +1323,7 @@ export default function InsightsPage() {
                 <span className="trajectory-pill-label">{effectiveScoreRange ? 'Score Range' : 'Estimated Score'}</span>
                 <span className="trajectory-pill-value">
                   {effectiveScoreRange
-                    ? `${Math.round(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.round(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
+                    ? `${Math.floor(Math.min(effectiveScoreRange.low, effectiveScoreRange.high))}-${Math.ceil(Math.max(effectiveScoreRange.low, effectiveScoreRange.high))}`
                     : `~${formatNumber(selectedModeProjection?.projectedScoreIn10 ?? null)}`}
                 </span>
               </div>
@@ -1377,7 +1337,7 @@ export default function InsightsPage() {
                   {premiumHandicapProjectionUnlocked
                     ? (effectiveHandicapRange
                       ? `${formatHandicap(Math.min(effectiveHandicapRange.low, effectiveHandicapRange.high))}-${formatHandicap(Math.max(effectiveHandicapRange.low, effectiveHandicapRange.high))}`
-                      : `~${formatHandicap(projection?.projectedHandicapIn10 ?? null)}`)
+                      : `~${formatHandicap(selectedModeProjection?.projectedHandicapIn10 ?? null)}`)
                     : '--'}
                 </span>
               </div>
@@ -1477,59 +1437,14 @@ export default function InsightsPage() {
         <p className="secondary-text insights-page-subtitle">{earlySampleMessage}</p>
       )}
       
-      <div className="card insights-card">
-        <div className="insights-header">
-          <div className="insights-title">
-            <Sparkles size={20} />
-            <h3>Game Trends</h3>
-          </div>
-          <div className="overall-insights-actions">
-            {showSkeletonContent ? (
-              <span className="skeleton u-inline-block u-w-78 u-h-24 u-rounded-pill" />
-            ) : (
-              <div ref={overallConfidenceTooltipRef} className="info-tooltip-container insights-confidence-tooltip">
-                <button
-                  type="button"
-                  className={`insights-confidence-pill is-${overallConfidence}`}
-                  aria-label={`Overall insights confidence: ${overallConfidenceLabel}`}
-                  onClick={() => setShowOverallConfidenceInfo((prev) => !prev)}
-                >
-                  {overallConfidenceLabel}
-                </button>
-                {showOverallConfidenceInfo && (
-                  <div
-                    ref={overallConfidenceContentRef}
-                    className={`info-tooltip-content ${overallConfidenceTooltipPosition} ${overallConfidenceTooltipVertical} ${overallConfidenceTooltipIsPositioned ? 'ready' : 'measuring'} insights-confidence-popover`}
-                  >
-                    <h4>Insight Confidence</h4>
-                    <p>
-                      This shows how much data GolfIQ has behind your Overall Insights. Building means an early read. Moderate means useful signal, but still getting sharper. Strong means enough history to trust the pattern more.
-                    </p>
-                    <div className={`info-tooltip-arrow ${overallConfidenceTooltipPosition} ${overallConfidenceTooltipVertical}`} />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        {error && <p className="error-text">{error}</p>}
-
-        <div className="insights-content">
-          {showSkeletonContent ? (
-            Array.from({ length: 3 }).map((_, idx) => (
-              <div key={`overall-insight-skeleton-${idx}`} className="insight-message insight-message-skeleton">
-                <div className="insight-message-content skeleton-insight-message-content">
-                  <SkeletonText className="round-insights-line" lines={2} lineHeight={14} lastLineWidth="88%" />
-                </div>
-              </div>
-            ))
-          ) : (
-            (insights?.cards ?? []).map((card, idx) => (
-              <OverallInsightMessage key={`card-${idx}`} card={card} index={idx} />
-            ))
-          )}
-        </div>
-      </div>
+      <GameTrendsCard
+        trends={insights?.game_trends ?? null}
+        mode={statsMode}
+        loading={showSkeletonContent}
+        error={error}
+        onRetry={() => fetchInsights(statsMode)}
+        onLogRound={() => router.push('/rounds/add?from=insights')}
+      />
       {trajectorySection}
 
       {showSkeletonContent ? (
@@ -1549,7 +1464,7 @@ export default function InsightsPage() {
                 </span>
               </div>
               <div className="comparison-bar-row">
-                <span className="comparison-bar-label">Average</span>
+                <span className="comparison-bar-label">Usual</span>
                 <div className="comparison-bar-track">
                   <span className="comparison-bar-fill skeleton u-w-pct-55" />
                 </div>
@@ -1654,14 +1569,14 @@ export default function InsightsPage() {
         <div className="insights-top-grid">
           <ComparisonBarCard
             title="Scoring"
-            tooltipText="Average score per round. Recent reflects your last 5 rounds. Lower is better."
-            recentLabel="Recent"
-            typicalLabel="Average"
-            recentRawValue={modePayload.kpis.avgScoreRecent}
-            typicalRawValue={modePayload.kpis.avgScoreBaseline}
+            tooltipText="Shows how your recent scores compare with your usual scoring across the non-overlapping rounds before your recent window. Lower is better."
+            recentLabel={scoringRecentLabel}
+            typicalLabel={scoringBaselineLabel}
+            recentRawValue={scoringRecent}
+            typicalRawValue={scoringBaseline}
             betterWhenHigher={false}
-            recentValueText={formatCardValueOneDecimal(modePayload.kpis.avgScoreRecent)}
-            typicalValueText={formatCardValueOneDecimal(modePayload.kpis.avgScoreBaseline)}
+            recentValueText={formatCardValueOneDecimal(scoringRecent)}
+            typicalValueText={formatCardValueOneDecimal(scoringBaseline)}
             recentBarWidth={scoringWidths.recent}
             typicalBarWidth={scoringWidths.typical}
             hasData={scoringWidths.hasData}
@@ -1670,11 +1585,13 @@ export default function InsightsPage() {
             accentColor={accentColor}
             accentHighlight={INSIGHTS_POSITIVE_COLOR}
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
+            showTypical={scoringHasComparison}
+            showDelta={scoringHasComparison}
           />
           <div className="card dashboard-stat-card comparison-bar-card consistency-card">
             <div className="comparison-bar-header">
               <h3>Scoring Consistency</h3>
-              <InfoTooltip text="Based on your last 5 rounds. Lower variation means your scoring is more repeatable." />
+              <InfoTooltip text="Shows how much your score relative to par changes from round to round across your last five rounds. Less variation means more consistent scoring." />
             </div>
             <p className="consistency-badge">{formatConsistencyLabel(consistencyLabel)}</p>
             {consistency.stdDev != null && consistency.stdDev >= 0.2 && (
@@ -1738,7 +1655,7 @@ export default function InsightsPage() {
           >
             <div className="comparison-bar-header">
               <h3 className="insights-centered-title">Strokes Gained by Area</h3>
-              <InfoTooltip text={sgComponentDeltaTooltip} />
+              <InfoTooltip text={sgAreaTooltip} />
             </div>
             {!sgHasComponentData && (
               <p className="secondary-text insights-subtle-note insights-centered-title">No area breakdown yet. Track fairways, greens, putts, penalties, and short-game stats to fill this in.</p>
@@ -1749,13 +1666,13 @@ export default function InsightsPage() {
                 const hasDelta = rowDelta != null && Number.isFinite(rowDelta);
                 const absDelta = hasDelta ? Math.abs(rowDelta as number) : 0;
                 const barHalfWidthPct =
-                  hasDelta && sgMaxAbsDelta > 0
-                    ? (absDelta / sgMaxAbsDelta) * 50
+                  hasDelta && sgMaxAbsAreaValue > 0
+                    ? (absDelta / sgMaxAbsAreaValue) * 50
                     : 0;
 
                 let barStyle: Record<string, string> = {};
                 if (hasDelta) {
-                  if (sgMaxAbsDelta === 0 || absDelta === 0) {
+                  if (sgMaxAbsAreaValue === 0 || absDelta === 0) {
                     barStyle = { left: 'calc(50% - 1px)', width: '2px' };
                   } else if ((rowDelta as number) > 0) {
                     barStyle = { left: '50%', width: `${barHalfWidthPct}%` };
@@ -1797,7 +1714,7 @@ export default function InsightsPage() {
         <div className="grid grid-2 insights-performance-grid">
           <ComparisonBarCard
             title="Driving Accuracy"
-            tooltipText="Fairways in regulation. Recent reflects your last 5 rounds. Average reflects all selected rounds. Higher is better."
+            tooltipText="Shows the percentage of fairways you hit. Recent uses your last five rounds; Average uses all rounds in this view. Higher is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={efficiency.fir.recent}
@@ -1817,7 +1734,7 @@ export default function InsightsPage() {
           />
           <ComparisonBarCard
             title="Approach Accuracy"
-            tooltipText="Greens in regulation. Recent reflects your last 5 rounds. Average reflects all selected rounds. Higher is better."
+            tooltipText="Shows the percentage of greens you hit in regulation. Recent uses your last five rounds; Average uses all rounds in this view. Higher is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={efficiency.gir.recent}
@@ -1837,7 +1754,7 @@ export default function InsightsPage() {
           />
           <ComparisonBarCard
             title="Short Game"
-            tooltipText="Chips and greenside bunker shots per round. Recent reflects your last 5 rounds. Average reflects all selected rounds. Lower is better."
+            tooltipText="Shows your average chips and greenside bunker shots per round. Recent uses your last five rounds; Average uses all rounds in this view. Lower is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={shortGameMetric.recent}
@@ -1857,7 +1774,7 @@ export default function InsightsPage() {
           />
           <ComparisonBarCard
             title="Putting"
-            tooltipText="Putts per round. Recent reflects your last 5 rounds. Average reflects all selected rounds. Lower is better."
+            tooltipText="Shows your average putts per round. Recent uses your last five rounds; Average uses all rounds in this view. Lower is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={puttsMetric.recent}
@@ -1877,7 +1794,7 @@ export default function InsightsPage() {
           />
           <ComparisonBarCard
             title="Penalties"
-            tooltipText="Penalties per round. Recent reflects your last 5 rounds. Average reflects all selected rounds. Lower is better."
+            tooltipText="Shows your average penalties per round. Recent uses your last five rounds; Average uses all rounds in this view. Lower is better."
             recentLabel="Recent"
             typicalLabel="Average"
             recentRawValue={penaltiesMetric.recent}

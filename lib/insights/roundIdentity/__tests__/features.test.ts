@@ -42,7 +42,6 @@ function buildBaseInput(overrides: Partial<RoundIdentityResolverInput> = {}): Ro
     sgPutting: 0.5,
     sgPenalties: -0.1,
     sgResidual: 0,
-    sgConfidence: 'medium',
     sgPartialAnalysis: false,
     entryMode: 'live_round',
     hasTrustedHoleByHole: true,

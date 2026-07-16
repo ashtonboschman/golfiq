@@ -24,8 +24,7 @@ function mkRound(index: number, partial: Partial<OverallRoundPoint> = {}): Overa
     sgPutting: -0.1,
     sgPenalties: 0.2,
     sgResidual: -0.2,
-    sgConfidence: null,
-    sgPartialAnalysis: null,
+    sgPartialAnalysis: false,
     firDirections: [],
     girDirections: [],
     ...partial,
@@ -37,7 +36,7 @@ function buildFiveRounds(): OverallRoundPoint[] {
 }
 
 describe('overall insights first-5-round behavior', () => {
-  it('uses absolute recent SG values for strength/opportunity and yields zero SG component deltas at <=5 rounds', () => {
+  it('uses absolute recent SG values for strength/opportunity at <=5 rounds', () => {
     const rounds = buildFiveRounds();
     const payload = computeOverallPayload({
       rounds,

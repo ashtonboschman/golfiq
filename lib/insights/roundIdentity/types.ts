@@ -161,7 +161,6 @@ export type RoundIdentityResolverInput = {
   sgPutting: number | null;
   sgPenalties: number | null;
   sgResidual: number | null;
-  sgConfidence: 'high' | 'medium' | 'low' | null;
   sgPartialAnalysis: boolean | null;
   entryMode: RoundIdentityEntryMode;
   roundHoles: RoundIdentityHoleInput[];

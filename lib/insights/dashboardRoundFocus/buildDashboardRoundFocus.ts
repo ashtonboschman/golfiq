@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { isShortGameOpportunityEligible } from '@/lib/insights/trendEvidence';
 import { isPremiumUser } from '@/lib/subscription';
 import { buildWatchCard } from '@/lib/insights/roundIdentity/copyTemplates';
 import { computeCurrentRoundIdentityHash } from '@/lib/insights/roundIdentity/currentIdentityHash';
@@ -68,21 +69,15 @@ function toNumberOrNull(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
-function normalizeConfidence(value: unknown): 'high' | 'medium' | 'low' | null {
-  const normalized = typeof value === 'string' ? value.toLowerCase() : null;
-  if (normalized === 'high' || normalized === 'medium' || normalized === 'low') return normalized;
-  return null;
-}
-
 export function parseDashboardFocusHoleCount(value: unknown): 9 | 18 | null {
   return value === 9 || value === 18 ? value : null;
 }
 
-function shortGameOpportunityEligible(holes: 9 | 18 | null, girHit: unknown): boolean {
+function resolveShortGameOpportunityEligible(holes: 9 | 18 | null, girHit: unknown): boolean {
   if (holes == null) return false;
   const gir = toNumberOrNull(girHit);
   if (gir == null) return false;
-  return Math.max(0, holes - gir) >= (holes <= 9 ? 2 : 4);
+  return isShortGameOpportunityEligible(holes, gir);
 }
 
 const defaultDependencies: DashboardRoundFocusDependencies = {
@@ -111,7 +106,6 @@ const defaultDependencies: DashboardRoundFocusDependencies = {
             sgShortGame: true,
             sgPutting: true,
             sgResidual: true,
-            confidence: true,
             partialAnalysis: true,
           },
         },
@@ -141,8 +135,7 @@ const defaultDependencies: DashboardRoundFocusDependencies = {
           putting: { value: putting, tracked: putting != null },
         },
         residual: { value: residual, tracked: residual != null },
-        shortGameOpportunityEligible: shortGameOpportunityEligible(holes, round.girHit),
-        sgConfidence: normalizeConfidence(sg?.confidence),
+        shortGameOpportunityEligible: resolveShortGameOpportunityEligible(holes, round.girHit),
         sgPartialAnalysis: sg?.partialAnalysis != null ? Boolean(sg.partialAnalysis) : null,
       } satisfies DashboardFocusRoundCandidate;
     });

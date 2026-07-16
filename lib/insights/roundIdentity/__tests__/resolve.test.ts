@@ -50,7 +50,6 @@ function baseInput(overrides: Partial<RoundIdentityResolverInput> = {}): RoundId
     sgPutting: null,
     sgPenalties: null,
     sgResidual: null,
-    sgConfidence: null,
     sgPartialAnalysis: null,
     entryMode: 'post_round',
     roundHoles: [],
@@ -229,7 +228,6 @@ describe('resolveRoundIdentity', () => {
         sgApproach: 0,
         sgPutting: 0,
         sgPenalties: 0,
-        sgConfidence: 'medium',
       }),
     );
 

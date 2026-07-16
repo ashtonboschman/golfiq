@@ -40,7 +40,6 @@ describe("calculateStrokesGained (new SG model)", () => {
     expect(result.sgTotal).toBeDefined();
     expect(result.sgShortGame).toBeNull();
     expect(result.sgResidual).toBeDefined();
-    expect(result.confidence).toMatch(/high|medium|low/);
   });
 
   // --------------------------------------------------
@@ -131,7 +130,6 @@ describe("calculateStrokesGained (new SG model)", () => {
     expect(result.partialAnalysis).toBe(true);
     expect(result.sgPutting).toBeDefined();
     expect(result.sgResidual).toBeDefined();
-    expect(result.confidence).toBe("low");
   });
 
   // --------------------------------------------------
@@ -380,7 +378,6 @@ describe("calculateStrokesGained (new SG model)", () => {
 
     expect(result.sgTotal).toBeNull();
     expect(result.partialAnalysis).toBe(true);
-    expect(result.confidence).toBeNull();
   });
 
   // --------------------------------------------------
@@ -464,7 +461,6 @@ describe("calculateStrokesGained (new SG model)", () => {
 
     expect(result.sgTotal).toBeNull();
     expect(result.partialAnalysis).toBe(true);
-    expect(result.confidence).toBeNull();
   });
 
   // --------------------------------------------------
@@ -490,7 +486,6 @@ describe("calculateStrokesGained (new SG model)", () => {
 
     expect(result.sgTotal).toBeNull();
     expect(result.partialAnalysis).toBe(true);
-    expect(result.confidence).toBeNull();
   });
 
   // --------------------------------------------------
@@ -548,53 +543,6 @@ describe("calculateStrokesGained (new SG model)", () => {
       expect(result.sgTotal).toBeDefined();
       expect(result.sgResidual).toBeDefined();
     }
-  });
-
-  // --------------------------------------------------
-  // 15. Confidence tiers
-  // --------------------------------------------------
-  it("produces correct confidence tiers", async () => {
-    // High confidence: score close to expected, moderate components, small residual
-    mockPrisma.round.findUnique.mockResolvedValue(
-      makeRound({
-        score: 84,
-        firHit: 7,
-        girHit: 7,
-        putts: 34,
-        penalties: 2,
-        handicapAtRound: 10,
-      })
-    );
-    const high = await calculateStrokesGained({ userId: BigInt(205), roundId: BigInt(305) }, mockPrisma as any);
-    expect(high.confidence).toBe("high");
-
-    // Medium confidence: poor putting pushes past high threshold
-    mockPrisma.round.findUnique.mockResolvedValue(
-      makeRound({
-        score: 90,
-        firHit: 5,
-        girHit: 5,
-        putts: 39,
-        penalties: 2,
-        handicapAtRound: 12,
-      })
-    );
-    const med = await calculateStrokesGained({ userId: BigInt(206), roundId: BigInt(306) }, mockPrisma as any);
-    expect(med.confidence).toBe("medium");
-
-    // Low confidence (missing data)
-    mockPrisma.round.findUnique.mockResolvedValue(
-      makeRound({
-        score: 92,
-        firHit: null,
-        girHit: null,
-        putts: 36,
-        penalties: null,
-        handicapAtRound: 12,
-      })
-    );
-    const low = await calculateStrokesGained({ userId: BigInt(207), roundId: BigInt(307) }, mockPrisma as any);
-    expect(low.confidence).toBe("low");
   });
 
   // --------------------------------------------------
@@ -749,7 +697,6 @@ describe("calculateStrokesGained (new SG model)", () => {
       expect(r.sgPutting).toBeCloseTo(1.0, 1);
       expect(r.sgPenalties).toBeCloseTo(0.0, 1);
       expect(r.sgResidual).toBeCloseTo(-7.2, 1);
-      expect(r.confidence).toBe("low");
     });
 
     it("matches expected SG components for a neutral 9-hole round", async () => {
@@ -777,7 +724,6 @@ describe("calculateStrokesGained (new SG model)", () => {
       expect(r.sgPutting).toBeCloseTo(0.5, 1);
       expect(r.sgPenalties).toBeCloseTo(0.0, 1);
       expect(r.sgResidual).toBeCloseTo(-2.8, 1);
-      expect(r.confidence).toBe("high");
     });
   });
 

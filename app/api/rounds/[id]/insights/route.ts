@@ -890,7 +890,6 @@ async function generateInsightsInternal(
     measuredComponentCount: measuredSelection.componentCount,
     opportunityIsWeak: measuredSelection.opportunityIsWeak,
     weakSeparation: measuredSelection.weakSeparation,
-    sgConfidence: sgComponents?.confidence ? String(sgComponents.confidence).toLowerCase() : null,
     missingStats,
   });
 
@@ -1037,15 +1036,13 @@ function resolvePostRoundConfidence(input: {
   measuredComponentCount: number;
   opportunityIsWeak: boolean;
   weakSeparation: boolean;
-  sgConfidence: string | null;
   missingStats: ReturnType<typeof getMissingStats>;
 }): PostRoundConfidence {
   const scoreOnly = input.measuredComponentCount === 0;
   if (
     input.roundNumber <= 2 ||
     input.measuredComponentCount < 2 ||
-    scoreOnly ||
-    input.sgConfidence === 'low'
+    scoreOnly
   ) {
     return 'LOW';
   }

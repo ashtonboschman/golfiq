@@ -44,11 +44,9 @@ export function resolveRoundIdentityConfidence(input: {
   evidenceLevel: RoundIdentityEvidenceLevel;
   sampleContext: RoundIdentitySampleContext;
   statCompletenessScore: number;
-  sgConfidence: 'high' | 'medium' | 'low' | null;
 }): RoundIdentityConfidence {
   if (input.sampleContext === 'first_round') return 'building';
   if (input.evidenceLevel === 'score_only') return 'building';
-  if (input.sgConfidence === 'low') return 'building';
   if (input.evidenceLevel === 'hole_by_hole' && input.statCompletenessScore >= 70 && input.sampleContext === 'established') {
     return 'strong';
   }
@@ -66,7 +64,6 @@ export function buildEvidenceSnapshot(input: RoundIdentityResolverInput): RoundI
     evidenceLevel,
     sampleContext,
     statCompletenessScore,
-    sgConfidence: input.sgConfidence,
   });
   const hasAggregateStats = hasAnyAggregateStats(input);
   const hasOptionalStats =

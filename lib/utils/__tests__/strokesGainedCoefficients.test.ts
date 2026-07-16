@@ -17,12 +17,7 @@ describe("strokesGainedCoefficients", () => {
     expect(C.COURSE_DIFF_TO_PENALTIES).toBe(0.6);
   });
 
-  it("has expected confidence thresholds", () => {
+  it("has the expected putting outlier cap", () => {
     expect(C.PUTTING_CAP).toBe(3.5);
-    expect(C.CONFIDENCE_RESIDUAL_HIGH).toBe(3.0);
-    expect(C.CONFIDENCE_SHORTGAME_HIGH_PCT).toBe(0.44);
-    expect(C.CONFIDENCE_SHORTGAME_MEDIUM_MIN_PCT).toBe(0.28);
-    expect(C.CONFIDENCE_SHORTGAME_MEDIUM_MAX_PCT).toBe(0.39);
-    expect(C.CONFIDENCE_PUTTING_HIGH_PCT).toBe(0.71);
   });
 });

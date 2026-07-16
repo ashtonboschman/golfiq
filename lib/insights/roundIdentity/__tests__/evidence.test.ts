@@ -33,7 +33,6 @@ function baseInput(overrides: Partial<RoundIdentityResolverInput> = {}): RoundId
     sgPutting: null,
     sgPenalties: null,
     sgResidual: null,
-    sgConfidence: null,
     sgPartialAnalysis: null,
     entryMode: 'post_round',
     roundHoles: [],
@@ -69,7 +68,6 @@ describe('roundIdentity evidence', () => {
         evidenceLevel: 'score_only',
         sampleContext: 'first_round',
         statCompletenessScore: 0,
-        sgConfidence: null,
       }),
     ).toBe('building');
 
@@ -78,7 +76,6 @@ describe('roundIdentity evidence', () => {
         evidenceLevel: 'hole_by_hole',
         sampleContext: 'first_round',
         statCompletenessScore: 72,
-        sgConfidence: 'high',
       }),
     ).toBe('building');
 
@@ -87,7 +84,6 @@ describe('roundIdentity evidence', () => {
         evidenceLevel: 'hole_by_hole',
         sampleContext: 'established',
         statCompletenessScore: 75,
-        sgConfidence: 'high',
       }),
     ).toBe('strong');
   });
@@ -107,7 +103,6 @@ describe('roundIdentity evidence', () => {
         shortGameShots: 10,
         sgApproach: 0.7,
         sgOffTee: 0.2,
-        sgConfidence: 'high',
       }),
     );
 

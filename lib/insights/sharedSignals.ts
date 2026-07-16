@@ -118,7 +118,7 @@ export function classifyVolatilitySignal(args: {
   const moderateScoreRange = args.options?.moderateScoreRange ?? null;
 
   const strongByLabel = label === 'volatile';
-  const moderateByLabel = label === 'moderate';
+  const moderateByLabel = label === 'moderate' || label === 'variable';
   const strongByStdDev = stdDev != null && stdDev >= strongStdDev;
   const moderateByStdDev = stdDev != null && stdDev >= moderateStdDev;
   const strongByRange =

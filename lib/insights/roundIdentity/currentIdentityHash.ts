@@ -140,16 +140,6 @@ export function buildRoundIdentityResolverInput(input: {
     roundHoles: input.round?.roundHoles ?? [],
     startHoleNumber: input.round?.finalizedLiveRoundSession?.startHoleNumber ?? null,
   });
-  const normalizedSgConfidence = input.sgComponents?.confidence
-    ? String(input.sgComponents.confidence).toLowerCase()
-    : null;
-  const sgConfidence =
-    normalizedSgConfidence === 'high' ||
-    normalizedSgConfidence === 'medium' ||
-    normalizedSgConfidence === 'low'
-      ? normalizedSgConfidence
-      : null;
-
   return {
     roundId: input.roundId.toString(),
     score: Number(input.round.score),
@@ -183,7 +173,6 @@ export function buildRoundIdentityResolverInput(input: {
       input.sgComponents?.sgPenalties != null ? Number(input.sgComponents.sgPenalties) : null,
     sgResidual:
       input.sgComponents?.sgResidual != null ? Number(input.sgComponents.sgResidual) : null,
-    sgConfidence,
     sgPartialAnalysis:
       input.sgComponents?.partialAnalysis != null ? Boolean(input.sgComponents.partialAnalysis) : null,
     entryMode,

@@ -23,7 +23,6 @@ function makeRound(
     untracked?: DashboardTrendCategory[];
     shortGameOpportunityEligible?: boolean;
     residual?: number | null;
-    sgConfidence?: TrendRoundInput['sgConfidence'];
     sgPartialAnalysis?: boolean | null;
   } = {},
 ): TrendRoundInput {
@@ -44,7 +43,6 @@ function makeRound(
       ? undefined
       : { value: options.residual, tracked: true },
     shortGameOpportunityEligible: options.shortGameOpportunityEligible ?? true,
-    sgConfidence: options.sgConfidence ?? 'high',
     sgPartialAnalysis: options.sgPartialAnalysis ?? false,
   };
 }
@@ -77,11 +75,10 @@ function resolve(
 }
 
 describe('resolveDashboardTrendFocus', () => {
-  it('selects a strong repeated Approach trend without using latest-round SG confidence', () => {
+  it('selects a strong repeated Approach trend when unrelated round data is partial', () => {
     const recent = makeRoundsForCategory('approach', [-0.8, -0.7, -0.6, -0.5, -0.4]);
     recent[0] = {
       ...recent[0],
-      sgConfidence: 'low',
       sgPartialAnalysis: true,
     };
 

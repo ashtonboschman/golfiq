@@ -11,6 +11,9 @@ import {
   downgradePersistenceTierForWeakness,
   resolvePersistenceTierFromFrequency,
 } from '@/lib/insights/sharedSignals';
+import { isSgComponentAvailable } from '@/lib/insights/trendEvidence';
+import { resolveCanonicalStability } from '@/lib/insights/gameTrends/stability';
+import { resolveScoringMomentum } from '@/lib/insights/gameTrends/momentum';
 
 export type StatsMode = 'combined' | '9' | '18';
 export type PerformanceBand = 'tough' | 'below' | 'expected' | 'above' | 'great' | 'unknown';
@@ -22,12 +25,11 @@ const OVERALL_SHORT_GAME_MIN_RECENT_COVERAGE_FOR_SELECTION = 2;
 export const OVERALL_RECENT_WINDOW = 5;
 export const OVERALL_EARLY_SAMPLE_MAX_ROUNDS = 5;
 export const OVERALL_CONSISTENCY_WINDOW = 5;
-export const MIN_ROUNDS_FOR_DIRECTIONAL_TRAJECTORY = 10;
-export const TRAJECTORY_MEANINGFUL_DELTA_STROKES = 1.5;
 
 export type OverallRoundPoint = {
   id: bigint;
   date: Date;
+  createdAt?: Date;
   holes: number;
   nonPar3Holes: number;
   score: number;
@@ -46,10 +48,10 @@ export type OverallRoundPoint = {
   sgPutting: number | null;
   sgPenalties: number | null;
   sgResidual: number | null;
-  sgConfidence: 'high' | 'medium' | 'low' | null;
   sgPartialAnalysis: boolean | null;
   firDirections: DirectionalMissRawValue[];
   girDirections: DirectionalMissRawValue[];
+  teeContextKey?: string | null;
 };
 
 export type TrendSeries = {
@@ -90,8 +92,9 @@ export type ModePayload = {
     };
   };
   consistency: {
-    label: 'stable' | 'moderate' | 'volatile' | 'insufficient';
+    label: 'stable' | 'variable' | 'volatile' | 'insufficient';
     stdDev: number | null;
+    scoreRange: number | null;
   };
   efficiency: {
     fir: EfficiencyMetric;
@@ -119,6 +122,15 @@ export type ModePayload = {
       penalties: number | null;
       residual: number | null;
     };
+    recentTrackedCount?: {
+      total: number;
+      offTee: number;
+      approach: number;
+      shortGame: number;
+      putting: number;
+      penalties: number;
+      residual: number;
+    };
     hasData: boolean;
   };
   trend: TrendSeries;
@@ -130,7 +142,7 @@ export type ModePayload = {
 };
 
 export type ProjectionPayload = {
-  trajectory: 'improving' | 'flat' | 'worsening' | 'volatile' | 'unknown';
+  trajectory: 'improving' | 'flat' | 'worsening' | 'unknown';
   projectedScoreIn10: number | null;
   handicapCurrent: number | null;
   projectedHandicapIn10: number | null;
@@ -148,6 +160,10 @@ export type ProjectionByModeEntry = {
   projectedScoreIn10: number | null;
   scoreLow: number | null;
   scoreHigh: number | null;
+  handicapCurrent: number | null;
+  projectedHandicapIn10: number | null;
+  handicapLow: number | null;
+  handicapHigh: number | null;
   roundsUsed: number;
 };
 
@@ -195,8 +211,9 @@ export type OverallInsightsPayload = {
     recentWindow: number;
   };
   consistency: {
-    label: 'stable' | 'moderate' | 'volatile' | 'insufficient';
+    label: 'stable' | 'variable' | 'volatile' | 'insufficient';
     stdDev: number | null;
+    scoreRange: number | null;
   };
   efficiency: {
     fir: EfficiencyMetric;
@@ -220,7 +237,6 @@ export type OverallInsightsPayload = {
         putting: number | null;
         penalties: number | null;
         residual: number | null;
-        confidence: 'high' | 'medium' | 'low' | null;
         partialAnalysis: boolean | null;
       };
       recentAvg: {
@@ -240,6 +256,15 @@ export type OverallInsightsPayload = {
         putting: number | null;
         penalties: number | null;
         residual: number | null;
+      };
+      recentTrackedCount?: {
+        total: number;
+        offTee: number;
+        approach: number;
+        shortGame: number;
+        putting: number;
+        penalties: number;
+        residual: number;
       };
       mostCostlyComponent: SGCostlyComponent | null;
       worstComponentFrequencyRecent: {
@@ -282,6 +307,9 @@ const HANDICAP_SLOPE_BLEND_WEIGHT = 0.15;
 const HANDICAP_SCORE_SHIFT_MAX = 1.0;
 const HANDICAP_PROJECTED_SHIFT_MIN = -1.2;
 const HANDICAP_PROJECTED_SHIFT_MAX = 1.2;
+const SCORE_RANGE_STABILITY_MULTIPLIER = 1.15;
+const SCORE_RANGE_MIN_HALF_WIDTH_18 = 1.5;
+const SCORE_RANGE_STABILITY_CAP_18 = 5;
 
 const DRILL_LIBRARY: Record<SGComponentName | 'general', string[]> = {
   off_tee: [
@@ -612,7 +640,7 @@ export function normalizeByMode(points: OverallRoundPoint[], mode: StatsMode): O
   });
 }
 
-function computeModePayload(points: OverallRoundPoint[], isPremium: boolean): ModePayload {
+function computeModePayload(points: OverallRoundPoint[], isPremium: boolean, mode: StatsMode): ModePayload {
   const sortedDesc = [...points].sort((a, b) => +new Date(b.date) - +new Date(a.date));
   const recent = sortedDesc.slice(0, OVERALL_RECENT_WINDOW);
   const baseline = isPremium ? sortedDesc : sortedDesc.slice(0, 20);
@@ -694,13 +722,14 @@ function computeModePayload(points: OverallRoundPoint[], isPremium: boolean): Mo
         ? strengthOpp.opportunity
         : { ...strengthOpp.opportunity, value: null },
     },
-    consistency: computeConsistency(sortedDesc),
+    consistency: computeConsistency(sortedDesc, mode),
     efficiency: computeEfficiency(sortedDesc, baseline),
     ...(sgModePayload
       ? {
           sgComponents: {
             recentAvg: sgModePayload.components.recentAvg,
             baselineAvg: sgModePayload.components.baselineAvg,
+            recentTrackedCount: sgModePayload.components.recentTrackedCount,
             hasData: sgModePayload.components.hasData,
           },
         }
@@ -926,9 +955,43 @@ function percentile(values: number[], p: number): number | null {
   return sorted[lower] * (1 - weight) + sorted[upper] * weight;
 }
 
+function computeProjectedScoreRange(args: {
+  projectedScore: number;
+  roundsNewestFirst: OverallRoundPoint[];
+  mode: StatsMode;
+}): { low: number; high: number } | null {
+  const recentTen = args.roundsNewestFirst
+    .slice(0, 10)
+    .map((round) => round.score)
+    .filter(Number.isFinite);
+  const scoreP20 = percentile(recentTen, 0.2);
+  const scoreP80 = percentile(recentTen, 0.8);
+  if (scoreP20 == null || scoreP80 == null) return null;
+
+  const recentToPar = args.roundsNewestFirst
+    .slice(0, OVERALL_CONSISTENCY_WINDOW)
+    .map((round) => round.toPar)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const stabilityStdDev = stdDev(recentToPar);
+  const modeScale = args.mode === '9' ? 0.5 : 1;
+  const minimumHalfWidth = SCORE_RANGE_MIN_HALF_WIDTH_18 * modeScale;
+  const stabilityCap = SCORE_RANGE_STABILITY_CAP_18 * modeScale;
+  const empiricalHalfWidth = Math.abs(scoreP80 - scoreP20) / 2;
+  const stabilityHalfWidth = stabilityStdDev == null
+    ? 0
+    : Math.min(stabilityStdDev * SCORE_RANGE_STABILITY_MULTIPLIER, stabilityCap);
+  const halfWidth = Math.max(minimumHalfWidth, empiricalHalfWidth, stabilityHalfWidth);
+
+  return {
+    low: round1(args.projectedScore - halfWidth) as number,
+    high: round1(args.projectedScore + halfWidth) as number,
+  };
+}
+
 function computeProjection(
   recentCombined: OverallRoundPoint[],
   baselineCombined: OverallRoundPoint[],
+  mode: StatsMode,
   currentHandicapOverride?: number | null,
 ): ProjectionPayload {
   const recentAvgScore = average(recentCombined.map((p) => p.score));
@@ -950,50 +1013,15 @@ function computeProjection(
     .filter((n): n is number => n != null && Number.isFinite(n));
   const handicapSlope = linearSlope([...handicapTrendWindow].reverse());
 
-  const roundsInContext = baselineCombined.length;
-  const trajectoryStillDeveloping = roundsInContext < MIN_ROUNDS_FOR_DIRECTIONAL_TRAJECTORY;
-  let trajectory: ProjectionPayload['trajectory'] = 'unknown';
-  if (!trajectoryStillDeveloping && recentAvgScore != null) {
-    const previousWindow = baselineCombined.slice(
-      OVERALL_RECENT_WINDOW,
-      OVERALL_RECENT_WINDOW * 2,
-    );
-    const previousAvg = average(previousWindow.map((p) => p.score));
-    const historyWindow = roundsInContext >= 15
-      ? baselineCombined.slice(OVERALL_RECENT_WINDOW)
-      : previousWindow;
-    const historyAvg = average(historyWindow.map((p) => p.score));
-
-    const recentBetterThanPrevious =
-      previousAvg != null &&
-      (previousAvg - recentAvgScore) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
-    const recentWorseThanPrevious =
-      previousAvg != null &&
-      (recentAvgScore - previousAvg) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
-    const recentBetterThanHistory =
-      historyAvg != null &&
-      (historyAvg - recentAvgScore) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
-    const recentWorseThanHistory =
-      historyAvg != null &&
-      (recentAvgScore - historyAvg) >= TRAJECTORY_MEANINGFUL_DELTA_STROKES;
-    const notMeaningfullyWorseThanPrevious =
-      previousAvg == null ||
-      (recentAvgScore - previousAvg) < TRAJECTORY_MEANINGFUL_DELTA_STROKES;
-
-    if (
-      recentBetterThanPrevious ||
-      (recentBetterThanHistory && notMeaningfullyWorseThanPrevious)
-    ) {
-      trajectory = 'improving';
-    } else if (recentWorseThanPrevious && recentWorseThanHistory) {
-      trajectory = 'worsening';
-    } else {
-      trajectory = 'flat';
-    }
-  }
+  const momentum = resolveScoringMomentum(baselineCombined.map((point) => point.score), mode);
+  const trajectory: ProjectionPayload['trajectory'] = momentum.state === 'steady'
+    ? 'flat'
+    : momentum.state === 'unavailable'
+      ? 'unknown'
+      : momentum.state;
 
   // Keep score projection centered on window-comparison baselines.
-  // Trajectory now captures direction; avoid re-introducing short-window slope noise.
+  // Canonical momentum captures direction; avoid re-introducing short-window slope noise.
   const projectedScoreIn10 =
     recentAvgScore != null && baselineAvgScore != null
       ? round1((recentAvgScore * 0.7) + (baselineAvgScore * 0.3))
@@ -1082,47 +1110,57 @@ function computeProjection(
 function computeProjectionByMode(
   pointsByMode: OverallRoundPoint[],
   isPremium: boolean,
+  mode: StatsMode,
   currentHandicapOverride?: number | null,
 ): ProjectionByModeEntry {
   const sortedDesc = [...pointsByMode].sort((a, b) => +new Date(b.date) - +new Date(a.date));
   const recent = sortedDesc.slice(0, 5);
-  const raw = computeProjection(recent, sortedDesc, currentHandicapOverride);
-  const canProjectScore = isPremium && sortedDesc.length >= 10;
-  const projectedScoreIn10 = canProjectScore ? raw.projectedScoreIn10 : null;
+  const raw = computeProjection(recent, sortedDesc, mode, currentHandicapOverride);
+  const canProject = isPremium && sortedDesc.length >= 10;
+  const projectedScoreIn10 = canProject ? raw.projectedScoreIn10 : null;
+  const projectedHandicapIn10 = canProject ? raw.projectedHandicapIn10 : null;
+  let scoreLow: number | null = null;
+  let scoreHigh: number | null = null;
+  let handicapLow: number | null = null;
+  let handicapHigh: number | null = null;
 
-  if (projectedScoreIn10 == null) {
-    return {
-      trajectory: raw.trajectory,
-      projectedScoreIn10: null,
-      scoreLow: null,
-      scoreHigh: null,
-      roundsUsed: sortedDesc.length,
-    };
+  if (projectedScoreIn10 != null) {
+    const scoreRange = computeProjectedScoreRange({
+      projectedScore: projectedScoreIn10,
+      roundsNewestFirst: sortedDesc,
+      mode,
+    });
+    scoreLow = scoreRange?.low ?? null;
+    scoreHigh = scoreRange?.high ?? null;
   }
 
-  const recentForRange = sortedDesc.slice(0, 10);
-  const scoreValues = recentForRange
-    .map((r) => r.score)
-    .filter((n): n is number => Number.isFinite(n));
-  const scoreP25 = percentile(scoreValues, 0.25);
-  const scoreP75 = percentile(scoreValues, 0.75);
-  if (scoreP25 == null || scoreP75 == null) {
-    return {
-      trajectory: raw.trajectory,
-      projectedScoreIn10,
-      scoreLow: null,
-      scoreHigh: null,
-      roundsUsed: sortedDesc.length,
-    };
+  if (projectedHandicapIn10 != null) {
+    const handicapValues = sortedDesc
+      .slice(0, 8)
+      .map((round) => round.handicapAfterRound ?? round.handicapAtRound)
+      .filter((value): value is number => value != null && Number.isFinite(value));
+    const handicapP25 = percentile(handicapValues, 0.25);
+    const handicapP75 = percentile(handicapValues, 0.75);
+    if (handicapP25 != null && handicapP75 != null) {
+      const handicapWindow = clamp(Math.abs(handicapP75 - handicapP25) / 2, 0.4, 1.2);
+      const rawLow = projectedHandicapIn10 - handicapWindow;
+      const rawHigh = projectedHandicapIn10 + handicapWindow;
+      const minRealisticLow = raw.handicapCurrent != null ? raw.handicapCurrent - 1 : rawLow;
+      const boundedLow = Math.max(rawLow, minRealisticLow);
+      handicapLow = round1(boundedLow);
+      handicapHigh = round1(Math.max(rawHigh, boundedLow));
+    }
   }
 
-  const scoreHalfIqr = Math.abs(scoreP75 - scoreP25) / 2;
-  const scoreWindow = clamp(scoreHalfIqr, 1.2, 3);
   return {
     trajectory: raw.trajectory,
     projectedScoreIn10,
-    scoreLow: round1(projectedScoreIn10 - scoreWindow),
-    scoreHigh: round1(projectedScoreIn10 + scoreWindow),
+    scoreLow,
+    scoreHigh,
+    handicapCurrent: canProject ? raw.handicapCurrent : null,
+    projectedHandicapIn10,
+    handicapLow,
+    handicapHigh,
     roundsUsed: sortedDesc.length,
   };
 }
@@ -1140,6 +1178,7 @@ function deterministicDrill(area: SGComponentName | null, seed: string): string 
 function buildDataHash(args: {
   rounds: OverallRoundPoint[];
   isPremium: boolean;
+  currentHandicapOverride?: number | null;
 }): string {
   const compact = [...args.rounds]
     .sort((a, b) => +new Date(b.date) - +new Date(a.date))
@@ -1166,25 +1205,31 @@ function buildDataHash(args: {
 
   return crypto
     .createHash('sha256')
-    .update(JSON.stringify({ isPremium: args.isPremium, rounds: compact }))
+    .update(JSON.stringify({
+      isPremium: args.isPremium,
+      currentHandicapOverride: round1(args.currentHandicapOverride ?? null),
+      rounds: compact,
+    }))
     .digest('hex');
 }
 
-function computeConsistency(pointsCombined: OverallRoundPoint[]): OverallInsightsPayload['consistency'] {
+function computeConsistency(pointsCombined: OverallRoundPoint[], mode: StatsMode): OverallInsightsPayload['consistency'] {
   const vals = pointsCombined
     .slice(0, OVERALL_CONSISTENCY_WINDOW)
     .map((p) => p.toPar)
     .filter((n): n is number => n != null && Number.isFinite(n));
-
-  if (vals.length < OVERALL_CONSISTENCY_WINDOW) {
-    return { label: 'insufficient', stdDev: null };
-  }
-
-  const sd = stdDev(vals);
-  if (sd == null) return { label: 'insufficient', stdDev: null };
-  if (sd < 3) return { label: 'stable', stdDev: round1(sd) };
-  if (sd < 5) return { label: 'moderate', stdDev: round1(sd) };
-  return { label: 'volatile', stdDev: round1(sd) };
+  const canonical = resolveCanonicalStability({
+    normalizedToParValues: vals,
+    mode,
+    hasEligibleRounds: pointsCombined.length > 0,
+  });
+  return {
+    label: canonical.state === 'stable' || canonical.state === 'variable' || canonical.state === 'volatile'
+      ? canonical.state
+      : 'insufficient',
+    stdDev: canonical.evidence.standardDeviation,
+    scoreRange: canonical.evidence.scoreRange,
+  };
 }
 
 function computeEfficiency(
@@ -1226,10 +1271,11 @@ function pickWorstComponentForRound(
     { component: 'shortGame', value: allowShortGame ? (row.sgShortGame ?? null) : null },
     { component: 'putting', value: row.sgPutting },
     { component: 'penalties', value: row.sgPenalties },
-    { component: 'residual', value: row.sgResidual },
   ];
 
-  const valid = items.filter((i): i is { component: SGCostlyComponent; value: number } => i.value != null && Number.isFinite(i.value));
+  const valid = items.filter((item): item is { component: SGCostlyComponent; value: number } =>
+    isSgComponentAvailable({ value: item.value })
+  );
   if (!valid.length) return null;
   return valid.reduce((a, b) => (b.value < a.value ? b : a), valid[0]);
 }
@@ -1242,26 +1288,45 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
   const shortGameAllowedForSelection =
     shortGameCoverageRecent >= OVERALL_SHORT_GAME_MIN_RECENT_COVERAGE_FOR_SELECTION;
 
-  const latestWithSg = pointsCombined.find((r) =>
-    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
+  const isUsable = (
+    row: OverallRoundPoint,
+    value: number | null,
+    eligible = true,
+  ): value is number => isSgComponentAvailable({
+    value,
+    eligible,
+  });
+  const componentValues = (
+    rows: OverallRoundPoint[],
+    get: (row: OverallRoundPoint) => number | null,
+    eligible?: (row: OverallRoundPoint) => boolean,
+  ): number[] => rows.flatMap((row) => {
+    const value = get(row);
+    return isUsable(row, value, eligible?.(row) ?? true) ? [value] : [];
+  });
+  const latestWithSg = pointsCombined.find((row) =>
+    [row.sgTotal, row.sgOffTee, row.sgApproach, row.sgShortGame ?? null, row.sgPutting, row.sgPenalties, row.sgResidual]
+      .some((value) => isUsable(row, value))
   ) ?? null;
 
-  const componentRows = pointsCombined.filter((r) =>
-    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
-  );
-
-  const recentRows = recentWindow.filter((r) =>
-    [r.sgTotal, r.sgOffTee, r.sgApproach, r.sgShortGame, r.sgPutting, r.sgPenalties, r.sgResidual].some((n) => n != null && Number.isFinite(n))
-  );
-  const recentRowsForAvg = recentRows.length
-    ? recentRows
-    : componentRows.slice(0, Math.min(sgFrequencyWindow, componentRows.length));
-  const shortGameRecentRowsForAvg = shortGameAllowedForSelection
-    ? recentRowsForAvg.filter(hasEnoughShortGameOpportunities)
-    : [];
-  const shortGameComponentRows = shortGameAllowedForSelection
-    ? componentRows.filter(hasEnoughShortGameOpportunities)
-    : [];
+  const recentComponentValues = {
+    total: componentValues(recentWindow, (row) => row.sgTotal),
+    offTee: componentValues(recentWindow, (row) => row.sgOffTee),
+    approach: componentValues(recentWindow, (row) => row.sgApproach),
+    shortGame: componentValues(recentWindow, (row) => row.sgShortGame ?? null, hasEnoughShortGameOpportunities),
+    putting: componentValues(recentWindow, (row) => row.sgPutting),
+    penalties: componentValues(recentWindow, (row) => row.sgPenalties),
+    residual: componentValues(recentWindow, (row) => row.sgResidual),
+  };
+  const baselineComponentValues = {
+    total: componentValues(pointsCombined, (row) => row.sgTotal),
+    offTee: componentValues(pointsCombined, (row) => row.sgOffTee),
+    approach: componentValues(pointsCombined, (row) => row.sgApproach),
+    shortGame: componentValues(pointsCombined, (row) => row.sgShortGame ?? null, hasEnoughShortGameOpportunities),
+    putting: componentValues(pointsCombined, (row) => row.sgPutting),
+    penalties: componentValues(pointsCombined, (row) => row.sgPenalties),
+    residual: componentValues(pointsCombined, (row) => row.sgResidual),
+  };
 
   const picks = recentWindow
     .map((r) => pickWorstComponentForRound(r, { allowShortGame: shortGameAllowedForSelection }))
@@ -1303,36 +1368,48 @@ function computeSgPayload(pointsCombined: OverallRoundPoint[]): NonNullable<Over
         putting: round1(latestWithSg?.sgPutting ?? null),
         penalties: round1(latestWithSg?.sgPenalties ?? null),
         residual: round1(latestWithSg?.sgResidual ?? null),
-        confidence: latestWithSg?.sgConfidence ?? null,
         partialAnalysis: latestWithSg?.sgPartialAnalysis ?? null,
       },
       recentAvg: {
-        // Keep higher precision for delta-bar math in the UI.
-        // Rounding at this stage can collapse meaningful deltas to zero.
-        total: averageBy(recentRowsForAvg, (r) => r.sgTotal),
-        offTee: averageBy(recentRowsForAvg, (r) => r.sgOffTee),
-        approach: averageBy(recentRowsForAvg, (r) => r.sgApproach),
-        shortGame: averageBy(shortGameRecentRowsForAvg, (r) => r.sgShortGame ?? null),
-        putting: averageBy(recentRowsForAvg, (r) => r.sgPutting),
-        penalties: averageBy(recentRowsForAvg, (r) => r.sgPenalties),
-        residual: averageBy(recentRowsForAvg, (r) => r.sgResidual),
+        total: average(recentComponentValues.total),
+        offTee: average(recentComponentValues.offTee),
+        approach: average(recentComponentValues.approach),
+        shortGame: average(recentComponentValues.shortGame),
+        putting: average(recentComponentValues.putting),
+        penalties: average(recentComponentValues.penalties),
+        residual: average(recentComponentValues.residual),
       },
       baselineAvg: {
-        total: averageBy(componentRows, (r) => r.sgTotal),
-        offTee: averageBy(componentRows, (r) => r.sgOffTee),
-        approach: averageBy(componentRows, (r) => r.sgApproach),
-        shortGame: averageBy(shortGameComponentRows, (r) => r.sgShortGame ?? null),
-        putting: averageBy(componentRows, (r) => r.sgPutting),
-        penalties: averageBy(componentRows, (r) => r.sgPenalties),
-        residual: averageBy(componentRows, (r) => r.sgResidual),
+        total: average(baselineComponentValues.total),
+        offTee: average(baselineComponentValues.offTee),
+        approach: average(baselineComponentValues.approach),
+        shortGame: average(baselineComponentValues.shortGame),
+        putting: average(baselineComponentValues.putting),
+        penalties: average(baselineComponentValues.penalties),
+        residual: average(baselineComponentValues.residual),
+      },
+      recentTrackedCount: {
+        total: recentComponentValues.total.length,
+        offTee: recentComponentValues.offTee.length,
+        approach: recentComponentValues.approach.length,
+        shortGame: recentComponentValues.shortGame.length,
+        putting: recentComponentValues.putting.length,
+        penalties: recentComponentValues.penalties.length,
+        residual: recentComponentValues.residual.length,
       },
       mostCostlyComponent,
       worstComponentFrequencyRecent: {
         component: mostCostlyComponent,
         count: mostCostlyComponent ? (counts.get(mostCostlyComponent) ?? 0) : 0,
-        window: sgFrequencyWindow,
+        window: picks.length,
       },
-      hasData: latestWithSg != null,
+      hasData: [
+        recentComponentValues.offTee,
+        recentComponentValues.approach,
+        recentComponentValues.shortGame,
+        recentComponentValues.putting,
+        recentComponentValues.penalties,
+      ].some((values) => values.length > 0),
     },
   };
 }
@@ -1371,6 +1448,7 @@ export function computeOverallPayload(args: {
   const rawProjection = computeProjection(
     recentCombined,
     baselineCombined,
+    'combined',
     args.currentHandicapOverride,
   );
   const canProject = args.isPremium && combined.length >= 10;
@@ -1398,10 +1476,10 @@ export function computeOverallPayload(args: {
     }),
   ) as Record<StatsMode, OverallRoundPoint[]>;
   const modePayload = Object.fromEntries(
-    modes.map((m) => [m, computeModePayload(modePoints[m], args.isPremium)]),
+    modes.map((m) => [m, computeModePayload(modePoints[m], args.isPremium, m)]),
   ) as Record<StatsMode, ModePayload>;
   const projectionByMode = Object.fromEntries(
-    modes.map((m) => [m, computeProjectionByMode(modePoints[m], args.isPremium, args.currentHandicapOverride)]),
+    modes.map((m) => [m, computeProjectionByMode(modePoints[m], args.isPremium, m, args.currentHandicapOverride)]),
   ) as Record<StatsMode, ProjectionByModeEntry>;
 
   const handicapPoints = [...combined]
@@ -1409,30 +1487,27 @@ export function computeOverallPayload(args: {
     .reverse()
     .map((r) => ({ label: formatDateShort(r.date), value: r.handicapAfterRound ?? r.handicapAtRound }));
 
-  const consistency = computeConsistency(combined);
+  const consistency = computeConsistency(combined, 'combined');
   const efficiency = computeEfficiency(combined, baselineCombined);
   const sgPayload = computeSgPayload(combined);
   const projectionRanges: ProjectionRangesPayload | undefined = (() => {
     if (projection.projectedScoreIn10 == null || projection.projectedHandicapIn10 == null) return undefined;
 
-    const recentForRange = combined.slice(0, 10);
-    const scoreValues = recentForRange
-      .map((r) => r.score)
-      .filter((n): n is number => Number.isFinite(n));
     const handicapValues = combined
       .slice(0, 8)
       .map((r) => r.handicapAfterRound ?? r.handicapAtRound)
       .filter((n): n is number => n != null && Number.isFinite(n));
 
-    const scoreP25 = percentile(scoreValues, 0.25);
-    const scoreP75 = percentile(scoreValues, 0.75);
     const hcpP25 = percentile(handicapValues, 0.25);
     const hcpP75 = percentile(handicapValues, 0.75);
 
-    if (scoreP25 == null || scoreP75 == null || hcpP25 == null || hcpP75 == null) return undefined;
-    const scoreHalfIqr = Math.abs(scoreP75 - scoreP25) / 2;
+    const scoreRange = computeProjectedScoreRange({
+      projectedScore: projection.projectedScoreIn10,
+      roundsNewestFirst: combined,
+      mode: 'combined',
+    });
+    if (!scoreRange || hcpP25 == null || hcpP75 == null) return undefined;
     const handicapHalfIqr = Math.abs(hcpP75 - hcpP25) / 2;
-    const scoreWindow = clamp(scoreHalfIqr, 1.2, 3);
     const handicapWindow = clamp(handicapHalfIqr, 0.4, 1.2);
     const rawHandicapLow = projection.projectedHandicapIn10 - handicapWindow;
     const rawHandicapHigh = projection.projectedHandicapIn10 + handicapWindow;
@@ -1442,8 +1517,8 @@ export function computeOverallPayload(args: {
     const boundedHandicapHigh = Math.max(rawHandicapHigh, boundedHandicapLow);
 
     return {
-      scoreLow: round1(projection.projectedScoreIn10 - scoreWindow),
-      scoreHigh: round1(projection.projectedScoreIn10 + scoreWindow),
+      scoreLow: scoreRange.low,
+      scoreHigh: scoreRange.high,
       handicapLow: round1(boundedHandicapLow),
       handicapHigh: round1(boundedHandicapHigh),
     };
@@ -1979,8 +2054,12 @@ export function buildDeterministicOverallCards(args: {
   });
 }
 
-export function computeOverallDataHash(rounds: OverallRoundPoint[], isPremium: boolean): string {
-  return buildDataHash({ rounds, isPremium });
+export function computeOverallDataHash(
+  rounds: OverallRoundPoint[],
+  isPremium: boolean,
+  currentHandicapOverride?: number | null,
+): string {
+  return buildDataHash({ rounds, isPremium, currentHandicapOverride });
 }
 
 export function pickDeterministicDrillSeeded(
@@ -1989,4 +2068,3 @@ export function pickDeterministicDrillSeeded(
 ): string {
   return deterministicDrill(area, roundSeed);
 }
-
