@@ -40,8 +40,8 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
   const createDefaultHole = (holeNumber: number) => ({
     hole_number: holeNumber,
     par: 4,
-    yardage: 0,
-    handicap: holeNumber,
+    yardage: null,
+    handicap: null,
   });
 
   const resizeHoles = (existingHoles: any[], nextHoleCount: number) =>
@@ -55,8 +55,8 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
       return {
         hole_number: holeNumber,
         par: typeof existingHole.par === 'number' ? existingHole.par : 4,
-        yardage: typeof existingHole.yardage === 'number' ? existingHole.yardage : 0,
-        handicap: typeof existingHole.handicap === 'number' ? existingHole.handicap : holeNumber,
+        yardage: typeof existingHole.yardage === 'number' ? existingHole.yardage : null,
+        handicap: typeof existingHole.handicap === 'number' ? existingHole.handicap : null,
       };
     });
 
@@ -91,7 +91,10 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
 
   const updateHole = (index: number, field: string, value: string) => {
     const updatedHoles = [...holes];
-    updatedHoles[index] = { ...updatedHoles[index], [field]: parseInt(value) || 0 };
+    updatedHoles[index] = {
+      ...updatedHoles[index],
+      [field]: value === '' ? null : parseInt(value, 10),
+    };
     setHoles(updatedHoles);
   };
 
@@ -137,6 +140,11 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
   const addTee = () => {
     if (!currentTee.tee_name || !currentTee.course_rating || !currentTee.slope_rating || holes.length === 0) {
       alert('Please fill in all tee information and hole data');
+      return;
+    }
+
+    if (holes.some((hole) => !Number.isInteger(hole.yardage) || hole.yardage <= 0)) {
+      alert('Please enter yardage for every hole');
       return;
     }
 
@@ -489,7 +497,8 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                       <td>
                         <input
                           type="number"
-                          value={hole.yardage}
+                          min="1"
+                          value={hole.yardage ?? ''}
                           onChange={(e) => updateHole(idx, 'yardage', e.target.value)}
                           className="manual-course-input-md"
                           max={999}
@@ -500,7 +509,7 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
                           type="number"
                           min="1"
                           max="18"
-                          value={hole.handicap}
+                          value={hole.handicap ?? ''}
                           onChange={(e) => updateHole(idx, 'handicap', e.target.value)}
                           className="manual-course-input-sm"
                         />

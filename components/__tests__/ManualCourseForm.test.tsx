@@ -10,6 +10,12 @@ function input(container: HTMLElement, name: string) {
   return element as HTMLInputElement | HTMLSelectElement;
 }
 
+function fillHoleYardages(container: HTMLElement, yardage = '400') {
+  container.querySelectorAll<HTMLInputElement>('.manual-course-input-md').forEach((element) => {
+    fireEvent.change(element, { target: { value: yardage } });
+  });
+}
+
 describe('ManualCourseForm', () => {
   beforeEach(() => {
     jest.spyOn(window, 'alert').mockImplementation(() => {});
@@ -39,6 +45,7 @@ describe('ManualCourseForm', () => {
     fireEvent.change(input(container, 'back_slope_rating'), { target: { value: '136' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Initialize 18 Holes' }));
+    fillHoleYardages(container);
     fireEvent.click(screen.getByRole('button', { name: 'Add This Tee to Course' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create Course Preview' }));
 
@@ -79,6 +86,7 @@ describe('ManualCourseForm', () => {
     fireEvent.change(input(container, 'slope_rating'), { target: { value: '135' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Initialize 18 Holes' }));
+    fillHoleYardages(container);
     fireEvent.click(screen.getByRole('button', { name: 'Estimate From Full Rating' }));
 
     expect(input(container, 'front_course_rating')).toHaveValue(36.3);
@@ -102,5 +110,20 @@ describe('ManualCourseForm', () => {
         female: [],
       },
     }));
+  });
+
+  it('initializes yardage and handicap as blank values', () => {
+    const { container } = render(
+      <ManualCourseForm
+        onCourseCreated={jest.fn()}
+        onCancel={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize 18 Holes' }));
+
+    const firstHoleCells = container.querySelectorAll('.manual-course-holes-table tbody tr')[0].querySelectorAll('td');
+    expect(firstHoleCells[2].querySelector('input')).toHaveValue(null);
+    expect(firstHoleCells[3].querySelector('input')).toHaveValue(null);
   });
 });

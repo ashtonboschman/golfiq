@@ -9710,7 +9710,7 @@ input[type='date'].form-input {
 .manual-course-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .manual-course-section { padding: 10px; border-radius: 8px; background: var(--color-secondary-surface); color: var(--color-primary-text); border: 1px solid var(--color-border); }
 .manual-course-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-small); }
-.manual-course-holes-wrap { max-height: 400px; overflow-y: auto; margin-bottom: 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-primary-surface); }
+.manual-course-holes-wrap { margin-bottom: 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-primary-surface); }
 .manual-course-holes-table { background: var(--color-primary-surface); color: var(--color-primary-text); }
 .manual-course-holes-table th { background: var(--color-secondary-surface); color: var(--color-primary-text); }
 .manual-course-holes-table td { background: var(--color-primary-surface); color: var(--color-primary-text); }
