@@ -321,9 +321,9 @@ const M2_GROUNDED_PENALTY_PRESSURE_VARIANTS = [
 ] as const;
 
 const M2_GROUNDED_FIR_VARIANTS = [
-  "With {firMade}/{firTotal} fairways hit, accuracy was the clearest issue Off The Tee.",
-  "Finding {firMade}/{firTotal} fairways put the Off The Tee result below expectation.",
-  "Fairway finding was the clearest source of pressure Off The Tee.",
+  "With {firMade}/{firTotal} fairways hit, accuracy was the clearest issue Off the Tee.",
+  "Finding {firMade}/{firTotal} fairways put the Off the Tee result below expectation.",
+  "Fairway finding was the clearest source of pressure Off the Tee.",
 ] as const;
 
 const M2_GROUNDED_PUTTS_VARIANTS = [

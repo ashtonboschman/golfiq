@@ -15,7 +15,7 @@ export type DashboardRoundFocusPresentation = {
 };
 
 const CATEGORY_LABELS: Record<DashboardRoundFocusCategory, string> = {
-  off_the_tee: 'Off The Tee',
+  off_the_tee: 'Off the Tee',
   approach: 'Approach',
   short_game: 'Short Game',
   putting: 'Putting',

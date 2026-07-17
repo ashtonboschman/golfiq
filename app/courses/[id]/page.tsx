@@ -7,7 +7,7 @@ import { useMessage } from '@/app/providers';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
 import { Landmark, MapPin, MapPinned, Plus } from 'lucide-react';
-import { SkeletonBlock } from '@/components/skeleton/Skeleton';
+import { SkeletonBlock, SkeletonCircle } from '@/components/skeleton/Skeleton';
 import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
 import type { LiveGpsAvailability } from '@/lib/gps/liveMappingTypes';
 import { captureClientEvent } from '@/lib/analytics/client';
@@ -394,24 +394,45 @@ export default function CourseDetailsPage() {
           )}
         </div>
         <div className="course-club">
-          <strong><Landmark size='14'/></strong>{' '}
           {showDataSkeleton ? (
             <SkeletonBlock width="34%" height={14} inline />
           ) : (
-            course?.club_name ?? ''
+            <>
+              <strong><Landmark size='14'/></strong>{' '}
+              {course?.club_name ?? ''}
+            </>
           )}
         </div>
         <div className="course-location">
-          <strong><MapPin size='14'/></strong>{' '}
           {showDataSkeleton ? (
             <SkeletonBlock width="56%" height={14} inline />
           ) : (
-            `${course?.location.address ?? ''}, ${course?.location.city ?? ''}, ${course?.location.state ?? ''}, ${course?.location.country ?? ''}`
+            <>
+              <strong><MapPin size='14'/></strong>{' '}
+              {`${course?.location.address ?? ''}, ${course?.location.city ?? ''}, ${course?.location.state ?? ''}, ${course?.location.country ?? ''}`}
+            </>
           )}
         </div>
       </div>
 
-      {!showDataSkeleton && course && (
+      {showDataSkeleton ? (
+        <section
+          className="card course-gps-status-card"
+          aria-label="Loading Live GPS status"
+          aria-busy="true"
+        >
+          <div className="course-gps-status-row">
+            <div className="course-gps-status-copy course-gps-status-skeleton-copy">
+              <SkeletonCircle size={38} />
+              <div className="course-gps-status-skeleton-lines">
+                <SkeletonBlock width={72} height={16} />
+                <SkeletonBlock width="100%" height={12} mt={5} />
+              </div>
+            </div>
+            <SkeletonBlock width={94} height={36} rounded="pill" />
+          </div>
+        </section>
+      ) : course && (
         <section className="card course-gps-status-card" aria-label="Live GPS status">
           <div className="course-gps-status-row">
             <div className="course-gps-status-copy">

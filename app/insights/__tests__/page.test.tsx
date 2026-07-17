@@ -360,7 +360,7 @@ describe('/insights page', () => {
     expect(screen.getByText('Score Range')).toBeInTheDocument();
     expect(screen.getByText('Handicap Range')).toBeInTheDocument();
     expect(
-      screen.getByText('Upgrade to see projected score and handicap ranges.'),
+      screen.getByText('GolfIQ starts showing where your scores and handicap are heading after 10 rounds.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('Scoring Direction (Premium)')).not.toBeInTheDocument();
     expect(screen.getAllByText('Strokes Gained by Area')[0]).toBeInTheDocument();
@@ -372,6 +372,24 @@ describe('/insights page', () => {
 
     const ctaButtons = screen.getAllByRole('button', { name: 'See Premium Plans' });
     expect(ctaButtons).toHaveLength(1);
+  });
+
+  it('reserves the free Scoring Direction upgrade message for a mature sample', async () => {
+    const insights = makeInsights(false);
+    insights.game_trends = makeGameTrends(false, 10);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    expect(
+      await screen.findByText('Upgrade to see projected score and handicap ranges.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('GolfIQ starts showing where your scores and handicap are heading after 10 rounds.'),
+    ).not.toBeInTheDocument();
   });
 
   it('renders premium Game Trends evidence and no unlock CTA', async () => {
@@ -387,7 +405,7 @@ describe('/insights page', () => {
     expect(screen.getByRole('button', { name: 'Game Trends confidence: Moderate' })).toBeInTheDocument();
     expect(screen.getByText('Strength')).toBeInTheDocument();
     expect(screen.getByText('Opportunity')).toBeInTheDocument();
-    expect(screen.getByText('\u25BC -1.4 Short Game Shots')).toBeInTheDocument();
+    expect(screen.queryByText('\u25BC -1.4 Short Game Shots')).not.toBeInTheDocument();
     expect(screen.queryByText(/The full breakdown shows exactly how much\./i)).not.toBeInTheDocument();
     expect(screen.queryByText('Unlock full Overall Insights')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Unlock Full Insights' })).not.toBeInTheDocument();
@@ -469,7 +487,7 @@ describe('/insights page', () => {
   });
 
   it.each([
-    [0, ['Recent']],
+    [0, ['Average']],
     [1, ['Current']],
     [2, ['Current']],
     [3, ['Current']],
@@ -523,6 +541,201 @@ describe('/insights page', () => {
     expect(scoringCard).toHaveTextContent('Usual');
     expect(scoringCard).toHaveTextContent('93.9');
     expect(scoringCard).toHaveTextContent('\u25BC -1.5 Strokes');
+  });
+
+  it.each([
+    [92.4, 93.4, '\u25BC -1.0 Strokes', 'is-up'],
+    [94.4, 93.4, '\u25B2 +1.0 Strokes', 'is-down'],
+    [93.4, 93.4, '\u2013 0.0 Strokes', 'is-flat'],
+  ] as const)(
+    'uses directional Scoring comparison copy for %s versus %s',
+    async (recent, usual, expectedCopy, expectedTone) => {
+      const insights = makeInsights(true);
+      insights.game_trends.recentForm = {
+        ...insights.game_trends.recentForm,
+        maturity: 'established',
+        evidence: {
+          ...insights.game_trends.recentForm.evidence,
+          recentCount: 5,
+          baselineCount: 8,
+          averageScore: recent,
+          baselineAverageScore: usual,
+          deltaVsBaseline: recent - usual,
+        },
+      };
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ insights }),
+      });
+
+      const { container } = render(<InsightsPage />);
+      await screen.findByText('Game Trends');
+      const scoringDelta = container.querySelector(
+        '.insights-top-grid .comparison-bar-card .comparison-bar-delta',
+      );
+      expect(scoringDelta).toHaveTextContent(expectedCopy);
+      expect(scoringDelta).toHaveClass(expectedTone);
+    },
+  );
+
+  it.each([
+    [1, ['Current'], false],
+    [5, ['Current'], false],
+    [6, ['Recent', 'Average'], true],
+  ] as const)(
+    'renders performance-card comparison rows for a %i-round sample',
+    async (roundCount, expectedLabels, expectsDelta) => {
+      const insights = makeInsights(true);
+      insights.game_trends = makeGameTrends(true, roundCount);
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ insights }),
+      });
+
+      const { container } = render(<InsightsPage />);
+      await screen.findByText('Game Trends');
+      const performanceCards = container.querySelectorAll(
+        '.insights-performance-grid .comparison-bar-card',
+      );
+      expect(performanceCards).toHaveLength(5);
+      performanceCards.forEach((card) => {
+        const labels = Array.from(card.querySelectorAll('.comparison-bar-label'))
+          .map((node) => node.textContent?.trim());
+        expect(labels).toEqual(expectedLabels);
+        if (expectsDelta) {
+          expect(card.querySelector('.comparison-bar-delta')).toBeInTheDocument();
+        } else {
+          expect(card.querySelector('.comparison-bar-delta')).toBeNull();
+        }
+      });
+    },
+  );
+
+  it('waits for three real handicap points before showing handicap history', async () => {
+    const firstRoundTrend = {
+      ...makeModePayload().trend,
+      labels: ['Jun 16'],
+      handicap: [null],
+      sgTotal: [null],
+    };
+    const insights = makeInsights(true, {
+      combined: {
+        trend: firstRoundTrend,
+        sgComponents: { recentAvg: null, baselineAvg: null, hasData: false },
+      },
+    });
+    insights.game_trends = makeGameTrends(true, 1);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    const firstRoundView = render(<InsightsPage />);
+    await screen.findByText('Complete 2 more rounds to establish your first handicap.');
+    expect(screen.getByText('Complete 5 more rounds to start seeing your strokes gained history.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Your area breakdown will begin once GolfIQ has established your handicap and you complete a fully tracked round.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('trend-Handicap History')).not.toBeInTheDocument();
+    firstRoundView.unmount();
+
+    const threeRoundTrend = {
+      ...makeModePayload().trend,
+      labels: ['Jun 14', 'Jun 15', 'Jun 16'],
+      handicap: [null, null, 4.4],
+      sgTotal: [null, null, null],
+    };
+    const threeRoundInsights = makeInsights(true, { combined: { trend: threeRoundTrend } });
+    threeRoundInsights.game_trends = makeGameTrends(true, 3);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights: threeRoundInsights }),
+    });
+
+    const firstHandicapView = render(<InsightsPage />);
+    await screen.findByText('Complete 2 more rounds to start seeing your handicap history.');
+    expect(screen.getByText('Complete 3 more rounds to start seeing your strokes gained history.')).toBeInTheDocument();
+    expect(screen.queryByTestId('trend-Handicap History')).not.toBeInTheDocument();
+    firstHandicapView.unmount();
+
+    const historyTrend = {
+      ...makeModePayload().trend,
+      handicap: [null, null, 4.4, 4.2, 4.1],
+      sgTotal: [null, null, null, 0.2, 0.4],
+    };
+    const historyInsights = makeInsights(true, { combined: { trend: historyTrend } });
+    historyInsights.game_trends = makeGameTrends(true, 5);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights: historyInsights }),
+    });
+
+    render(<InsightsPage />);
+    expect(await screen.findByTestId('trend-Handicap History')).toBeInTheDocument();
+    expect(screen.queryByText(/more rounds? to start seeing your handicap history/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps Handicap and Strokes Gained trends date-aligned while gating each by its own usable points', async () => {
+    const staggeredTrend = {
+      ...makeModePayload().trend,
+      labels: ['Jun 12', 'Jun 13', 'Jun 14', 'Jun 15', 'Jun 16'],
+      handicap: [null, null, 4.4, 4.2, 4.1],
+      sgTotal: [null, null, null, 0.2, 0.4],
+    };
+    const insights = makeInsights(true, { combined: { trend: staggeredTrend } });
+    insights.game_trends = makeGameTrends(true, 5);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    const staggeredView = render(<InsightsPage />);
+    expect(await screen.findByTestId('trend-Handicap History')).toBeInTheDocument();
+    expect(screen.queryByTestId('trend-Strokes Gained History')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Complete 1 more round to start seeing your strokes gained history.'),
+    ).toBeInTheDocument();
+    staggeredView.unmount();
+
+    const completeTrend = {
+      ...staggeredTrend,
+      labels: [...staggeredTrend.labels, 'Jun 17'],
+      handicap: [...staggeredTrend.handicap, 4.0],
+      sgTotal: [...staggeredTrend.sgTotal, 0.3],
+    };
+    const completeInsights = makeInsights(true, { combined: { trend: completeTrend } });
+    completeInsights.game_trends = makeGameTrends(true, 6);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights: completeInsights }),
+    });
+
+    render(<InsightsPage />);
+    expect(await screen.findByTestId('trend-Handicap History')).toBeInTheDocument();
+    expect(screen.getByTestId('trend-Strokes Gained History')).toBeInTheDocument();
+  });
+
+  it('keeps the full-height Strokes Gained trend preview behind the free upgrade CTA', async () => {
+    const freeTrend = {
+      ...makeModePayload().trend,
+      labels: ['Jun 12', 'Jun 13', 'Jun 14', 'Jun 15', 'Jun 16'],
+      handicap: [null, null, 4.4, 4.2, 4.1],
+      sgTotal: [null, null, null, 0.2, 0.4],
+    };
+    const insights = makeInsights(false, { combined: { trend: freeTrend } });
+    insights.game_trends = makeGameTrends(false, 5);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    render(<InsightsPage />);
+
+    expect(await screen.findByTestId('trend-Strokes Gained History')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'See Premium Plans' })).toBeInTheDocument();
+    expect(
+      screen.queryByText(/more rounds? to start seeing your strokes gained history/i),
+    ).not.toBeInTheDocument();
   });
 
   it('renders the observed profile with baseline-only Recent Form and a contextual Softening Outlook', async () => {
@@ -585,7 +798,7 @@ describe('/insights page', () => {
       json: async () => ({ insights: makeInsights(true) }),
     });
 
-    render(<InsightsPage />);
+    const { container } = render(<InsightsPage />);
     await screen.findByText(
       'Combines how your recent scoring compares with your usual level and how your latest five rounds compare with the five before them. Score Range balances recent and usual scoring, and widens when recent rounds are less consistent. Handicap Range uses your recent handicap history.',
     );
@@ -700,7 +913,7 @@ describe('/insights page', () => {
     expect(pill).toHaveClass('is-low');
   });
 
-  it('shows standardized early-sample messaging for first rounds and 3-round states', async () => {
+  it('keeps early-sample guidance inside Game Trends instead of rendering a page banner', async () => {
     const lowSample = makeInsights(false, {
       combined: {
         kpis: {
@@ -719,9 +932,10 @@ describe('/insights page', () => {
       json: async () => ({ insights: lowSample }),
     });
     const firstRender = render(<InsightsPage />);
-    await screen.findByText(
-      'GolfIQ can spot early signals from your first rounds. A few more rounds will make the picture clearer.',
-    );
+    await screen.findByText('Game Trends');
+    expect(
+      screen.queryByText('GolfIQ can spot early signals from your first rounds. A few more rounds will make the picture clearer.'),
+    ).not.toBeInTheDocument();
     firstRender.unmount();
 
     const threeRoundSample = makeInsights(false, {
@@ -742,7 +956,8 @@ describe('/insights page', () => {
       json: async () => ({ insights: threeRoundSample }),
     });
     render(<InsightsPage />);
-    await screen.findByText('Still early, but a pattern is starting to show.');
+    await screen.findByText('Game Trends');
+    expect(screen.queryByText('Still early, but a pattern is starting to show.')).not.toBeInTheDocument();
   });
 
   it('renders 0-round state safely with building confidence and a neutral outlook', async () => {
@@ -792,12 +1007,27 @@ describe('/insights page', () => {
       json: async () => ({ insights: zeroRoundInsights }),
     });
 
-    render(<InsightsPage />);
+    const { container } = render(<InsightsPage />);
 
-    await screen.findByText(
-      'GolfIQ can spot early signals from your first rounds. A few more rounds will make the picture clearer.',
+    await screen.findByText('Add your first round to start building Game Trends.');
+    expect(
+      screen.queryByText('GolfIQ can spot early signals from your first rounds. A few more rounds will make the picture clearer.'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log First Round' })).not.toBeInTheDocument();
+
+    const emptyComparisonCards = container.querySelectorAll(
+      '.comparison-bar-card:not(.consistency-card)',
     );
-    await screen.findByText('Log your first round to start building Game Trends.');
+    expect(emptyComparisonCards).toHaveLength(6);
+    emptyComparisonCards.forEach((card) => {
+      expect(card.querySelectorAll('.comparison-bar-label')).toHaveLength(1);
+      expect(card.querySelector('.comparison-bar-label')).toHaveTextContent('Average');
+      expect(card.querySelector('.comparison-bar-value')).toHaveTextContent('-');
+      expect(card.querySelector('.comparison-bar-track')).toBeInTheDocument();
+      expect(card.querySelector('.comparison-bar-fill')).toBeNull();
+      expect(card.querySelector('.comparison-bar-delta')).toBeNull();
+    });
+
     expect(screen.getByRole('button', { name: 'Game Trends confidence: Building' })).toBeInTheDocument();
     expect(screen.getByText('Scoring Direction')).toBeInTheDocument();
     expect(screen.getByText('Still Building')).toBeInTheDocument();

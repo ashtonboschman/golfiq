@@ -215,7 +215,7 @@ describe('/onboarding page', () => {
     mockQuery = new URLSearchParams('step=4&source=landing');
     render(<OnboardingPage />);
 
-    expect(screen.getByTestId('mock-trend-card')).toHaveTextContent('Score Trend');
+    expect(screen.getByTestId('mock-trend-card')).toHaveTextContent('Score History');
     expect(screen.getByText('1 Round')).toBeInTheDocument();
     expect(screen.getByText('See what shaped your score')).toBeInTheDocument();
     expect(screen.getByText('3 Rounds')).toBeInTheDocument();

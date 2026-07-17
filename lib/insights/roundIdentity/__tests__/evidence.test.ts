@@ -58,8 +58,18 @@ describe('roundIdentity evidence', () => {
 
   it('resolves score_only/aggregate/hbh evidence levels', () => {
     expect(resolveEvidenceLevel(baseInput())).toBe('score_only');
+    expect(resolveEvidenceLevel(baseInput({ sgTotal: -1.4, sgResidual: -1.4 }))).toBe('score_only');
+    expect(resolveEvidenceLevel(baseInput({ sgPutting: -0.4 }))).toBe('aggregate_stats');
     expect(resolveEvidenceLevel(baseInput({ girHit: 7 }))).toBe('aggregate_stats');
     expect(resolveEvidenceLevel(baseInput({ hasTrustedHoleByHole: true }))).toBe('hole_by_hole');
+  });
+
+  it('does not count score-derived SG Total or Untracked as stat completeness', () => {
+    const snapshot = buildEvidenceSnapshot(baseInput({ sgTotal: 2.6, sgResidual: 2.6 }));
+
+    expect(snapshot.evidenceLevel).toBe('score_only');
+    expect(snapshot.hasAggregateStats).toBe(false);
+    expect(snapshot.statCompletenessScore).toBe(0);
   });
 
   it('keeps first-round confidence building even with rich evidence', () => {

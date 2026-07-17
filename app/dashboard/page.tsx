@@ -208,7 +208,7 @@ function DashboardFallback() {
       </div>
 
       <div className="trend-card trend-card-h-300">
-        <h3 className="insights-centered-title">Score Trend</h3>
+        <h3 className="insights-centered-title">Score History</h3>
         <div className="skeleton skeleton-chart-area" />
       </div>
 
@@ -1504,7 +1504,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             </div>
           </div>
           <div className="trend-card trend-card-h-300">
-            <h3 className="insights-centered-title">Score Trend</h3>
+            <h3 className="insights-centered-title">Score History</h3>
             <div className="skeleton skeleton-chart-area" />
           </div>
         </>
@@ -1579,7 +1579,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           </div>
           {scoreTrendEmptyMessage ? (
             <div className="trend-card trend-card-empty trend-card-empty-score">
-              <h3 className="insights-centered-title">Score Trend</h3>
+              <h3 className="insights-centered-title">Score History</h3>
               <div className="trend-card-empty-body">
                 <p className="secondary-text text-center">{scoreTrendEmptyMessage}</p>
               </div>
@@ -1592,7 +1592,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               textColor={textColor}
               gridColor={gridColor}
               height={300}
-              label='Score Trend'
+              label='Score History'
             />
           )}
         </>
@@ -1722,11 +1722,11 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               yMin={0}      // start at 0%
               yMax={100}    // end at 100%
               yStep={25}
-              label='FIR & GIR Trend'
+              label='FIR & GIR History'
             />
           ) : (
             <div className="trend-card trend-card-empty trend-card-empty-score">
-              <h3 className="insights-centered-title">FIR & GIR Trend</h3>
+              <h3 className="insights-centered-title">FIR & GIR History</h3>
               <div className="trend-card-empty-body">
                 <p className="secondary-text text-center">Track fairways and greens to see if your ball-striking is moving in the right direction.</p>
               </div>

@@ -954,7 +954,7 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('Use Live Round to unlock your scoring profile.')).toBeInTheDocument();
   });
 
-  it('shows Score Trend first-round empty state when there are no trend points', async () => {
+  it('shows Score History first-round empty state when there are no history points', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -975,24 +975,24 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('Score Trend');
+    await screen.findByText('Score History');
     expect(
       screen.getByText('Add your first round to start seeing how your scores move.'),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId('trend-Score Trend')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('trend-Score History')).not.toBeInTheDocument();
     expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
   });
 
-  it('shows Score Trend add-another-round empty state when there is one trend point', async () => {
+  it('shows Score History add-another-round empty state when there is one history point', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
 
     render(<DashboardPage />);
 
-    await screen.findByText('Score Trend');
+    await screen.findByText('Score History');
     expect(
       screen.getByText('Add another round to start building a clearer score pattern.'),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId('trend-Score Trend')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('trend-Score History')).not.toBeInTheDocument();
   });
 
   it('shows FIR/GIR trend empty state copy when no usable accuracy trend data exists', async () => {
@@ -1037,11 +1037,11 @@ describe('/dashboard Round Focus card', () => {
 
     render(<DashboardPage />);
 
-    await screen.findByText('FIR & GIR Trend');
+    await screen.findByText('FIR & GIR History');
     expect(
       screen.getByText('Track fairways and greens to see if your ball-striking is moving in the right direction.'),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId('trend-FIR & GIR Trend')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('trend-FIR & GIR History')).not.toBeInTheDocument();
   });
 
   it('uses the projected neutral result when no repeated trend is supported', async () => {

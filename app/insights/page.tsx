@@ -13,7 +13,6 @@ import GameTrendsCard from '@/components/insights/GameTrendsCard';
 import { formatHandicap, formatNumber } from '@/lib/formatters';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
-import { getEarlySampleMessage } from '@/lib/insights/earlySample';
 import type { GameTrendsV2Dto } from '@/lib/insights/gameTrends/types';
 import { composeScoringOutlookPresentation } from '@/lib/insights/gameTrends/presentation';
 
@@ -339,7 +338,7 @@ function getScoringDeltaSummary(recent: number | null, typical: number | null): 
 
   // Keep delta consistent with card values (both shown to 1 decimal place).
   const delta = getRoundedOneDecimalDelta(recent, typical);
-  if (delta === 0) return { text: '\u2192 0.0 Strokes', tone: 'flat' };
+  if (delta === 0) return { text: '\u2013 0.0 Strokes', tone: 'flat' };
   if (delta < 0) return { text: `\u25BC ${delta.toFixed(1)} Strokes`, tone: 'up' };
   return { text: `\u25B2 +${delta.toFixed(1)} Strokes`, tone: 'down' };
 }
@@ -503,38 +502,48 @@ function ComparisonBarCard({
         <InfoTooltip text={tooltipWithCoverage} />
       </div>
 
-      <div className="comparison-bar-row">
-        <span className="comparison-bar-label">{recentLabel}</span>
-        <div className="comparison-bar-track">
-          {hasData && recentBarWidth > 0 && (
-            <span
-              className={`comparison-bar-fill ${recentFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(recentBarWidth)))}`}
-            />
-          )}
-        </div>
-        <span className="comparison-bar-value">{recentValueText}</span>
-      </div>
-
-      {showTypical && (
+      {!hasData ? (
         <div className="comparison-bar-row">
-          <span className="comparison-bar-label">{typicalLabel}</span>
-          <div className="comparison-bar-track">
-            {hasData && typicalBarWidth > 0 && (
-              <span
-                className={`comparison-bar-fill ${typicalFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(typicalBarWidth)))}`}
-              />
-            )}
-          </div>
-          <span className="comparison-bar-value">{typicalValueText}</span>
+          <span className="comparison-bar-label">Average</span>
+          <div className="comparison-bar-track" />
+          <span className="comparison-bar-value">-</span>
         </div>
-      )}
+      ) : (
+        <>
+          <div className="comparison-bar-row">
+            <span className="comparison-bar-label">{recentLabel}</span>
+            <div className="comparison-bar-track">
+              {recentBarWidth > 0 && (
+                <span
+                  className={`comparison-bar-fill ${recentFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(recentBarWidth)))}`}
+                />
+              )}
+            </div>
+            <span className="comparison-bar-value">{recentValueText}</span>
+          </div>
 
-      {showDelta && (
-        <span
-          className={`comparison-bar-delta ${getDeltaToneClass(deltaTone)}`}
-        >
-          {deltaText}
-        </span>
+          {showTypical && (
+            <div className="comparison-bar-row">
+              <span className="comparison-bar-label">{typicalLabel}</span>
+              <div className="comparison-bar-track">
+                {typicalBarWidth > 0 && (
+                  <span
+                    className={`comparison-bar-fill ${typicalFillToneClass} u-w-pct-${Math.max(0, Math.min(100, Math.round(typicalBarWidth)))}`}
+                  />
+                )}
+              </div>
+              <span className="comparison-bar-value">{typicalValueText}</span>
+            </div>
+          )}
+
+          {showDelta && (
+            <span
+              className={`comparison-bar-delta ${getDeltaToneClass(deltaTone)}`}
+            >
+              {deltaText}
+            </span>
+          )}
+        </>
       )}
     </div>
   );
@@ -793,7 +802,11 @@ export default function InsightsPage() {
     : modePayload?.consistency ?? insights?.consistency ?? { label: 'insufficient' as const, stdDev: null, scoreRange: null };
   const consistencyLabel = consistency.label;
   const roundsRecent = modePayload?.kpis.roundsRecent ?? 0;
-  const earlySampleMessage = getEarlySampleMessage(roundsRecent);
+  const performanceRoundCount =
+    (recentForm?.evidence.recentCount ?? 0) +
+    (recentForm?.evidence.baselineCount ?? 0);
+  const performanceHasComparison = performanceRoundCount > 5;
+  const performanceRecentLabel = performanceHasComparison ? 'Recent' : 'Current';
   const fallbackConfidence = deriveOverallConfidence({
     hasInsights: Boolean(insights),
     modePayload,
@@ -818,6 +831,8 @@ export default function InsightsPage() {
   const handicapProjectionPointCount = modePayload?.trend?.handicap
     ?.filter((v): v is number => v != null && Number.isFinite(v))
     .length ?? 0;
+  const handicapRoundsRemaining = Math.max(0, 3 - performanceRoundCount);
+  const handicapHistoryPointsRemaining = Math.max(0, 3 - handicapProjectionPointCount);
   const hasEnoughHandicapHistory = handicapProjectionPointCount >= 5;
   const premiumScoreProjectionUnlocked = Boolean(
     isPremiumContext &&
@@ -994,6 +1009,12 @@ export default function InsightsPage() {
       ],
     };
   }, [insights, modePayload, accentHighlight]);
+  const sgTrendPointCount = sgTrendData?.datasets[0]?.data
+    .filter((value): value is number => value != null && Number.isFinite(value))
+    .length ?? 0;
+  const sgTrendPointsRemaining = Math.max(0, 3 - sgTrendPointCount);
+  const hasEstablishedHandicap = handicapProjectionPointCount > 0 || sgTrendPointCount > 0;
+  const sgHistoryRoundsRemaining = sgTrendPointsRemaining + (hasEstablishedHandicap ? 0 : handicapRoundsRemaining);
 
   const handicapData = useMemo(() => {
     if (!insights) return null;
@@ -1370,7 +1391,9 @@ export default function InsightsPage() {
             </div>
           </div>
           <span className="secondary-text insights-subtle-note insights-centered-title trajectory-free-note">
-            Upgrade to see projected score and handicap ranges.
+            {performanceRoundCount >= 10
+              ? 'Upgrade to see projected score and handicap ranges.'
+              : 'GolfIQ starts showing where your scores and handicap are heading after 10 rounds.'}
           </span>
         </>
       )}
@@ -1433,17 +1456,12 @@ export default function InsightsPage() {
       {statsMode === 'combined' && (
         <p className="combined-note">9 hole rounds are doubled to approximate 18 hole stats.</p>
       )}
-      {!showSkeletonContent && earlySampleMessage && (
-        <p className="secondary-text insights-page-subtitle">{earlySampleMessage}</p>
-      )}
-      
       <GameTrendsCard
         trends={insights?.game_trends ?? null}
         mode={statsMode}
         loading={showSkeletonContent}
         error={error}
         onRetry={() => fetchInsights(statsMode)}
-        onLogRound={() => router.push('/rounds/add?from=insights')}
       />
       {trajectorySection}
 
@@ -1486,13 +1504,13 @@ export default function InsightsPage() {
           </div>
 
           <div className="trend-card trend-card-h-300">
-            <h3 className="insights-centered-title">Handicap Trend</h3>
+            <h3 className="insights-centered-title">Handicap History</h3>
             <div className="skeleton skeleton-chart-area" />
           </div>
 
           <section className="insights-sg-section">
             <div className="trend-card trend-card-h-300">
-              <h3 className="insights-centered-title">Strokes Gained Trend</h3>
+              <h3 className="insights-centered-title">Strokes Gained History</h3>
               <div className="skeleton skeleton-chart-area" />
             </div>
             <div className="card dashboard-stat-card sg-delta-card">
@@ -1601,7 +1619,7 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {handicapData && (
+      {handicapData && handicapProjectionPointCount >= 3 ? (
         <TrendCard
           trendData={handicapData}
           accentColor={accentHighlight}
@@ -1610,9 +1628,20 @@ export default function InsightsPage() {
           gridColor={gridColor}
           height={300}
           yStep={1}
-          label="Handicap Trend"
+          label="Handicap History"
         />
-      )}
+      ) : insights ? (
+        <div className="trend-card trend-card-empty trend-card-empty-score">
+          <h3 className="insights-centered-title">Handicap History</h3>
+          <div className="trend-card-empty-body">
+            <p className="secondary-text text-center">
+              {handicapRoundsRemaining > 0
+                ? `Complete ${handicapRoundsRemaining} more ${handicapRoundsRemaining === 1 ? 'round' : 'rounds'} to establish your first handicap.`
+                : `Complete ${handicapHistoryPointsRemaining} more ${handicapHistoryPointsRemaining === 1 ? 'round' : 'rounds'} to start seeing your handicap history.`}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <section className="insights-sg-section">
         <LockedSection
@@ -1626,7 +1655,7 @@ export default function InsightsPage() {
             router.push('/pricing');
           }}
         >
-          {sgTrendData ? (
+          {sgTrendData && (!isPremiumContext || sgTrendPointCount >= 3) ? (
             <TrendCard
               trendData={sgTrendData}
               accentColor={accentColor}
@@ -1635,12 +1664,16 @@ export default function InsightsPage() {
               gridColor={gridColor}
               height={300}
               yStep={2}
-              label="Strokes Gained Trend"
+              label="Strokes Gained History"
             />
           ) : (
-            <div className="card dashboard-stat-card">
-              <h3 className="insights-centered-title">Strokes Gained Trend</h3>
-              <p className="secondary-text insights-subtle-note">No strokes gained yet. Once you have a handicap and a few tracked rounds, this section will fill in.</p>
+            <div className="trend-card trend-card-empty trend-card-empty-score">
+              <h3 className="insights-centered-title">Strokes Gained History</h3>
+              <div className="trend-card-empty-body">
+                <p className="secondary-text text-center">
+                  Complete {sgHistoryRoundsRemaining} more {sgHistoryRoundsRemaining === 1 ? 'round' : 'rounds'} to start seeing your strokes gained history.
+                </p>
+              </div>
             </div>
           )}
         </LockedSection>
@@ -1658,7 +1691,11 @@ export default function InsightsPage() {
               <InfoTooltip text={sgAreaTooltip} />
             </div>
             {!sgHasComponentData && (
-              <p className="secondary-text insights-subtle-note insights-centered-title">No area breakdown yet. Track fairways, greens, putts, penalties, and short-game stats to fill this in.</p>
+              <p className="secondary-text insights-subtle-note insights-centered-title">
+                {hasEstablishedHandicap
+                  ? 'Complete a fully tracked round to start seeing your strokes gained by area.'
+                  : 'Your area breakdown will begin once GolfIQ has established your handicap and you complete a fully tracked round.'}
+              </p>
             )}
             <div className="sg-delta-list">
               {sgDisplayRows.map((row) => {
@@ -1714,8 +1751,8 @@ export default function InsightsPage() {
         <div className="grid grid-2 insights-performance-grid">
           <ComparisonBarCard
             title="Driving Accuracy"
-            tooltipText="Shows the percentage of fairways you hit. Recent uses your last five rounds; Average uses all rounds in this view. Higher is better."
-            recentLabel="Recent"
+            tooltipText={`Shows the percentage of fairways you hit. ${performanceHasComparison ? 'Recent uses your last five rounds; Average uses all rounds in this view.' : 'Current uses all rounds in this view.'} Higher is better.`}
+            recentLabel={performanceRecentLabel}
             typicalLabel="Average"
             recentRawValue={efficiency.fir.recent}
             typicalRawValue={efficiency.fir.baseline}
@@ -1731,11 +1768,13 @@ export default function InsightsPage() {
             accentColor={accentColor}
             accentHighlight={INSIGHTS_POSITIVE_COLOR}
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
+            showTypical={performanceHasComparison}
+            showDelta={performanceHasComparison}
           />
           <ComparisonBarCard
             title="Approach Accuracy"
-            tooltipText="Shows the percentage of greens you hit in regulation. Recent uses your last five rounds; Average uses all rounds in this view. Higher is better."
-            recentLabel="Recent"
+            tooltipText={`Shows the percentage of greens you hit in regulation. ${performanceHasComparison ? 'Recent uses your last five rounds; Average uses all rounds in this view.' : 'Current uses all rounds in this view.'} Higher is better.`}
+            recentLabel={performanceRecentLabel}
             typicalLabel="Average"
             recentRawValue={efficiency.gir.recent}
             typicalRawValue={efficiency.gir.baseline}
@@ -1751,11 +1790,13 @@ export default function InsightsPage() {
             accentColor={accentColor}
             accentHighlight={INSIGHTS_POSITIVE_COLOR}
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
+            showTypical={performanceHasComparison}
+            showDelta={performanceHasComparison}
           />
           <ComparisonBarCard
             title="Short Game"
-            tooltipText="Shows your average chips and greenside bunker shots per round. Recent uses your last five rounds; Average uses all rounds in this view. Lower is better."
-            recentLabel="Recent"
+            tooltipText={`Shows your average chips and greenside bunker shots per round. ${performanceHasComparison ? 'Recent uses your last five rounds; Average uses all rounds in this view.' : 'Current uses all rounds in this view.'} Lower is better.`}
+            recentLabel={performanceRecentLabel}
             typicalLabel="Average"
             recentRawValue={shortGameMetric.recent}
             typicalRawValue={shortGameMetric.baseline}
@@ -1771,11 +1812,13 @@ export default function InsightsPage() {
             accentColor={accentColor}
             accentHighlight={INSIGHTS_POSITIVE_COLOR}
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
+            showTypical={performanceHasComparison}
+            showDelta={performanceHasComparison}
           />
           <ComparisonBarCard
             title="Putting"
-            tooltipText="Shows your average putts per round. Recent uses your last five rounds; Average uses all rounds in this view. Lower is better."
-            recentLabel="Recent"
+            tooltipText={`Shows your average putts per round. ${performanceHasComparison ? 'Recent uses your last five rounds; Average uses all rounds in this view.' : 'Current uses all rounds in this view.'} Lower is better.`}
+            recentLabel={performanceRecentLabel}
             typicalLabel="Average"
             recentRawValue={puttsMetric.recent}
             typicalRawValue={puttsMetric.baseline}
@@ -1791,11 +1834,13 @@ export default function InsightsPage() {
             accentColor={accentColor}
             accentHighlight={INSIGHTS_POSITIVE_COLOR}
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
+            showTypical={performanceHasComparison}
+            showDelta={performanceHasComparison}
           />
           <ComparisonBarCard
             title="Penalties"
-            tooltipText="Shows your average penalties per round. Recent uses your last five rounds; Average uses all rounds in this view. Lower is better."
-            recentLabel="Recent"
+            tooltipText={`Shows your average penalties per round. ${performanceHasComparison ? 'Recent uses your last five rounds; Average uses all rounds in this view.' : 'Current uses all rounds in this view.'} Lower is better.`}
+            recentLabel={performanceRecentLabel}
             typicalLabel="Average"
             recentRawValue={penaltiesMetric.recent}
             typicalRawValue={penaltiesMetric.baseline}
@@ -1811,6 +1856,8 @@ export default function InsightsPage() {
             accentColor={accentColor}
             accentHighlight={INSIGHTS_POSITIVE_COLOR}
             dangerColor={INSIGHTS_NEGATIVE_COLOR}
+            showTypical={performanceHasComparison}
+            showDelta={performanceHasComparison}
           />
         </div>
       )}

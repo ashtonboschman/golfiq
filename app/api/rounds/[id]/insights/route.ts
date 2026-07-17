@@ -20,7 +20,7 @@ import {
   type PerformanceBand,
 } from '@/lib/insights/postRound/policy';
 import { resolveRoundIdentity } from '@/lib/insights/roundIdentity/resolve';
-import { buildWatchCard } from '@/lib/insights/roundIdentity/copyTemplates';
+import { buildAreaCard, buildWatchCard } from '@/lib/insights/roundIdentity/copyTemplates';
 import { ROUND_IDENTITY_V1_VERSION } from '@/lib/insights/roundIdentity/types';
 import {
   buildRoundInsightNarrativePlan,
@@ -269,10 +269,35 @@ function resolveFreeIdentityMessage2(insights: any): { text: string; level: Insi
   const evidence = identity?.displayEvidence;
   if (!identity || typeof identity !== 'object') return null;
 
-  if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
+  if (identity.evidenceLevel === 'score_only') {
     return {
       text: 'This result needs at least one optional stat before GolfIQ can explain what shaped the score.',
       level: 'info',
+    };
+  }
+
+  if (
+    identity.evidenceLevel === 'aggregate_stats' &&
+    !evidence?.strongestArea &&
+    !evidence?.weakestArea
+  ) {
+    return {
+      text: 'One more tracked area would give GolfIQ more context behind the score.',
+      level: 'info',
+    };
+  }
+
+  if (evidence?.reliableAreaCount === 1 && evidence?.strongestArea) {
+    return {
+      text: `${resolveFreeNarrativeAreaLabel(evidence, evidence.strongestArea.area) ?? 'The tracked area'} was a clear strength this round.`,
+      level: 'success',
+    };
+  }
+
+  if (evidence?.reliableAreaCount === 1 && evidence?.weakestArea) {
+    return {
+      text: `${resolveFreeNarrativeAreaLabel(evidence, evidence.weakestArea.area) ?? 'The tracked area'} was a clear opportunity this round.`,
+      level: 'warning',
     };
   }
 
@@ -352,7 +377,7 @@ function resolveFreeNarrativeAreaLabel(
 
   if (area === 'putting') return 'Putting';
   if (area === 'approach') return 'Approach Play';
-  if (area === 'off_tee') return 'Off The Tee';
+  if (area === 'off_tee') return 'Off the Tee';
   if (area === 'short_game') return 'Short Game';
   if (area === 'penalties') return 'Penalty Control';
   if (area === 'scoring') return 'Scoring control';
@@ -380,6 +405,10 @@ function buildFreeMessage1(
 function resolveFreeIdentityMessage3(insights: any): { text: string; level: InsightLevel } | null {
   const identity = insights?.raw_payload?.round_identity_v1;
   if (!identity || typeof identity !== 'object') return null;
+  const hasNoReliableAggregateArea =
+    identity.evidenceLevel === 'aggregate_stats' &&
+    !identity.displayEvidence?.strongestArea &&
+    !identity.displayEvidence?.weakestArea;
   const canonicalFocus = buildWatchCard(identity);
   const focus = canonicalFocus || identity.nextRoundFocus;
   if (typeof focus !== 'string' || !focus.trim()) return null;
@@ -389,7 +418,9 @@ function resolveFreeIdentityMessage3(insights: any): { text: string; level: Insi
     : `Next round: ${trimmed.replace(/^([A-Z])/, (match) => match.toLowerCase())}`;
   return {
     text,
-    level: resolveStoredIdentityLevel(insights, 'watch') ?? 'info',
+    level: hasNoReliableAggregateArea
+      ? 'info'
+      : resolveStoredIdentityLevel(insights, 'watch') ?? 'info',
   };
 }
 
@@ -423,7 +454,12 @@ function buildViewerMessages(
         confidence,
       );
       if (entitlements.isPremium) {
-        return sanitizeWhitespace(`${message}${directionalQualifier ? ` ${directionalQualifier}` : ''}`);
+        const identity = insights?.raw_payload?.round_identity_v1;
+        const premiumMessage =
+          identity?.displayEvidence?.reliableAreaCount === 1
+            ? buildAreaCard(identity)
+            : message;
+        return sanitizeWhitespace(`${premiumMessage}${directionalQualifier ? ` ${directionalQualifier}` : ''}`);
       }
       const identityMessage = resolveFreeIdentityMessage2(insights);
       if (identityMessage) return identityMessage.text;
@@ -520,12 +556,14 @@ function buildViewerMessageLevels(
   entitlements: ViewerEntitlements,
 ): InsightLevel[] {
   const outcomes: string[] = Array.isArray(insights?.message_outcomes) ? insights.message_outcomes : [];
+  const roundNumber = toFiniteNumber(insights?.raw_payload?.onboarding?.round_number);
   const confidence = insights?.confidence === 'LOW' || insights?.confidence === 'MED' || insights?.confidence === 'HIGH'
     ? insights.confidence as PostRoundConfidence
     : null;
 
   return viewerMessages.map((message, index) => {
     if (index === 0) {
+      if (roundNumber === 1) return 'success';
       if (!entitlements.isPremium) {
         const identityLevel = resolveStoredIdentityLevel(insights, 'story');
         if (identityLevel) return identityLevel;
@@ -536,6 +574,11 @@ function buildViewerMessageLevels(
       if (!entitlements.isPremium) {
         const identityMessage = resolveFreeIdentityMessage2(insights);
         if (identityMessage) return identityMessage.level;
+      } else if (
+        insights?.raw_payload?.round_identity_v1?.displayEvidence?.reliableAreaCount === 1
+      ) {
+        const identityLevel = resolveStoredIdentityLevel(insights, 'worked');
+        if (identityLevel) return identityLevel;
       }
       return resolveMessage2Level({
         insights,

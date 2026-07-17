@@ -91,10 +91,10 @@ export function buildRoundInsightNarrativePlan(identity: RoundIdentity): RoundIn
     };
   }
 
-  if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
+  if (identity.evidenceLevel === 'score_only') {
     return {
       primaryIdentity: identity.primaryKey,
-      primaryCategory: null,
+      primaryCategory: identity.primaryKey === 'breakthrough' ? 'scoring' : null,
       supportMode: 'limited_context',
       supportCategory: null,
       actionCategory: null,

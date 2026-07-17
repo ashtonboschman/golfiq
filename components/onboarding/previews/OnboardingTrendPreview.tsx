@@ -29,7 +29,7 @@ export default function OnboardingTrendPreview() {
           textColor="#EDEFF2"
           gridColor="#2A313D"
           height={260}
-          label="Score Trend"
+          label="Score History"
         />
       </div>
     </div>

@@ -121,6 +121,157 @@ describe('composeRoundIdentityDisplay', () => {
     expect(display.insights[0].body.toLowerCase()).not.toMatch(/approach|putting|off the tee|penalty strokes were/i);
   });
 
+  it('keeps a score-only breakthrough while making the missing cause explicit', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        primaryKey: 'breakthrough',
+        summary: "This score beat what you've been shooting lately by a meaningful margin.",
+        evidenceLevel: 'score_only',
+        confidence: 'building',
+        tone: 'repeat',
+        modifiers: [],
+        displayLevels: {
+          story: 'great',
+          worked: 'success',
+          watch: 'success',
+        },
+        displayEvidence: {
+          scoreText: '74 (+2)',
+          baselineDeltaText: '4 strokes better than your recent average of 78.',
+        },
+      }),
+    );
+
+    expect(display.insights[0].body).toMatch(/you shot 74 \(\+2\).*4 strokes better/i);
+    expect(display.insights[0].body).toMatch(/breakthrough|usual scoring range|separated itself|step forward/i);
+    expect(display.insights[0].level).toBe('great');
+    expect(display.insights[1].body).toMatch(/score-only tracking|tracked detail|score trend|score is logged/i);
+    expect(display.insights[1].body).not.toMatch(/tracked areas stayed close|balanced read|outperforming or trailing/i);
+    expect(display.insights[1].level).toBe('info');
+    expect(display.insights[2].body).toMatch(/optional stats|extra stat|putts or greens/i);
+    expect(display.insights[2].level).toBe('info');
+  });
+
+  it('keeps partial tracking informational when no reliable area conclusion exists', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'putts-only-breakthrough',
+        primaryKey: 'breakthrough',
+        evidenceLevel: 'aggregate_stats',
+        confidence: 'building',
+        tone: 'repeat',
+        modifiers: [],
+        displayLevels: {
+          story: 'great',
+          worked: 'info',
+          watch: 'success',
+        },
+        displayEvidence: {
+          scoreText: '74 (+4)',
+          baselineDeltaText: '4 strokes better than your recent average of 78.',
+        },
+      }),
+    );
+
+    expect(display.insights[0].level).toBe('great');
+    expect(display.insights[1].level).toBe('info');
+    expect(display.insights[2].level).toBe('info');
+    expect(display.insights[2].body).toMatch(/next round.*(one more|complementary)/i);
+    expect(display.insights[2].body).not.toMatch(/same pattern|repeat/i);
+  });
+
+  it('uses non-comparative strength wording for one reliable putting area', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'single-putting-strength',
+        primaryKey: 'putting_saved',
+        evidenceLevel: 'aggregate_stats',
+        confidence: 'building',
+        tone: 'repeat',
+        overallTone: 'success',
+        displayEvidence: {
+          scoreText: '74 (+4)',
+          baselineDeltaText: '4 strokes better than your recent average of 78.',
+          reliableAreaCount: 1,
+          strongestArea: {
+            area: 'putting',
+            label: 'Putting',
+            valueText: '+2.7 SG putting',
+            detailText: 'Putts: 31 (1.72 per hole).',
+          },
+        },
+      }),
+    );
+
+    expect(display.insights[0].body).toMatch(/putting|putter/i);
+    expect(display.insights[0].body).not.toMatch(/biggest|strongest/i);
+    expect(display.insights[1].body).toBe(
+      'Putting was a clear strength this round. You had 31 putts.',
+    );
+    expect(display.insights[1].body).not.toMatch(/strongest|biggest/i);
+    expect(display.insights[1].level).toBe('success');
+  });
+
+  it('uses non-comparative opportunity wording for one reliable putting area', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'single-putting-opportunity',
+        primaryKey: 'putting_leak',
+        evidenceLevel: 'aggregate_stats',
+        confidence: 'building',
+        tone: 'fix',
+        overallTone: 'warning',
+        displayEvidence: {
+          scoreText: '88 (+16)',
+          reliableAreaCount: 1,
+          weakestArea: {
+            area: 'putting',
+            label: 'Putting',
+            valueText: '-1.2 SG putting',
+            detailText: 'Putts: 39 (2.17 per hole).',
+          },
+        },
+      }),
+    );
+
+    expect(display.insights[1].body).toBe(
+      'Putting was a clear opportunity this round. You had 39 putts.',
+    );
+    expect(display.insights[1].body).not.toMatch(/weakest|clearest leak/i);
+    expect(display.insights[1].level).toBe('warning');
+  });
+
+  it('does not call a single positive penalties input a balanced multi-area read', () => {
+    const display = composeRoundIdentityDisplay(
+      baseIdentity({
+        inputHash: 'single-penalties-strength',
+        primaryKey: 'no_clear_separator',
+        evidenceLevel: 'aggregate_stats',
+        confidence: 'building',
+        tone: 'build',
+        overallTone: 'success',
+        displayEvidence: {
+          scoreText: '84 (+12)',
+          reliableAreaCount: 1,
+          strongestArea: {
+            area: 'penalties',
+            label: 'Penalty Control',
+            valueText: '+1.3 SG penalties',
+            detailText: 'Penalty strokes: 0.',
+          },
+        },
+      }),
+    );
+
+    expect(display.insights[0].body).toMatch(/penalty control was a clear positive/i);
+    expect(display.insights[1].body).toBe(
+      'Penalty control was a clear strength this round. You recorded 0 penalty strokes.',
+    );
+    expect(display.insights[1].body).not.toMatch(/balanced|tracked areas stayed close/i);
+    expect(display.insights[1].level).toBe('success');
+    expect(display.insights[2].level).toBe('success');
+  });
+
   it('uses neutral M2 title semantics for composed cards', () => {
     const display = composeRoundIdentityDisplay(baseIdentity({ primaryKey: 'putting_leak', tone: 'fix' }));
 
@@ -265,11 +416,19 @@ describe('composeRoundIdentityDisplay', () => {
       baseIdentity({
         primaryKey: 'steady_scoring',
         sampleContext: 'first_round',
+        overallTone: 'warning',
+        displayLevels: {
+          story: 'warning',
+          worked: 'warning',
+          watch: 'info',
+        },
       }),
     );
 
     expect(display.eyebrow).toBe('Round 1 Logged');
     expect(display.progressText).toMatch(/2 more rounds unlock stronger patterns/i);
+    expect(display.insights[0].level).toBe('success');
+    expect(display.insights[1].level).toBe('warning');
   });
 
   it('uses round-number-based progress text for rounds 1 and 2, and hides it at 3+', () => {
@@ -634,7 +793,7 @@ describe('composeRoundIdentityDisplay', () => {
       }
     }
 
-    expect(sampledCopy.some((copy) => copy.includes('Off The Tee'))).toBe(true);
+    expect(sampledCopy.some((copy) => copy.includes('Off the Tee'))).toBe(true);
   });
 
   it('keeps M1, M2, and M3 deterministic per hash across stable inputs', () => {

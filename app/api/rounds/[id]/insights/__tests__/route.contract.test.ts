@@ -103,7 +103,11 @@ function makeStoredIdentity(overrides: any = {}) {
   };
 }
 
-async function generateFreeStoredIdentityMessages(identity: any) {
+async function generateStoredIdentityMessages(
+  identity: any,
+  isPremium: boolean,
+  roundNumber?: number,
+) {
   mockedPrisma.round.findUnique.mockResolvedValue(null);
   mockedPrisma.roundInsight.findUnique.mockResolvedValue({
     userId: BigInt(1),
@@ -124,12 +128,19 @@ async function generateFreeStoredIdentityMessages(identity: any) {
         historical: {
           avg_score: 84,
         },
+        onboarding: roundNumber == null ? undefined : {
+          round_number: roundNumber,
+        },
         round_identity_v1: identity,
       },
     },
   });
 
-  return generateInsights(BigInt(40), BigInt(1), { isPremium: false });
+  return generateInsights(BigInt(40), BigInt(1), { isPremium });
+}
+
+async function generateFreeStoredIdentityMessages(identity: any, roundNumber?: number) {
+  return generateStoredIdentityMessages(identity, false, roundNumber);
 }
 
 describe('/api/rounds/[id]/insights route contract', () => {
@@ -540,7 +551,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[1]).toMatch(
       /Several areas contributed positively|No measured area clearly held the round back|The round stayed steady because no major measured area added much pressure|Multiple areas helped the score/,
     );
-    expect(insights.messages[1]).not.toMatch(/Off The Tee likely helped|Off Tee likely helped|Off The Tee/i);
+    expect(insights.messages[1]).not.toMatch(/Off the Tee likely helped|Off Tee likely helped|Off the Tee/i);
     expect(insights.message_outcomes[2]).toBe('M3-E');
     expect(insights.messages[2]).toMatch(
       /Keep choosing targets that leave a playable next shot|Let the safest miss guide decisions when risk appears|Keep favoring the side that keeps recovery manageable|Build decisions around avoiding the miss that escalates the hole/,
@@ -1017,7 +1028,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     expect(insights.confidence).toBe('LOW');
     expect(insights.messages[0]).toMatch(/^You shot /);
-    expect(insights.messages[0]).not.toMatch(/Off The Tee|Approach|Putting|Penalties/);
+    expect(insights.messages[0]).not.toMatch(/Off the Tee|Approach|Putting|Penalties/);
     expect(insights.messages[1].toLowerCase()).not.toContain('main source');
     expect(insights.messages[1].toLowerCase()).not.toContain('biggest source');
     expect(insights.messages[1].toLowerCase()).not.toContain('cost the most');
@@ -1349,7 +1360,17 @@ describe('/api/rounds/[id]/insights route contract', () => {
       residualDominant: false,
       weakSeparation: false,
     });
-    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue(null);
+    mockedPrisma.roundStrokesGained.findUnique.mockResolvedValue({
+      roundId: BigInt(40),
+      sgTotal: -1.4,
+      sgOffTee: null,
+      sgApproach: null,
+      sgShortGame: null,
+      sgPutting: null,
+      sgPenalties: null,
+      sgResidual: -1.4,
+      partialAnalysis: true,
+    });
 
     const insights = await generateInsights(
       BigInt(40),
@@ -1372,6 +1393,31 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(new Set(insights.messages.map((message: string) => message.toLowerCase())).size).toBe(3);
     expect((insights.messages.join(' ').toLowerCase().match(/starting point/g) ?? []).length).toBeLessThanOrEqual(1);
     expect(insights.round_identity_v1).toBeNull();
+
+    mockedPrisma.round.findMany
+      .mockResolvedValueOnce([
+        { id: BigInt(10), score: 88, date: new Date('2026-01-01T12:00:00.000Z'), createdAt: new Date('2026-01-01T12:00:00.000Z') },
+        { id: BigInt(20), score: 89, date: new Date('2026-01-10T12:00:00.000Z'), createdAt: new Date('2026-01-10T12:00:00.000Z') },
+        { id: BigInt(30), score: 90, date: new Date('2026-01-20T12:00:00.000Z'), createdAt: new Date('2026-01-20T12:00:00.000Z') },
+        { id: BigInt(40), score: 92, date: new Date('2026-02-03T12:00:00.000Z'), createdAt: new Date('2026-02-03T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([
+        { id: BigInt(39), score: 90, date: new Date('2026-02-01T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+        { id: BigInt(38), score: 89, date: new Date('2026-01-28T12:00:00.000Z'), teeSegment: 'full', tee: makeTee() },
+      ]);
+    const premiumInsights = await generateInsights(
+      BigInt(40),
+      BigInt(1),
+      { isPremium: true },
+      { forceRegenerate: true },
+    );
+    expect(premiumInsights.round_identity_v1).toMatchObject({
+      version: ROUND_IDENTITY_V1_VERSION,
+      evidenceLevel: 'score_only',
+      primaryKey: 'score_only_baseline',
+      confidence: 'building',
+      statCompletenessScore: 0,
+    });
   });
 
   it('M1 worse-than-baseline is warning (regression: 89 vs recent average 80.8)', async () => {
@@ -1802,6 +1848,22 @@ describe('/api/rounds/[id]/insights route contract', () => {
     }
   });
 
+  it('keeps free first-round M1 positive when the hidden identity story is warning', async () => {
+    const insights = await generateFreeStoredIdentityMessages(
+      makeStoredIdentity({
+        sampleContext: 'first_round',
+        confidence: 'building',
+        overallTone: 'warning',
+        displayLevels: { story: 'warning', worked: 'warning', watch: 'info' },
+      }),
+      1,
+    );
+
+    expect(insights.round_number).toBe(1);
+    expect(insights.round_identity_v1).toBeNull();
+    expect(insights.message_levels[0]).toBe('success');
+  });
+
   it('projects free M2 from the shared narrative plan instead of independently picking strongest or weakest evidence', async () => {
     const cases = [
       {
@@ -2106,6 +2168,88 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[1]).toMatch(/enough to call a clear strength or leak/i);
     expect(insights.messages[1]).not.toMatch(/clearest leak|main area costing/i);
     expect(insights.message_levels[1]).toBe('info');
+  });
+
+  it('keeps free partial tracking informational when no reliable area conclusion exists', async () => {
+    const insights = await generateFreeStoredIdentityMessages(
+      makeStoredIdentity({
+        primaryKey: 'breakthrough',
+        tone: 'repeat',
+        overallTone: 'great',
+        displayLevels: { story: 'great', worked: 'info', watch: 'success' },
+        displayEvidence: {
+          scoreText: '74 (+4)',
+          baselineDeltaText: '4 strokes better than your recent average of 78.',
+        },
+      }),
+    );
+
+    expect(insights.messages[1]).toBe(
+      'One more tracked area would give GolfIQ more context behind the score.',
+    );
+    expect(insights.message_levels[1]).toBe('info');
+    expect(insights.messages[2]).toMatch(/^Next round: .*(one more|complementary)/i);
+    expect(insights.messages[2]).not.toMatch(/same pattern|repeat/i);
+    expect(insights.message_levels[2]).toBe('info');
+  });
+
+  it('uses non-comparative free wording for one reliable tracked strength', async () => {
+    const insights = await generateFreeStoredIdentityMessages(
+      makeStoredIdentity({
+        primaryKey: 'putting_saved',
+        tone: 'repeat',
+        overallTone: 'success',
+        confidence: 'building',
+        displayLevels: { story: 'success', worked: 'success', watch: 'success' },
+        displayEvidence: {
+          scoreText: '74 (+4)',
+          baselineDeltaText: '4 strokes better than your recent average of 78.',
+          reliableAreaCount: 1,
+          strongestArea: {
+            area: 'putting',
+            label: 'Putting',
+            valueText: '+2.7 SG putting',
+            detailText: 'Putts: 31 (1.72 per hole).',
+          },
+        },
+      }),
+    );
+
+    expect(insights.messages[1]).toBe('Putting was a clear strength this round.');
+    expect(insights.messages[1]).not.toMatch(/strongest|biggest|strokes gained|\bSG\b/i);
+    expect(insights.message_levels[1]).toBe('success');
+    expect(insights.messages[2]).toMatch(/^Next round: .*putting/i);
+    expect(insights.message_levels[2]).toBe('success');
+  });
+
+  it('uses the canonical non-comparative premium message for one reliable tracked strength', async () => {
+    const insights = await generateStoredIdentityMessages(
+      makeStoredIdentity({
+        primaryKey: 'putting_saved',
+        tone: 'repeat',
+        overallTone: 'success',
+        confidence: 'building',
+        displayLevels: { story: 'success', worked: 'success', watch: 'success' },
+        displayEvidence: {
+          scoreText: '74 (+4)',
+          baselineDeltaText: '4 strokes better than your recent average of 78.',
+          reliableAreaCount: 1,
+          strongestArea: {
+            area: 'putting',
+            label: 'Putting',
+            valueText: '+2.7 SG putting',
+            detailText: 'Putts: 31 (1.72 per hole).',
+          },
+        },
+      }),
+      true,
+    );
+
+    expect(insights.messages[1]).toBe(
+      'Putting was a clear strength this round. You had 31 putts.',
+    );
+    expect(insights.messages[1]).not.toMatch(/strongest|biggest/i);
+    expect(insights.message_levels[1]).toBe('success');
   });
 
   it('M3 remains info-level across outcomes', async () => {

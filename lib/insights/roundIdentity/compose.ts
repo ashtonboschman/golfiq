@@ -95,8 +95,10 @@ export function composeRoundIdentityDisplay(
   identity: RoundIdentity,
   options?: { isFirstRound?: boolean; roundNumber?: number | null },
 ): RoundIdentityDisplay {
-  const isFirstRound = options?.isFirstRound || identity.sampleContext === 'first_round';
   const roundNumber = typeof options?.roundNumber === 'number' ? options.roundNumber : null;
+  const isFirstRound = roundNumber != null
+    ? roundNumber === 1
+    : Boolean(options?.isFirstRound || identity.sampleContext === 'first_round');
   const progressText =
     roundNumber === 1
       ? '2 more rounds unlock stronger patterns.'
@@ -111,7 +113,18 @@ export function composeRoundIdentityDisplay(
               : undefined;
 
   const eyebrow = undefined;
-  const levels = identity.displayLevels ?? resolveRoundIdentityDisplayLevels(identity);
+  const resolvedLevels = identity.displayLevels ?? resolveRoundIdentityDisplayLevels(identity);
+  const hasNoReliableAggregateArea =
+    identity.evidenceLevel === 'aggregate_stats' &&
+    !identity.displayEvidence?.strongestArea &&
+    !identity.displayEvidence?.weakestArea;
+  const evidenceSafeLevels =
+    identity.evidenceLevel === 'score_only' || hasNoReliableAggregateArea
+      ? { ...resolvedLevels, worked: 'info' as const, watch: 'info' as const }
+      : resolvedLevels;
+  const levels = isFirstRound
+    ? { ...evidenceSafeLevels, story: 'success' as const }
+    : evidenceSafeLevels;
   const narrativePlan = buildRoundInsightNarrativePlan(identity);
 
   const display: RoundIdentityDisplay = {

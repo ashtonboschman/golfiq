@@ -76,12 +76,19 @@ const M1_PUTTING_SAVED_VARIANTS = [
   'Putting kept the round from getting away from you.',
 ] as const;
 
+const M1_SINGLE_AREA_PUTTING_SAVED_VARIANTS = [
+  'Putting was a clear positive in the round.',
+  'Putting clearly helped protect the score.',
+  'The putter provided meaningful support this round.',
+  'Putting gave the score clear support.',
+] as const;
+
 const M1_TEE_CONTROLLED_VARIANTS = [
-  'Fairway finding was a clear strength Off The Tee.',
-  'Off The Tee results supported the score through stronger fairway finding.',
+  'Fairway finding was a clear strength Off the Tee.',
+  'Off the Tee results supported the score through stronger fairway finding.',
   'Tee-shot accuracy gave the round a stronger base.',
-  'Off The Tee was a positive, led by the number of fairways you found.',
-  'Fairway finding helped make Off The Tee one of the stronger parts of the round.',
+  'Off the Tee was a positive, led by the number of fairways you found.',
+  'Fairway finding helped make Off the Tee one of the stronger parts of the round.',
 ] as const;
 
 const M1_SHORT_GAME_RESCUE_VARIANTS = [
@@ -157,10 +164,10 @@ const M1_APPROACH_LEAK_VARIANTS = [
 ] as const;
 
 const M1_TEE_TROUBLE_VARIANTS = [
-  'Fairway finding was the clearest issue Off The Tee.',
-  'Too many fairways were missed for Off The Tee to support the score.',
+  'Fairway finding was the clearest issue Off the Tee.',
+  'Too many fairways were missed for Off the Tee to support the score.',
   'Tee-shot accuracy was below its expected level this round.',
-  'Off The Tee lost ground through missed fairways.',
+  'Off the Tee lost ground through missed fairways.',
   'The clearest tee-shot signal was not finding enough fairways.',
 ] as const;
 
@@ -216,9 +223,9 @@ const M2_STRENGTH_APPROACH_VARIANTS = [
 ] as const;
 
 const M2_STRENGTH_OFF_TEE_VARIANTS = [
-  'Off The Tee was a strength. You found {made} of {total} fairways.',
-  'Fairway finding supported the score Off The Tee. You hit {made} of {total} fairways.',
-  'Off The Tee finished above expectation through stronger fairway finding.',
+  'Off the Tee was a strength. You found {made} of {total} fairways.',
+  'Fairway finding supported the score Off the Tee. You hit {made} of {total} fairways.',
+  'Off the Tee finished above expectation through stronger fairway finding.',
   'Tee-shot accuracy was one of the clearest positive signals in the round.',
 ] as const;
 
@@ -251,10 +258,10 @@ const M2_LEAK_PENALTIES_VARIANTS = [
 ] as const;
 
 const M2_LEAK_OFF_TEE_VARIANTS = [
-  'Off The Tee was the clearest leak because too few fairways were found.',
+  'Off the Tee was the clearest leak because too few fairways were found.',
   'Tee-shot accuracy finished below expectation this round.',
-  'Missed fairways made Off The Tee the clearest area to tighten.',
-  'Fairway finding was the main issue in the Off The Tee results.',
+  'Missed fairways made Off the Tee the clearest area to tighten.',
+  'Fairway finding was the main issue in the Off the Tee results.',
 ] as const;
 
 const M2_LEAK_APPROACH_VARIANTS = [
@@ -331,6 +338,12 @@ const M3_EXPLAIN_VARIANTS = [
   'Add one or two optional stats so GolfIQ can explain more than just the score.',
   'Add a couple of stats, like putts or greens, so GolfIQ can explain what shaped the score.',
   'Even one extra stat gives GolfIQ a clearer read on why the score landed there.',
+] as const;
+
+const M3_PARTIAL_NO_AREA_VARIANTS = [
+  'Next round, track one more part of your game so GolfIQ has more context behind the score.',
+  'Next round, add one complementary stat so GolfIQ can better separate what helped from what needs attention.',
+  'Next round, add one more tracked area so GolfIQ can build a clearer explanation of the score.',
 ] as const;
 
 const M3_REPEAT_DAMAGE_COUPLE_VARIANTS = [
@@ -874,7 +887,7 @@ function appendDirectionalEvidence(
 function goodScoreBadProcessAreaLine(identity: RoundIdentity): string {
   const area = identity.displayEvidence?.weakestArea?.area;
   if (area === 'approach') return 'The score improved, but approach play still left too much work.';
-  if (area === 'off_tee') return 'The score improved, but fairway finding Off The Tee still needs attention.';
+  if (area === 'off_tee') return 'The score improved, but fairway finding Off the Tee still needs attention.';
   if (area === 'putting') return 'The score improved, but putting still left strokes on the greens.';
   if (area === 'short_game') return 'The score improved, but the short game still had too much cleanup work.';
   if (area === 'penalties') {
@@ -1170,6 +1183,21 @@ export function buildStoryCard(
   const positiveOverall = identity.overallTone === 'success' || identity.overallTone === 'great';
 
   if (identity.primaryKey === 'no_clear_separator') {
+    const singleStrongest =
+      identity.displayEvidence?.reliableAreaCount === 1
+        ? identity.displayEvidence.strongestArea
+        : undefined;
+    const singleWeakest =
+      identity.displayEvidence?.reliableAreaCount === 1
+        ? identity.displayEvidence.weakestArea
+        : undefined;
+    if (singleStrongest || singleWeakest) {
+      const area = singleStrongest ?? singleWeakest;
+      return joinSentences([
+        opening,
+        `${areaSentenceLabel(area?.area ?? 'unknown')} was a clear ${singleStrongest ? 'positive' : 'opportunity'} in the available data.`,
+      ]);
+    }
     return joinSentences([
       opening,
       positiveOverall
@@ -1225,7 +1253,11 @@ export function buildStoryCard(
   }
 
   if (identity.primaryKey === 'putting_saved') {
-    return joinSentences([opening, pickVariant(identity, M1_PUTTING_SAVED_VARIANTS, 'm1-putting-saved')]);
+    const variants =
+      identity.displayEvidence?.reliableAreaCount === 1
+        ? M1_SINGLE_AREA_PUTTING_SAVED_VARIANTS
+        : M1_PUTTING_SAVED_VARIANTS;
+    return joinSentences([opening, pickVariant(identity, variants, 'm1-putting-saved')]);
   }
 
   if (identity.primaryKey === 'tee_controlled') {
@@ -1339,6 +1371,33 @@ export function buildStoryCard(
 }
 
 function buildStrengthCardFromArea(identity: RoundIdentity, area: RoundIdentityDisplayAreaEvidence): string {
+  if (identity.displayEvidence?.reliableAreaCount === 1) {
+    if (area.area === 'putting') {
+      const putts = parsePutts(area.detailText);
+      return putts.total != null
+        ? `Putting was a clear strength this round. You had ${putts.total} putts.`
+        : 'Putting was a clear strength this round.';
+    }
+    if (area.area === 'approach') {
+      const gir = parseGir(area.detailText);
+      return gir.made != null && gir.total != null
+        ? `Approach play was a clear strength this round. You hit ${gir.made} of ${gir.total} greens.`
+        : 'Approach play was a clear strength this round.';
+    }
+    if (area.area === 'off_tee') {
+      const fairways = parseFairways(area.detailText);
+      return fairways.made != null && fairways.total != null
+        ? `Off the Tee was a clear strength this round. You hit ${fairways.made} of ${fairways.total} fairways.`
+        : 'Off the Tee was a clear strength this round.';
+    }
+    if (area.area === 'penalties') {
+      const penalties = parsePenalties(area.detailText);
+      return penalties != null
+        ? `Penalty control was a clear strength this round. You recorded ${penalties} ${penalties === 1 ? 'penalty stroke' : 'penalty strokes'}.`
+        : 'Penalty control was a clear strength this round.';
+    }
+  }
+
   if (area.area === 'putting') {
     const putts = parsePutts(area.detailText);
     const template = pickVariant(identity, M2_STRENGTH_PUTTING_VARIANTS, 'm2-strength-putting');
@@ -1377,6 +1436,33 @@ function buildStrengthCardFromArea(identity: RoundIdentity, area: RoundIdentityD
 }
 
 function buildLeakCardFromArea(identity: RoundIdentity, area: RoundIdentityDisplayAreaEvidence): string {
+  if (identity.displayEvidence?.reliableAreaCount === 1) {
+    if (area.area === 'putting') {
+      const putts = parsePutts(area.detailText);
+      return putts.total != null
+        ? `Putting was a clear opportunity this round. You had ${putts.total} putts.`
+        : 'Putting was a clear opportunity this round.';
+    }
+    if (area.area === 'approach') {
+      const gir = parseGir(area.detailText);
+      return gir.made != null && gir.total != null
+        ? `Approach play was a clear opportunity this round. You hit ${gir.made} of ${gir.total} greens.`
+        : 'Approach play was a clear opportunity this round.';
+    }
+    if (area.area === 'off_tee') {
+      const fairways = parseFairways(area.detailText);
+      return fairways.made != null && fairways.total != null
+        ? `Off the Tee was a clear opportunity this round. You hit ${fairways.made} of ${fairways.total} fairways.`
+        : 'Off the Tee was a clear opportunity this round.';
+    }
+    if (area.area === 'penalties') {
+      const penalties = parsePenalties(area.detailText);
+      return penalties != null
+        ? `Penalties were a clear opportunity this round. You recorded ${penalties} ${penalties === 1 ? 'penalty stroke' : 'penalty strokes'}.`
+        : 'Penalties were a clear opportunity this round.';
+    }
+  }
+
   if (area.area === 'penalties') {
     const penalties = parsePenalties(area.detailText);
     const penaltySentence =
@@ -1445,7 +1531,7 @@ export function buildAreaCard(
   identity: RoundIdentity,
   plan: RoundInsightNarrativePlan = buildRoundInsightNarrativePlan(identity),
 ): string {
-  if (identity.primaryKey === 'score_only_baseline' && identity.evidenceLevel === 'score_only') {
+  if (identity.evidenceLevel === 'score_only') {
     return pickVariant(identity, M2_SCORE_ONLY_BASELINE_VARIANTS, 'm2-score-only-baseline');
   }
 
@@ -1455,6 +1541,10 @@ export function buildAreaCard(
   const useLeakFraming = !positiveOverall && (identity.tone === 'fix' || identity.primaryKey === 'penalty_damaged');
 
   if (identity.primaryKey === 'no_clear_separator') {
+    if (identity.displayEvidence?.reliableAreaCount === 1) {
+      if (strongest) return buildStrengthCardFromArea(identity, strongest);
+      if (weakest) return buildLeakCardFromArea(identity, weakest);
+    }
     return pickVariant(identity, M2_NO_CLEAR_BALANCED_VARIANTS, 'm2-no-clear-balanced');
   }
 
@@ -1643,6 +1733,16 @@ function buildBuildFocus(identity: RoundIdentity, plan: RoundInsightNarrativePla
   const weakest = identity.displayEvidence?.weakestArea;
 
   if (identity.primaryKey === 'no_clear_separator') {
+    if (identity.displayEvidence?.reliableAreaCount === 1) {
+      if (weakest) {
+        const template = pickVariant(identity, M3_BUILD_WEAKEST_VARIANTS, 'm3-build-weakest');
+        return applyTemplate(template, { areaLabel: areaLabel(weakest.area) });
+      }
+      if (strongest) {
+        const template = pickVariant(identity, M3_BUILD_STRONGEST_VARIANTS, 'm3-build-strongest');
+        return applyTemplate(template, { areaLabel: areaLabel(strongest.area) });
+      }
+    }
     return pickVariant(identity, M3_BUILD_NO_CLEAR_GENERIC_VARIANTS, 'm3-build-no-clear-generic');
   }
 
@@ -1671,8 +1771,15 @@ export function buildWatchCard(
   identity: RoundIdentity,
   plan: RoundInsightNarrativePlan = buildRoundInsightNarrativePlan(identity),
 ): string {
-  if (identity.tone === 'explain' && identity.evidenceLevel === 'score_only') {
+  if (identity.evidenceLevel === 'score_only') {
     return pickVariant(identity, M3_EXPLAIN_VARIANTS, 'sparse-watch');
+  }
+  if (
+    identity.evidenceLevel === 'aggregate_stats' &&
+    !identity.displayEvidence?.strongestArea &&
+    !identity.displayEvidence?.weakestArea
+  ) {
+    return pickVariant(identity, M3_PARTIAL_NO_AREA_VARIANTS, 'partial-no-area-watch');
   }
   if (identity.tone === 'explain') return buildBuildFocus(identity, plan);
   if (identity.tone === 'repeat') return buildRepeatFocus(identity, plan);

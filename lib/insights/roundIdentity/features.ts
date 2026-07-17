@@ -231,17 +231,17 @@ export function getStatCompletenessScore(input: RoundIdentityResolverInput): num
     input.sgPutting,
     input.sgPenalties,
     input.sgShortGame,
-    input.sgTotal,
   ].filter((value) => toFiniteNumber(value) != null).length;
 
   const statsScore = (statsPresent / 6) * 70;
-  const sgScore = (sgPresent / 6) * 20;
+  const sgScore = (sgPresent / 5) * 20;
   const hbhScore = input.hasTrustedHoleByHole ? 10 : 0;
   return Math.round(clamp(statsScore + sgScore + hbhScore, 0, 100));
 }
 
 export function hasReliablePuttingEvidence(input: RoundIdentityResolverInput): boolean {
   if (toFiniteNumber(input.putts) == null) return false;
+  if (toFiniteNumber(input.sgPutting) != null) return true;
   return toFiniteNumber(input.girHit) != null || input.hasTrustedHoleByHole;
 }
 
@@ -289,12 +289,10 @@ export function hasAnyAggregateStats(input: RoundIdentityResolverInput): boolean
     input.chips,
     input.greensideBunkerShots,
     input.shortGameShots,
-    input.sgTotal,
     input.sgOffTee,
     input.sgApproach,
     input.sgShortGame,
     input.sgPutting,
     input.sgPenalties,
-    input.sgResidual,
   ].some((value) => toFiniteNumber(value) != null);
 }

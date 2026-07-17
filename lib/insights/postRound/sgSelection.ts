@@ -36,7 +36,7 @@ export type MeasuredSgSelectionThresholds = {
 };
 
 const COMPONENT_LABELS: Record<SgMeasuredComponentName, string> = {
-  off_tee: 'Off The Tee',
+  off_tee: 'Off the Tee',
   approach: 'Approach',
   short_game: 'Short Game',
   putting: 'Putting',

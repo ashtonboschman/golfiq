@@ -157,7 +157,7 @@ export function composeScoringOutlookPresentation(
 
 export function composeRecentFormCopy(trends: GameTrendsV2Dto): GameTrendCopy {
   const { state, evidence } = trends.recentForm;
-  if (state === 'unavailable') return { conclusion: 'Log your first round to start building Game Trends.', supporting: null };
+  if (state === 'unavailable') return { conclusion: 'Add your first round to start building Game Trends.', supporting: null };
   if (state === 'first_round_snapshot') {
     return {
       conclusion: `Your first-round snapshot is ${formatNumber(evidence.latestScore, 0)}${evidence.latestToPar == null ? '' : ` (${formatSigned(evidence.latestToPar)})`}.`,

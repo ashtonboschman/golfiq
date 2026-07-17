@@ -61,7 +61,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('M1-C when best measured value is positive', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 1.2 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 1.2 },
       { name: 'approach' as const, label: 'Approach', value: -0.9 },
     ];
     const out = buildDeterministicPostRoundInsights(
@@ -74,7 +74,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[0]).toBe('M1-C');
-    expect(out.messages[0]).toContain('Off The Tee');
+    expect(out.messages[0]).toContain('Off the Tee');
     expect(out.messages[0]).toContain('1.2 strokes');
   });
 
@@ -200,7 +200,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.outcomes[1]).toBe('M2-E');
     expect(out.messageLevels[1]).toBe('success');
     expect(out.messages[1]).toContain('Several areas contributed positively');
-    expect(out.messages[1]).not.toContain('Off The Tee likely helped the score');
+    expect(out.messages[1]).not.toContain('Off the Tee likely helped the score');
   });
 
   test('adds stat evidence to message 1 and message 2 when available', () => {
@@ -245,7 +245,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     );
 
     expect(out.outcomes[1]).toBe('M2-A');
-    expect(out.messages[1]).not.toContain('Off The Tee');
+    expect(out.messages[1]).not.toContain('Off the Tee');
     expect(out.messages[1]).not.toContain('{residualSuffix}');
     expect(out.messages[1]).not.toContain('+0.6 strokes');
   });
@@ -361,11 +361,11 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.outcomes[0]).toBe('M1-A');
     expect(out.outcomes[1]).toBe('M2-A');
-    expect(out.messages[0]).not.toContain('Off The Tee');
+    expect(out.messages[0]).not.toContain('Off the Tee');
     expect(out.messages[0]).not.toContain('Approach');
     expect(out.messages[0]).not.toContain('Putting');
     expect(out.messages[0]).not.toContain('Penalties');
-    expect(out.messages[1]).not.toContain('Off The Tee');
+    expect(out.messages[1]).not.toContain('Off the Tee');
     expect(out.messages[1]).not.toContain('Approach');
     expect(out.messages[1]).not.toContain('Putting');
     expect(out.messages[1]).not.toContain('Penalties');
@@ -373,7 +373,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('component labels in M1 and M2 align with selected best and worst components', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.6 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 0.6 },
       { name: 'approach' as const, label: 'Approach', value: -1.3 },
       { name: 'putting' as const, label: 'Putting', value: -0.1 },
     ];
@@ -389,7 +389,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
     expect(out.outcomes[0]).toBe('M1-C');
     expect(out.outcomes[1]).toBe('M2-D');
-    expect(out.messages[0]).toContain('Off The Tee');
+    expect(out.messages[0]).toContain('Off the Tee');
     expect(out.messages[1]).toContain('Approach');
   });
 
@@ -413,7 +413,7 @@ describe('buildDeterministicPostRoundInsights', () => {
     expect(out.outcomes[0]).toBe('M1-A');
     expect(out.outcomes[1]).toBe('M2-A');
     expect(out.messages[0]).toMatch(/^You shot /);
-    expect(out.messages[0]).not.toMatch(/Off The Tee|Approach|Putting|Penalties/);
+    expect(out.messages[0]).not.toMatch(/Off the Tee|Approach|Putting|Penalties/);
     expect(out.messages[1].toLowerCase()).not.toContain('main source');
     expect(out.messages[1].toLowerCase()).not.toContain('biggest source');
     expect(out.messages[1].toLowerCase()).not.toContain('cost the most');

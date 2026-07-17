@@ -39,6 +39,8 @@ export function resolveRoundIdentityDisplayLevels(identity: RoundIdentity): Roun
   const hasDamageModifier =
     identity.modifiers.includes('one_hole_damage') || identity.modifiers.includes('blow_up_stretch');
   const weakestAreaIsUrgent = weakestArea?.area === 'penalties' || weakestArea?.area === 'big_numbers';
+  const hasNoReliableAggregateArea =
+    identity.evidenceLevel === 'aggregate_stats' && !strongestArea && !weakestArea;
 
   const story =
     identity.overallTone ??
@@ -50,8 +52,24 @@ export function resolveRoundIdentityDisplayLevels(identity: RoundIdentity): Roun
           ? 'warning'
           : 'info');
 
+  if (identity.evidenceLevel === 'score_only' || hasNoReliableAggregateArea) {
+    return { story, worked: 'info', watch: 'info' };
+  }
+
   let worked: RoundIdentityDisplayLevels['worked'] = 'info';
-  if (identity.primaryKey === 'no_clear_separator') {
+  if (
+    identity.primaryKey === 'no_clear_separator' &&
+    identity.displayEvidence?.reliableAreaCount === 1 &&
+    strongestArea
+  ) {
+    worked = 'success';
+  } else if (
+    identity.primaryKey === 'no_clear_separator' &&
+    identity.displayEvidence?.reliableAreaCount === 1 &&
+    weakestArea
+  ) {
+    worked = 'warning';
+  } else if (identity.primaryKey === 'no_clear_separator') {
     worked = 'info';
   } else if ((identity.overallTone === 'success' || identity.overallTone === 'great') && strongestArea) {
     worked = 'success';
@@ -65,7 +83,19 @@ export function resolveRoundIdentityDisplayLevels(identity: RoundIdentity): Roun
   }
 
   let watch: RoundIdentityDisplayLevels['watch'] = 'info';
-  if (identity.tone === 'repeat') {
+  if (
+    identity.primaryKey === 'no_clear_separator' &&
+    identity.displayEvidence?.reliableAreaCount === 1 &&
+    strongestArea
+  ) {
+    watch = 'success';
+  } else if (
+    identity.primaryKey === 'no_clear_separator' &&
+    identity.displayEvidence?.reliableAreaCount === 1 &&
+    weakestArea
+  ) {
+    watch = 'warning';
+  } else if (identity.tone === 'repeat') {
     if (hasDamageModifier || weakestAreaIsUrgent || URGENT_DAMAGE_PRIMARIES.has(identity.primaryKey)) {
       watch = 'warning';
     } else if (POSITIVE_PRIMARIES.has(identity.primaryKey)) {

@@ -1,4 +1,4 @@
-export const ROUND_IDENTITY_V1_VERSION = 'round_identity_v1.6.1';
+export const ROUND_IDENTITY_V1_VERSION = 'round_identity_v1.6.4';
 
 export type RoundIdentityPrimaryKey =
   | 'score_only_baseline'
@@ -113,6 +113,7 @@ export type RoundIdentityDirectionalEvidence = {
 export type RoundIdentityDisplayEvidence = {
   scoreText?: string;
   baselineDeltaText?: string;
+  reliableAreaCount?: number;
   strongestArea?: RoundIdentityDisplayAreaEvidence;
   weakestArea?: RoundIdentityDisplayAreaEvidence;
   hbhStory?: RoundIdentityDisplayStoryEvidence;

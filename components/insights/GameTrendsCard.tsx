@@ -19,7 +19,6 @@ type Props = {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onLogRound: () => void;
 };
 
 function confidenceLabel(value: GameTrendsV2Dto['confidence']): string {
@@ -46,7 +45,6 @@ function ProfileMessage({ conclusion, role }: { conclusion: GameProfileConclusio
         <Icon aria-hidden="true" size={18} className="insight-message-icon game-trends-message-icon" data-icon-role={role} />
         <div className="game-trends-row-heading">
           <h4>{role === 'strength' ? 'Strength' : 'Opportunity'}</h4>
-          {conclusion.confidence === 'building' && <span className="game-trends-inline-confidence">Building</span>}
         </div>
         <TrendCopy copy={copy} />
       </div>
@@ -73,7 +71,7 @@ function GameTrendsSkeleton() {
   );
 }
 
-export default function GameTrendsCard({ trends, mode, loading, error, onRetry, onLogRound }: Props) {
+export default function GameTrendsCard({ trends, mode, loading, error, onRetry }: Props) {
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
   const {
     containerRef: confidenceTooltipRef,
@@ -157,10 +155,9 @@ export default function GameTrendsCard({ trends, mode, loading, error, onRetry, 
           <button type="button" className="btn btn-secondary" onClick={onRetry}>Try Again</button>
         </div>
       ) : noRounds ? (
-        <div className="game-trends-state">
+        <div className="game-trends-state game-trends-empty-state">
           {modeEmptyTitle && <h4>{modeEmptyTitle}</h4>}
-          <p>{modeEmptyTitle ? `Add ${mode === '9' ? 'a 9-hole' : 'an 18-hole'} round to build this view.` : 'Log your first round to start building Game Trends.'}</p>
-          <button type="button" className="btn btn-accent" onClick={onLogRound}>{modeEmptyTitle ? 'Add Round' : 'Log First Round'}</button>
+          <p>{modeEmptyTitle ? `Add ${mode === '9' ? 'a 9-hole' : 'an 18-hole'} round to build this view.` : 'Add your first round to start building Game Trends.'}</p>
         </div>
       ) : trends ? (
         <div className="game-trends-sections">
@@ -170,7 +167,6 @@ export default function GameTrendsCard({ trends, mode, loading, error, onRetry, 
               <div className="game-trends-row-heading">
                 <h4>Recent Form</h4>
                 {trends.recentForm.maturity === 'early_comparison' && <span className="game-trends-context-label">Early Signal</span>}
-                {trends.recentForm.confidence === 'building' && <span className="game-trends-inline-confidence">Building</span>}
               </div>
               <TrendCopy copy={composeRecentFormCopy(trends)} />
             </div>
@@ -184,7 +180,6 @@ export default function GameTrendsCard({ trends, mode, loading, error, onRetry, 
                 <Info aria-hidden="true" size={18} className="insight-message-icon game-trends-message-icon" data-icon-role={trends.gameProfile.state} />
                 <div className="game-trends-row-heading">
                   <h4>{trends.gameProfile.state === 'balanced' ? 'Balanced Game' : 'Building Your Game Profile'}</h4>
-                  {trends.gameProfile.confidence === 'building' && <span className="game-trends-inline-confidence">Building</span>}
                 </div>
                 <TrendCopy copy={composeGameProfileFallbackCopy(trends)} />
               </div>
@@ -200,7 +195,6 @@ export default function GameTrendsCard({ trends, mode, loading, error, onRetry, 
                   : <Info aria-hidden="true" size={18} className="insight-message-icon game-trends-message-icon" data-icon-role={trends.stability.state} />}
               <div className="game-trends-row-heading">
                 <h4>Stability</h4>
-                {trends.stability.confidence === 'building' && <span className="game-trends-inline-confidence">Building</span>}
               </div>
               <TrendCopy copy={composeStabilityCopy(trends)} />
             </div>

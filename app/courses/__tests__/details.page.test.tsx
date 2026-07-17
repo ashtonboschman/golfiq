@@ -97,6 +97,17 @@ describe('/courses/[id] page GPS status', () => {
     mockedUseMessage.mockReturnValue({ showMessage, clearMessage, showConfirm });
   });
 
+  it('matches the current course layout while the course details are loading', () => {
+    global.fetch = jest.fn(() => new Promise<Response>(() => {})) as typeof fetch;
+
+    const { container } = render(<CourseDetailsPage />);
+
+    expect(screen.getByLabelText('Loading Live GPS status')).toBeInTheDocument();
+    expect(container.querySelector('.course-club svg')).toBeNull();
+    expect(container.querySelector('.course-location svg')).toBeNull();
+    expect(container.querySelector('.course-gps-status-skeleton-copy')).toBeInTheDocument();
+  });
+
   it('shows when live GPS is available for the course', async () => {
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = String(input);

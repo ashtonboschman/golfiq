@@ -22,7 +22,7 @@ function makeDto(overrides: Partial<DashboardRoundFocusDto> = {}): DashboardRoun
 
 describe('composeDashboardRoundFocus', () => {
   it.each([
-    ['off_the_tee', 'Off The Tee is the clearest scoring focus right now.', 'Prioritize keeping the ball in play off the tee.'],
+    ['off_the_tee', 'Off the Tee is the clearest scoring focus right now.', 'Prioritize keeping the ball in play off the tee.'],
     ['approach', 'Approach is the clearest scoring focus right now.', 'Choose targets that leave the largest margin for error.'],
     ['short_game', 'Short Game is the clearest scoring focus right now.', 'Choose the simplest shot that gets the ball safely onto the green.'],
     ['putting', 'Putting is the clearest scoring focus right now.', 'Prioritize pace control and leave manageable second putts.'],

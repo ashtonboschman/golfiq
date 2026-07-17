@@ -136,7 +136,7 @@ describe('resolveRoundIdentity', () => {
     expect(identity.displayEvidence?.strongestArea).toBeUndefined();
   });
 
-  it('does not surface putting or short-game evidence without the required context', () => {
+  it('uses calculated putting SG without GIR while keeping short-game evidence guarded', () => {
     const putting = resolveRoundIdentity(
       baseInput({ sgPutting: 1.2, putts: 29, girHit: null }),
     );
@@ -144,10 +144,44 @@ describe('resolveRoundIdentity', () => {
       baseInput({ sgShortGame: 1.2, shortGameShots: 5, girHit: null }),
     );
 
-    expect(putting.primaryKey).not.toBe('putting_saved');
-    expect(putting.displayEvidence?.strongestArea?.area).not.toBe('putting');
+    expect(putting.primaryKey).toBe('putting_saved');
+    expect(putting.displayEvidence?.reliableAreaCount).toBe(1);
+    expect(putting.displayEvidence?.strongestArea?.area).toBe('putting');
     expect(shortGame.primaryKey).not.toBe('short_game_rescue');
     expect(shortGame.displayEvidence?.strongestArea?.area).not.toBe('short_game');
+  });
+
+  it('uses calculated negative putting SG as a single-area opportunity without GIR', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({ sgPutting: -1.2, putts: 39, girHit: null }),
+    );
+
+    expect(identity.primaryKey).toBe('putting_leak');
+    expect(identity.displayEvidence?.reliableAreaCount).toBe(1);
+    expect(identity.displayEvidence?.weakestArea?.area).toBe('putting');
+  });
+
+  it.each([
+    {
+      name: 'Off the Tee',
+      input: { firHit: 9, fairwaysPossible: 14, sgOffTee: 1 },
+      area: 'off_tee',
+    },
+    {
+      name: 'Approach',
+      input: { girHit: 11, sgApproach: 1 },
+      area: 'approach',
+    },
+    {
+      name: 'Penalties',
+      input: { penalties: 0, sgPenalties: 1.3 },
+      area: 'penalties',
+    },
+  ])('marks a single reliable $name input as one supported area', ({ input, area }) => {
+    const identity = resolveRoundIdentity(baseInput(input));
+
+    expect(identity.displayEvidence?.reliableAreaCount).toBe(1);
+    expect(identity.displayEvidence?.strongestArea?.area).toBe(area);
   });
 
   it('scales approach strength thresholds for nine-hole rounds', () => {
@@ -194,6 +228,58 @@ describe('resolveRoundIdentity', () => {
     expect(identity.primaryKey).not.toBe('putting_saved');
   });
 
+  it('selects putting when reliable putting SG clearly exceeds positive approach SG', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        score: 74,
+        parTotal: 70,
+        toPar: 4,
+        avgScoreRecent: 78,
+        girHit: 11,
+        putts: 31,
+        sgTotal: 2.6,
+        sgApproach: 1,
+        sgPutting: 2.7,
+        sgResidual: -1.1,
+      }),
+    );
+
+    expect(identity.primaryKey).toBe('putting_saved');
+    expect(identity.displayEvidence?.strongestArea?.area).toBe('putting');
+    expect(identity.displayEvidence?.strongestArea?.valueText).toBe('+2.7 SG putting');
+  });
+
+  it('keeps approach priority when positive putting and approach SG are close', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        girHit: 10,
+        putts: 31,
+        sgApproach: 1,
+        sgPutting: 1.1,
+      }),
+    );
+
+    expect(identity.primaryKey).toBe('approach_carried');
+  });
+
+  it('scales the clear putting-over-approach margin for nine-hole rounds', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        holesPlayed: 9,
+        parTotal: 36,
+        score: 40,
+        toPar: 4,
+        avgScoreRecent: 43,
+        girHit: 5,
+        putts: 15,
+        sgApproach: 0.5,
+        sgPutting: 0.8,
+      }),
+    );
+
+    expect(identity.primaryKey).toBe('putting_saved');
+  });
+
   it('returns score_only_baseline when only score exists', () => {
     const identity = resolveRoundIdentity(baseInput({ roundsLifetime: 1 }));
     expect(identity.primaryKey).toBe('score_only_baseline');
@@ -213,6 +299,43 @@ describe('resolveRoundIdentity', () => {
     );
     expect(identity.primaryKey).toBe('score_only_baseline');
     expect(identity.confidence).toBe('building');
+  });
+
+  it('treats score-derived SG Total and Untracked as score-only evidence', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        roundsLifetime: 5,
+        score: 80,
+        toPar: 8,
+        avgScoreRecent: 78,
+        sgTotal: -1.4,
+        sgResidual: -1.4,
+      }),
+    );
+
+    expect(identity.evidenceLevel).toBe('score_only');
+    expect(identity.primaryKey).toBe('score_only_baseline');
+    expect(identity.statCompletenessScore).toBe(0);
+    expect(identity.confidence).toBe('building');
+  });
+
+  it('preserves a score-supported breakthrough without inventing area evidence', () => {
+    const identity = resolveRoundIdentity(
+      baseInput({
+        roundsLifetime: 6,
+        score: 74,
+        toPar: 2,
+        avgScoreRecent: 78,
+        sgTotal: 2.6,
+        sgResidual: 2.6,
+      }),
+    );
+
+    expect(identity.evidenceLevel).toBe('score_only');
+    expect(identity.primaryKey).toBe('breakthrough');
+    expect(identity.confidence).toBe('building');
+    expect(identity.displayEvidence?.strongestArea).toBeUndefined();
+    expect(identity.displayEvidence?.weakestArea).toBeUndefined();
   });
 
   it('uses a neutral aggregate identity when tracked areas have no clear separator', () => {

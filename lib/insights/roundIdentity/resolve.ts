@@ -547,7 +547,7 @@ function buildDisplayEvidence(input: {
     const offTeeScore = input.sgOffTee ?? (input.firPct != null ? (input.firPct - 50) / 12 : 0);
     candidates.push({
       area: 'off_tee',
-      label: 'Off The Tee',
+      label: 'Off the Tee',
       score: offTeeScore,
       valueText:
         input.sgOffTee != null
@@ -659,6 +659,7 @@ function buildDisplayEvidence(input: {
   return {
     scoreText,
     baselineDeltaText,
+    reliableAreaCount: candidates.length,
     strongestArea,
     weakestArea,
     hbhStory,
@@ -961,7 +962,11 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
 
   const candidates: PrimaryCandidate[] = [];
   if (evidence.evidenceLevel === 'score_only') {
-    candidates.push({ key: 'score_only_baseline', priority: 1000, reason: 'score_only' });
+    candidates.push(
+      isBreakthrough
+        ? { key: 'breakthrough', priority: 1000, reason: 'score_only_breakthrough' }
+        : { key: 'score_only_baseline', priority: 1000, reason: 'score_only' },
+    );
   } else {
     if (penaltyLeak) candidates.push({ key: 'penalty_damaged', priority: 990, reason: 'penalties' });
     if (isBigNumberRound) {
@@ -1010,8 +1015,6 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
       }
     }
 
-    if (input.sgApproach != null && input.sgApproach >= expectedScale(input.holesPlayed, 0.9)) candidates.push({ key: 'approach_carried', priority: 930, reason: 'approach_strength' });
-    if ((input.sgOffTee != null && input.sgOffTee >= expectedScale(input.holesPlayed, 0.8)) || (firPct != null && firPct >= 58)) candidates.push({ key: 'tee_controlled', priority: 914, reason: 'tee_strength' });
     const puttingStrength =
       evidence.hasReliablePuttingEvidence &&
       (input.sgPutting != null
@@ -1020,8 +1023,23 @@ export function resolveRoundIdentity(input: RoundIdentityResolverInput): RoundId
           puttsPerHole <= 1.8 &&
           puttOverBaseline != null &&
           puttOverBaseline <= -expectedScale(input.holesPlayed, 3));
+    const puttingClearlyOutperformedApproach =
+      puttingStrength &&
+      input.sgPutting != null &&
+      input.sgApproach != null &&
+      input.sgPutting - input.sgApproach >=
+        expectedScale(input.holesPlayed, POST_ROUND_THRESHOLDS.sgReward);
+
+    if (input.sgApproach != null && input.sgApproach >= expectedScale(input.holesPlayed, 0.9)) candidates.push({ key: 'approach_carried', priority: 930, reason: 'approach_strength' });
+    if ((input.sgOffTee != null && input.sgOffTee >= expectedScale(input.holesPlayed, 0.8)) || (firPct != null && firPct >= 58)) candidates.push({ key: 'tee_controlled', priority: 914, reason: 'tee_strength' });
     if (puttingStrength) {
-      candidates.push({ key: 'putting_saved', priority: 920, reason: 'putting_strength' });
+      candidates.push({
+        key: 'putting_saved',
+        priority: puttingClearlyOutperformedApproach ? 931 : 920,
+        reason: puttingClearlyOutperformedApproach
+          ? 'putting_strength_clear_of_approach'
+          : 'putting_strength',
+      });
     }
     if (
       evidence.hasReliableShortGameEvidence &&

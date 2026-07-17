@@ -33,7 +33,7 @@ describe('TrendCard', () => {
         textColor="#f1f3f6"
         gridColor="#2b3442"
         yStep={2}
-        label="Strokes Gained Trend"
+        label="Strokes Gained History"
       />,
     );
 
