@@ -19,7 +19,7 @@ import {
 } from '@/lib/clubs/clubSuggestion';
 import { resolveActiveTargetYards } from '@/lib/gps/routeYardage';
 import type { LiveGpsMappedHole, LiveGpsPoint } from '@/lib/gps/liveMappingTypes';
-import type { CurrentLocationState, GpsHolePrototypeConfig } from '@/lib/gps/types';
+import type { CurrentLocationState, GpsHoleMapConfig } from '@/lib/gps/types';
 
 type LiveGpsHoleMapProps = {
   apiKey: string | undefined;
@@ -130,7 +130,7 @@ export default function LiveGpsHoleMap({
   const hasCustomTarget = routeState.key === routeKey && routeState.targets !== null;
   const hasCustomTee = customTee !== null;
   const cameraDirty = cameraState.key === routeKey && cameraState.dirty;
-  const config = useMemo<GpsHolePrototypeConfig>(() => ({
+  const config = useMemo<GpsHoleMapConfig>(() => ({
     courseName: 'Live Round',
     holeNumber: hole.holeNumber,
     par: par ?? 3,
@@ -186,15 +186,12 @@ export default function LiveGpsHoleMap({
     holeWithTee,
     testLocationEnabled,
   ]);
-  const trustedUserPosition = measurementOrigin.usingTeeFallback
-    ? null
-    : measurementOrigin.position;
   const currentLocation = useMemo<CurrentLocationState>(() => ({
-    status: trustedUserPosition ? 'granted' : 'idle',
-    position: trustedUserPosition,
-    accuracyMeters: trustedUserPosition ? effectiveUserAccuracy : null,
+    status: effectiveUserPosition ? 'granted' : 'idle',
+    position: effectiveUserPosition,
+    accuracyMeters: effectiveUserPosition ? effectiveUserAccuracy : null,
     message: null,
-  }), [effectiveUserAccuracy, trustedUserPosition]);
+  }), [effectiveUserAccuracy, effectiveUserPosition]);
   const routeTargets = useMemo(
     () => (isManualRoute
       ? allRouteTargets
@@ -276,7 +273,6 @@ export default function LiveGpsHoleMap({
   return (
     <div className="live-round-gps-interactive-shell">
       <GoogleGpsHoleMap
-        variant="live"
         config={config}
         activeHoleIndex={routeKey}
         routeTargets={routeTargets}

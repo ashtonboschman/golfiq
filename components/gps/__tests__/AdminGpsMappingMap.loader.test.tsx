@@ -1,9 +1,10 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AdminGpsMappingMap from '@/components/gps/AdminGpsMappingMap';
 import { loadGoogleMaps } from '@/lib/gps/googleMapsLoader';
+import { distanceYards, formatYardNumber } from '@/lib/gps/distance';
 import type { GpsMappedHoleDraft } from '@/lib/gps/adminMappingTypes';
 
 jest.mock('@/lib/gps/googleMapsLoader', () => ({
@@ -77,5 +78,27 @@ describe('AdminGpsMappingMap loader integration', () => {
     )).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry Map' })).not.toBeInTheDocument();
     expect(mockedLoadGoogleMaps).not.toHaveBeenCalled();
+  });
+
+  it('shows the live GPS green-distance card instead of map badges', () => {
+    mockedLoadGoogleMaps.mockImplementation(() => new Promise<void>(() => {}));
+
+    render(<AdminGpsMappingMap {...mapProps()} />);
+
+    const overlay = screen.getByLabelText('Green distances');
+    const tee = { lat: hole.teeLat!, lng: hole.teeLng! };
+    const expectedDistances = [
+      formatYardNumber(distanceYards(tee, { lat: hole.greenBackLat!, lng: hole.greenBackLng! })),
+      formatYardNumber(distanceYards(tee, { lat: hole.greenCenterLat!, lng: hole.greenCenterLng! })),
+      formatYardNumber(distanceYards(tee, { lat: hole.greenFrontLat!, lng: hole.greenFrontLng! })),
+    ];
+
+    expect(within(overlay).getByText('Back')).toBeInTheDocument();
+    expect(within(overlay).getByText('Mid')).toBeInTheDocument();
+    expect(within(overlay).getByText('Front')).toBeInTheDocument();
+    expectedDistances.forEach((distance) => {
+      expect(within(overlay).getByText(distance)).toBeInTheDocument();
+    });
+    expect(screen.getByText('Map Diagnostics').closest('details')).not.toHaveAttribute('open');
   });
 });

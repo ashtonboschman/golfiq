@@ -10,8 +10,8 @@ import {
 } from '@/lib/gps/routeYardage';
 import type {
   CurrentLocationState,
-  GpsHolePrototypeConfig,
-  GpsPrototypeEditField,
+  GpsHoleMapConfig,
+  GpsMapEditField,
   LatLng,
 } from '@/lib/gps/types';
 
@@ -141,8 +141,7 @@ type GoogleMapsNamespace = {
 };
 
 type GoogleGpsHoleMapProps = {
-  variant?: 'prototype' | 'live';
-  config: GpsHolePrototypeConfig;
+  config: GpsHoleMapConfig;
   activeHoleIndex: number | string;
   routeTargets: LatLng[];
   targetPath: LatLng[];
@@ -162,9 +161,9 @@ type GoogleGpsHoleMapProps = {
   onMapReady?: () => void;
   onMapError?: (message: string) => void;
   editModeEnabled: boolean;
-  selectedEditField: GpsPrototypeEditField;
-  onEditFieldSelect: (field: GpsPrototypeEditField) => void;
-  onEditPointChange: (field: GpsPrototypeEditField, point: LatLng) => void;
+  selectedEditField: GpsMapEditField;
+  onEditFieldSelect: (field: GpsMapEditField) => void;
+  onEditPointChange: (field: GpsMapEditField, point: LatLng) => void;
   onCameraChange: (camera: {
     center: LatLng;
     zoom: number;
@@ -192,7 +191,7 @@ const ROUTE_LINE_OPTIONS = {
   strokeWeight: 2,
   zIndex: 30,
 } satisfies GooglePolylineOptions;
-const EDIT_MARKER_COLORS: Record<GpsPrototypeEditField, string> = {
+const EDIT_MARKER_COLORS: Record<GpsMapEditField, string> = {
   tee: '#38bdf8',
   greenFront: '#d9f99d',
   greenCenter: '#22c55e',
@@ -297,7 +296,7 @@ function targetIcon(): GoogleMarkerIcon {
   };
 }
 
-function editMarkerIcon(field: GpsPrototypeEditField): GoogleMarkerIcon {
+function editMarkerIcon(field: GpsMapEditField): GoogleMarkerIcon {
   const googleMaps = getGoogleMaps();
   if (!googleMaps) return null;
 
@@ -354,18 +353,6 @@ function isGreenLockPath(targetPath: LatLng[], greenCenter: LatLng) {
   );
 }
 
-function cameraDebugText(map: GoogleMap | null) {
-  if (!map) return 'heading: -- | tilt: -- | rendering: --';
-
-  const heading = map.getHeading();
-  const tilt = map.getTilt();
-  const renderingType = typeof map.getRenderingType === 'function'
-    ? map.getRenderingType()
-    : undefined;
-
-  return `heading: ${Math.round(heading ?? 0)} | tilt: ${Math.round(tilt ?? 0)} | rendering: ${renderingType ?? 'unknown'}`;
-}
-
 function readMapCamera(map: GoogleMap) {
   const center = map.getCenter();
 
@@ -387,10 +374,9 @@ function supportsWebGl2() {
 }
 
 function derivedCameraForConfig(
-  config: GpsHolePrototypeConfig,
+  config: GpsHoleMapConfig,
   viewportWidth: number,
   viewportHeight: number,
-  variant: 'prototype' | 'live' = 'prototype',
 ) {
   return deriveAnchoredGpsCamera(
     {
@@ -406,15 +392,9 @@ function derivedCameraForConfig(
       viewportHeight,
       minZoom: MIN_MAP_ZOOM,
       maxZoom: MAX_MAP_ZOOM,
-      topGuideRatio: variant === 'live' ? 0.2 : undefined,
+      topGuideRatio: 0.2,
     },
   );
-}
-
-function headingMatches(expected: number | null, actual: number | null) {
-  if (expected == null || actual == null) return false;
-  const delta = Math.abs(normalizeHeading(expected) - normalizeHeading(actual));
-  return Math.min(delta, 360 - delta) < 1;
 }
 
 function angleDelta(first: number, second: number) {
@@ -423,7 +403,6 @@ function angleDelta(first: number, second: number) {
 }
 
 export default function GoogleGpsHoleMap({
-  variant = 'prototype',
   config,
   activeHoleIndex,
   routeTargets,
@@ -475,18 +454,12 @@ export default function GoogleGpsHoleMap({
   const applyingCameraRef = useRef(false);
   const cameraInteractionReadyRef = useRef(false);
   const editModeEnabledRef = useRef(editModeEnabled);
-  const selectedEditFieldRef = useRef<GpsPrototypeEditField>(selectedEditField);
+  const selectedEditFieldRef = useRef<GpsMapEditField>(selectedEditField);
   const useDerivedCameraRef = useRef(useDerivedCamera);
   const configRef = useRef(config);
   const [mapReady, setMapReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [initCount, setInitCount] = useState(0);
-  const [cameraDebug, setCameraDebug] = useState('heading: -- | tilt: -- | rendering: --');
-  const [vectorStatus, setVectorStatus] = useState('Vector preflight pending.');
-  const [derivedCameraDebug, setDerivedCameraDebug] = useState(
-    'derived: not run | bearing -- | heading -- | points 0 | applied no',
-  );
 
   const editableTargets = routeTargets;
   const visibleTargets = isGreenLockPath(targetPath, config.greenCenter)
@@ -494,7 +467,7 @@ export default function GoogleGpsHoleMap({
     : editableTargets;
 
   function updatePointFromMarker(
-    field: GpsPrototypeEditField,
+    field: GpsMapEditField,
     marker: GoogleMarker,
   ) {
     if (!editModeEnabledRef.current) return;
@@ -545,7 +518,7 @@ export default function GoogleGpsHoleMap({
 
   function attachEditableMarker(
     marker: GoogleMarker,
-    field: GpsPrototypeEditField,
+    field: GpsMapEditField,
   ) {
     marker.setDraggable(editModeEnabledRef.current);
     addMarkerListener(marker, 'click', () => {
@@ -595,23 +568,6 @@ export default function GoogleGpsHoleMap({
     distanceLabelRefs.current = distanceLabelRefs.current.slice(0, count);
   }
 
-  function updateDerivedCameraDebug(args: {
-    available: boolean;
-    bearing: number | null;
-    pointCount: number;
-    currentHeading: number | null;
-    headingApplied: boolean;
-    reason: string;
-  }) {
-    setDerivedCameraDebug(
-      `derived: ${args.available ? 'available' : 'unavailable'} | bearing ${
-        args.bearing == null ? '--' : args.bearing.toFixed(1)
-      } | heading ${args.currentHeading == null ? '--' : args.currentHeading.toFixed(1)} | points ${
-        args.pointCount
-      } | applied ${args.headingApplied ? 'yes' : 'no'} | ${args.reason}`,
-    );
-  }
-
   function cameraDiffersFromDefault(map: GoogleMap) {
     const mapElement = containerRef.current;
     const currentCamera = readMapCamera(map);
@@ -624,7 +580,6 @@ export default function GoogleGpsHoleMap({
         configRef.current,
         mapElement.getBoundingClientRect().width,
         mapElement.getBoundingClientRect().height,
-        variant,
       )
       : null;
     const expectedCenter = derivedCamera?.available && derivedCamera.center
@@ -671,19 +626,10 @@ export default function GoogleGpsHoleMap({
       configRef.current,
       mapRect.width,
       mapRect.height,
-      variant,
     );
     const vectorActive = map.getRenderingType?.() === googleMaps.RenderingType.VECTOR;
 
     if (!derivedCamera.available || !derivedCamera.center || derivedCamera.zoom == null) {
-      updateDerivedCameraDebug({
-        available: false,
-        bearing: derivedCamera.bearing,
-        pointCount: derivedCamera.pointCount,
-        currentHeading: normalizeHeading(map.getHeading()),
-        headingApplied: false,
-        reason: derivedCamera.reason,
-      });
       applyingCameraRef.current = false;
       cameraInteractionReadyRef.current = true;
       return;
@@ -724,18 +670,6 @@ export default function GoogleGpsHoleMap({
       }
 
       window.setTimeout(() => {
-        const heading = normalizeHeading(currentMap.getHeading());
-        updateDerivedCameraDebug({
-          available: true,
-          bearing: derivedCamera.bearing,
-          pointCount: derivedCamera.pointCount,
-          currentHeading: heading,
-          headingApplied: vectorActive && headingMatches(derivedCamera.bearing, heading),
-          reason: vectorActive
-            ? 'Anchored camera applied with tee low and green high.'
-            : 'Anchored camera applied north-up because vector heading is unavailable.',
-        });
-
         const camera = readMapCamera(currentMap);
         if (camera) {
           onCameraChangeRef.current(camera);
@@ -900,12 +834,6 @@ export default function GoogleGpsHoleMap({
         }
 
         const canRequestVector = supportsWebGl2();
-        setVectorStatus(
-          canRequestVector
-            ? 'Vector requested for bearing support.'
-            : 'WebGL2 unavailable, using north-up raster fallback.',
-        );
-
         const mapOptions: GoogleMapOptions = {
           center: toGoogleLatLngLiteral(configRef.current.mapCenter),
           zoom: clampZoom(configRef.current.mapZoom),
@@ -936,8 +864,6 @@ export default function GoogleGpsHoleMap({
         const map = new googleMaps.Map(containerRef.current, mapOptions);
 
         mapRef.current = map;
-        setCameraDebug(cameraDebugText(map));
-        setInitCount((count) => count + 1);
 
         addMapListener(map, 'zoom_changed', () => {
           notifyCameraDifference(map);
@@ -952,35 +878,11 @@ export default function GoogleGpsHoleMap({
         });
 
         addMapListener(map, 'idle', () => {
-          setCameraDebug(cameraDebugText(map));
           const camera = readMapCamera(map);
           if (camera) {
             onCameraChangeRef.current(camera);
           }
           notifyCameraDifference(map);
-          setVectorStatus(
-            map.getRenderingType?.() === googleMaps.RenderingType.VECTOR
-              ? 'Vector active, bearing can apply.'
-              : 'Raster fallback active, bearing is unavailable.',
-          );
-          setDerivedCameraDebug((current) => {
-            if (!current.startsWith('derived:')) return current;
-            const mapRect = containerRef.current?.getBoundingClientRect();
-            const derivedCamera = derivedCameraForConfig(
-              configRef.current,
-              mapRect?.width ?? 1,
-              mapRect?.height ?? 1,
-              variant,
-            );
-            const heading = normalizeHeading(map.getHeading());
-            return `derived: ${
-              derivedCamera.available ? 'available' : 'unavailable'
-            } | bearing ${derivedCamera.bearing == null ? '--' : derivedCamera.bearing.toFixed(1)} | heading ${
-              heading.toFixed(1)
-            } | points ${derivedCamera.pointCount} | applied ${
-              headingMatches(derivedCamera.bearing, heading) ? 'yes' : 'no'
-            } | ${derivedCamera.reason}`;
-          });
         });
 
         teeMarkerRef.current = new googleMaps.Marker({
@@ -1094,7 +996,7 @@ export default function GoogleGpsHoleMap({
     // This effect owns the map and its listeners. Its callbacks read changing values from refs;
     // render-local helper identities must not tear down and reconstruct the map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, loadAttempt, variant]);
+  }, [apiKey, loadAttempt]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1115,7 +1017,7 @@ export default function GoogleGpsHoleMap({
     removeExtraRecommendedTargetMarkers(config.recommendedTargets?.length ?? 0);
     config.recommendedTargets?.forEach((target, index) => {
       if (!recommendedTargetMarkerRefs.current[index]) {
-        const field: GpsPrototypeEditField = index === 0 ? 'recommendedTarget1' : 'recommendedTarget2';
+        const field: GpsMapEditField = index === 0 ? 'recommendedTarget1' : 'recommendedTarget2';
         const marker = new googleMaps.Marker({
           map: editModeEnabled ? map : null,
           draggable: editModeEnabled,
@@ -1157,16 +1059,8 @@ export default function GoogleGpsHoleMap({
         map.setTilt(currentConfig.mapTilt ?? 0);
         map.setHeading(normalizeHeading(currentConfig.mapBearing));
       }
-      setCameraDebug(cameraDebugText(map));
-      setVectorStatus(
-        map.getRenderingType?.() === googleMaps.RenderingType.VECTOR
-          ? 'Vector active, bearing can apply.'
-          : 'Raster fallback active, bearing is unavailable.',
-      );
     }, 0);
     // Camera config is read from configRef so this effect fits only on hole or camera-mode changes.
-    // applyDerivedCamera is intentionally render-local and must not make GPS updates refit the map.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeHoleIndex, mapReady, useDerivedCamera]);
 
   useEffect(() => {
@@ -1174,8 +1068,7 @@ export default function GoogleGpsHoleMap({
     if (!map || !mapReady || autoFitRequest === 0) return;
 
     applyDerivedCamera();
-    // Auto-fit is request-driven; adding the render-local helper would refit after unrelated renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Auto-fit is request-driven so unrelated renders do not refit the map.
   }, [activeHoleIndex, autoFitRequest, mapReady]);
 
   useEffect(() => {
@@ -1311,25 +1204,16 @@ export default function GoogleGpsHoleMap({
 
   if (!apiKey) {
     return (
-      <div
-        className={variant === 'live' ? 'live-round-gps-unavailable' : 'gps-map-missing-key'}
-        role="status"
-      >
-        {variant === 'live'
-          ? 'GPS unavailable for this hole.'
-          : 'Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to compare Google satellite imagery.'}
+      <div className="live-round-gps-unavailable" role="status">
+        GPS unavailable for this hole.
       </div>
     );
   }
 
   if (loadError) {
     return (
-      <div
-        className={variant === 'live' ? 'live-round-gps-unavailable' : 'gps-map-missing-key'}
-      >
-        <span role="status">
-          {variant === 'live' ? 'GPS unavailable for this hole.' : loadError}
-        </span>
+      <div className="live-round-gps-unavailable">
+        <span role="status">GPS unavailable for this hole.</span>
         <button
           type="button"
           className="btn btn-secondary"
@@ -1367,40 +1251,18 @@ export default function GoogleGpsHoleMap({
     </div>
   ) : null;
 
-  if (variant === 'live') {
-    return (
-      <div className="live-round-gps-map-shell">
-        <div className="live-round-gps-map-frame">
-          <div
-            ref={containerRef}
-            className="live-round-gps-map"
-            aria-label={`Google satellite map for physical hole ${config.holeNumber}`}
-          />
-          <div className="gps-distance-stack-overlay">
-            {greenDistanceOverlay}
-            {clubSuggestionOverlay}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="gps-google-map-shell">
-      <div className="gps-google-map-frame">
-        <div ref={containerRef} className="gps-map" aria-label="Google MacGregor GPS-lite map" />
-        {editModeEnabled && (
-          <>
-            <div className="gps-map-center-guide gps-map-center-guide-safe-top" aria-hidden="true" />
-            <div className="gps-map-center-guide gps-map-center-guide-horizontal" aria-hidden="true" />
-            <div className="gps-map-center-guide gps-map-center-guide-safe-bottom" aria-hidden="true" />
-            <div className="gps-map-center-guide gps-map-center-guide-vertical" aria-hidden="true" />
-          </>
-        )}
-        {greenDistanceOverlay}
-      </div>
-      <div className="gps-map-debug" aria-live="polite">
-        Google map init count: {initCount} | {cameraDebug} | {vectorStatus} | {derivedCameraDebug}
+    <div className="live-round-gps-map-shell">
+      <div className="live-round-gps-map-frame">
+        <div
+          ref={containerRef}
+          className="live-round-gps-map"
+          aria-label={`Google satellite map for physical hole ${config.holeNumber}`}
+        />
+        <div className="gps-distance-stack-overlay">
+          {greenDistanceOverlay}
+          {clubSuggestionOverlay}
+        </div>
       </div>
     </div>
   );

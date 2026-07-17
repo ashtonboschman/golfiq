@@ -3,7 +3,7 @@ export type LatLng = {
   lng: number;
 };
 
-export type GpsHolePrototypeConfig = {
+export type GpsHoleMapConfig = {
   courseName: string;
   holeNumber: number;
   par: number;
@@ -23,7 +23,7 @@ export type GpsHolePrototypeConfig = {
   mapTilt?: number;
 };
 
-export type GpsPrototypeEditField =
+export type GpsMapEditField =
   | 'tee'
   | 'greenFront'
   | 'greenCenter'

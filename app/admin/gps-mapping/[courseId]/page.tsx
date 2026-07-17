@@ -49,6 +49,19 @@ export default async function GpsMappingCoursePage({ params }: GpsMappingCourseP
   const { courseId } = await params;
   const payload = await getGpsMappedCourse(courseId);
   const scorecardHoles = deriveScorecardHoles(payload);
+  const locationLabel = payload.course.location
+    ? [
+        payload.course.location.city,
+        payload.course.location.state,
+        payload.course.location.country,
+      ].filter(Boolean).join(', ')
+    : '';
+  const courseNameDiffersFromClub = payload.course.courseName.trim().toLowerCase()
+    !== payload.course.clubName.trim().toLowerCase();
+  const courseDetails = [
+    courseNameDiffersFromClub ? payload.course.courseName : '',
+    locationLabel,
+  ].filter(Boolean).join(' | ');
 
   async function startMapping() {
     'use server';
@@ -58,24 +71,32 @@ export default async function GpsMappingCoursePage({ params }: GpsMappingCourseP
 
   return (
     <div className="gps-admin-page">
-      <section className="gps-admin-page-header">
+      <section className="gps-admin-page-header gps-admin-course-page-header">
         <div>
-          <p className="gps-prototype-kicker">Admin GPS Mapping</p>
+          <p className="gps-admin-kicker">Admin GPS Mapping</p>
           <h1>{payload.course.clubName}</h1>
-          <p>
-            {payload.course.courseName}
-            {payload.course.location
-              ? ` | ${[
-                  payload.course.location.city,
-                  payload.course.location.state,
-                  payload.course.location.country,
-                ].filter(Boolean).join(', ')}`
-              : ''}
-          </p>
+          {courseDetails && <p>{courseDetails}</p>}
+          {payload.mappedCourse && (
+            <p className="gps-admin-course-source">
+              Source: {payload.mappedCourse.source.toLowerCase().replaceAll('_', ' ')}
+            </p>
+          )}
         </div>
-        <Link href="/admin/gps-mapping" className="btn btn-secondary">
-          All Courses
-        </Link>
+        <div className="gps-admin-heading-actions">
+          {payload.mappedCourse && (
+            <span className={`gps-admin-status-pill${
+              payload.mappedCourse.mappingStatus === 'READY'
+                || payload.mappedCourse.mappingStatus === 'VERIFIED'
+                ? ' is-ready'
+                : ''
+            }`}>
+              {payload.mappedCourse.mappingStatus.toLowerCase()}
+            </span>
+          )}
+          <Link href="/admin/gps-mapping" className="gps-admin-courses-link">
+            Courses
+          </Link>
+        </div>
       </section>
 
       {!payload.mappedCourse ? (

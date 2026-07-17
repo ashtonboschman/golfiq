@@ -5,7 +5,7 @@ import '@testing-library/jest-dom';
 import GoogleGpsHoleMap from '@/components/gps/GoogleGpsHoleMap';
 import { loadGoogleMaps } from '@/lib/gps/googleMapsLoader';
 import { resolveActiveTargetYards } from '@/lib/gps/routeYardage';
-import type { GpsHolePrototypeConfig } from '@/lib/gps/types';
+import type { GpsHoleMapConfig } from '@/lib/gps/types';
 
 jest.mock('@/lib/gps/googleMapsLoader', () => ({
   loadGoogleMaps: jest.fn(),
@@ -94,7 +94,7 @@ function installGoogleMapsMock() {
   });
 }
 
-const config: GpsHolePrototypeConfig = {
+const config: GpsHoleMapConfig = {
   courseName: 'Test Course',
   holeNumber: 1,
   par: 4,
@@ -113,7 +113,6 @@ const config: GpsHolePrototypeConfig = {
 
 function mapProps(activeHoleIndex: string, nextConfig = config) {
   return {
-    variant: 'live' as const,
     config: nextConfig,
     activeHoleIndex,
     routeTargets: [nextConfig.defaultTarget],

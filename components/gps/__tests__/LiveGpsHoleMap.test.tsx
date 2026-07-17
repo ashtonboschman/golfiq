@@ -11,7 +11,6 @@ const METERS_PER_DEGREE = 111320;
 const METERS_PER_YARD = 0.9144;
 
 type MockMapProps = {
-  variant?: 'prototype' | 'live';
   activeHoleIndex: number | string;
   config: { holeNumber: number; tee: LiveGpsPoint };
   routeTargets: LiveGpsPoint[];
@@ -41,8 +40,7 @@ jest.mock('@/components/gps/GoogleGpsHoleMap', () => ({
 
     return (
       <div
-        data-testid="prototype-map"
-        data-variant={props.variant}
+        data-testid="live-gps-hole-map"
         data-hole={props.config.holeNumber}
       >
         <button
@@ -139,7 +137,7 @@ function pointBesideRoute(from: LiveGpsPoint, to: LiveGpsPoint, yards: number): 
 }
 
 function currentMapProps() {
-  if (!mockMapProps) throw new Error('Expected the prototype map to render.');
+  if (!mockMapProps) throw new Error('Expected the live GPS map to render.');
   return mockMapProps;
 }
 
@@ -152,7 +150,7 @@ describe('LiveGpsHoleMap', () => {
     { par: 3, expectedTargets: 0, expectedPath: 1 },
     { par: 4, expectedTargets: 1, expectedPath: 2 },
     { par: 5, expectedTargets: 2, expectedPath: 3 },
-  ])('passes the par $par default route into the prototype map', ({
+  ])('passes the par $par default route into the live GPS map', ({
     par,
     expectedTargets,
     expectedPath,
@@ -166,7 +164,7 @@ describe('LiveGpsHoleMap', () => {
       />,
     );
 
-    expect(screen.getByTestId('prototype-map')).toHaveAttribute('data-variant', 'live');
+    expect(screen.getByTestId('live-gps-hole-map')).toBeInTheDocument();
     expect(currentMapProps().routeTargets).toHaveLength(expectedTargets);
     expect(currentMapProps().targetPath).toHaveLength(expectedPath);
   });
@@ -473,8 +471,8 @@ describe('LiveGpsHoleMap', () => {
       />,
     );
 
-    expect(currentMapProps().currentLocation.position).toBeNull();
-    expect(currentMapProps().currentLocation.accuracyMeters).toBeNull();
+    expect(currentMapProps().currentLocation.position).toEqual(poorAccuracyPosition);
+    expect(currentMapProps().currentLocation.accuracyMeters).toBe(30);
     expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
     expect(currentMapProps().greenDistances.middle).toBeCloseTo(
       distanceYards(hole.tee, hole.green.center),
@@ -482,7 +480,7 @@ describe('LiveGpsHoleMap', () => {
     expect(currentMapProps().routeTargets).toEqual([hole.targets[0].point]);
   });
 
-  it('uses tee fallback for a hole-unsuitable accepted fix without showing it as the golfer marker', () => {
+  it('uses tee fallback for a hole-unsuitable accepted fix while showing the golfer marker', () => {
     const hole = mappedHole(4);
     const offCoursePosition = { lat: 50.5, lng: -98 };
     const { rerender } = render(
@@ -496,7 +494,7 @@ describe('LiveGpsHoleMap', () => {
       />,
     );
 
-    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().currentLocation.position).toEqual(offCoursePosition);
     expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
 
     rerender(
@@ -529,7 +527,7 @@ describe('LiveGpsHoleMap', () => {
       />,
     );
 
-    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().currentLocation.position).toEqual(nearbyHome);
     expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
     expect(currentMapProps().greenDistances.middle).toBeCloseTo(
       distanceYards(hole.tee, hole.green.center),
@@ -582,7 +580,7 @@ describe('LiveGpsHoleMap', () => {
       />,
     );
 
-    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().currentLocation.position).toEqual(acceptedPosition);
     expect(currentMapProps().measurementOrigin).toEqual(activeHole.tee);
 
     rerender(
@@ -650,7 +648,7 @@ describe('LiveGpsHoleMap', () => {
     );
 
     expect(currentMapProps().measurementOrigin).toEqual(hole.tee);
-    expect(currentMapProps().currentLocation.position).toBeNull();
+    expect(currentMapProps().currentLocation.position).toEqual(outsideExit);
 
     rerender(
       <LiveGpsHoleMap

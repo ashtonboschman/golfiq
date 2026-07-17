@@ -32,8 +32,6 @@ type CourseBounds = {
 const DEFAULT_ZOOM = 17;
 const MIN_MAP_ZOOM = 16;
 const MAX_MAP_ZOOM = 19;
-const GREEN_DISTANCE_BADGE_DIAMETER_PX = 50;
-const GREEN_DISTANCE_CLUSTER_RADIUS_PX = 55;
 const ROUTE_LINE_STROKE_WEIGHT = 3;
 const ROUTE_LINE_STROKE_OPACITY = 0.92;
 const ROUTE_LINE_COLOR = '#f8fafc';
@@ -85,37 +83,6 @@ function midpoint(from: LatLng, to: LatLng): LatLng {
   };
 }
 
-function toRadians(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-function toDegrees(value: number) {
-  return (value * 180) / Math.PI;
-}
-
-function offsetLatLng(point: LatLng, distanceMeters: number, bearing: number): LatLng {
-  const angularDistance = distanceMeters / 6371008.8;
-  const bearingRadians = toRadians(bearing);
-  const latRadians = toRadians(point.lat);
-  const lngRadians = toRadians(point.lng);
-
-  const nextLat = Math.asin(
-    Math.sin(latRadians) * Math.cos(angularDistance) +
-    Math.cos(latRadians) * Math.sin(angularDistance) * Math.cos(bearingRadians),
-  );
-  const nextLng =
-    lngRadians +
-    Math.atan2(
-      Math.sin(bearingRadians) * Math.sin(angularDistance) * Math.cos(latRadians),
-      Math.cos(angularDistance) - Math.sin(latRadians) * Math.sin(nextLat),
-    );
-
-  return {
-    lat: toDegrees(nextLat),
-    lng: toDegrees(nextLng),
-  };
-}
-
 function markerIcon(field: GpsMappingEditField): google.maps.Symbol {
   const isOuterGreen = field === 'greenFront' || field === 'greenBack';
 
@@ -154,54 +121,9 @@ function distanceLabelIcon(): google.maps.Symbol {
   };
 }
 
-function greenDistanceBadgeIcon(distanceText: string, label: string): google.maps.Icon {
-  const size = GREEN_DISTANCE_BADGE_DIAMETER_PX;
-  const center = size / 2;
-  const radius = center - 1.5;
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <circle cx="${center}" cy="${center}" r="${radius}" fill="rgba(22,22,22,0.92)" stroke="rgba(248,250,252,0.18)" stroke-width="1.1" />
-      <text
-        x="${center}"
-        y="${center - 3.5}"
-        text-anchor="middle"
-        dominant-baseline="middle"
-        fill="#f8fafc"
-        font-family="Arial, sans-serif"
-        font-size="13.5"
-        font-weight="700"
-      >${distanceText}</text>
-      <text
-        x="${center}"
-        y="${center + 9.5}"
-        text-anchor="middle"
-        dominant-baseline="middle"
-        fill="rgba(248,250,252,0.82)"
-        font-family="Arial, sans-serif"
-        font-size="8.5"
-        font-weight="600"
-      >${label}</text>
-    </svg>
-  `.trim();
-
-  return {
-    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new google.maps.Size(size, size),
-    anchor: new google.maps.Point(center, center),
-  };
-}
-
 function normalizeHeading(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return 0;
   return normalizeDegrees(value);
-}
-
-function metersPerPixel(latitude: number, zoom: number) {
-  return (156543.03392 * Math.cos(toRadians(latitude))) / (2 ** zoom);
-}
-
-function screenVectorToBearing(x: number, y: number, heading: number) {
-  return normalizeHeading(heading + toDegrees(Math.atan2(x, -y)));
 }
 
 function formatMapDistanceLabel(from: LatLng, to: LatLng) {
@@ -280,7 +202,6 @@ export default function AdminGpsMappingMap({
   const routePolylineRefs = useRef<google.maps.Polyline[]>([]);
   const courseBoundsRectangleRef = useRef<google.maps.Rectangle | null>(null);
   const distanceLabelRefs = useRef<google.maps.Marker[]>([]);
-  const greenDistanceMarkerRefs = useRef<google.maps.Marker[]>([]);
   const holeRef = useRef(hole);
   const routeLinesVisibleRef = useRef(true);
   const selectedFieldRef = useRef(selectedField);
@@ -303,6 +224,18 @@ export default function AdminGpsMappingMap({
     return pointForField(hole, 'greenCenter') ?? pointForField(hole, 'tee') ?? fallbackCenter;
   }, [fallbackCenter, hole]);
   const initialCenterRef = useRef(initialCenter);
+  const greenDistances = useMemo(() => {
+    const tee = pointForField(hole, 'tee');
+    const front = pointForField(hole, 'greenFront');
+    const middle = pointForField(hole, 'greenCenter');
+    const back = pointForField(hole, 'greenBack');
+
+    return {
+      front: tee && front ? distanceYards(tee, front) : null,
+      middle: tee && middle ? distanceYards(tee, middle) : null,
+      back: tee && back ? distanceYards(tee, back) : null,
+    };
+  }, [hole]);
 
   useEffect(() => {
     holeRef.current = hole;
@@ -358,11 +291,6 @@ export default function AdminGpsMappingMap({
       polyline.setVisible(visible);
       polyline.setOptions(routeLineOptions());
     });
-  }
-
-  function removeExtraGreenDistanceMarkers(count: number) {
-    greenDistanceMarkerRefs.current.slice(count).forEach((marker) => marker.setMap(null));
-    greenDistanceMarkerRefs.current = greenDistanceMarkerRefs.current.slice(0, count);
   }
 
   function routePathForHole(mappedHole: GpsMappedHoleDraft) {
@@ -435,97 +363,10 @@ export default function AdminGpsMappingMap({
     });
   }
 
-  function greenDistanceBadgePositions(greenCenter: LatLng) {
-    const map = mapRef.current;
-    const zoom = map?.getZoom() ?? DEFAULT_ZOOM;
-    const heading = normalizeHeading(map?.getHeading());
-    const radiusMeters = GREEN_DISTANCE_CLUSTER_RADIUS_PX * metersPerPixel(greenCenter.lat, zoom);
-    const vectors = {
-      middle: { x: 1, y: 0 },
-      front: {
-        x: Math.cos((120 * Math.PI) / 180),
-        y: Math.sin((120 * Math.PI) / 180),
-      },
-      back: {
-        x: Math.cos((240 * Math.PI) / 180),
-        y: Math.sin((240 * Math.PI) / 180),
-      },
-    } as const;
-
-    return {
-      middle: offsetLatLng(
-        greenCenter,
-        radiusMeters,
-        screenVectorToBearing(vectors.middle.x, vectors.middle.y, heading),
-      ),
-      front: offsetLatLng(
-        greenCenter,
-        radiusMeters,
-        screenVectorToBearing(vectors.front.x, vectors.front.y, heading),
-      ),
-      back: offsetLatLng(
-        greenCenter,
-        radiusMeters,
-        screenVectorToBearing(vectors.back.x, vectors.back.y, heading),
-      ),
-    };
-  }
-
-  function updateGreenDistanceMarkers(mappedHole: GpsMappedHoleDraft) {
-    const map = mapRef.current;
-    const tee = pointForField(mappedHole, 'tee');
-    const greenFront = pointForField(mappedHole, 'greenFront');
-    const greenCenter = pointForField(mappedHole, 'greenCenter');
-    const greenBack = pointForField(mappedHole, 'greenBack');
-
-    if (!map || !tee || !greenFront || !greenCenter || !greenBack) {
-      removeExtraGreenDistanceMarkers(0);
-      return;
-    }
-
-    const positions = greenDistanceBadgePositions(greenCenter);
-    const badges = [
-      {
-        point: positions.back,
-        distanceText: formatYardNumber(distanceYards(tee, greenBack)),
-        label: 'Back',
-      },
-      {
-        point: positions.middle,
-        distanceText: formatYardNumber(distanceYards(tee, greenCenter)),
-        label: 'Mid',
-      },
-      {
-        point: positions.front,
-        distanceText: formatYardNumber(distanceYards(tee, greenFront)),
-        label: 'Front',
-      },
-    ] as const;
-
-    removeExtraGreenDistanceMarkers(badges.length);
-
-    badges.forEach((badge, index) => {
-      if (!greenDistanceMarkerRefs.current[index]) {
-        greenDistanceMarkerRefs.current[index] = new google.maps.Marker({
-          map,
-          clickable: false,
-          zIndex: 38,
-        });
-      }
-
-      greenDistanceMarkerRefs.current[index].setMap(map);
-      greenDistanceMarkerRefs.current[index].setPosition(toGoogleLatLngLiteral(badge.point));
-      greenDistanceMarkerRefs.current[index].setIcon(
-        greenDistanceBadgeIcon(badge.distanceText, badge.label),
-      );
-    });
-  }
-
   function updateDistanceOverlays(mappedHole = holeRef.current) {
     const path = routePathForHole(mappedHole);
     updateRoutePolylines(path);
     updateRouteDistanceLabels(path);
-    updateGreenDistanceMarkers(mappedHole);
   }
 
   function updateCourseBoundsOverlay() {
@@ -718,16 +559,10 @@ export default function AdminGpsMappingMap({
 
         addListener(map.addListener('zoom_changed', () => {
           setRoutePolylinesVisible(false);
-          updateGreenDistanceMarkers(holeRef.current);
         }));
 
         addListener(map.addListener('heading_changed', () => {
           setRoutePolylinesVisible(false);
-          updateGreenDistanceMarkers(holeRef.current);
-        }));
-
-        addListener(map.addListener('bounds_changed', () => {
-          updateGreenDistanceMarkers(holeRef.current);
         }));
 
         setInitCount((count) => count + 1);
@@ -748,8 +583,6 @@ export default function AdminGpsMappingMap({
       routePolylineRefs.current = [];
       distanceLabelRefs.current.forEach((marker) => marker.setMap(null));
       distanceLabelRefs.current = [];
-      greenDistanceMarkerRefs.current.forEach((marker) => marker.setMap(null));
-      greenDistanceMarkerRefs.current = [];
       courseBoundsRectangleRef.current?.setMap(null);
       courseBoundsRectangleRef.current = null;
       mapRef.current = null;
@@ -817,21 +650,36 @@ export default function AdminGpsMappingMap({
     <div className="gps-admin-map-shell">
       <div className="gps-admin-map-frame">
         <div ref={containerRef} className="gps-map gps-admin-map" aria-label="Admin GPS mapping map" />
-        <div className="gps-map-center-guide gps-map-center-guide-safe-top" aria-hidden="true" />
-        <div className="gps-map-center-guide gps-map-center-guide-horizontal" aria-hidden="true" />
-        <div className="gps-map-center-guide gps-map-center-guide-safe-bottom" aria-hidden="true" />
-        <div className="gps-map-center-guide gps-map-center-guide-vertical" aria-hidden="true" />
+        <div className="gps-distance-stack-overlay">
+          <div className="gps-green-distance-overlay" aria-label="Green distances">
+            <div>
+              <span>Back</span>
+              <strong>{formatYardNumber(greenDistances.back)}</strong>
+            </div>
+            <div>
+              <span>Mid</span>
+              <strong>{formatYardNumber(greenDistances.middle)}</strong>
+            </div>
+            <div>
+              <span>Front</span>
+              <strong>{formatYardNumber(greenDistances.front)}</strong>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="gps-admin-map-debug" aria-live="polite">
-        <span>Google map init count: {initCount}</span>
-        <span>
-          Derived camera: {derivedCameraDebug.available ? 'available' : 'unavailable'} | bearing{' '}
-          {derivedCameraDebug.bearing == null ? '--' : derivedCameraDebug.bearing.toFixed(1)} | current heading{' '}
-          {derivedCameraDebug.currentHeading == null ? '--' : derivedCameraDebug.currentHeading.toFixed(1)} | points{' '}
-          {derivedCameraDebug.pointCount} | heading applied {derivedCameraDebug.headingApplied ? 'yes' : 'no'}
-        </span>
-        <span>{derivedCameraDebug.reason}</span>
-      </div>
+      <details className="gps-admin-map-debug">
+        <summary>Map Diagnostics</summary>
+        <div className="gps-admin-map-debug-content" aria-live="polite">
+          <span>Google map init count: {initCount}</span>
+          <span>
+            Derived camera: {derivedCameraDebug.available ? 'available' : 'unavailable'} | bearing{' '}
+            {derivedCameraDebug.bearing == null ? '--' : derivedCameraDebug.bearing.toFixed(1)} | current heading{' '}
+            {derivedCameraDebug.currentHeading == null ? '--' : derivedCameraDebug.currentHeading.toFixed(1)} | points{' '}
+            {derivedCameraDebug.pointCount} | heading applied {derivedCameraDebug.headingApplied ? 'yes' : 'no'}
+          </span>
+          <span>{derivedCameraDebug.reason}</span>
+        </div>
+      </details>
     </div>
   );
 }
