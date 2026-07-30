@@ -47,6 +47,7 @@ yarn-error.log*
 *~
 
 # documentation
-/docs
+/docs/*
+!/docs/security-network-compatibility-audit.md
 
 .NUL

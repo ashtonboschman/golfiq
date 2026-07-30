@@ -4,6 +4,7 @@ import Link from 'next/link';
 export const metadata: Metadata = {
   title: 'Support | GolfIQ',
   description: 'Contact GolfIQ support for account, billing, and app help.',
+  alternates: { canonical: '/contact' },
 };
 
 type ContactPageProps = {

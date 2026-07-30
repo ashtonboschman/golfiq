@@ -66,6 +66,11 @@ export default async function LandingPage() {
     name: 'GolfIQ',
     url: 'https://www.golfiq.ca',
     logo: 'https://www.golfiq.ca/logos/share/golfiq-share.png',
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'customer support',
+      email: 'golfiqapp@gmail.com',
+    },
     sameAs: [
       'https://facebook.com/golfiqofficial',
       'https://instagram.com/GolfIQApp',

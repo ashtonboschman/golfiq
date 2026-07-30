@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Terms of Service | GolfIQ',
   description: 'GolfIQ Terms of Service - Terms and conditions for using our service.',
+  alternates: { canonical: '/terms' },
 };
 
 export default function TermsPage() {

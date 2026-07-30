@@ -299,11 +299,11 @@ body {
   min-height: 100vh;
   background-color: var(--color-primary-bg);
   overflow-x: hidden;
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 h1, h2, h3, h2, h1, .btn {
-  font-family: var(--font-space-grotesk), monospace;
+  font-family: var(--font-space-grotesk), system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--color-primary-text);
 }
 

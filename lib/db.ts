@@ -1,4 +1,3 @@
-// lib/db.ts
 import fs from 'fs';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
@@ -7,15 +6,25 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-if (process.env.DB_CA_CERT) {
-  const certData = Buffer.from(process.env.DB_CA_CERT, 'base64').toString('utf8');
-  const certPath = process.env.VERCEL ? path.join('/tmp', 'vercel-db-ca.crt') : path.join(process.cwd(), 'tmp', 'vercel-db-ca.crt');
+function resolveDatabaseSsl(): pg.PoolConfig['ssl'] {
+  if (process.env.DB_CA_CERT) {
+    return {
+      ca: Buffer.from(process.env.DB_CA_CERT, 'base64').toString('utf8'),
+      rejectUnauthorized: true,
+    };
+  }
 
-  if (!process.env.VERCEL) fs.mkdirSync(path.dirname(certPath), { recursive: true });
+  if (process.env.DB_CA_CERT_PATH) {
+    return {
+      ca: fs.readFileSync(
+        path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.DB_CA_CERT_PATH),
+        'utf8',
+      ),
+      rejectUnauthorized: true,
+    };
+  }
 
-  fs.writeFileSync(certPath, certData, { encoding: 'utf8' });
-  process.env.NODE_EXTRA_CA_CERTS = certPath;
-
+  return undefined;
 }
 
 const globalForPrisma = globalThis as unknown as {
@@ -56,12 +65,32 @@ function resolvePoolMax(): number | undefined {
   return undefined;
 }
 
+function resolveConnectionString(databaseSsl: pg.PoolConfig['ssl']): string | undefined {
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl || !databaseSsl) return rawUrl;
+
+  try {
+    const parsed = new URL(rawUrl);
+    // node-postgres replaces an explicit `ssl` object when these URL options
+    // are present. The application-provided CA must remain authoritative.
+    for (const parameter of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert']) {
+      parsed.searchParams.delete(parameter);
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 const poolMax = resolvePoolMax();
+const databaseSsl = resolveDatabaseSsl();
+const connectionString = resolveConnectionString(databaseSsl);
 
 // Reuse the pool across hot reloads
 const pool = globalForPrisma.pool ?? new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ...(poolMax ? { max: poolMax } : {}),
+  ...(databaseSsl ? { ssl: databaseSsl } : {}),
 });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.pool = pool;

@@ -16,9 +16,6 @@ export const ourFileRouter = {
       return { userId: session.user.email };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Avatar uploaded for user:", metadata.userId);
-      console.log("File URL:", file.ufsUrl);
-
       return { uploadedBy: metadata.userId, url: file.ufsUrl };
     }),
 } satisfies FileRouter;

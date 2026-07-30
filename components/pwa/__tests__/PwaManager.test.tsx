@@ -58,4 +58,24 @@ describe('PwaManager', () => {
     expect(navigator.serviceWorker.register).not.toHaveBeenCalled();
     expect((global as typeof globalThis & { fetch: jest.Mock }).fetch).not.toHaveBeenCalled();
   });
+
+  it('does not crash when browser storage is unavailable', () => {
+    (global as typeof globalThis & { fetch: jest.Mock }).fetch.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+    const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Storage is blocked', 'SecurityError');
+    });
+    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage is blocked', 'SecurityError');
+    });
+
+    try {
+      expect(() => render(<PwaManager />)).not.toThrow();
+      expect(screen.queryByText(/Install GolfIQ/i)).not.toBeInTheDocument();
+    } finally {
+      getItemSpy.mockRestore();
+      setItemSpy.mockRestore();
+    }
+  });
 });

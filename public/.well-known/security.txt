@@ -1,0 +1,4 @@
+Contact: mailto:golfiqapp@gmail.com
+Expires: 2027-07-29T23:59:59Z
+Canonical: https://www.golfiq.ca/.well-known/security.txt
+Preferred-Languages: en

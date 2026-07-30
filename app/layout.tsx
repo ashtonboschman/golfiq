@@ -3,13 +3,17 @@ import { Suspense } from 'react';
 import "./app.css";
 import { Providers, PostHogProvider } from "./providers";
 import Layout from "@/components/Layout";
-import { Inter, Space_Grotesk, IBM_Plex_Sans } from 'next/font/google';
+import { Inter, Space_Grotesk } from 'next/font/google';
 import BootstrapClient from '@/components/BootstrapClient';
 import PwaManager from '@/components/pwa/PwaManager';
 import LiveRoundAutoResumeGate from '@/components/rounds/LiveRoundAutoResumeGate';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.golfiq.ca"),
+  applicationName: "GolfIQ",
+  category: "sports",
+  creator: "GolfIQ",
+  publisher: "GolfIQ",
   title: "GolfIQ | Track Rounds. Unlock Insights. Score Lower.",
   description:
     "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
@@ -79,12 +83,6 @@ const inter = Inter({
 const space_grotesk = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-space-grotesk',
-  display: 'swap',
-});
-
-const ibm_plex_sans = IBM_Plex_Sans({
-  subsets: ['latin'],
-  variable: '--font-ibm-plex-sans',
   display: 'swap',
 });
 

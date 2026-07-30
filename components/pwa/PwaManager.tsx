@@ -17,6 +17,8 @@ type PwaConfig = {
   source: 'default' | 'db' | 'db_error';
 };
 
+type StorageKind = 'local' | 'session';
+
 const TARGET_PATHS = new Set(['/dashboard', '/insights']);
 const CACHE_PREFIX = 'golfiq-';
 const DISMISS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -60,6 +62,42 @@ function parseSeenPages(raw: string | null): Set<string> {
   }
 }
 
+function getBrowserStorage(kind: StorageKind): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return kind === 'local' ? window.localStorage : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readStorage(kind: StorageKind, key: string): string | null {
+  try {
+    return getBrowserStorage(kind)?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(kind: StorageKind, key: string, value: string): boolean {
+  try {
+    const storage = getBrowserStorage(kind);
+    if (!storage) return false;
+    storage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeStorage(kind: StorageKind, key: string): void {
+  try {
+    getBrowserStorage(kind)?.removeItem(key);
+  } catch {
+    // Storage can be unavailable in restricted or private browsing contexts.
+  }
+}
+
 function isIosSafariBrowser(): boolean {
   const ua = window.navigator.userAgent.toLowerCase();
   const isIos = /iphone|ipad|ipod/.test(ua);
@@ -69,7 +107,10 @@ function isIosSafariBrowser(): boolean {
 
 function isStandaloneDisplay(): boolean {
   const iOSStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
-  return window.matchMedia('(display-mode: standalone)').matches || iOSStandalone === true;
+  const displayModeStandalone =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(display-mode: standalone)').matches;
+  return displayModeStandalone || iOSStandalone === true;
 }
 
 async function clearGolfiqCaches() {
@@ -102,22 +143,22 @@ export default function PwaManager() {
   const [isStandalone, setIsStandalone] = useState(
     () =>
       typeof window !== 'undefined' &&
-      (isStandaloneDisplay() || localStorage.getItem(INSTALLED_KEY) === '1'),
+      (isStandaloneDisplay() || readStorage('local', INSTALLED_KEY) === '1'),
   );
   const [isIosSafari] = useState(() => typeof window !== 'undefined' && isIosSafariBrowser());
   const [dismissedUntil, setDismissedUntil] = useState(
-    () => (typeof window !== 'undefined' ? parseIntSafe(localStorage.getItem(DISMISS_KEY)) : 0),
+    () => (typeof window !== 'undefined' ? parseIntSafe(readStorage('local', DISMISS_KEY)) : 0),
   );
   const [sessionCount, setSessionCount] = useState(
-    () => (typeof window !== 'undefined' ? parseIntSafe(localStorage.getItem(SESSIONS_KEY)) : 0),
+    () => (typeof window !== 'undefined' ? parseIntSafe(readStorage('local', SESSIONS_KEY)) : 0),
   );
   const [pageVisitCount, setPageVisitCount] = useState(
-    () => (typeof window !== 'undefined' ? parseSeenPages(localStorage.getItem(PAGES_KEY)).size : 0),
+    () => (typeof window !== 'undefined' ? parseSeenPages(readStorage('local', PAGES_KEY)).size : 0),
   );
   const [updateReady, setUpdateReady] = useState(false);
   const [updateRegistration, setUpdateRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [updatePending, setUpdatePending] = useState(
-    () => typeof window !== 'undefined' && sessionStorage.getItem(UPDATE_PENDING_KEY) === '1',
+    () => typeof window !== 'undefined' && readStorage('session', UPDATE_PENDING_KEY) === '1',
   );
 
   const updateToastTrackedRef = useRef(false);
@@ -150,7 +191,7 @@ export default function PwaManager() {
     if (nativeApp) return;
     if (!('serviceWorker' in navigator)) return;
     const handleControllerChange = () => {
-      sessionStorage.removeItem(UPDATE_PENDING_KEY);
+      removeStorage('session', UPDATE_PENDING_KEY);
       setUpdatePending(false);
       setUpdateReady(false);
     };
@@ -231,15 +272,15 @@ export default function PwaManager() {
     if (nativeApp) return;
 
     const init = async () => {
-      const cachedRaw = sessionStorage.getItem(PWA_CONFIG_CACHE_KEY);
-      const cachedTs = parseIntSafe(sessionStorage.getItem(PWA_CONFIG_CACHE_TS_KEY));
+      const cachedRaw = readStorage('session', PWA_CONFIG_CACHE_KEY);
+      const cachedTs = parseIntSafe(readStorage('session', PWA_CONFIG_CACHE_TS_KEY));
       if (cachedRaw && cachedTs && getNow() - cachedTs < PWA_CONFIG_CACHE_TTL_MS) {
         try {
           setConfig(JSON.parse(cachedRaw) as PwaConfig);
           return;
         } catch {
-          sessionStorage.removeItem(PWA_CONFIG_CACHE_KEY);
-          sessionStorage.removeItem(PWA_CONFIG_CACHE_TS_KEY);
+          removeStorage('session', PWA_CONFIG_CACHE_KEY);
+          removeStorage('session', PWA_CONFIG_CACHE_TS_KEY);
         }
       }
 
@@ -251,8 +292,8 @@ export default function PwaManager() {
         }
         const nextConfig = (await response.json()) as PwaConfig;
         setConfig(nextConfig);
-        sessionStorage.setItem(PWA_CONFIG_CACHE_KEY, JSON.stringify(nextConfig));
-        sessionStorage.setItem(PWA_CONFIG_CACHE_TS_KEY, String(getNow()));
+        writeStorage('session', PWA_CONFIG_CACHE_KEY, JSON.stringify(nextConfig));
+        writeStorage('session', PWA_CONFIG_CACHE_TS_KEY, String(getNow()));
       } catch {
         setConfig(FALLBACK_CONFIG);
       }
@@ -264,19 +305,19 @@ export default function PwaManager() {
   useEffect(() => {
     if (nativeApp) return;
     const syncSessionCount = () => {
-      const markedInstalled = localStorage.getItem(INSTALLED_KEY) === '1';
+      const markedInstalled = readStorage('local', INSTALLED_KEY) === '1';
       if (markedInstalled) setIsStandalone(true);
 
-      const hasSessionMarker = sessionStorage.getItem(SESSION_MARKER_KEY) === '1';
-      const currentSessions = parseIntSafe(localStorage.getItem(SESSIONS_KEY));
+      const hasSessionMarker = readStorage('session', SESSION_MARKER_KEY) === '1';
+      const currentSessions = parseIntSafe(readStorage('local', SESSIONS_KEY));
       if (hasSessionMarker) {
         setSessionCount(currentSessions);
         return;
       }
 
       const nextSessions = currentSessions + 1;
-      localStorage.setItem(SESSIONS_KEY, String(nextSessions));
-      sessionStorage.setItem(SESSION_MARKER_KEY, '1');
+      writeStorage('local', SESSIONS_KEY, String(nextSessions));
+      writeStorage('session', SESSION_MARKER_KEY, '1');
       setSessionCount(nextSessions);
     };
     syncSessionCount();
@@ -287,7 +328,7 @@ export default function PwaManager() {
     };
 
     const handleInstalled = () => {
-      localStorage.setItem(INSTALLED_KEY, '1');
+      writeStorage('local', INSTALLED_KEY, '1');
       setIsStandalone(true);
       setDeferredPrompt(null);
       captureClientEvent(
@@ -307,9 +348,9 @@ export default function PwaManager() {
 
   useEffect(() => {
     if (nativeApp) return;
-    const seen = parseSeenPages(localStorage.getItem(PAGES_KEY));
+    const seen = parseSeenPages(readStorage('local', PAGES_KEY));
     seen.add(pathname);
-    localStorage.setItem(PAGES_KEY, JSON.stringify(Array.from(seen)));
+    writeStorage('local', PAGES_KEY, JSON.stringify(Array.from(seen)));
     const syncPageCount = () => setPageVisitCount(seen.size);
     syncPageCount();
   }, [nativeApp, pathname]);
@@ -339,7 +380,7 @@ export default function PwaManager() {
 
   const dismissInstallPrompt = () => {
     const nextDismissedUntil = getNow() + DISMISS_MS;
-    localStorage.setItem(DISMISS_KEY, String(nextDismissedUntil));
+    writeStorage('local', DISMISS_KEY, String(nextDismissedUntil));
     setDismissedUntil(nextDismissedUntil);
   };
 
@@ -354,7 +395,7 @@ export default function PwaManager() {
     setDeferredPrompt(null);
 
     if (choice.outcome === 'accepted') {
-      localStorage.setItem(INSTALLED_KEY, '1');
+      writeStorage('local', INSTALLED_KEY, '1');
       setIsStandalone(true);
       captureClientEvent(
         ANALYTICS_EVENTS.pwaInstallAccepted,
@@ -374,7 +415,7 @@ export default function PwaManager() {
       { pathname, isLoggedIn: false },
     );
     setUpdateReady(false);
-    sessionStorage.setItem(UPDATE_PENDING_KEY, '1');
+    writeStorage('session', UPDATE_PENDING_KEY, '1');
     setUpdatePending(true);
 
     const waitingWorker = updateRegistration?.waiting;
