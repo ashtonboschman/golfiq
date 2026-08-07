@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from 'react';
 import "./app.css";
 import { Providers, PostHogProvider } from "./providers";
@@ -7,6 +7,12 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import BootstrapClient from '@/components/BootstrapClient';
 import PwaManager from '@/components/pwa/PwaManager';
 import LiveRoundAutoResumeGate from '@/components/rounds/LiveRoundAutoResumeGate';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.golfiq.ca"),

@@ -5,7 +5,7 @@ import Footer from './Footer';
 import Messages from './Messages';
 import AppBootOverlay from './AppBootOverlay';
 
-function HeaderFallback() {
+export function HeaderFallback() {
   return (
     <header className="header" aria-hidden="true">
       <div className="header-inner">

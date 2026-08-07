@@ -28,6 +28,21 @@
   --padding-small: 5px;
   --padding-large: 20px;
 
+  /* Application shell geometry */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --app-header-height: 80px;
+  --app-footer-height: 80px;
+  --app-header-extent: calc(var(--app-header-height) + var(--safe-area-top));
+  --app-footer-extent: calc(var(--app-footer-height) + var(--safe-area-bottom));
+  --app-page-top-offset: calc(var(--app-header-extent) + var(--gap));
+  --app-page-bottom-padding: calc(var(--padding) + var(--safe-area-bottom));
+  --app-shell-inline-gutter: max(0px, calc((100vw - 640px) / 2));
+  --app-shell-safe-left: max(var(--padding), calc(var(--safe-area-left) - var(--app-shell-inline-gutter)));
+  --app-shell-safe-right: max(var(--padding), calc(var(--safe-area-right) - var(--app-shell-inline-gutter)));
+
   /* Base Specific Colors */
   --color-green: #28a065;
   --color-green-hover: #1f7f50;
@@ -330,7 +345,10 @@ h1, h2, h3, h2, h1, .btn {
   max-width: 640px;
   margin: 0 auto;
   padding: var(--padding);
-  padding-top: 90px;
+  padding-top: var(--app-page-top-offset);
+  padding-right: var(--app-shell-safe-right);
+  padding-bottom: var(--app-page-bottom-padding);
+  padding-left: var(--app-shell-safe-left);
   box-sizing: border-box;
 }
 
@@ -394,7 +412,7 @@ h1, h2, h3, h2, h1, .btn {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
-  padding-bottom: 80px; 
+  padding-bottom: var(--app-footer-height);
 }
 
 /* ===========================
@@ -416,7 +434,7 @@ h1, h2, h3, h2, h1, .btn {
 =========================== */
 .message-toast {
   position: fixed;
-  top: 96px;
+  top: calc(var(--app-header-extent) + 16px);
   left: 50%;
   transform: translateX(-50%);
 
@@ -425,7 +443,8 @@ h1, h2, h3, h2, h1, .btn {
   gap: var(--gap);
 
   padding: var(--padding);
-  max-width: 90%;
+  max-width: calc(100% - var(--safe-area-left) - var(--safe-area-right) - var(--padding-large));
+  box-sizing: border-box;
   font-weight: 500;
   font-size: 1rem;
 
@@ -720,10 +739,11 @@ select option {
   display: flex;
   justify-content: center;
   left: 0;
-  padding: 0;
+  padding: 0 var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
   position: fixed;
   width: 100%;
-  height: 80px;
+  height: var(--app-footer-extent);
+  box-sizing: border-box;
   z-index: 100;
   flex-shrink: 0;
 }
@@ -803,7 +823,9 @@ select option {
   justify-content: center;
   background-color: var(--color-primary-surface);
   color: var(--color-primary-text);
-  height: 80px;
+  height: var(--app-header-extent);
+  padding: var(--safe-area-top) var(--safe-area-right) 0 var(--safe-area-left);
+  box-sizing: border-box;
   z-index: 100;
   flex-shrink: 0;
 }
@@ -815,7 +837,7 @@ select option {
   justify-content: center;
   width: 100%;
   max-width: 640px;
-  height: 100%;
+  height: var(--app-header-height);
 }
 
 .header .logo-wrap {
@@ -928,7 +950,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   flex-direction: column;
   gap: var(--gap);
   padding-top: 0;
-  padding-bottom: 80px;
+  padding-bottom: var(--app-footer-height);
   justify-content: flex-start;
   align-content: center;
 }
@@ -6497,7 +6519,7 @@ input[type='date'].form-input {
 }
 
 .landing-main {
-  padding-top: 80px;
+  padding-top: var(--app-header-height);
 }
 
 /* Landing Header */
@@ -6510,13 +6532,17 @@ input[type='date'].form-input {
   background-color: rgba(15, 19, 26, 0.95);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--color-border);
-  height: 80px;
+  height: var(--app-header-extent);
+  padding-top: var(--safe-area-top);
+  box-sizing: border-box;
 }
 
 .landing-header-inner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px 24px;
+  height: var(--app-header-height);
+  padding: 20px max(24px, var(--safe-area-right)) 20px max(24px, var(--safe-area-left));
+  box-sizing: border-box;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -7175,7 +7201,7 @@ input[type='date'].form-input {
 
 @media (max-width: 480px) {
   .landing-header-inner {
-    padding: 20px 16px;
+    padding: 20px max(16px, var(--safe-area-right)) 20px max(16px, var(--safe-area-left));
   }
 
   .landing-logo {
@@ -8699,8 +8725,8 @@ input[type='date'].form-input {
 /* PWA */
 .pwa-update-toast {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  right: max(16px, var(--safe-area-right));
+  bottom: calc(16px + var(--safe-area-bottom));
   z-index: 1200;
   display: flex;
   flex-wrap: nowrap;
@@ -8723,9 +8749,9 @@ input[type='date'].form-input {
 
 .pwa-install-card {
   position: fixed;
-  right: 16px;
+  right: max(16px, var(--safe-area-right));
   left: auto;
-  bottom: 16px;
+  bottom: calc(16px + var(--safe-area-bottom));
   z-index: 1190;
   width: min(560px, calc(100vw - 32px));
   margin: 0;
@@ -8788,8 +8814,8 @@ input[type='date'].form-input {
 @media (max-width: 640px) {
   .pwa-update-toast,
   .pwa-install-card {
-    left: 12px;
-    right: 12px;
+    left: max(12px, var(--safe-area-left));
+    right: max(12px, var(--safe-area-right));
     width: auto;
   }
 }
@@ -10043,7 +10069,7 @@ input[type='date'].form-input {
   width: 100%;
   max-width: 100%;
   margin: 0;
-  padding: 0 0 calc(80px - var(--padding) + env(safe-area-inset-bottom));
+  padding: 0 0 calc(var(--app-footer-height) - var(--padding));
   display: grid;
   gap: var(--gap);
   box-sizing: border-box;
@@ -10628,7 +10654,7 @@ input[type='date'].form-input {
 @media (max-width: 900px) {
   .gps-admin-page {
     width: 100%;
-    padding: 0 0 calc(80px - var(--padding) + env(safe-area-inset-bottom));
+    padding: 0 0 calc(var(--app-footer-height) - var(--padding));
   }
 
   .gps-admin-layout {
@@ -10662,7 +10688,7 @@ input[type='date'].form-input {
 
 @media (max-width: 640px) {
   .gps-admin-page {
-    padding: 0 0 calc(80px - var(--padding) + env(safe-area-inset-bottom));
+    padding: 0 0 calc(var(--app-footer-height) - var(--padding));
     gap: var(--gap);
   }
 
@@ -11189,8 +11215,8 @@ input[type='date'].form-input {
   --live-round-gps-green-card-width: 82px;
   position: fixed;
   z-index: 90;
-  top: 80px;
-  bottom: 80px;
+  top: var(--app-header-extent);
+  bottom: var(--app-footer-extent);
   left: 50%;
   width: min(100%, 640px);
   overflow: hidden;
@@ -11222,20 +11248,23 @@ input[type='date'].form-input {
 .live-round-gps-map-frame .gps-green-distance-overlay {
   z-index: 5;
   min-width: var(--live-round-gps-green-card-width);
+  right: var(--app-shell-safe-right);
 }
 
 .live-round-gps-map-frame .gps-distance-stack-overlay {
   width: var(--live-round-gps-green-card-width);
+  right: var(--app-shell-safe-right);
 }
 
 .live-round-gps-map-frame .gps-club-suggestion-overlay {
   min-width: var(--live-round-gps-green-card-width);
+  right: var(--app-shell-safe-right);
 }
 
 .live-round-gps-reset-target {
   position: absolute;
   z-index: 6;
-  right: var(--gap);
+  right: var(--app-shell-safe-right);
   bottom: 96px;
   display: grid;
   place-items: center;
@@ -11250,7 +11279,7 @@ input[type='date'].form-input {
   position: absolute;
   z-index: 2;
   top: var(--gap);
-  left: var(--gap);
+  left: var(--app-shell-safe-left);
   border-radius: var(--border-radius);
   padding: 8px 10px;
   background: rgba(15, 23, 42, 0.86);
@@ -11269,8 +11298,8 @@ input[type='date'].form-input {
   position: absolute;
   z-index: 3;
   top: var(--gap);
-  right: calc(var(--gap) + var(--live-round-gps-green-card-width) + var(--gap));
-  left: var(--gap);
+  right: calc(var(--app-shell-safe-right) + var(--live-round-gps-green-card-width) + var(--gap));
+  left: var(--app-shell-safe-left);
   display: grid;
   gap: var(--gap);
   pointer-events: none;
@@ -11476,9 +11505,9 @@ input[type='date'].form-input {
 .live-round-gps-controls {
   position: absolute;
   z-index: 4;
-  right: var(--gap);
+  right: var(--app-shell-safe-right);
   bottom: 28px;
-  left: var(--gap);
+  left: var(--app-shell-safe-left);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--gap);
