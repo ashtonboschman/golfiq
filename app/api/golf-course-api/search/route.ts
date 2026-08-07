@@ -1,8 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api-auth';
+import { isAdminUserId } from '@/lib/admin';
+import { GOLF_COURSE_API_PROVIDER } from '@/lib/courses/externalIds';
 import { checkRateLimit, logApiCall } from '@/lib/utils/apiRateLimit';
 
-const GOLF_COURSE_API_PROVIDER = 'golf_course_api';
+const GOLF_COURSE_API_DAILY_LIMIT = 50;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeExternalCourseIds(data: unknown): unknown {
+  if (!isRecord(data) || !Array.isArray(data.courses)) return data;
+
+  return {
+    ...data,
+    courses: data.courses.map((course) => {
+      if (!isRecord(course)) return course;
+      if (typeof course.id !== 'string' && typeof course.id !== 'number') return course;
+
+      return {
+        ...course,
+        id: String(course.id).trim(),
+      };
+    }),
+  };
+}
 
 async function safeLogApiUsage(input: Parameters<typeof logApiCall>[0]) {
   try {
@@ -28,18 +51,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check rate limit (200 calls per day globally)
-    const rateLimit = await checkRateLimit('golf-course-api-search', 200);
-
-    if (!rateLimit.canProceed) {
-      return NextResponse.json(
-        {
-          error: 'Daily API limit reached. Please try again tomorrow.',
-          callsUsed: rateLimit.callsUsed,
-          limit: rateLimit.limit
-        },
-        { status: 429 }
+    // Preserve the global guard for normal users while allowing admins to
+    // diagnose and operate imports after GolfIQ's own daily threshold.
+    if (!isAdminUserId(userId)) {
+      const rateLimit = await checkRateLimit(
+        'golf-course-api-search',
+        GOLF_COURSE_API_DAILY_LIMIT,
       );
+
+      if (!rateLimit.canProceed) {
+        return NextResponse.json(
+          {
+            error: 'Daily API limit reached. Please try again tomorrow.',
+            callsUsed: rateLimit.callsUsed,
+            limit: rateLimit.limit
+          },
+          { status: 429 }
+        );
+      }
     }
 
     const apiKey = process.env.GOLF_COURSE_API_KEY;
@@ -86,8 +115,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const data = await response.json();
-    const resultCount = Array.isArray(data?.courses) ? data.courses.length : 0;
+    const data = normalizeExternalCourseIds(await response.json());
+    const resultCount = isRecord(data) && Array.isArray(data.courses) ? data.courses.length : 0;
 
     await safeLogApiUsage({
       endpoint: 'golf-course-api-search',

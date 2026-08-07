@@ -229,7 +229,6 @@ export default function ManualCourseForm({ onCourseCreated, onCancel }: ManualCo
     const femaleTees = tees.filter(t => t.gender === 'female');
 
     const courseData = {
-      id: Date.now(), // Temporary ID
       course_name: courseInfo.course_name,
       club_name: courseInfo.club_name,
       location: {

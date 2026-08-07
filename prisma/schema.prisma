@@ -132,7 +132,7 @@ model UserProfile {
   liveRoundTrackGreensideBunkerShots Boolean             @default(true) @map("live_round_track_greenside_bunker_shots")
   liveRoundTrackPutts                Boolean             @default(true) @map("live_round_track_putts")
   liveRoundTrackPenalties            Boolean             @default(true) @map("live_round_track_penalties")
-  favoriteCourse                     Course?             @relation(fields: [favoriteCourseId], references: [id])
+  favoriteCourse                     Course?             @relation(fields: [favoriteCourseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   user                               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([dashboardVisibility], map: "idx_dashboard_visibility")
@@ -193,6 +193,7 @@ model Course {
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   verified           Boolean            @default(false)
+  externalIds        CourseExternalId[]
   location           Location?
   mappedCourse       MappedCourse?
   gpsCourseRequests  GpsCourseRequest[]
@@ -203,6 +204,30 @@ model Course {
 
   @@index([verified], map: "idx_course_verified")
   @@map("courses")
+}
+
+model CourseExternalId {
+  id         BigInt   @id @default(autoincrement())
+  courseId   BigInt   @map("course_id")
+  provider   String
+  externalId String   @map("external_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([provider, externalId], name: "providerExternalId", map: "uq_course_external_ids_provider_external_id")
+  @@index([courseId, provider], map: "idx_course_external_ids_course_provider")
+  @@map("course_external_ids")
+}
+
+model CourseIdMigrationMap {
+  oldCourseId       BigInt   @id @map("old_course_id")
+  newCourseId       BigInt   @unique @map("new_course_id")
+  provider          String?
+  currentExternalId String?  @map("current_external_id")
+  migratedAt        DateTime @default(now()) @map("migrated_at") @db.Timestamptz(6)
+
+  @@map("course_id_migration_map")
 }
 
 model MappedCourse {
@@ -218,7 +243,7 @@ model MappedCourse {
   source        GpsMappingSource @default(UNKNOWN)
   createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  course        Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course        Course           @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   holes         MappedHole[]
 
   @@index([mappingStatus], map: "idx_mapped_courses_status")
@@ -266,7 +291,7 @@ model GpsCourseRequest {
   status    GpsCourseRequestStatus @default(REQUESTED)
   createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  course    Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, userId], map: "uq_gps_course_requests_course_user")
@@ -287,7 +312,7 @@ model Location {
   longitude Decimal? @db.Decimal(10, 7)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([courseId], map: "idx_location_course_id")
   @@map("locations")
@@ -317,7 +342,7 @@ model Tee {
   holes             Hole[]
   rounds            Round[]
   liveRoundSessions LiveRoundSession[]
-  course            Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course            Course             @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([courseId], map: "idx_tee_course_id")
   @@map("tees")
@@ -369,7 +394,7 @@ model Round {
   RoundInsight              RoundInsight?
   roundStrokesGained        RoundStrokesGained?
   finalizedLiveRoundSession LiveRoundSession?      @relation("FinalizedLiveRound")
-  course                    Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course                    Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tee                       Tee                    @relation(fields: [teeId], references: [id])
   user                      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userAchievementEvents     UserAchievementEvent[]
@@ -434,7 +459,7 @@ model LiveRoundSession {
   discardedAt                        DateTime?              @map("discarded_at") @db.Timestamptz(6)
   createdAt                          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  course                             Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course                             Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   finalRound                         Round?                 @relation("FinalizedLiveRound", fields: [finalRoundId], references: [id], onDelete: SetNull)
   holeDrafts                         LiveRoundHoleDraft[]
   tee                                Tee                    @relation(fields: [teeId], references: [id])

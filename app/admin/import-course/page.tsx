@@ -9,6 +9,7 @@ import { AdminPanelSkeleton } from '@/components/skeleton/PageSkeletons';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { isAdminUserId } from '@/lib/admin';
+import { GOLF_COURSE_API_PROVIDER } from '@/lib/courses/externalIds';
 
 function formatNineRating(tee: any, segment: 'front' | 'back') {
   const rating = tee[`${segment}_course_rating`];
@@ -108,6 +109,24 @@ export default function ImportCoursePage() {
 
     // Filter tees based on selection
     const filteredPreview = { ...preview };
+    const hasExplicitExternalIdentity = typeof filteredPreview.external_id === 'string';
+    const rawExternalId = hasExplicitExternalIdentity
+      ? filteredPreview.external_id
+      : filteredPreview.id;
+
+    if (rawExternalId !== undefined && rawExternalId !== null) {
+      const externalId = String(rawExternalId).trim();
+      if (!externalId) {
+        showMessage('The provider course ID cannot be empty', 'error');
+        return;
+      }
+
+      filteredPreview.provider = hasExplicitExternalIdentity
+        ? filteredPreview.provider
+        : GOLF_COURSE_API_PROVIDER;
+      filteredPreview.external_id = externalId;
+      delete filteredPreview.id;
+    }
     const selectedMaleTees: any[] = [];
     const selectedFemaleTees: any[] = [];
 
@@ -459,7 +478,8 @@ export default function ImportCoursePage() {
           </div>
 
           <div className='secondary-text'>
-            <strong>Course ID:</strong> {preview.id || 'N/A'}
+            <strong>External Course ID:</strong>{' '}
+            {preview.external_id || preview.id || 'Generated for manual course'}
           </div>
 
           {preview.location && (

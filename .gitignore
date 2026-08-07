@@ -48,6 +48,7 @@ yarn-error.log*
 
 # documentation
 /docs/*
+!/docs/course-identity-migration.md
 !/docs/security-network-compatibility-audit.md
 
 .NUL

@@ -18,12 +18,13 @@ const mockedLogApiCall = logApiCall as jest.Mock;
 describe('/api/golf-course-api/search route contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedRequireAuth.mockResolvedValue(BigInt(2));
     mockedCheckRateLimit.mockResolvedValue({
       canProceed: true,
       callsUsed: 0,
-      limit: 200,
+      limit: 50,
     });
+    mockedLogApiCall.mockResolvedValue(undefined);
     process.env.GOLF_COURSE_API_KEY = 'Key test-key';
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -49,7 +50,41 @@ describe('/api/golf-course-api/search route contract', () => {
 
     expect(response.status).toBe(200);
     expect(mockedRequireAuth).toHaveBeenCalledWith(request);
-    expect(mockedCheckRateLimit).toHaveBeenCalledWith('golf-course-api-search', 200);
+    expect(mockedCheckRateLimit).toHaveBeenCalledWith('golf-course-api-search', 50);
+  });
+
+  it('allows admins to bypass the GolfIQ daily rate-limit guard', async () => {
+    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedCheckRateLimit.mockResolvedValue({
+      canProceed: false,
+      callsUsed: 50,
+      limit: 50,
+    });
+
+    const response = await GET(
+      new Request('http://localhost/api/golf-course-api/search?query=test') as any,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedCheckRateLimit).not.toHaveBeenCalled();
+    expect((global as any).fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the GolfIQ daily rate-limit guard for non-admin users', async () => {
+    mockedCheckRateLimit.mockResolvedValue({
+      canProceed: false,
+      callsUsed: 50,
+      limit: 50,
+    });
+
+    const response = await GET(
+      new Request('http://localhost/api/golf-course-api/search?query=test') as any,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body.error).toMatch(/daily api limit reached/i);
+    expect((global as any).fetch).not.toHaveBeenCalled();
   });
 
   it('returns 400 when query is missing', async () => {
@@ -79,8 +114,8 @@ describe('/api/golf-course-api/search route contract', () => {
     );
     expect(mockedLogApiCall).toHaveBeenCalledWith({
       endpoint: 'golf-course-api-search',
-      userId: BigInt(1),
-      provider: 'golf_course_api',
+      userId: BigInt(2),
+      provider: 'golfcourseapi',
       searchQuery: 'winnipeg',
       usedLocation: false,
       resultCount: 1,
@@ -106,8 +141,8 @@ describe('/api/golf-course-api/search route contract', () => {
     expect(body.error).toMatch(/failed to search golf courses/i);
     expect(mockedLogApiCall).toHaveBeenCalledWith({
       endpoint: 'golf-course-api-search',
-      userId: BigInt(1),
-      provider: 'golf_course_api',
+      userId: BigInt(2),
+      provider: 'golfcourseapi',
       searchQuery: 'winnipeg',
       usedLocation: false,
       resultCount: null,
@@ -139,5 +174,30 @@ describe('/api/golf-course-api/search route contract', () => {
         searchQuery: 'winnipeg',
       }),
     );
+  });
+
+  it('preserves alphanumeric provider course IDs as strings', async () => {
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ courses: [{ id: '93kzhy6b', course_name: 'MacGregor' }] }),
+    });
+
+    const response = await GET(
+      new Request('http://localhost/api/golf-course-api/search?query=macgregor') as any,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.courses[0].id).toBe('93kzhy6b');
+  });
+
+  it('normalizes legacy numeric provider course IDs to strings at the upstream boundary', async () => {
+    const response = await GET(
+      new Request('http://localhost/api/golf-course-api/search?query=test') as any,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.courses[0].id).toBe('1');
   });
 });

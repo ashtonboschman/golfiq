@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { requireAdmin } from '@/lib/admin-auth';
+import { GOLF_COURSE_API_PROVIDER, normalizeExternalId } from '@/lib/courses/externalIds';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 type HoleData = {
@@ -90,11 +92,15 @@ const teeInputSchema = z.object({
   holes: z.array(holeInputSchema).max(36).optional(),
 }).passthrough();
 
+const externalIdSchema = z.string().trim().min(1, 'external_id must not be empty').max(255);
+const providerSchema = z.string().trim().min(1, 'provider must not be empty').max(100);
+
 const createCourseSchema = z.object({
-  id: z.union([
-    z.number().int().positive(),
-    z.string().trim().regex(/^\d+$/, 'id must be a positive integer'),
-  ]),
+  // `id` remains an accepted legacy import field, but is always an opaque
+  // external identifier and is never assigned to Course.id.
+  id: externalIdSchema.optional(),
+  provider: providerSchema.optional(),
+  external_id: externalIdSchema.optional(),
   club_name: z.string().trim().min(1).max(255),
   course_name: z.string().trim().min(1).max(255),
   location: z.object({
@@ -109,7 +115,26 @@ const createCourseSchema = z.object({
     male: z.array(teeInputSchema).max(20).optional(),
     female: z.array(teeInputSchema).max(20).optional(),
   }).passthrough().nullable().optional(),
-}).passthrough();
+}).passthrough().superRefine((data, context) => {
+  const hasExplicitProvider = data.provider !== undefined;
+  const hasExplicitExternalId = data.external_id !== undefined;
+
+  if (hasExplicitProvider !== hasExplicitExternalId) {
+    context.addIssue({
+      code: 'custom',
+      message: 'provider and external_id must be supplied together',
+      path: hasExplicitProvider ? ['external_id'] : ['provider'],
+    });
+  }
+
+  if (data.id && data.external_id && data.id !== data.external_id) {
+    context.addIssue({
+      code: 'custom',
+      message: 'id and external_id must match when both are supplied',
+      path: ['external_id'],
+    });
+  }
+});
 
 // Helper to build full course response with tees and holes
 async function buildCourseResponse(courseId: bigint | string) {
@@ -406,6 +431,64 @@ function extractStreetAddress(fullAddress: string | null | undefined): string | 
   return parts.slice(0, parts.length - 3).join(', ');
 }
 
+type CreateCourseInput = z.infer<typeof createCourseSchema>;
+
+type ExternalIdentity = {
+  provider: string;
+  externalId: string;
+};
+
+class DuplicateExternalCourseError extends Error {
+  courseId: bigint;
+
+  constructor(courseId: bigint) {
+    super(`This provider course is already linked to GolfIQ course ${courseId.toString()}.`);
+    this.name = 'DuplicateExternalCourseError';
+    this.courseId = courseId;
+  }
+}
+
+function resolveExternalIdentity(input: CreateCourseInput): ExternalIdentity | null {
+  if (input.provider && input.external_id) {
+    return {
+      provider: input.provider.trim(),
+      externalId: normalizeExternalId(input.external_id),
+    };
+  }
+
+  if (input.id) {
+    return {
+      provider: GOLF_COURSE_API_PROVIDER,
+      externalId: normalizeExternalId(input.id),
+    };
+  }
+
+  return null;
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
+    || Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'P2002');
+}
+
+async function findCourseIdByExternalIdentity(identity: ExternalIdentity): Promise<bigint | null> {
+  const existing = await prisma.courseExternalId.findUnique({
+    where: {
+      providerExternalId: identity,
+    },
+    select: { courseId: true },
+  });
+
+  return existing?.courseId ?? null;
+}
+
+function duplicateExternalCourseResponse(courseId: bigint) {
+  return errorResponse(
+    `This provider course is already linked to GolfIQ course ${courseId.toString()}.`,
+    409,
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
@@ -426,127 +509,159 @@ export async function POST(request: NextRequest) {
       return errorResponse(parsed.error.issues[0]?.message || 'Invalid course payload', 400);
     }
 
-    const { id: courseIdFromApi, club_name, course_name, location, tees } = parsed.data;
+    const { club_name, course_name, location, tees } = parsed.data;
+    const externalIdentity = resolveExternalIdentity(parsed.data);
 
-    // Check if course already exists
-    const existing = await prisma.course.findUnique({
-      where: { id: BigInt(courseIdFromApi) },
-    });
-
-    if (existing) {
-      return errorResponse('Course with this ID already exists', 409);
+    if (externalIdentity) {
+      const existingCourseId = await findCourseIdByExternalIdentity(externalIdentity);
+      if (existingCourseId) return duplicateExternalCourseResponse(existingCourseId);
     }
 
-    // Create course
-    const course = await prisma.course.create({
-      data: {
-        id: BigInt(courseIdFromApi),
-        clubName: club_name,
-        courseName: course_name,
-      },
-    });
+    let courseId: bigint;
+    let rejectedTees: string[];
 
-    // Create location if provided
-    if (location) {
-      // Extract just the street address from the full address string
-      const streetAddress = location.address ? extractStreetAddress(location.address) : null;
-
-      await prisma.location.create({
-        data: {
-          courseId: course.id,
-          address: toTitleCase(streetAddress),
-          city: toTitleCase(location.city),
-          state: location.state?.toUpperCase() || null, // State codes should be uppercase (e.g., MB, CA)
-          country: toTitleCase(location.country),
-          latitude: location.latitude ? String(location.latitude) : null,
-          longitude: location.longitude ? String(location.longitude) : null,
-        },
-      });
-    }
-
-    // Track rejected tees for user feedback
-    const rejectedTees: string[] = [];
-
-    // Create tees and holes if provided
-    if (tees) {
-      for (const gender of ['male', 'female']) {
-        const genderTees = tees[gender];
-        if (!genderTees || !Array.isArray(genderTees)) continue;
-
-        for (const tee of genderTees) {
-          const {
-            id: teeIdFromApi,
-            tee_name,
-            course_rating,
-            slope_rating,
-            bogey_rating,
-            total_yards,
-            total_meters,
-            number_of_holes,
-            par_total,
-            front_course_rating,
-            front_slope_rating,
-            front_bogey_rating,
-            back_course_rating,
-            back_slope_rating,
-            back_bogey_rating,
-            holes: teeHoles,
-          } = tee;
-
-          // Validate tee name - reject "Combo" or tees containing "/" or "-"
-          const teeName = tee_name || '';
-          if (teeName.toLowerCase().includes('combo') || teeName.includes('/') || teeName.includes('-')) {
-            rejectedTees.push(`${teeName} (${gender})`);
-            continue;
-          }
-
-          // Precompute nonPar3Holes
-          let nonPar3Count = 0;
-          if (teeHoles && Array.isArray(teeHoles) && teeHoles.length > 0) {
-            nonPar3Count = teeHoles.reduce((count, h) => h.par && h.par !== 3 ? count + 1 : count, 0);
-          }
-
-          // Create tee with nonPar3Holes directly
-          const createdTee = await prisma.tee.create({
-            data: {
-              id: teeIdFromApi ? BigInt(teeIdFromApi) : undefined,
-              courseId: course.id,
-              gender: gender as 'male' | 'female',
-              teeName: toTitleCase(tee_name) || tee_name,
-              courseRating: course_rating ? String(course_rating) : null,
-              slopeRating: slope_rating || null,
-              bogeyRating: bogey_rating ? String(bogey_rating) : null,
-              totalYards: total_yards || null,
-              totalMeters: total_meters || null,
-              numberOfHoles: number_of_holes || null,
-              nonPar3Holes: nonPar3Count,
-              parTotal: par_total || null,
-              frontCourseRating: front_course_rating ? String(front_course_rating) : null,
-              frontSlopeRating: front_slope_rating || null,
-              frontBogeyRating: front_bogey_rating ? String(front_bogey_rating) : null,
-              backCourseRating: back_course_rating ? String(back_course_rating) : null,
-              backSlopeRating: back_slope_rating || null,
-              backBogeyRating: back_bogey_rating ? String(back_bogey_rating) : null,
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        if (externalIdentity) {
+          const existing = await tx.courseExternalId.findUnique({
+            where: {
+              providerExternalId: externalIdentity,
             },
+            select: { courseId: true },
           });
 
-          // Create holes for this tee
-          if (teeHoles && Array.isArray(teeHoles) && teeHoles.length > 0) {
-            const holeData = teeHoles.map((h, i) => ({
-              teeId: createdTee.id,
-              holeNumber: i + 1,
-              par: h.par || null,
-              yardage: h.yardage || null,
-              handicap: h.handicap || null,
-            }));
-            await prisma.hole.createMany({ data: holeData });
+          if (existing) throw new DuplicateExternalCourseError(existing.courseId);
+        }
+
+        // Course.id is intentionally omitted so PostgreSQL owns internal IDs.
+        const course = await tx.course.create({
+          data: {
+            clubName: club_name,
+            courseName: course_name,
+          },
+        });
+
+        if (externalIdentity) {
+          await tx.courseExternalId.create({
+            data: {
+              courseId: course.id,
+              provider: externalIdentity.provider,
+              externalId: externalIdentity.externalId,
+            },
+          });
+        }
+
+        if (location) {
+          const streetAddress = location.address ? extractStreetAddress(location.address) : null;
+
+          await tx.location.create({
+            data: {
+              courseId: course.id,
+              address: toTitleCase(streetAddress),
+              city: toTitleCase(location.city),
+              state: location.state?.toUpperCase() || null,
+              country: toTitleCase(location.country),
+              latitude: location.latitude ? String(location.latitude) : null,
+              longitude: location.longitude ? String(location.longitude) : null,
+            },
+          });
+        }
+
+        const skippedTees: string[] = [];
+
+        if (tees) {
+          for (const gender of ['male', 'female'] as const) {
+            const genderTees = tees[gender];
+            if (!genderTees) continue;
+
+            for (const tee of genderTees) {
+              const {
+                id: teeIdFromApi,
+                tee_name,
+                course_rating,
+                slope_rating,
+                bogey_rating,
+                total_yards,
+                total_meters,
+                number_of_holes,
+                par_total,
+                front_course_rating,
+                front_slope_rating,
+                front_bogey_rating,
+                back_course_rating,
+                back_slope_rating,
+                back_bogey_rating,
+                holes: teeHoles,
+              } = tee;
+
+              const teeName = tee_name || '';
+              if (teeName.toLowerCase().includes('combo') || teeName.includes('/') || teeName.includes('-')) {
+                skippedTees.push(`${teeName} (${gender})`);
+                continue;
+              }
+
+              const nonPar3Count = teeHoles?.reduce(
+                (count, hole) => hole.par && Number(hole.par) !== 3 ? count + 1 : count,
+                0,
+              ) ?? 0;
+
+              const createdTee = await tx.tee.create({
+                data: {
+                  id: teeIdFromApi ? BigInt(teeIdFromApi) : undefined,
+                  courseId: course.id,
+                  gender,
+                  teeName: toTitleCase(tee_name) || tee_name,
+                  courseRating: course_rating ? String(course_rating) : null,
+                  slopeRating: slope_rating ? Number(slope_rating) : null,
+                  bogeyRating: bogey_rating ? String(bogey_rating) : null,
+                  totalYards: total_yards ? Number(total_yards) : null,
+                  totalMeters: total_meters ? Number(total_meters) : null,
+                  numberOfHoles: number_of_holes ? Number(number_of_holes) : null,
+                  nonPar3Holes: nonPar3Count,
+                  parTotal: par_total ? Number(par_total) : null,
+                  frontCourseRating: front_course_rating ? String(front_course_rating) : null,
+                  frontSlopeRating: front_slope_rating ? Number(front_slope_rating) : null,
+                  frontBogeyRating: front_bogey_rating ? String(front_bogey_rating) : null,
+                  backCourseRating: back_course_rating ? String(back_course_rating) : null,
+                  backSlopeRating: back_slope_rating ? Number(back_slope_rating) : null,
+                  backBogeyRating: back_bogey_rating ? String(back_bogey_rating) : null,
+                },
+              });
+
+              if (teeHoles?.length) {
+                const holeData = teeHoles.map((hole, index) => ({
+                  teeId: createdTee.id,
+                  holeNumber: index + 1,
+                  par: Number(hole.par),
+                  yardage: Number(hole.yardage),
+                  handicap: hole.handicap ? Number(hole.handicap) : null,
+                }));
+                await tx.hole.createMany({ data: holeData });
+              }
+            }
           }
         }
+
+        return { courseId: course.id, rejectedTees: skippedTees };
+      });
+
+      courseId = result.courseId;
+      rejectedTees = result.rejectedTees;
+    } catch (error) {
+      if (error instanceof DuplicateExternalCourseError) {
+        return duplicateExternalCourseResponse(error.courseId);
       }
+
+      if (externalIdentity && isUniqueConstraintError(error)) {
+        const existingCourseId = await findCourseIdByExternalIdentity(externalIdentity);
+        if (existingCourseId) return duplicateExternalCourseResponse(existingCourseId);
+      }
+
+      throw error;
     }
 
-    // Build and return full course response
-    const fullCourse = await buildCourseResponse(course.id);
+    // Build and return full course response after the transaction commits.
+    const fullCourse = await buildCourseResponse(courseId);
 
     let message = 'Course created successfully';
     if (rejectedTees.length > 0) {
