@@ -63,4 +63,17 @@ describe('Game Trends V2 cache', () => {
       computeGameTrendsInputHash([round], new Date('2026-07-06T12:00:00Z')),
     );
   });
+
+  it.each(['simulator', 'practice', 'scramble'] as const)(
+    'excludes %s rounds from the cache input and every Game Trends mode',
+    (roundContext) => {
+      const now = new Date('2026-07-02T12:00:00Z');
+      const taggedRound = { ...round, roundId: '2', roundContext };
+      const realOnlyCache = buildCachedGameTrends([round], now);
+      const cacheWithTaggedRound = buildCachedGameTrends([round, taggedRound], now);
+
+      expect(cacheWithTaggedRound.inputHash).toBe(realOnlyCache.inputHash);
+      expect(cacheWithTaggedRound.byMode).toEqual(realOnlyCache.byMode);
+    },
+  );
 });

@@ -36,6 +36,7 @@ describe('shared trend evidence', () => {
         makeRound({ roundId: '12', roundContext: 'practice' }),
         makeRound({ roundId: '13', completed: false }),
         makeRound({ roundId: '14', roundContext: 'scramble' }),
+        makeRound({ roundId: '15', roundContext: 'simulator' }),
       ],
       mode: '18',
       now: new Date('2026-07-02T12:00:00Z'),

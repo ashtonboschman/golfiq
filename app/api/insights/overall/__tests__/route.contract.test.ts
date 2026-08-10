@@ -181,14 +181,12 @@ describe('/api/insights/overall contract', () => {
       take: 20,
       where: expect.objectContaining({ holesPlayed: 18 }),
     }));
-    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          userId: BigInt(1),
-          roundContext: 'real',
-        }),
-      }),
-    );
+    mockedPrisma.round.findMany.mock.calls.forEach(([args]) => {
+      expect(args.where).toEqual(expect.objectContaining({
+        userId: BigInt(1),
+        roundContext: 'real',
+      }));
+    });
   });
 
   it('returns premium unlocked insights shape with mode payload/projections', async () => {
