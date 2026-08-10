@@ -33,8 +33,9 @@
   --safe-area-right: env(safe-area-inset-right, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
-  --app-header-height: 80px;
-  --app-footer-height: 80px;
+  /* Content bands exclude device safe areas; 64px keeps mobile chrome compact. */
+  --app-header-height: 64px;
+  --app-footer-height: 64px;
   --app-header-extent: calc(var(--app-header-height) + var(--safe-area-top));
   --app-footer-extent: calc(var(--app-footer-height) + var(--safe-area-bottom));
   --app-page-top-offset: calc(var(--app-header-extent) + var(--gap));
@@ -733,7 +734,7 @@ select option {
 =========================== */
 /* Footer container */
 .footer-menu {
-  align-items: baseline;
+  align-items: stretch;
   background-color: var(--color-primary-surface);
   bottom: 0;
   display: flex;
