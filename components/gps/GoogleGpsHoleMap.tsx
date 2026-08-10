@@ -33,6 +33,7 @@ type GoogleCameraOptions = {
 
 type GoogleMapOptions = GoogleCameraOptions & {
   mapTypeId: string;
+  gestureHandling: 'greedy';
   disableDefaultUI: boolean;
   cameraControl: boolean;
   fullscreenControl: boolean;
@@ -838,6 +839,7 @@ export default function GoogleGpsHoleMap({
           center: toGoogleLatLngLiteral(configRef.current.mapCenter),
           zoom: clampZoom(configRef.current.mapZoom),
           mapTypeId: 'satellite',
+          gestureHandling: 'greedy',
           disableDefaultUI: true,
           cameraControl: false,
           fullscreenControl: false,

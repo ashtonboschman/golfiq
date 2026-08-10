@@ -31,7 +31,7 @@ function installGoogleMapsMock() {
     private zoom: number;
 
     constructor(_element: HTMLElement, options: { center: { lat: number; lng: number }; zoom: number }) {
-      mockMapConstructor();
+      mockMapConstructor(options);
       this.center = latLng(options.center);
       this.zoom = options.zoom;
     }
@@ -154,6 +154,9 @@ describe('GoogleGpsHoleMap lifecycle', () => {
     const { rerender } = render(<GoogleGpsHoleMap {...mapProps('draft-1')} />);
 
     await waitFor(() => expect(mockMapConstructor).toHaveBeenCalledTimes(1));
+    expect(mockMapConstructor).toHaveBeenCalledWith(expect.objectContaining({
+      gestureHandling: 'greedy',
+    }));
     expect(mockPolylineConstructor).toHaveBeenCalledTimes(1);
 
     const nextConfig = {
