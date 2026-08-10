@@ -6,6 +6,8 @@ import { isPremiumUser } from '@/lib/subscription';
 type SortKey = 'handicap' | 'average_score' | 'best_score';
 type SortOrder = 'asc' | 'desc';
 
+const FREE_GLOBAL_LEADERBOARD_LIMIT = 50;
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await requireAuth(request);
@@ -87,8 +89,6 @@ export async function GET(request: NextRequest) {
     // FREE USERS — GLOBAL (LIMITED)
     // ============================================================
     if (scope === 'global' && !isPremium) {
-      const TOP_N = 5;
-
       const topStats = await prisma.userLeaderboardStats.findMany({
         where: whereClause,
         include: {
@@ -101,12 +101,19 @@ export async function GET(request: NextRequest) {
           },
         },
         orderBy: [orderBy],
-        take: TOP_N,
+        take: FREE_GLOBAL_LEADERBOARD_LIMIT,
       });
 
       const topUsers = await Promise.all(
         topStats.map(async s => ({
-          rank: await getCompetitionRank(whereClause, sortBy, sortOrder, s, true, TOP_N),
+          rank: await getCompetitionRank(
+            whereClause,
+            sortBy,
+            sortOrder,
+            s,
+            true,
+            FREE_GLOBAL_LEADERBOARD_LIMIT,
+          ),
           user_id: Number(s.userId),
           handicap: s.handicap ?? null,
           average_score: s.averageToPar ?? null,
@@ -124,7 +131,14 @@ export async function GET(request: NextRequest) {
 
       if (currentStat) {
         const currentUser = {
-          rank: await getCompetitionRank(whereClause, sortBy, sortOrder, currentStat, false, TOP_N),
+          rank: await getCompetitionRank(
+            whereClause,
+            sortBy,
+            sortOrder,
+            currentStat,
+            false,
+            FREE_GLOBAL_LEADERBOARD_LIMIT,
+          ),
           user_id: Number(currentStat.userId),
           handicap: currentStat.handicap ?? null,
           average_score: currentStat.averageToPar ?? null,
@@ -146,7 +160,7 @@ export async function GET(request: NextRequest) {
         users: topUsers,
         isPremium,
         totalUsers: totalCount,
-        showingLimited: topUsers.length > TOP_N ? true : false,
+        showingLimited: topUsers.length > FREE_GLOBAL_LEADERBOARD_LIMIT,
         hasMore: false,
       });
     }
@@ -222,10 +236,10 @@ async function getCompetitionRank(
   sortOrder: SortOrder,
   stat: any,
   isPremiumOrFriend = true,
-  TOP_N = 5
+  topN = FREE_GLOBAL_LEADERBOARD_LIMIT,
 ) {
   if (!isPremiumOrFriend) {
-    // For free global users, anything beyond top N shows as TOP_N+1
+    // For free global users, anything beyond top N shows as topN + 1.
     const value = getSortValue(sortBy, stat);
     const column = getSortColumn(sortBy);
 
@@ -236,8 +250,8 @@ async function getCompetitionRank(
       },
     });
 
-    // Cap at TOP_N
-    return betterCount < TOP_N ? betterCount + 1 : TOP_N + 1;
+    // Cap at top N.
+    return betterCount < topN ? betterCount + 1 : topN + 1;
   }
 
   // Premium or friends: exact rank
