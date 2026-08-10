@@ -52,3 +52,4 @@ yarn-error.log*
 !/docs/security-network-compatibility-audit.md
 
 .NUL
+.env*
