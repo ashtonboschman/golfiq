@@ -331,6 +331,16 @@ export default function Header() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setDropdownOpen(false);
+                    navigateWithWarning('/profile/my-bag');
+                  }}
+                >
+                  My Bag
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDropdownOpen(false);
                     navigateWithWarning('/settings');
                   }}
                 >
