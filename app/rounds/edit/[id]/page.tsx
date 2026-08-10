@@ -84,13 +84,14 @@ interface TeeOption {
   teeObj?: any;
 }
 
-type RoundContext = 'real' | 'simulator' | 'practice';
+type RoundContext = 'real' | 'simulator' | 'practice' | 'scramble';
 
 type TaggedRoundContext = Exclude<RoundContext, 'real'>;
 
 const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'simulator', label: 'Simulator Round' },
   { value: 'practice', label: 'Practice Round' },
+  { value: 'scramble', label: 'Scramble Round' },
 ];
 
 const ROUND_EDIT_DRAFT_VERSION = 1;
@@ -380,7 +381,11 @@ function EditRoundContent() {
     setShowRoundTagPicker(false);
   };
 
-  const roundTagLabel = round.round_context === 'simulator' ? 'Simulator' : 'Practice';
+  const roundTagLabel = round.round_context === 'simulator'
+    ? 'Simulator'
+    : round.round_context === 'scramble'
+      ? 'Scramble'
+      : 'Practice';
 
   const getTotalScore = (holes: HoleScore[]) =>
     holes.reduce((sum, h) => sum + (h.score ?? 0), 0);
@@ -1379,7 +1384,7 @@ function EditRoundContent() {
                   ) : (
                     <button
                       type="button"
-                      className="round-tag-pill is-selected"
+                      className={`round-tag-pill round-tag-${round.round_context} is-selected`}
                       onClick={() => setShowRoundTagPicker((prev) => !prev)}
                       disabled={disableFormControls}
                     >
@@ -1404,7 +1409,7 @@ function EditRoundContent() {
                       <button
                         key={option.value}
                         type="button"
-                        className={`round-tag-pill ${round.round_context === option.value ? 'is-selected' : ''}`}
+                        className={`round-tag-pill round-tag-${option.value} ${round.round_context === option.value ? 'is-selected' : ''}`}
                         onClick={() => setRoundTag(option.value)}
                       >
                         {option.label}

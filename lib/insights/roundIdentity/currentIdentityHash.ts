@@ -5,7 +5,7 @@ import { applyPlayedHoleOrder, hasCompleteHoleScores } from './features';
 import { buildRoundIdentityInputHash } from './resolve';
 import type { RoundIdentityHoleInput, RoundIdentityResolverInput } from './types';
 
-export type RoundIdentityHistoryContext = 'real' | 'simulator' | 'practice';
+export type RoundIdentityHistoryContext = 'real' | 'simulator' | 'practice' | 'scramble';
 
 export type RoundOrderingEntry = {
   id: bigint;
@@ -14,7 +14,7 @@ export type RoundOrderingEntry = {
 };
 
 export function resolveHistoryRoundContext(raw: unknown): RoundIdentityHistoryContext {
-  if (raw === 'simulator' || raw === 'practice' || raw === 'real') return raw;
+  if (raw === 'simulator' || raw === 'practice' || raw === 'scramble' || raw === 'real') return raw;
   return 'real';
 }
 export function resolveRoundOrdinalContext(roundId: bigint, rounds: RoundOrderingEntry[]): {

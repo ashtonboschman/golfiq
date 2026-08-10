@@ -109,7 +109,7 @@ const mockedRecalcLeaderboard = recalcLeaderboard as jest.Mock;
 const mockedGenerateOverall = generateAndStoreOverallInsights as jest.Mock;
 const mockedGenerateInsights = generateInsights as jest.Mock;
 
-function makeListRound(roundContext: 'real' | 'simulator' | null) {
+function makeListRound(roundContext: 'real' | 'simulator' | 'practice' | 'scramble' | null) {
   return {
     id: BigInt(10),
     userId: BigInt(1),
@@ -251,36 +251,39 @@ describe('/api/rounds route contract', () => {
     expect(mockedGenerateInsights).toHaveBeenCalledWith(BigInt(222), BigInt(1));
   });
 
-  it('POST persists explicit simulator round_context', async () => {
-    mockedPrisma.round.count.mockResolvedValue(2);
+  it.each(['simulator', 'practice', 'scramble'] as const)(
+    'POST persists explicit %s round_context without changing the real-round count',
+    async (roundContext) => {
+      mockedPrisma.round.count.mockResolvedValue(2);
 
-    const request = new Request('http://localhost/api/rounds', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        course_id: 11,
-        tee_id: 12,
-        date: '2026-04-20',
-        score: 80,
-        round_context: 'simulator',
-        hole_by_hole: 0,
-      }),
-    });
-
-    const response = await POST(request as any);
-
-    expect(response.status).toBe(201);
-    expect(mockedPrisma.round.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          roundContext: 'simulator',
+      const request = new Request('http://localhost/api/rounds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          course_id: 11,
+          tee_id: 12,
+          date: '2026-04-20',
+          score: 80,
+          round_context: roundContext,
+          hole_by_hole: 0,
         }),
-      }),
-    );
-    expect(mockedPrisma.round.count).toHaveBeenCalledWith({
-      where: { userId: BigInt(1), roundContext: 'real' },
-    });
-  });
+      });
+
+      const response = await POST(request as any);
+
+      expect(response.status).toBe(201);
+      expect(mockedPrisma.round.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            roundContext,
+          }),
+        }),
+      );
+      expect(mockedPrisma.round.count).toHaveBeenCalledWith({
+        where: { userId: BigInt(1), roundContext: 'real' },
+      });
+    },
+  );
 
   it('keeps a completed round successful when post-round insight generation fails', async () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});

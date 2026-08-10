@@ -2,7 +2,7 @@ import { DASHBOARD_TREND_CONFIG } from './config';
 import { compareStableIdsDescending } from '@/lib/insights/trendEvidence';
 import type { DashboardTrendMode, TrendRoundInput } from './types';
 
-export type DashboardFocusRoundContext = 'real' | 'simulator' | 'practice';
+export type DashboardFocusRoundContext = 'real' | 'simulator' | 'practice' | 'scramble';
 export type DashboardFocusRoundCompletionStatus =
   | 'completed'
   | 'active'

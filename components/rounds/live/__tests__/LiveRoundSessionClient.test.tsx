@@ -326,6 +326,9 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(screen.getByText('White')).toBeInTheDocument();
     expect(screen.getByText('36.0 / 120')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Tag +' }));
+    expect(screen.getByRole('button', { name: 'Simulator Round' })).toHaveClass('round-tag-simulator');
+    expect(screen.getByRole('button', { name: 'Practice Round' })).toHaveClass('round-tag-practice');
+    expect(screen.getByRole('button', { name: 'Scramble Round' })).toHaveClass('round-tag-scramble');
     fireEvent.click(screen.getByRole('button', { name: 'Practice Round' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));

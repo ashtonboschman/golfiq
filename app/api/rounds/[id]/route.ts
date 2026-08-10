@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 
-const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice'] as const;
+const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice', 'scramble'] as const;
 const ROUND_MISS_DIRECTION_VALUES = ['hit', 'miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
 type RoundContext = (typeof ROUND_CONTEXT_VALUES)[number];
 type RoundMissDirection = (typeof ROUND_MISS_DIRECTION_VALUES)[number];

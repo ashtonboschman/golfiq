@@ -47,7 +47,7 @@ interface ScoringByPar {
 interface RoundStats {
   round_id: string;
   course_name: string;
-  round_context?: 'real' | 'simulator' | 'practice' | null;
+  round_context?: 'real' | 'simulator' | 'practice' | 'scramble' | null;
   tee_name: string;
   course_rating: number | null;
   slope_rating: number | null;
@@ -349,7 +349,9 @@ export default function RoundStatsPage() {
       ? 'SIM'
       : roundContext === 'practice'
         ? 'PRACTICE'
-        : null;
+        : roundContext === 'scramble'
+          ? 'SCRAMBLE'
+          : null;
 
   const sgTooltipText =
     'Strokes Gained compares this round to golfers around your level on this course and tee. Off Tee, Approach, Short Game, Putting, and Penalties use the stats you tracked. Untracked means GolfIQ cannot confidently place those strokes in one area yet. The more stats you log, the clearer this breakdown gets.';

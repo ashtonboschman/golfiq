@@ -143,7 +143,7 @@ export type RoundIdentityResolverInput = {
   toPar: number;
   holesPlayed: number;
   teeSegment: string | null;
-  roundContext: 'real' | 'simulator' | 'practice' | null;
+  roundContext: 'real' | 'simulator' | 'practice' | 'scramble' | null;
   roundsLifetime: number;
   avgScoreRecent: number | null;
   handicapAtRound: number | null;

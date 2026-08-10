@@ -11,7 +11,7 @@ interface RoundCardProps {
     tee_name?: string;
     number_of_holes?: number;
     net_score?: number | null;
-    round_context?: 'real' | 'simulator' | 'practice' | null;
+    round_context?: 'real' | 'simulator' | 'practice' | 'scramble' | null;
     date: string;
     score: number | null;
     par?: number | null;
@@ -66,7 +66,9 @@ export default function RoundCard({
       ? 'SIM'
       : roundContext === 'practice'
         ? 'PRACTICE'
-        : null;
+        : roundContext === 'scramble'
+          ? 'SCRAMBLE'
+          : null;
 
   const cardContent = (
     <>

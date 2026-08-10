@@ -12,7 +12,7 @@ import { teeSegmentLabel, type LiveRoundSession } from '@/components/rounds/live
 import { clearLiveRoundExitRedirect } from '@/lib/rounds/liveRoundNavigation';
 
 interface Round {
-  round_context?: 'real' | 'simulator' | 'practice' | null;
+  round_context?: 'real' | 'simulator' | 'practice' | 'scramble' | null;
   id: number;
   date: string;
   score: number | null;

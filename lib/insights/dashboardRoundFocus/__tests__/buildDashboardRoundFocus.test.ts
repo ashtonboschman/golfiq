@@ -151,7 +151,7 @@ describe('buildDashboardRoundFocus orchestration', () => {
     );
   });
 
-  it.each(['real', 'simulator', 'practice'] as const)(
+  it.each(['real', 'simulator', 'practice', 'scramble'] as const)(
     'requests and resolves only %s history',
     async (context) => {
       const deps = makeDependencies({

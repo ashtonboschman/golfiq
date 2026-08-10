@@ -19,7 +19,7 @@ export type TrendEvidenceRound = {
   date: string | Date;
   createdAt: string | Date;
   holes: 9 | 18;
-  roundContext: 'real' | 'simulator' | 'practice';
+  roundContext: 'real' | 'simulator' | 'practice' | 'scramble';
   completed: boolean;
   score: number;
   toPar: number | null;

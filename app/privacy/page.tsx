@@ -38,7 +38,7 @@ export default function PrivacyPage() {
             <li>Scores, net scores, and handicap-related fields</li>
             <li>Hole-by-hole scores when entered</li>
             <li>FIR, GIR, putts, chips, greenside bunker shots, and penalties</li>
-            <li>Directional misses and round context tags such as simulator or practice</li>
+            <li>Directional misses and round context tags such as simulator, practice, or scramble</li>
             <li>Round insights and trends generated from your submitted round data</li>
           </ul>
 

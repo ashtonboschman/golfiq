@@ -213,7 +213,7 @@ describe('/api/rounds/[id] route contract', () => {
     expect(body.round.round_context).toBe('real');
   });
 
-  it('PUT uses provided round_context when present', async () => {
+  it.each(['practice', 'scramble'] as const)('PUT uses provided %s round_context when present', async (roundContext) => {
     mockedPrisma.round.findFirst.mockResolvedValue({
       date: new Date('2026-04-20T12:00:00.000Z'),
       courseId: BigInt(11),
@@ -241,7 +241,7 @@ describe('/api/rounds/[id] route contract', () => {
         date: '2026-04-20',
         score: 79,
         hole_by_hole: 0,
-        round_context: 'practice',
+        round_context: roundContext,
       }),
     });
 
@@ -251,7 +251,7 @@ describe('/api/rounds/[id] route contract', () => {
     expect(mockedPrisma.round.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          roundContext: 'practice',
+          roundContext,
         }),
       }),
     );

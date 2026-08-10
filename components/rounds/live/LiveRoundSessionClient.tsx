@@ -57,6 +57,7 @@ type LiveBagClubPayload = {
 const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'simulator', label: 'Simulator Round' },
   { value: 'practice', label: 'Practice Round' },
+  { value: 'scramble', label: 'Scramble Round' },
 ];
 const subscribeToStaticGpsTestRequest = () => () => {};
 
@@ -107,7 +108,9 @@ function formatToPar(value: number) {
 }
 
 function roundTagLabel(roundContext: RoundContext) {
-  return roundContext === 'simulator' ? 'Simulator' : 'Practice';
+  if (roundContext === 'simulator') return 'Simulator';
+  if (roundContext === 'scramble') return 'Scramble';
+  return 'Practice';
 }
 
 function teePillClass(teeName?: string | null) {
@@ -1421,7 +1424,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                   ) : (
                     <button
                       type="button"
-                      className="round-tag-pill is-selected"
+                      className={`round-tag-pill round-tag-${session.round_context} is-selected`}
                       onClick={() => setShowRoundTagPicker((prev) => !prev)}
                     >
                       {roundTagLabel(session.round_context)}
@@ -1444,7 +1447,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                       <button
                         key={option.value}
                         type="button"
-                        className={`round-tag-pill ${session.round_context === option.value ? 'is-selected' : ''}`}
+                        className={`round-tag-pill round-tag-${option.value} ${session.round_context === option.value ? 'is-selected' : ''}`}
                         onClick={() => handleRoundContextChange(option.value)}
                       >
                         {option.label}

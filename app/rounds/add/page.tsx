@@ -106,7 +106,7 @@ interface TeeOption {
   teeObj?: any;
 }
 
-type RoundContext = 'real' | 'simulator' | 'practice';
+type RoundContext = 'real' | 'simulator' | 'practice' | 'scramble';
 
 type TaggedRoundContext = Exclude<RoundContext, 'real'>;
 type RoundEntryMode = 'live' | 'after';
@@ -120,6 +120,7 @@ const ADD_ROUND_DIRTY_KEY = 'golfiq-add-round-dirty';
 const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'simulator', label: 'Simulator Round' },
   { value: 'practice', label: 'Practice Round' },
+  { value: 'scramble', label: 'Scramble Round' },
 ];
 
 const courseSelectStyles = {
@@ -947,7 +948,11 @@ function AddRoundContent() {
     setShowRoundTagPicker(false);
   };
 
-  const roundTagLabel = round.round_context === 'simulator' ? 'Simulator' : 'Practice';
+  const roundTagLabel = round.round_context === 'simulator'
+    ? 'Simulator'
+    : round.round_context === 'scramble'
+      ? 'Scramble'
+      : 'Practice';
 
   const deriveShortGameShots = (chips: number | null | undefined, greensideBunkerShots: number | null | undefined) => {
     if (chips == null && greensideBunkerShots == null) return null;
@@ -2355,7 +2360,7 @@ function AddRoundContent() {
                     ) : (
                       <button
                         type="button"
-                        className="round-tag-pill is-selected"
+                        className={`round-tag-pill round-tag-${round.round_context} is-selected`}
                         onClick={() => setShowRoundTagPicker((prev) => !prev)}
                       >
                         {roundTagLabel}
@@ -2378,7 +2383,7 @@ function AddRoundContent() {
                         <button
                           key={option.value}
                           type="button"
-                          className={`round-tag-pill ${round.round_context === option.value ? 'is-selected' : ''}`}
+                          className={`round-tag-pill round-tag-${option.value} ${round.round_context === option.value ? 'is-selected' : ''}`}
                           onClick={() => setRoundTag(option.value)}
                         >
                           {option.label}

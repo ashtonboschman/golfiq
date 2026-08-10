@@ -1,4 +1,4 @@
-export type RoundContext = 'real' | 'simulator' | 'practice';
+export type RoundContext = 'real' | 'simulator' | 'practice' | 'scramble';
 export type TeeSegment = 'full' | 'front9' | 'back9' | 'double9';
 export type LiveRoundActiveStep = 'GPS' | 'SCORE';
 export type LiveRoundSessionStatus = 'ACTIVE' | 'COMPLETED' | 'DISCARDED';

@@ -11,7 +11,7 @@ import { calculateNetScore } from '@/lib/utils/handicap';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
 
-export const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice'] as const;
+export const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice', 'scramble'] as const;
 export const ROUND_MISS_DIRECTION_VALUES = ['hit', 'miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
 
 export type RoundContext = (typeof ROUND_CONTEXT_VALUES)[number];

@@ -39,7 +39,7 @@ jest.mock('@/lib/db', () => ({
 }));
 
 jest.mock('@/lib/rounds/finalizeRound', () => ({
-  ROUND_CONTEXT_VALUES: ['real', 'simulator', 'practice'],
+  ROUND_CONTEXT_VALUES: ['real', 'simulator', 'practice', 'scramble'],
   ROUND_MISS_DIRECTION_VALUES: ['hit', 'miss_left', 'miss_right', 'miss_short', 'miss_long'],
   CompletedRoundFinalizationError: class CompletedRoundFinalizationError extends Error {
     status = 400;
