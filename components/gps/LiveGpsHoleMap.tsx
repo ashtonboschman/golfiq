@@ -29,6 +29,7 @@ type LiveGpsHoleMapProps = {
   routeKey: string;
   userPosition?: LiveGpsPoint | null;
   userAccuracyMeters?: number | null;
+  userLocationStatus?: CurrentLocationState['status'];
   testLocationEnabled?: boolean;
   suggestionClubs?: ClubSuggestionClub[];
   onMapReady?: () => void;
@@ -77,6 +78,7 @@ export default function LiveGpsHoleMap({
   routeKey,
   userPosition = null,
   userAccuracyMeters = null,
+  userLocationStatus,
   testLocationEnabled = false,
   suggestionClubs = EMPTY_SUGGESTION_CLUBS,
   onMapReady,
@@ -187,11 +189,13 @@ export default function LiveGpsHoleMap({
     testLocationEnabled,
   ]);
   const currentLocation = useMemo<CurrentLocationState>(() => ({
-    status: effectiveUserPosition ? 'granted' : 'idle',
+    status: testLocationEnabled
+      ? 'granted'
+      : userLocationStatus ?? (effectiveUserPosition ? 'granted' : 'idle'),
     position: effectiveUserPosition,
     accuracyMeters: effectiveUserPosition ? effectiveUserAccuracy : null,
     message: null,
-  }), [effectiveUserAccuracy, effectiveUserPosition]);
+  }), [effectiveUserAccuracy, effectiveUserPosition, testLocationEnabled, userLocationStatus]);
   const routeTargets = useMemo(
     () => (isManualRoute
       ? allRouteTargets

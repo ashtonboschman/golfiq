@@ -25,7 +25,13 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>GolfIQ uses your location while you play to show live GPS distances on mapped courses.</string>
+	<string>GolfIQ uses your location during an active GPS round to show live distances on mapped courses.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>GolfIQ keeps your location current during an active GPS round, including while the screen is locked, so yardages are ready when you return.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

@@ -41,6 +41,7 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
     routeKey: string;
     userPosition?: { lat: number; lng: number } | null;
     userAccuracyMeters?: number | null;
+    userLocationStatus?: string;
     testLocationEnabled?: boolean;
     suggestionClubs?: Array<{ shortLabel: string; carryYards: number }>;
     onMapReady?: () => void;
@@ -61,6 +62,7 @@ jest.mock('@/components/gps/LiveGpsHoleMap', () => ({
         data-route-key={props.routeKey}
         data-user-lat={props.userPosition?.lat}
         data-user-accuracy={props.userAccuracyMeters ?? undefined}
+        data-user-location-status={props.userLocationStatus}
         data-test-location-enabled={props.testLocationEnabled ? 'true' : 'false'}
         data-suggestion-clubs={props.suggestionClubs?.map((club) => club.shortLabel).join(',') ?? ''}
       >
@@ -418,6 +420,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
 
     expect(await screen.findByTestId('live-gps-map')).toHaveAttribute('data-physical-hole', '1');
     expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-course-hole-count', '2');
+    expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-user-location-status', 'watching');
     expect(document.querySelector('.live-round-gps-fullscreen')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/api/gps/live/course/11', expect.objectContaining({
       cache: 'no-store',
@@ -548,7 +551,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     await screen.findByRole('button', { name: /Next Hole/ });
     expect(firstMap.closest('.live-round-gps-fullscreen')).toHaveClass('is-hidden');
     expect(firstMap).toHaveAttribute('data-user-lat', '49.9');
-    expect(mockClearWatch).toHaveBeenCalledWith(77);
+    expect(mockClearWatch).not.toHaveBeenCalled();
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: /Next Hole/ }));
@@ -560,7 +563,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-user-lat', '49.9');
     expect(screen.getByTestId('live-gps-map').closest('.live-round-gps-fullscreen')).not.toHaveClass('is-hidden');
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
-    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
   });
 
   it('opens a GPS hole picker and jumps directly to a selected hole', async () => {
@@ -666,7 +669,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
 
     await screen.findByText('Round Summary');
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
-    expect(mockClearWatch).toHaveBeenCalledWith(77);
+    expect(mockClearWatch).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: /Hole 1/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Hole GPS/ }));
@@ -773,7 +776,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     );
   });
 
-  it('clears the location watch on the score step and never sends coordinates in API payloads', async () => {
+  it('keeps location warm on the score step and never sends coordinates in API payloads', async () => {
     const initialSession = makeSession({ gpsEnabled: true, active_step: 'GPS' });
     const movedSession = makeSession({ gpsEnabled: true, active_step: 'SCORE' });
     const fetchMock = jest.fn((url: string, init?: RequestInit) => {
@@ -795,7 +798,9 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Log Score/ }));
 
-    await waitFor(() => expect(mockClearWatch).toHaveBeenCalledWith(77));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Hole GPS/ })).toBeInTheDocument());
+    expect(mockClearWatch).not.toHaveBeenCalled();
+    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
     const patchRequest = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
     const payloadText = String(patchRequest?.[1]?.body);
     expect(payloadText).not.toContain('latitude');
@@ -970,7 +975,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
 
     render(<LiveRoundSessionClient sessionId="500" />);
     const nextHoleButton = await screen.findByRole('button', { name: /Next Hole/ });
-    expect(mockWatchPosition).not.toHaveBeenCalled();
+    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
     fireEvent.click(nextHoleButton);
 
     await screen.findByTestId('live-gps-map');

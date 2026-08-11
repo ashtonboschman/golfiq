@@ -1,15 +1,30 @@
 /** @jest-environment jsdom */
 
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { useLiveGpsLocation } from '@/lib/gps/useLiveGpsLocation';
 import { MAX_USABLE_LIVE_GPS_ACCURACY_YARDS } from '@/lib/gps/liveRoute';
+import {
+  isNativeBackgroundGpsAvailable,
+  startNativeBackgroundGps,
+  stopNativeBackgroundGps,
+} from '@/lib/gps/nativeBackgroundLocation';
+
+jest.mock('@/lib/gps/nativeBackgroundLocation', () => ({
+  isNativeBackgroundGpsAvailable: jest.fn(),
+  startNativeBackgroundGps: jest.fn(),
+  stopNativeBackgroundGps: jest.fn(),
+}));
 
 const mockWatchPosition = jest.fn();
+const mockGetCurrentPosition = jest.fn();
 const mockClearWatch = jest.fn();
+const mockedIsNativeBackgroundGpsAvailable = jest.mocked(isNativeBackgroundGpsAvailable);
+const mockedStartNativeBackgroundGps = jest.mocked(startNativeBackgroundGps);
+const mockedStopNativeBackgroundGps = jest.mocked(stopNativeBackgroundGps);
 
 function LocationHarness({ active }: { active: boolean }) {
-  const { location } = useLiveGpsLocation(active);
+  const { location, source } = useLiveGpsLocation(active);
   return (
     <div
       data-testid="location"
@@ -18,6 +33,7 @@ function LocationHarness({ active }: { active: boolean }) {
       data-lng={location.position?.lng ?? ''}
       data-accuracy={location.accuracyMeters ?? ''}
       data-timestamp={location.timestamp ?? ''}
+      data-source={source}
     />
   );
 }
@@ -38,6 +54,9 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     documentHidden = false;
     nextWatchId = 1;
     mockWatchPosition.mockImplementation(() => nextWatchId++);
+    mockedIsNativeBackgroundGpsAvailable.mockReturnValue(false);
+    mockedStartNativeBackgroundGps.mockResolvedValue();
+    mockedStopNativeBackgroundGps.mockResolvedValue();
 
     Object.defineProperty(document, 'hidden', {
       configurable: true,
@@ -47,6 +66,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
       configurable: true,
       value: {
         watchPosition: mockWatchPosition,
+        getCurrentPosition: mockGetCurrentPosition,
         clearWatch: mockClearWatch,
       },
     });
@@ -98,6 +118,26 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     });
   }
 
+  function emitFreshPosition({
+    latitude = 49.9,
+    longitude = -97.1,
+    accuracy = 8,
+    timestamp,
+  }: {
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    timestamp?: number;
+  } = {}) {
+    const handlePosition = mockGetCurrentPosition.mock.calls.at(-1)?.[0] as PositionCallback;
+    act(() => {
+      handlePosition({
+        coords: { latitude, longitude, accuracy },
+        timestamp,
+      } as GeolocationPosition);
+    });
+  }
+
   function thresholdAccuracyMeters(deltaYards = 0) {
     return (MAX_USABLE_LIVE_GPS_ACCURACY_YARDS + deltaYards) / 1.0936132983;
   }
@@ -117,14 +157,23 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     );
   });
 
-  it('stops when hidden and restarts when visible while enabled', () => {
+  it('keeps the watcher registered and requests an uncached fix when visible again', () => {
     render(<LocationHarness active />);
 
     setDocumentHidden(true);
-    expect(mockClearWatch).toHaveBeenCalledWith(1);
+    expect(mockClearWatch).not.toHaveBeenCalled();
 
     setDocumentHidden(false);
-    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockGetCurrentPosition).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 12000,
+      },
+    );
   });
 
   it('does not start while initially hidden until the document becomes visible', () => {
@@ -135,6 +184,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
 
     setDocumentHidden(false);
     expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1);
   });
 
   it('does not restart after the hook is disabled', () => {
@@ -152,11 +202,12 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
 
     setDocumentHidden(true);
     setDocumentHidden(true);
-    expect(mockClearWatch).toHaveBeenCalledTimes(1);
+    expect(mockClearWatch).not.toHaveBeenCalled();
 
     setDocumentHidden(false);
     setDocumentHidden(false);
-    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1);
   });
 
   it('clears the watcher and removes the visibility listener on unmount', () => {
@@ -267,16 +318,26 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
 
     setDocumentHidden(false);
-    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
+
+    emitFreshPosition({
+      latitude: 49.902,
+      longitude: -97.102,
+      accuracy: 6,
+      timestamp: 1001,
+    });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'granted');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.902');
   });
 
   it('ignores success and error callbacks from superseded watcher generations', () => {
-    render(<LocationHarness active />);
+    const { rerender } = render(<LocationHarness active />);
     emitPosition(0, { latitude: 49.901, longitude: -97.101, accuracy: 8, timestamp: 1000 });
 
-    setDocumentHidden(true);
-    setDocumentHidden(false);
+    rerender(<LocationHarness active={false} />);
+    rerender(<LocationHarness active />);
 
     emitPosition(0, { latitude: 49.902, longitude: -97.102, accuracy: 8, timestamp: 1001 });
     expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
@@ -287,5 +348,55 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
 
     emitPosition(1, { latitude: 49.903, longitude: -97.103, accuracy: 8, timestamp: 1002 });
     expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.903');
+  });
+
+  it('keeps the native watcher active while hidden and stops it on unmount', async () => {
+    mockedIsNativeBackgroundGpsAvailable.mockReturnValue(true);
+    let handlers: Parameters<typeof startNativeBackgroundGps>[0] | null = null;
+    mockedStartNativeBackgroundGps.mockImplementation(async (nextHandlers) => {
+      handlers = nextHandlers;
+    });
+
+    const { unmount } = render(<LocationHarness active />);
+
+    expect(mockWatchPosition).not.toHaveBeenCalled();
+    expect(mockedStartNativeBackgroundGps).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('location')).toHaveAttribute('data-source', 'native_background');
+
+    setDocumentHidden(true);
+    expect(mockedStopNativeBackgroundGps).not.toHaveBeenCalled();
+
+    act(() => {
+      handlers?.onPosition({
+        latitude: 49.91,
+        longitude: -97.11,
+        accuracy: 8,
+        time: 2000,
+      } as never);
+    });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'granted');
+    expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.91');
+
+    setDocumentHidden(false);
+    expect(mockedStartNativeBackgroundGps).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(mockedStopNativeBackgroundGps).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops native tracking and reports permission errors', async () => {
+    mockedIsNativeBackgroundGpsAvailable.mockReturnValue(true);
+    let handlers: Parameters<typeof startNativeBackgroundGps>[0] | null = null;
+    mockedStartNativeBackgroundGps.mockImplementation(async (nextHandlers) => {
+      handlers = nextHandlers;
+    });
+
+    render(<LocationHarness active />);
+    act(() => {
+      handlers?.onError({ code: 'NOT_AUTHORIZED' } as never);
+    });
+
+    await waitFor(() => expect(mockedStopNativeBackgroundGps).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'denied');
   });
 });

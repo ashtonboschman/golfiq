@@ -513,12 +513,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const liveLocationActive = Boolean(
     session?.status === 'ACTIVE' &&
     session.gpsEnabled &&
-    !gpsTestLocationEnabled &&
-    session.active_step === 'GPS' &&
-    viewMode === 'score' &&
-    activeMappedHole,
+    !gpsTestLocationEnabled,
   );
-  const { location: liveLocation } = useLiveGpsLocation(liveLocationActive);
+  const {
+    location: liveLocation,
+    source: liveLocationSource,
+  } = useLiveGpsLocation(liveLocationActive);
 
   useEffect(() => {
     if (
@@ -546,7 +546,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     if (liveLocation.status === 'granted' && !gpsLocationAllowedRef.current) {
       gpsLocationAllowedRef.current = true;
       captureGpsAnalytics(ANALYTICS_EVENTS.gpsLocationAllowed, {
-        location_source: 'watch_position',
+        location_source: liveLocationSource,
       });
     }
 
@@ -556,11 +556,17 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     ) {
       gpsLocationDeniedRef.current = true;
       captureGpsAnalytics(ANALYTICS_EVENTS.gpsLocationDenied, {
-        location_source: 'watch_position',
+        location_source: liveLocationSource,
         location_status: liveLocation.status,
       });
     }
-  }, [captureGpsAnalytics, gpsTestLocationEnabled, liveLocation.status, session?.gpsEnabled]);
+  }, [
+    captureGpsAnalytics,
+    gpsTestLocationEnabled,
+    liveLocation.status,
+    liveLocationSource,
+    session?.gpsEnabled,
+  ]);
 
   useEffect(() => {
     if (
@@ -1221,6 +1227,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
               routeKey={activeDraft.id}
               userPosition={liveLocation.position}
               userAccuracyMeters={liveLocation.accuracyMeters}
+              userLocationStatus={liveLocation.status}
               testLocationEnabled={gpsTestLocationEnabled}
               suggestionClubs={bagSuggestionClubs}
               onMapReady={handleLiveGpsMapReady}

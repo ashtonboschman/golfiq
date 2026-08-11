@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { metersToYards } from '@/lib/gps/distance';
 import { MAX_USABLE_LIVE_GPS_ACCURACY_YARDS } from '@/lib/gps/liveRoute';
+import {
+  isNativeBackgroundGpsAvailable,
+  startNativeBackgroundGps,
+  stopNativeBackgroundGps,
+} from '@/lib/gps/nativeBackgroundLocation';
 import type { AcceptedGpsFix, CurrentLocationState } from '@/lib/gps/types';
+
+export type LiveGpsLocationSource = 'watch_position' | 'native_background';
+type LiveGpsWatchDriver = 'browser_watch' | 'native_background';
 
 const INITIAL_LOCATION_STATE: CurrentLocationState = {
   status: 'idle',
@@ -73,9 +81,18 @@ function errorLocationState(error: GeolocationPositionError): CurrentLocationSta
   return unavailableLocationState();
 }
 
+function nativeErrorLocationState(error: { code?: string }): CurrentLocationState {
+  const code = error.code?.toUpperCase() ?? '';
+  if (code.includes('AUTHORIZED') || code.includes('PERMISSION')) {
+    return deniedLocationState();
+  }
+  return unavailableLocationState();
+}
+
 export function useLiveGpsLocation(active: boolean) {
   const [location, setLocation] = useState<CurrentLocationState>(INITIAL_LOCATION_STATE);
   const watchIdRef = useRef<number | null>(null);
+  const watchSourceRef = useRef<LiveGpsWatchDriver | null>(null);
   const generationRef = useRef(0);
   const activeGenerationRef = useRef<number | null>(null);
   const acceptedFixRef = useRef<AcceptedGpsFix | null>(null);
@@ -92,12 +109,15 @@ export function useLiveGpsLocation(active: boolean) {
     if (watchIdRef.current !== null) {
       navigator.geolocation?.clearWatch(watchIdRef.current);
     }
+    if (watchSourceRef.current === 'native_background') {
+      void stopNativeBackgroundGps().catch(() => undefined);
+    }
     watchIdRef.current = null;
+    watchSourceRef.current = null;
     activeGenerationRef.current = null;
   }, []);
 
-  const resolvePositionTimestamp = useCallback((position: GeolocationPosition) => {
-    const rawTimestamp = (position as { timestamp?: unknown }).timestamp;
+  const resolvePositionTimestamp = useCallback((rawTimestamp: unknown) => {
     if (
       typeof rawTimestamp === 'number'
       && Number.isFinite(rawTimestamp)
@@ -115,15 +135,21 @@ export function useLiveGpsLocation(active: boolean) {
     return fallbackTimestampRef.current;
   }, []);
 
-  const acceptedFixFromPosition = useCallback((position: GeolocationPosition) => {
-    const latitude = position.coords.latitude;
-    const longitude = position.coords.longitude;
-    const accuracyMeters = position.coords.accuracy;
-
+  const acceptedFixFromValues = useCallback(({
+    latitude,
+    longitude,
+    accuracyMeters,
+    timestamp: rawTimestamp,
+  }: {
+    latitude: number;
+    longitude: number;
+    accuracyMeters: number;
+    timestamp: unknown;
+  }) => {
     if (!isValidCoordinate(latitude, longitude)) return null;
     if (!isUsableAccuracy(accuracyMeters)) return null;
 
-    const timestamp = resolvePositionTimestamp(position);
+    const timestamp = resolvePositionTimestamp(rawTimestamp);
     const retainedFix = acceptedFixRef.current;
     if (retainedFix && timestamp <= retainedFix.timestamp) return null;
 
@@ -141,22 +167,42 @@ export function useLiveGpsLocation(active: boolean) {
       return;
     }
 
-    if (
-      typeof document === 'undefined'
-      || typeof navigator === 'undefined'
-      || !navigator.geolocation
-    ) {
+    if (typeof document === 'undefined' || typeof navigator === 'undefined') {
       return;
     }
 
     let disposed = false;
 
-    const startWatch = () => {
-      if (disposed || document.hidden || watchIdRef.current !== null) return;
+    const nativeBackgroundAvailable = isNativeBackgroundGpsAvailable();
+    if (!nativeBackgroundAvailable && !navigator.geolocation) return;
 
+    const updateFromValues = (values: {
+      latitude: number;
+      longitude: number;
+      accuracyMeters: number;
+      timestamp: unknown;
+    }, generation: number) => {
+      if (disposed || activeGenerationRef.current !== generation) return;
+
+      const acceptedFix = acceptedFixFromValues(values);
+      if (!acceptedFix) {
+        setLocation((current) => (
+          acceptedFixRef.current
+            ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
+            : current
+        ));
+        return;
+      }
+
+      acceptedFixRef.current = acceptedFix;
+      setLocation(locationFromAcceptedFix(acceptedFix));
+    };
+
+    const prepareWatch = (source: LiveGpsWatchDriver) => {
       const generation = generationRef.current + 1;
       generationRef.current = generation;
       activeGenerationRef.current = generation;
+      watchSourceRef.current = source;
       setLocation((current) => (
         acceptedFixRef.current
           ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
@@ -169,23 +215,53 @@ export function useLiveGpsLocation(active: boolean) {
             message: null,
           }
       ));
+      return generation;
+    };
+
+    const startNativeWatch = () => {
+      if (disposed || document.hidden || watchSourceRef.current !== null) return;
+
+      const generation = prepareWatch('native_background');
+      void startNativeBackgroundGps({
+        onPosition: (position) => {
+          updateFromValues({
+            latitude: position.latitude,
+            longitude: position.longitude,
+            accuracyMeters: position.accuracy,
+            timestamp: position.time,
+          }, generation);
+        },
+        onError: (error) => {
+          if (disposed || activeGenerationRef.current !== generation) return;
+
+          stopWatch(generation);
+          setLocation(acceptedFixRef.current
+            ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
+            : nativeErrorLocationState(error));
+        },
+      }).catch(() => {
+        if (disposed || activeGenerationRef.current !== generation) return;
+
+        stopWatch(generation);
+        setLocation(acceptedFixRef.current
+          ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
+          : unavailableLocationState());
+      });
+    };
+
+    const startBrowserWatch = () => {
+      if (disposed || document.hidden || watchSourceRef.current !== null) return;
+
+      const generation = prepareWatch('browser_watch');
 
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          if (disposed || activeGenerationRef.current !== generation) return;
-
-          const acceptedFix = acceptedFixFromPosition(position);
-          if (!acceptedFix) {
-            setLocation((current) => (
-              acceptedFixRef.current
-                ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
-                : current
-            ));
-            return;
-          }
-
-          acceptedFixRef.current = acceptedFix;
-          setLocation(locationFromAcceptedFix(acceptedFix));
+          updateFromValues({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracyMeters: position.coords.accuracy,
+            timestamp: position.timestamp,
+          }, generation);
         },
         (error) => {
           if (disposed || activeGenerationRef.current !== generation) return;
@@ -208,9 +284,49 @@ export function useLiveGpsLocation(active: boolean) {
       }
     };
 
+    const requestFreshBrowserFix = () => {
+      if (
+        disposed
+        || document.hidden
+        || watchSourceRef.current !== 'browser_watch'
+        || activeGenerationRef.current === null
+      ) {
+        return;
+      }
+
+      const generation = activeGenerationRef.current;
+      navigator.geolocation.getCurrentPosition?.(
+        (position) => {
+          updateFromValues({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracyMeters: position.coords.accuracy,
+            timestamp: position.timestamp,
+          }, generation);
+        },
+        () => {
+          // The continuous watcher remains the source of truth if the eager
+          // resume request times out or cannot produce a fix.
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 12000,
+        },
+      );
+    };
+
+    const startWatch = nativeBackgroundAvailable ? startNativeWatch : startBrowserWatch;
+    let wasDocumentHidden = document.hidden;
+
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        stopWatch();
+      const isDocumentHidden = document.hidden;
+      if (isDocumentHidden === wasDocumentHidden) return;
+      wasDocumentHidden = isDocumentHidden;
+
+      if (isDocumentHidden) {
+        if (nativeBackgroundAvailable) return;
+
         if (acceptedFixRef.current) {
           setLocation(locationFromAcceptedFix(acceptedFixRef.current, 'stale'));
         }
@@ -218,6 +334,14 @@ export function useLiveGpsLocation(active: boolean) {
       }
 
       startWatch();
+      if (!nativeBackgroundAvailable) {
+        setLocation((current) => (
+          acceptedFixRef.current
+            ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
+            : { ...current, status: 'watching', message: null }
+        ));
+        requestFreshBrowserFix();
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -228,9 +352,14 @@ export function useLiveGpsLocation(active: boolean) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       stopWatch();
     };
-  }, [acceptedFixFromPosition, active, stopWatch]);
+  }, [acceptedFixFromValues, active, stopWatch]);
+
+  const source: LiveGpsLocationSource = isNativeBackgroundGpsAvailable()
+    ? 'native_background'
+    : 'watch_position';
 
   return {
     location,
+    source,
   };
 }

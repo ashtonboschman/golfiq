@@ -18,7 +18,11 @@ type MockMapProps = {
   clubSuggestion?: { shortLabel: string } | null;
   measurementOrigin: LiveGpsPoint | null;
   greenDistances: { front: number | null; middle: number | null; back: number | null };
-  currentLocation: { position: LiveGpsPoint | null; accuracyMeters: number | null };
+  currentLocation: {
+    status: string;
+    position: LiveGpsPoint | null;
+    accuracyMeters: number | null;
+  };
   onTargetChange: (target: LiveGpsPoint, targetIndex?: number) => void;
   onTargetToGreenCenter: () => void;
   onTeeChange?: (tee: LiveGpsPoint) => void;
@@ -167,6 +171,39 @@ describe('LiveGpsHoleMap', () => {
     expect(screen.getByTestId('live-gps-hole-map')).toBeInTheDocument();
     expect(currentMapProps().routeTargets).toHaveLength(expectedTargets);
     expect(currentMapProps().targetPath).toHaveLength(expectedPath);
+  });
+
+  it('keeps retained GPS data available without adding a resume indicator', () => {
+    const hole = mappedHole(4);
+    const { rerender } = render(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        par={4}
+        routeKey="draft-4"
+        userPosition={hole.tee}
+        userAccuracyMeters={8}
+        userLocationStatus="stale"
+      />,
+    );
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(currentMapProps().currentLocation.status).toBe('stale');
+    expect(currentMapProps().currentLocation.position).toEqual(hole.tee);
+
+    rerender(
+      <LiveGpsHoleMap
+        apiKey="test-key"
+        hole={hole}
+        par={4}
+        routeKey="draft-4"
+        userPosition={{ lat: 49.9001, lng: -97.1001 }}
+        userAccuracyMeters={6}
+        userLocationStatus="granted"
+      />,
+    );
+
+    expect(currentMapProps().currentLocation.status).toBe('granted');
   });
 
   it('updates the club suggestion at the closest-club boundary from either direction', async () => {
