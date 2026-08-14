@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { metersToYards } from '@/lib/gps/distance';
 import { MAX_USABLE_LIVE_GPS_ACCURACY_YARDS } from '@/lib/gps/liveRoute';
 import {
+  ensureNativeBackgroundGpsPermission,
   isNativeBackgroundGpsAvailable,
   startNativeBackgroundGps,
   stopNativeBackgroundGps,
@@ -222,31 +223,45 @@ export function useLiveGpsLocation(active: boolean) {
       if (disposed || document.hidden || watchSourceRef.current !== null) return;
 
       const generation = prepareWatch('native_background');
-      void startNativeBackgroundGps({
-        onPosition: (position) => {
-          updateFromValues({
-            latitude: position.latitude,
-            longitude: position.longitude,
-            accuracyMeters: position.accuracy,
-            timestamp: position.time,
-          }, generation);
-        },
-        onError: (error) => {
+      void ensureNativeBackgroundGpsPermission()
+        .then((permissionGranted) => {
+          if (disposed || activeGenerationRef.current !== generation) return;
+
+          if (!permissionGranted) {
+            stopWatch(generation);
+            setLocation(acceptedFixRef.current
+              ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
+              : deniedLocationState());
+            return;
+          }
+
+          return startNativeBackgroundGps({
+            onPosition: (position) => {
+              updateFromValues({
+                latitude: position.latitude,
+                longitude: position.longitude,
+                accuracyMeters: position.accuracy,
+                timestamp: position.time,
+              }, generation);
+            },
+            onError: (error) => {
+              if (disposed || activeGenerationRef.current !== generation) return;
+
+              stopWatch(generation);
+              setLocation(acceptedFixRef.current
+                ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
+                : nativeErrorLocationState(error));
+            },
+          });
+        })
+        .catch(() => {
           if (disposed || activeGenerationRef.current !== generation) return;
 
           stopWatch(generation);
           setLocation(acceptedFixRef.current
             ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
-            : nativeErrorLocationState(error));
-        },
-      }).catch(() => {
-        if (disposed || activeGenerationRef.current !== generation) return;
-
-        stopWatch(generation);
-        setLocation(acceptedFixRef.current
-          ? locationFromAcceptedFix(acceptedFixRef.current, 'stale')
-          : unavailableLocationState());
-      });
+            : unavailableLocationState());
+        });
     };
 
     const startBrowserWatch = () => {

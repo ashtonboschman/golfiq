@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { isNativeIOS } from '@/lib/platform';
 import {
+  ensureNativeBackgroundGpsPermission,
   isNativeBackgroundGpsAvailable,
   startNativeBackgroundGps,
   stopNativeBackgroundGps,
@@ -15,6 +16,8 @@ jest.mock('@capacitor/core', () => ({
 
 jest.mock('@capgo/background-geolocation', () => ({
   BackgroundGeolocation: {
+    checkPermissions: jest.fn(),
+    requestPermissions: jest.fn(),
     start: jest.fn(),
     stop: jest.fn(),
   },
@@ -26,6 +29,8 @@ jest.mock('@/lib/platform', () => ({
 
 const mockedIsNativeIOS = jest.mocked(isNativeIOS);
 const mockedIsPluginAvailable = jest.mocked(Capacitor.isPluginAvailable);
+const mockedCheckPermissions = jest.mocked(BackgroundGeolocation.checkPermissions);
+const mockedRequestPermissions = jest.mocked(BackgroundGeolocation.requestPermissions);
 const mockedStart = jest.mocked(BackgroundGeolocation.start);
 const mockedStop = jest.mocked(BackgroundGeolocation.stop);
 
@@ -34,6 +39,14 @@ describe('native background GPS bridge', () => {
     jest.clearAllMocks();
     mockedIsNativeIOS.mockReturnValue(true);
     mockedIsPluginAvailable.mockReturnValue(true);
+    mockedCheckPermissions.mockResolvedValue({
+      location: 'granted',
+      backgroundLocation: 'granted',
+    });
+    mockedRequestPermissions.mockResolvedValue({
+      location: 'granted',
+      backgroundLocation: 'granted',
+    });
     mockedStart.mockResolvedValue();
     mockedStop.mockResolvedValue();
   });
@@ -49,7 +62,55 @@ describe('native background GPS bridge', () => {
     expect(isNativeBackgroundGpsAvailable()).toBe(false);
   });
 
-  it('starts fresh, round-scoped background tracking without requesting Always access', async () => {
+  it('uses an existing native location grant without prompting again', async () => {
+    await expect(ensureNativeBackgroundGpsPermission()).resolves.toBe(true);
+
+    expect(mockedCheckPermissions).toHaveBeenCalledTimes(1);
+    expect(mockedRequestPermissions).not.toHaveBeenCalled();
+  });
+
+  it('requests location access once when native authorization is undetermined', async () => {
+    mockedCheckPermissions.mockResolvedValue({
+      location: 'prompt',
+      backgroundLocation: 'prompt',
+    });
+    mockedRequestPermissions.mockResolvedValue({
+      location: 'granted',
+      backgroundLocation: 'when_in_use',
+    });
+
+    await expect(ensureNativeBackgroundGpsPermission()).resolves.toBe(true);
+
+    expect(mockedRequestPermissions).toHaveBeenCalledWith({
+      permissions: ['location', 'backgroundLocation'],
+    });
+  });
+
+  it('respects a denied native location choice without prompting repeatedly', async () => {
+    mockedCheckPermissions.mockResolvedValue({
+      location: 'denied',
+      backgroundLocation: 'denied',
+    });
+
+    await expect(ensureNativeBackgroundGpsPermission()).resolves.toBe(false);
+
+    expect(mockedRequestPermissions).not.toHaveBeenCalled();
+  });
+
+  it('reports denial when the native permission request is declined', async () => {
+    mockedCheckPermissions.mockResolvedValue({
+      location: 'prompt',
+      backgroundLocation: 'prompt',
+    });
+    mockedRequestPermissions.mockResolvedValue({
+      location: 'denied',
+      backgroundLocation: 'denied',
+    });
+
+    await expect(ensureNativeBackgroundGpsPermission()).resolves.toBe(false);
+  });
+
+  it('starts fresh, round-scoped background tracking after permission preparation', async () => {
     const onPosition = jest.fn();
     const onError = jest.fn();
 

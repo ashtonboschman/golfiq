@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
 import { Eye, EyeOff } from 'lucide-react';
 import { resolveSafeNextPath } from '@/lib/auth/redirect';
+import { startNativeSocialLogin } from '@/lib/auth/nativeSocialLogin';
+import { isNativeIOS } from '@/lib/platform';
 
 import Link from 'next/link';
 
@@ -52,8 +54,10 @@ function LoginContent() {
   const [handledOAuthError, setHandledOAuthError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === '1';
-  const isAppleEnabled = process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED === '1';
+  const [authPlatform, setAuthPlatform] = useState<'pending' | 'web' | 'native'>('pending');
+  const isNativeAuthPlatform = authPlatform === 'native';
+  const isGoogleEnabled = isNativeAuthPlatform || process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === '1';
+  const isAppleEnabled = isNativeAuthPlatform || process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED === '1';
   const hasOauthEnabled = isGoogleEnabled || isAppleEnabled;
 
   const authTitle = isRegister
@@ -78,6 +82,12 @@ function LoginContent() {
     return () => {
       document.body.classList.remove('auth-lock-scroll');
     };
+  }, []);
+
+  useEffect(() => {
+    const nextPlatform = isNativeIOS() ? 'native' : 'web';
+    const detectionTimer = window.setTimeout(() => setAuthPlatform(nextPlatform), 0);
+    return () => window.clearTimeout(detectionTimer);
   }, []);
 
   // Redirect if already logged in
@@ -252,6 +262,28 @@ function LoginContent() {
     clearMessage();
     setOauthLoadingProvider(provider);
     try {
+      if (authPlatform === 'native') {
+        const nativeResult = await startNativeSocialLogin(provider);
+        const result = await signIn('native-social', {
+          provider,
+          idToken: nativeResult.idToken,
+          nonce: nativeResult.nonce ?? '',
+          firstName: nativeResult.firstName ?? '',
+          lastName: nativeResult.lastName ?? '',
+          callbackUrl: safeNextPath,
+          redirect: false,
+        });
+        if (result?.error || !result?.ok) {
+          showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
+          setOauthLoadingProvider(null);
+          return;
+        }
+
+        localStorage.setItem('golfiq:auth', '1');
+        router.push(safeNextPath);
+        return;
+      }
+
       const result = await signIn(provider, { callbackUrl: safeNextPath, redirect: true });
       if (result?.error) {
         showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
@@ -394,7 +426,7 @@ function LoginContent() {
           </button>
         </form>
 
-        {hasOauthEnabled && (
+        {hasOauthEnabled && authPlatform !== 'pending' && (
           <div className="oauth-stack">
             <div className="oauth-divider" aria-hidden="true">
               <span className="oauth-divider-line" />
@@ -412,7 +444,9 @@ function LoginContent() {
                   <GoogleIcon />
                   <span>
                     {oauthLoadingProvider === 'google'
-                      ? 'Redirecting to Google...'
+                      ? authPlatform === 'native'
+                        ? 'Signing in with Google...'
+                        : 'Redirecting to Google...'
                       : isRegister
                       ? 'Sign up with Google'
                       : 'Continue with Google'}
@@ -428,7 +462,9 @@ function LoginContent() {
                 onClick={() => handleOauthSignIn('apple')}
               >
                 {oauthLoadingProvider === 'apple'
-                  ? 'Redirecting to Apple...'
+                  ? authPlatform === 'native'
+                    ? 'Signing in with Apple...'
+                    : 'Redirecting to Apple...'
                   : isRegister
                   ? 'Sign up with Apple'
                   : 'Continue with Apple'}

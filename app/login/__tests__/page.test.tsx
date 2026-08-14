@@ -5,6 +5,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
 import { signIn, useSession } from 'next-auth/react';
+import { isNativeIOS } from '@/lib/platform';
+import { startNativeSocialLogin } from '@/lib/auth/nativeSocialLogin';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -34,11 +36,22 @@ jest.mock('@/app/providers', () => ({
   }),
 }));
 
+jest.mock('@/lib/platform', () => ({
+  isNativeIOS: jest.fn(),
+}));
+
+jest.mock('@/lib/auth/nativeSocialLogin', () => ({
+  startNativeSocialLogin: jest.fn(),
+}));
+
 const mockedSignIn = signIn as jest.Mock;
 const mockedUseSession = useSession as unknown as jest.Mock;
+const mockedIsNativeIOS = jest.mocked(isNativeIOS);
+const mockedStartNativeSocialLogin = jest.mocked(startNativeSocialLogin);
 
 describe('/login page mode + next handling', () => {
   const originalGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED;
+  const originalAppleEnabled = process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -54,13 +67,22 @@ describe('/login page mode + next handling', () => {
       }),
     });
     process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED = '1';
+    process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED = '0';
+    mockedIsNativeIOS.mockReturnValue(false);
+    mockedStartNativeSocialLogin.mockResolvedValue({
+      idToken: 'native-id-token',
+      nonce: null,
+      firstName: 'Test',
+      lastName: 'Golfer',
+    });
   });
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED = originalGoogleEnabled;
+    process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED = originalAppleEnabled;
   });
 
-  it('respects mode=register by rendering registration fields', () => {
+  it('respects mode=register by rendering registration fields', async () => {
     mockQuery = new URLSearchParams('mode=register&next=/post-signup');
     render(<LoginPage />);
 
@@ -71,7 +93,31 @@ describe('/login page mode + next handling', () => {
     expect(screen.getByPlaceholderText('First Name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Last Name')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Register' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Sign up with Google/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Sign up with Google/i })).toBeInTheDocument();
+  });
+
+  it('uses native social authentication in the iOS shell', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
+    mockedSignIn.mockResolvedValue({ ok: true, error: undefined });
+
+    render(<LoginPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Continue with Google/i }));
+
+    await waitFor(() => {
+      expect(mockedStartNativeSocialLogin).toHaveBeenCalledWith('google');
+      expect(mockedSignIn).toHaveBeenCalledWith('native-social', {
+        provider: 'google',
+        idToken: 'native-id-token',
+        nonce: '',
+        firstName: 'Test',
+        lastName: 'Golfer',
+        callbackUrl: '/dashboard',
+        redirect: false,
+      });
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+    expect(screen.getByRole('button', { name: /Apple/i })).toBeInTheDocument();
   });
 
   it('respects mode=login by defaulting to login fields', () => {

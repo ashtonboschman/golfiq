@@ -20,6 +20,17 @@ export function isNativeBackgroundGpsAvailable() {
   );
 }
 
+export async function ensureNativeBackgroundGpsPermission() {
+  const current = await BackgroundGeolocation.checkPermissions();
+  if (current.location === 'granted') return true;
+  if (current.location === 'denied') return false;
+
+  const requested = await BackgroundGeolocation.requestPermissions({
+    permissions: ['location', 'backgroundLocation'],
+  });
+  return requested.location === 'granted';
+}
+
 export function startNativeBackgroundGps({
   onPosition,
   onError,

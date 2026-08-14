@@ -8,6 +8,8 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { verifyNativeSocialIdToken } from '@/lib/auth/nativeSocial';
+import { getAppleProviderCredentials } from '@/lib/auth/appleClientSecret';
 
 type OAuthProviderId = 'google' | 'apple';
 
@@ -193,26 +195,6 @@ function trackPasswordLoginFailed(args: {
   });
 }
 
-function assignDbUserToAuthUser(
-  user: Record<string, unknown>,
-  dbUser: {
-    id: bigint;
-    email: string;
-    username: string;
-    subscriptionTier: string;
-    subscriptionStatus?: string | null;
-    profile: {
-      avatarUrl: string;
-      firstName: string | null;
-      lastName: string | null;
-      theme: string;
-      timezone: string | null;
-    } | null;
-  },
-) {
-  Object.assign(user, mapDbUserToAuthUser(dbUser));
-}
-
 function isUniqueConstraintError(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2002');
 }
@@ -249,6 +231,212 @@ async function ensureOAuthLink(args: {
       select: { userId: true },
     });
     return Boolean(existing && existing.userId === args.userId);
+  }
+}
+
+async function resolveOAuthIdentity(args: {
+  provider: OAuthProviderId;
+  providerAccountId: string;
+  email: string | null;
+  emailVerified: boolean;
+  firstName: string | null;
+  lastName: string | null;
+}) {
+  const { provider, providerAccountId, firstName, lastName } = args;
+
+  try {
+    const existingLink = await prisma.oAuthAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider,
+          providerAccountId,
+        },
+      },
+      include: {
+        user: {
+          include: { profile: true },
+        },
+      },
+    });
+
+    if (existingLink?.user) {
+      const authUser = mapDbUserToAuthUser(existingLink.user);
+      authUser.auth_provider = provider;
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.loginCompleted,
+        distinctId: existingLink.user.id.toString(),
+        properties: {
+          login_method: provider,
+          account_linked: true,
+        },
+        context: {
+          sourcePage: '/login',
+          planTier: existingLink.user.subscriptionTier,
+          authProvider: provider,
+          isLoggedIn: true,
+        },
+      });
+      return authUser;
+    }
+
+    const normalizedEmail = normalizeEmail(args.email);
+    if (!normalizedEmail) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.loginFailed,
+        distinctId: `oauth_${provider}_unknown_email`,
+        properties: {
+          login_method: provider,
+          error_code: 'missing_email',
+        },
+        context: {
+          sourcePage: '/login',
+          authProvider: provider,
+          isLoggedIn: false,
+        },
+      });
+      return null;
+    }
+    if (!args.emailVerified) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.loginFailed,
+        distinctId: `oauth_${provider}_${normalizedEmail}`,
+        properties: {
+          login_method: provider,
+          error_code: 'email_not_verified_by_provider',
+        },
+        context: {
+          sourcePage: '/login',
+          authProvider: provider,
+          isLoggedIn: false,
+        },
+      });
+      return null;
+    }
+
+    let dbUser = await findUserByEmailInsensitive(normalizedEmail);
+    if (!dbUser) {
+      dbUser = await prisma.$transaction(async (tx) => {
+        const existingByEmail = await tx.user.findFirst({
+          where: {
+            email: {
+              equals: normalizedEmail,
+              mode: 'insensitive',
+            },
+          },
+          include: { profile: true },
+        });
+        if (existingByEmail) return existingByEmail;
+
+        const username = await buildUniqueUsername(tx, normalizedEmail);
+        const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString('hex'), 10);
+
+        return tx.user.create({
+          data: {
+            username,
+            email: normalizedEmail,
+            passwordHash,
+            emailVerified: true,
+            profile: {
+              create: {
+                ...(firstName ? { firstName } : {}),
+                ...(lastName ? { lastName } : {}),
+              },
+            },
+          },
+          include: { profile: true },
+        });
+      });
+    } else if (!dbUser.emailVerified) {
+      dbUser = await prisma.user.update({
+        where: { id: dbUser.id },
+        data: { emailVerified: true },
+        include: { profile: true },
+      });
+    }
+
+    await ensureProfileNameFields({
+      userId: dbUser.id,
+      firstName,
+      lastName,
+    });
+
+    const linked = await ensureOAuthLink({
+      userId: dbUser.id,
+      provider,
+      providerAccountId,
+      email: normalizedEmail,
+    });
+    if (!linked) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.loginFailed,
+        distinctId: `oauth_${provider}_${dbUser.id.toString()}`,
+        properties: {
+          login_method: provider,
+          error_code: 'oauth_link_failed',
+        },
+        context: {
+          sourcePage: '/login',
+          authProvider: provider,
+          isLoggedIn: false,
+        },
+      });
+      return null;
+    }
+
+    const hydrated = await prisma.user.findUnique({
+      where: { id: dbUser.id },
+      include: { profile: true },
+    });
+    if (!hydrated) {
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.loginFailed,
+        distinctId: `oauth_${provider}_${dbUser.id.toString()}`,
+        properties: {
+          login_method: provider,
+          error_code: 'user_hydration_failed',
+        },
+        context: {
+          sourcePage: '/login',
+          authProvider: provider,
+          isLoggedIn: false,
+        },
+      });
+      return null;
+    }
+
+    const authUser = mapDbUserToAuthUser(hydrated);
+    authUser.auth_provider = provider;
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.loginCompleted,
+      distinctId: hydrated.id.toString(),
+      properties: {
+        login_method: provider,
+        account_linked: false,
+      },
+      context: {
+        sourcePage: '/login',
+        planTier: hydrated.subscriptionTier,
+        authProvider: provider,
+        isLoggedIn: true,
+      },
+    });
+    return authUser;
+  } catch (error) {
+    console.error('[AUTH] OAuth sign-in failed:', error);
+    await captureServerEvent({
+      event: ANALYTICS_EVENTS.loginFailed,
+      distinctId: `oauth_${provider}_exception`,
+      properties: {
+        login_method: provider,
+        error_code: 'oauth_exception',
+      },
+      context: {
+        sourcePage: '/login',
+        authProvider: provider,
+        isLoggedIn: false,
+      },
+    });
+    return null;
   }
 }
 
@@ -308,6 +496,55 @@ const providers: NextAuthOptions['providers'] = [
       return mapDbUserToAuthUser(user);
     },
   }),
+  CredentialsProvider({
+    id: 'native-social',
+    name: 'Native Social Sign-In',
+    credentials: {
+      provider: { label: 'Provider', type: 'text' },
+      idToken: { label: 'ID Token', type: 'text' },
+      nonce: { label: 'Nonce', type: 'text' },
+      firstName: { label: 'First Name', type: 'text' },
+      lastName: { label: 'Last Name', type: 'text' },
+    },
+    async authorize(credentials) {
+      const provider = credentials?.provider;
+      const idToken = credentials?.idToken;
+      if ((provider !== 'google' && provider !== 'apple') || !idToken) return null;
+
+      try {
+        const identity = await verifyNativeSocialIdToken({
+          provider,
+          idToken,
+          nonce: credentials.nonce,
+        });
+        const useNativeProfileName = provider === 'apple';
+        return resolveOAuthIdentity({
+          provider,
+          providerAccountId: identity.providerAccountId,
+          email: identity.email,
+          emailVerified: identity.emailVerified,
+          firstName: identity.firstName ?? (useNativeProfileName ? valueAsString(credentials.firstName) : null),
+          lastName: identity.lastName ?? (useNativeProfileName ? valueAsString(credentials.lastName) : null),
+        });
+      } catch (error) {
+        console.error('[AUTH] Native social token verification failed:', error);
+        await captureServerEvent({
+          event: ANALYTICS_EVENTS.loginFailed,
+          distinctId: `oauth_${provider}_native_invalid`,
+          properties: {
+            login_method: provider,
+            error_code: 'native_token_invalid',
+          },
+          context: {
+            sourcePage: '/login',
+            authProvider: provider,
+            isLoggedIn: false,
+          },
+        });
+        return null;
+      }
+    },
+  }),
 ];
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -319,14 +556,13 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
-if (
-  process.env.APPLE_CLIENT_ID &&
-  process.env.APPLE_CLIENT_SECRET
-) {
+const appleProviderCredentials = getAppleProviderCredentials();
+
+if (appleProviderCredentials) {
   providers.push(
     AppleProvider({
-      clientId: process.env.APPLE_CLIENT_ID,
-      clientSecret: process.env.APPLE_CLIENT_SECRET,
+      clientId: appleProviderCredentials.clientId,
+      clientSecret: appleProviderCredentials.clientSecret,
     }),
   );
 }
@@ -388,207 +624,22 @@ export const authOptions: NextAuthOptions = {
         return false;
       }
 
-      try {
-        const existingLink = await prisma.oAuthAccount.findUnique({
-          where: {
-            provider_providerAccountId: {
-              provider: providerId,
-              providerAccountId,
-            },
-          },
-          include: {
-            user: {
-              include: { profile: true },
-            },
-          },
-        });
+      const { firstName, lastName } = extractOAuthNameParts(
+        { name: user.name ?? null },
+        profile,
+      );
+      const authUser = await resolveOAuthIdentity({
+        provider: providerId,
+        providerAccountId,
+        email: normalizeEmail(user.email ?? ((profile as Record<string, unknown> | null)?.email as string | null)),
+        emailVerified: isProviderEmailVerified(providerId, profile),
+        firstName,
+        lastName,
+      });
+      if (!authUser) return false;
 
-        if (existingLink?.user) {
-          const authUser = user as unknown as Record<string, unknown>;
-          assignDbUserToAuthUser(authUser, existingLink.user);
-          authUser.auth_provider = providerId;
-          await captureServerEvent({
-            event: ANALYTICS_EVENTS.loginCompleted,
-            distinctId: existingLink.user.id.toString(),
-            properties: {
-              login_method: providerId,
-              account_linked: true,
-            },
-            context: {
-              sourcePage: '/login',
-              planTier: existingLink.user.subscriptionTier,
-              authProvider: providerId,
-              isLoggedIn: true,
-            },
-          });
-          return true;
-        }
-
-        const normalizedEmail = normalizeEmail(user.email ?? ((profile as Record<string, unknown> | null)?.email as string | null));
-        if (!normalizedEmail) {
-          await captureServerEvent({
-            event: ANALYTICS_EVENTS.loginFailed,
-            distinctId: `oauth_${providerId}_unknown_email`,
-            properties: {
-              login_method: providerId,
-              error_code: 'missing_email',
-            },
-            context: {
-              sourcePage: '/login',
-              authProvider: providerId,
-              isLoggedIn: false,
-            },
-          });
-          return false;
-        }
-        if (!isProviderEmailVerified(providerId, profile)) {
-          await captureServerEvent({
-            event: ANALYTICS_EVENTS.loginFailed,
-            distinctId: `oauth_${providerId}_${normalizedEmail}`,
-            properties: {
-              login_method: providerId,
-              error_code: 'email_not_verified_by_provider',
-            },
-            context: {
-              sourcePage: '/login',
-              authProvider: providerId,
-              isLoggedIn: false,
-            },
-          });
-          return false;
-        }
-
-        const { firstName, lastName } = extractOAuthNameParts(
-          { name: user.name ?? null },
-          profile,
-        );
-
-        let dbUser = await findUserByEmailInsensitive(normalizedEmail);
-        if (!dbUser) {
-          dbUser = await prisma.$transaction(async (tx) => {
-            const existingByEmail = await tx.user.findFirst({
-              where: {
-                email: {
-                  equals: normalizedEmail,
-                  mode: 'insensitive',
-                },
-              },
-              include: { profile: true },
-            });
-            if (existingByEmail) return existingByEmail;
-
-            const username = await buildUniqueUsername(tx, normalizedEmail);
-            const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString('hex'), 10);
-
-            return tx.user.create({
-              data: {
-                username,
-                email: normalizedEmail,
-                passwordHash,
-                emailVerified: true,
-                profile: {
-                  create: {
-                    ...(firstName ? { firstName } : {}),
-                    ...(lastName ? { lastName } : {}),
-                  },
-                },
-              },
-              include: { profile: true },
-            });
-          });
-        } else if (!dbUser.emailVerified) {
-          dbUser = await prisma.user.update({
-            where: { id: dbUser.id },
-            data: { emailVerified: true },
-            include: { profile: true },
-          });
-        }
-
-        await ensureProfileNameFields({
-          userId: dbUser.id,
-          firstName,
-          lastName,
-        });
-
-        const linked = await ensureOAuthLink({
-          userId: dbUser.id,
-          provider: providerId,
-          providerAccountId,
-          email: normalizedEmail,
-        });
-        if (!linked) {
-          await captureServerEvent({
-            event: ANALYTICS_EVENTS.loginFailed,
-            distinctId: `oauth_${providerId}_${dbUser.id.toString()}`,
-            properties: {
-              login_method: providerId,
-              error_code: 'oauth_link_failed',
-            },
-            context: {
-              sourcePage: '/login',
-              authProvider: providerId,
-              isLoggedIn: false,
-            },
-          });
-          return false;
-        }
-
-        const hydrated = await prisma.user.findUnique({
-          where: { id: dbUser.id },
-          include: { profile: true },
-        });
-        if (!hydrated) {
-          await captureServerEvent({
-            event: ANALYTICS_EVENTS.loginFailed,
-            distinctId: `oauth_${providerId}_${dbUser.id.toString()}`,
-            properties: {
-              login_method: providerId,
-              error_code: 'user_hydration_failed',
-            },
-            context: {
-              sourcePage: '/login',
-              authProvider: providerId,
-              isLoggedIn: false,
-            },
-          });
-          return false;
-        }
-
-        const authUser = user as unknown as Record<string, unknown>;
-        assignDbUserToAuthUser(authUser, hydrated);
-        authUser.auth_provider = providerId;
-        await captureServerEvent({
-          event: ANALYTICS_EVENTS.loginCompleted,
-          distinctId: hydrated.id.toString(),
-          properties: {
-            login_method: providerId,
-            account_linked: false,
-          },
-          context: {
-            sourcePage: '/login',
-            planTier: hydrated.subscriptionTier,
-            authProvider: providerId,
-            isLoggedIn: true,
-          },
-        });
-        return true;
-      } catch (error) {
-        console.error('[AUTH] OAuth sign-in failed:', error);
-        await captureServerEvent({
-          event: ANALYTICS_EVENTS.loginFailed,
-          distinctId: `oauth_${providerId}_exception`,
-          properties: {
-            login_method: providerId,
-            error_code: 'oauth_exception',
-          },
-          context: {
-            sourcePage: '/login',
-            authProvider: providerId,
-            isLoggedIn: false,
-          },
-        });
-        return false;
-      }
+      Object.assign(user as unknown as Record<string, unknown>, authUser);
+      return true;
     },
     async jwt({ token, user, account }) {
       if (user) {
@@ -606,6 +657,8 @@ export const authOptions: NextAuthOptions = {
         token.auth_provider =
           provider === 'credentials'
             ? 'password'
+            : provider === 'native-social'
+              ? ((user as any).auth_provider as string | undefined) ?? 'unknown'
             : (provider as string | undefined) ??
               ((user as any).auth_provider as string | undefined) ??
               'unknown';
