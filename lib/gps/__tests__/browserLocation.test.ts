@@ -1,12 +1,20 @@
 /** @jest-environment jsdom */
 
 import { requestLiveRoundGpsPermission } from '@/lib/gps/browserLocation';
+import { isNativeIOS } from '@/lib/platform';
+
+jest.mock('@/lib/platform', () => ({
+  isNativeIOS: jest.fn(),
+}));
+
+const mockedIsNativeIOS = jest.mocked(isNativeIOS);
 
 describe('requestLiveRoundGpsPermission', () => {
   const getCurrentPosition = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedIsNativeIOS.mockReturnValue(false);
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
       value: { getCurrentPosition },
@@ -44,5 +52,12 @@ describe('requestLiveRoundGpsPermission', () => {
     });
 
     await expect(requestLiveRoundGpsPermission()).resolves.toBeNull();
+  });
+
+  it('does not request website location inside the native iOS shell', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
+
+    await expect(requestLiveRoundGpsPermission()).resolves.toBeNull();
+    expect(getCurrentPosition).not.toHaveBeenCalled();
   });
 });

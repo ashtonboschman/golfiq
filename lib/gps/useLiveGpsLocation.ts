@@ -10,6 +10,7 @@ import {
   stopNativeBackgroundGps,
 } from '@/lib/gps/nativeBackgroundLocation';
 import type { AcceptedGpsFix, CurrentLocationState } from '@/lib/gps/types';
+import { isNativeIOS } from '@/lib/platform';
 
 export type LiveGpsLocationSource = 'watch_position' | 'native_background';
 type LiveGpsWatchDriver = 'browser_watch' | 'native_background';
@@ -174,7 +175,16 @@ export function useLiveGpsLocation(active: boolean) {
 
     let disposed = false;
 
+    const nativeIOS = isNativeIOS();
     const nativeBackgroundAvailable = isNativeBackgroundGpsAvailable();
+    if (nativeIOS && !nativeBackgroundAvailable) {
+      void Promise.resolve().then(() => {
+        if (!disposed) setLocation(unavailableLocationState());
+      });
+      return () => {
+        disposed = true;
+      };
+    }
     if (!nativeBackgroundAvailable && !navigator.geolocation) return;
 
     const updateFromValues = (values: {
@@ -370,7 +380,7 @@ export function useLiveGpsLocation(active: boolean) {
     };
   }, [acceptedFixFromValues, active, stopWatch]);
 
-  const source: LiveGpsLocationSource = isNativeBackgroundGpsAvailable()
+  const source: LiveGpsLocationSource = isNativeIOS()
     ? 'native_background'
     : 'watch_position';
 

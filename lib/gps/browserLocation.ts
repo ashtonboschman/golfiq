@@ -1,4 +1,5 @@
 import type { LiveGpsPoint } from '@/lib/gps/liveMappingTypes';
+import { isNativeIOS } from '@/lib/platform';
 
 export type EphemeralGpsFix = {
   position: LiveGpsPoint;
@@ -6,6 +7,12 @@ export type EphemeralGpsFix = {
 };
 
 export function requestLiveRoundGpsPermission(): Promise<EphemeralGpsFix | null> {
+  // The native shell owns location permission and fixes. Calling the browser
+  // API inside its web view creates a second, website-branded permission prompt.
+  if (isNativeIOS()) {
+    return Promise.resolve(null);
+  }
+
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     return Promise.resolve(null);
   }

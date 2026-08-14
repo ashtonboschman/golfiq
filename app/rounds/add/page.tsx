@@ -17,6 +17,7 @@ import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { requestLiveRoundGpsPermission } from '@/lib/gps/browserLocation';
+import { isNativeIOS } from '@/lib/platform';
 import { isAdminUserId } from '@/lib/admin';
 import { getRoundAddDraftKey } from '@/lib/rounds/addDraft';
 import {
@@ -1623,7 +1624,7 @@ function AddRoundContent() {
 
     setStartingLiveRound(true);
     try {
-      if (liveGpsEnabled && !liveGpsTestLocationEnabled) {
+      if (liveGpsEnabled && !liveGpsTestLocationEnabled && !isNativeIOS()) {
         const gpsFix = await requestLiveRoundGpsPermission();
         if (gpsFix) {
           setUserLocation(gpsFix.position);

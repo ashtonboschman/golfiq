@@ -6,6 +6,7 @@ import '@testing-library/jest-dom';
 import AddRoundPage from '@/app/rounds/add/page';
 import EditRoundPage from '@/app/rounds/edit/[id]/page';
 import { useSession } from 'next-auth/react';
+import { isNativeIOS } from '@/lib/platform';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -46,6 +47,10 @@ jest.mock('@/app/providers', () => ({
 
 jest.mock('@/lib/gps/browserLocation', () => ({
   requestLiveRoundGpsPermission: () => mockRequestLiveRoundGpsPermission(),
+}));
+
+jest.mock('@/lib/platform', () => ({
+  isNativeIOS: jest.fn(),
 }));
 
 jest.mock('react-select-async-paginate', () => ({
@@ -109,12 +114,14 @@ jest.mock('@/components/HoleCard', () =>
 );
 
 const mockedUseSession = useSession as unknown as jest.Mock;
+const mockedIsNativeIOS = jest.mocked(isNativeIOS);
 
 describe('round entry session guard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetCurrentPosition.mockReset();
     mockRequestLiveRoundGpsPermission.mockResolvedValue(null);
+    mockedIsNativeIOS.mockReturnValue(false);
     localStorage.clear();
     mockPathname = '/rounds/add';
     mockParams = {};
@@ -422,7 +429,15 @@ describe('round entry session guard', () => {
     expect(screen.getByRole('checkbox', { name: 'Test GPS Location' })).not.toBeChecked();
   });
 
-  it('keeps the production pre-start GPS permission request when Test GPS is inactive', async () => {
+  it.each([
+    ['browser', false, 1],
+    ['native iOS', true, 0],
+  ])('uses the correct pre-start GPS permission path on %s', async (
+    _platform,
+    nativeIOS,
+    expectedBrowserRequests,
+  ) => {
+    mockedIsNativeIOS.mockReturnValue(nativeIOS);
     mockQuery = new URLSearchParams('mode=live');
     mockedUseSession.mockReturnValue({
       status: 'authenticated',
@@ -466,7 +481,7 @@ describe('round entry session guard', () => {
     fireEvent.click(startButton);
 
     await waitFor(() => {
-      expect(mockRequestLiveRoundGpsPermission).toHaveBeenCalledTimes(1);
+      expect(mockRequestLiveRoundGpsPermission).toHaveBeenCalledTimes(expectedBrowserRequests);
       expect(mockPush).toHaveBeenCalledWith('/rounds/live/real-gps');
     });
   });

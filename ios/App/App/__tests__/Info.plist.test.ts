@@ -27,6 +27,11 @@ describe('iOS native capabilities', () => {
     expect(infoPlist).toContain('during an active GPS round');
   });
 
+  it('uses GolfIQ for both user-facing iOS bundle names', () => {
+    expect(infoPlist).toMatch(/<key>CFBundleDisplayName<\/key>\s*<string>GolfIQ<\/string>/);
+    expect(infoPlist).toMatch(/<key>CFBundleName<\/key>\s*<string>GolfIQ<\/string>/);
+  });
+
   it('links the native background geolocation package with a portable path', () => {
     expect(swiftPackage).toContain('.product(name: "CapgoBackgroundGeolocation"');
     expect(swiftPackage).toContain('../../../node_modules/@capgo/background-geolocation');
@@ -51,5 +56,10 @@ describe('iOS native capabilities', () => {
     expect(xcodeProject).toContain('GOOGLE_IOS_CLIENT_ID = "587068132583-vn0muhinn9kpu1c6h643r515d6i500lp.apps.googleusercontent.com";');
     expect(xcodeProject).toContain('GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.587068132583-vn0muhinn9kpu1c6h643r515d6i500lp";');
     expect(xcodeProject).not.toContain('replace-me');
+  });
+
+  it('uses the next TestFlight build number in all target configurations', () => {
+    expect(xcodeProject.match(/CURRENT_PROJECT_VERSION = 2;/g)).toHaveLength(2);
+    expect(xcodeProject).not.toContain('CURRENT_PROJECT_VERSION = 1;');
   });
 });

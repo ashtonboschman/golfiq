@@ -10,12 +10,17 @@ import {
   startNativeBackgroundGps,
   stopNativeBackgroundGps,
 } from '@/lib/gps/nativeBackgroundLocation';
+import { isNativeIOS } from '@/lib/platform';
 
 jest.mock('@/lib/gps/nativeBackgroundLocation', () => ({
   ensureNativeBackgroundGpsPermission: jest.fn(),
   isNativeBackgroundGpsAvailable: jest.fn(),
   startNativeBackgroundGps: jest.fn(),
   stopNativeBackgroundGps: jest.fn(),
+}));
+
+jest.mock('@/lib/platform', () => ({
+  isNativeIOS: jest.fn(),
 }));
 
 const mockWatchPosition = jest.fn();
@@ -25,6 +30,7 @@ const mockedEnsureNativeBackgroundGpsPermission = jest.mocked(ensureNativeBackgr
 const mockedIsNativeBackgroundGpsAvailable = jest.mocked(isNativeBackgroundGpsAvailable);
 const mockedStartNativeBackgroundGps = jest.mocked(startNativeBackgroundGps);
 const mockedStopNativeBackgroundGps = jest.mocked(stopNativeBackgroundGps);
+const mockedIsNativeIOS = jest.mocked(isNativeIOS);
 
 function LocationHarness({ active }: { active: boolean }) {
   const { location, source } = useLiveGpsLocation(active);
@@ -59,6 +65,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     mockWatchPosition.mockImplementation(() => nextWatchId++);
     mockedEnsureNativeBackgroundGpsPermission.mockResolvedValue(true);
     mockedIsNativeBackgroundGpsAvailable.mockReturnValue(false);
+    mockedIsNativeIOS.mockReturnValue(false);
     mockedStartNativeBackgroundGps.mockResolvedValue();
     mockedStopNativeBackgroundGps.mockResolvedValue();
 
@@ -355,6 +362,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
   });
 
   it('keeps the native watcher active while hidden and stops it on unmount', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
     mockedIsNativeBackgroundGpsAvailable.mockReturnValue(true);
     let handlers: Parameters<typeof startNativeBackgroundGps>[0] | null = null;
     mockedStartNativeBackgroundGps.mockImplementation(async (nextHandlers) => {
@@ -390,6 +398,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
   });
 
   it('stops native tracking and reports permission errors', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
     mockedIsNativeBackgroundGpsAvailable.mockReturnValue(true);
     let handlers: Parameters<typeof startNativeBackgroundGps>[0] | null = null;
     mockedStartNativeBackgroundGps.mockImplementation(async (nextHandlers) => {
@@ -407,6 +416,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
   });
 
   it('does not start native tracking when location permission is denied', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
     mockedIsNativeBackgroundGpsAvailable.mockReturnValue(true);
     mockedEnsureNativeBackgroundGpsPermission.mockResolvedValue(false);
 
@@ -418,6 +428,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
   });
 
   it('does not start native tracking after the round is disabled during the permission request', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
     mockedIsNativeBackgroundGpsAvailable.mockReturnValue(true);
     let resolvePermission!: (granted: boolean) => void;
     mockedEnsureNativeBackgroundGpsPermission.mockReturnValue(new Promise((resolve) => {
@@ -432,5 +443,19 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     });
 
     expect(mockedStartNativeBackgroundGps).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to website location when the native plugin is unavailable', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
+    mockedIsNativeBackgroundGpsAvailable.mockReturnValue(false);
+
+    render(<LocationHarness active />);
+
+    expect(mockWatchPosition).not.toHaveBeenCalled();
+    expect(mockGetCurrentPosition).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveAttribute('data-status', 'unavailable');
+    });
+    expect(screen.getByTestId('location')).toHaveAttribute('data-source', 'native_background');
   });
 });
