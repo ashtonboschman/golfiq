@@ -1,10 +1,7 @@
-import type { LiveGpsPoint } from '@/lib/gps/liveMappingTypes';
+import { requestCurrentGpsFix, type CurrentGpsFix } from '@/lib/gps/currentLocation';
 import { isNativeIOS } from '@/lib/platform';
 
-export type EphemeralGpsFix = {
-  position: LiveGpsPoint;
-  accuracyMeters: number | null;
-};
+export type EphemeralGpsFix = CurrentGpsFix;
 
 export function requestLiveRoundGpsPermission(): Promise<EphemeralGpsFix | null> {
   // The native shell owns location permission and fixes. Calling the browser
@@ -13,29 +10,5 @@ export function requestLiveRoundGpsPermission(): Promise<EphemeralGpsFix | null>
     return Promise.resolve(null);
   }
 
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return Promise.resolve(null);
-  }
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          position: {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          },
-          accuracyMeters: Number.isFinite(position.coords.accuracy)
-            ? position.coords.accuracy
-            : null,
-        });
-      },
-      () => resolve(null),
-      {
-        enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 12000,
-      },
-    );
-  });
+  return requestCurrentGpsFix();
 }

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { requestCurrentGpsFix } from '@/lib/gps/currentLocation';
 
 type AdminGpsMappingLocationSortProps = {
   hasLocation: boolean;
@@ -17,30 +18,24 @@ export default function AdminGpsMappingLocationSort({
   const router = useRouter();
 
   useEffect(() => {
-    if (hasLocation || !navigator.geolocation) return;
+    if (hasLocation) return;
 
     let active = true;
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (!active) return;
+    void requestCurrentGpsFix({
+      timeout: 1000,
+      maximumAge: 300000,
+    }).then((fix) => {
+      if (!active || !fix) return;
 
-        const params = new URLSearchParams();
-        if (query) params.set('q', query);
-        if (status !== 'ALL') params.set('status', status);
-        params.set('lat', position.coords.latitude.toString());
-        params.set('lng', position.coords.longitude.toString());
+      const params = new URLSearchParams();
+      if (query) params.set('q', query);
+      if (status !== 'ALL') params.set('status', status);
+      params.set('lat', fix.position.lat.toString());
+      params.set('lng', fix.position.lng.toString());
 
-        router.replace(`/admin/gps-mapping?${params.toString()}`, { scroll: false });
-      },
-      () => {
-        // Fall back to alphabetical sorting when location is unavailable or denied.
-      },
-      {
-        timeout: 1000,
-        maximumAge: 300000,
-      },
-    );
+      router.replace(`/admin/gps-mapping?${params.toString()}`, { scroll: false });
+    });
 
     return () => {
       active = false;

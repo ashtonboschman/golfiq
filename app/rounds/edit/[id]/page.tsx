@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from 'rea
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
+import { requestCurrentGpsFix } from '@/lib/gps/currentLocation';
 import { AsyncPaginate } from 'react-select-async-paginate';
 import { selectStyles } from '@/lib/selectStyles';
 import HoleCard from '@/components/HoleCard';
@@ -259,19 +260,13 @@ function EditRoundContent() {
 
   // Get user's geolocation for course sorting
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.log('Geolocation not available:', error);
-        }
-      );
-    }
+    let active = true;
+    void requestCurrentGpsFix().then((fix) => {
+      if (active && fix) setUserLocation(fix.position);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {

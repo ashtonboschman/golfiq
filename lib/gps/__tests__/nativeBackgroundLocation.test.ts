@@ -3,7 +3,9 @@ import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { isNativeIOS } from '@/lib/platform';
 import {
   ensureNativeBackgroundGpsPermission,
+  ensureNativeForegroundGpsPermission,
   isNativeBackgroundGpsAvailable,
+  requestNativeForegroundGpsPosition,
   startNativeBackgroundGps,
   stopNativeBackgroundGps,
 } from '@/lib/gps/nativeBackgroundLocation';
@@ -86,6 +88,32 @@ describe('native background GPS bridge', () => {
     });
   });
 
+  it('requests only foreground access for a one-shot native location', async () => {
+    mockedCheckPermissions.mockResolvedValue({
+      location: 'prompt',
+      backgroundLocation: 'prompt',
+    });
+
+    await expect(ensureNativeForegroundGpsPermission()).resolves.toBe(true);
+
+    expect(mockedRequestPermissions).toHaveBeenCalledWith({
+      permissions: ['location'],
+    });
+  });
+
+  it('requests the background upgrade after foreground access was already granted', async () => {
+    mockedCheckPermissions.mockResolvedValue({
+      location: 'granted',
+      backgroundLocation: 'when_in_use',
+    });
+
+    await expect(ensureNativeBackgroundGpsPermission()).resolves.toBe(true);
+
+    expect(mockedRequestPermissions).toHaveBeenCalledWith({
+      permissions: ['backgroundLocation'],
+    });
+  });
+
   it('respects a denied native location choice without prompting repeatedly', async () => {
     mockedCheckPermissions.mockResolvedValue({
       location: 'denied',
@@ -135,6 +163,25 @@ describe('native background GPS bridge', () => {
     const error = { code: 'NOT_AUTHORIZED' } as never;
     callback(undefined, error);
     expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  it('gets a one-shot foreground fix and stops the native location manager', async () => {
+    const position = { latitude: 49.9, longitude: -97.1, accuracy: 8 } as never;
+    mockedStart.mockImplementationOnce(async (_options, callback) => {
+      callback(position);
+    });
+
+    await expect(requestNativeForegroundGpsPosition(1000)).resolves.toBe(position);
+
+    expect(mockedStart).toHaveBeenCalledWith(
+      {
+        distanceFilter: 0,
+        requestPermissions: false,
+        stale: true,
+      },
+      expect.any(Function),
+    );
+    expect(mockedStop).toHaveBeenCalledTimes(1);
   });
 
   it('stops the native location manager', async () => {

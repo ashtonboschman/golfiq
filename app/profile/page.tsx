@@ -8,6 +8,7 @@ import { useMessage } from '../providers';
 import { AsyncPaginate } from 'react-select-async-paginate';
 import Select from 'react-select';
 import { useUploadThing } from '@/lib/uploadthing';
+import { requestCurrentGpsFix } from '@/lib/gps/currentLocation';
 import { useAvatar } from '@/context/AvatarContext';
 import { Mail, SquarePen, Trash2, Upload, Eye, EyeOff } from 'lucide-react';
 import { selectStyles } from '@/lib/selectStyles';
@@ -96,19 +97,13 @@ export default function ProfilePage() {
 
   // Get user's geolocation for course sorting
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.log('Geolocation not available:', error);
-        }
-      );
-    }
+    let active = true;
+    void requestCurrentGpsFix().then((fix) => {
+      if (active && fix) setUserLocation(fix.position);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const setFavoriteCourse = (course: { id: number; course_name: string } | null) => {

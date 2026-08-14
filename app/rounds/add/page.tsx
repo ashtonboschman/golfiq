@@ -17,6 +17,7 @@ import { markInsightsNudgePending, markRoundInsightsRefreshPending } from '@/lib
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { requestLiveRoundGpsPermission } from '@/lib/gps/browserLocation';
+import { requestCurrentGpsFix } from '@/lib/gps/currentLocation';
 import { isNativeIOS } from '@/lib/platform';
 import { isAdminUserId } from '@/lib/admin';
 import { getRoundAddDraftKey } from '@/lib/rounds/addDraft';
@@ -887,24 +888,21 @@ function AddRoundContent() {
 
   // One-time, ephemeral location lookup used only to sort nearby course search results.
   useEffect(() => {
-    if (status !== 'authenticated' || !navigator.geolocation) return;
+    if (status !== 'authenticated') return;
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-      },
-      () => {
-        // Course search still works without proximity sorting.
-      },
-      {
+    let active = true;
+    void requestCurrentGpsFix({
         enableHighAccuracy: false,
         maximumAge: 300000,
         timeout: 8000,
-      },
-    );
+      })
+      .then((fix) => {
+        if (active && fix) setUserLocation(fix.position);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [status]);
 
   // Fetch user profile for default tee preference

@@ -7,6 +7,7 @@ import { Plus } from 'lucide-react';
 import { useMessage } from '../providers';
 import CourseCard from '@/components/CourseCard';
 import { CourseListSkeleton } from '@/components/skeleton/PageSkeletons';
+import { requestCurrentGpsFix } from '@/lib/gps/currentLocation';
 
 interface Location {
   city?: string | null;
@@ -59,45 +60,30 @@ export default function CoursesPage() {
 
   // Request user's geolocation on mount with timeout
   useEffect(() => {
-    if (navigator.geolocation) {
-      let settled = false;
-      const timeoutId = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          setLocationChecked(true);
-          setWaitingForLocation(false);
-        }
-      }, 2000); // 2 second timeout
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeoutId);
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-          setLocationChecked(true);
-          setWaitingForLocation(false);
-        },
-        (error) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeoutId);
-          setLocationChecked(true);
-          setWaitingForLocation(false);
-          // Silently fail - courses will be shown without distance sorting
-        },
-        {
-          timeout: 1000, // 1 second timeout for the geolocation API itself
-          maximumAge: 300000, // Accept cached position up to 5 minutes old
-        }
-      );
-    } else {
+    let active = true;
+    let settled = false;
+    const finish = () => {
+      if (!active || settled) return;
+      settled = true;
       setLocationChecked(true);
       setWaitingForLocation(false);
-    }
+    };
+    const timeoutId = setTimeout(finish, 2000);
+
+    void requestCurrentGpsFix({
+      timeout: 1000,
+      maximumAge: 300000,
+    }).then((fix) => {
+      if (!active || settled) return;
+      if (fix) setUserLocation(fix.position);
+      clearTimeout(timeoutId);
+      finish();
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   // Debounce search input
