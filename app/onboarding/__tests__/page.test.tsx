@@ -152,6 +152,15 @@ describe('/onboarding page', () => {
     expect(mockReplace).toHaveBeenCalledWith('/onboarding?step=2&source=landing');
   });
 
+  it('routes existing users from the first screen to login and then the dashboard', () => {
+    render(<OnboardingPage />);
+
+    expect(screen.getByRole('link', { name: 'I already have an account' })).toHaveAttribute(
+      'href',
+      '/login?mode=login&next=%2Fdashboard',
+    );
+  });
+
   it('marks only one active progress dot for the current step', () => {
     mockQuery = new URLSearchParams('step=3&source=landing');
     render(<OnboardingPage />);
@@ -163,6 +172,43 @@ describe('/onboarding page', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Hole 6')).toBeInTheDocument();
     expect(screen.getByText('Next Hole')).toBeInTheDocument();
+  });
+
+  it('restores the inner round-preview height after session loading resolves', async () => {
+    mockQuery = new URLSearchParams('step=3&source=landing');
+    mockedUseSession.mockReturnValue({ status: 'loading', data: null });
+
+    const requestFrame = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const cancelFrame = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const clientHeight = jest.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('wrapper')) return 700;
+      if (this.classList.contains('visualStep3')) return 300;
+      return 0;
+    });
+    const scrollHeight = jest.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute('data-onboarding-live-scroll')) return 600;
+      if (this.classList.contains('cardShell')) return 700;
+      return 0;
+    });
+
+    const view = render(<OnboardingPage />);
+    expect(document.querySelector('[data-onboarding-live-scroll]')).not.toBeInTheDocument();
+
+    mockedUseSession.mockReturnValue({ status: 'unauthenticated', data: null });
+    view.rerender(<OnboardingPage />);
+
+    await waitFor(() => {
+      const preview = document.querySelector<HTMLElement>('[style*="--onboarding-live-preview-max-height"]');
+      expect(preview?.style.getPropertyValue('--onboarding-live-preview-max-height')).toBe('220px');
+    });
+
+    requestFrame.mockRestore();
+    cancelFrame.mockRestore();
+    clientHeight.mockRestore();
+    scrollHeight.mockRestore();
   });
 
   it('stores selected goal in localStorage and moves to step 3', () => {
@@ -224,7 +270,7 @@ describe('/onboarding page', () => {
     expect(screen.getByText('See stronger trends and clearer score patterns')).toBeInTheDocument();
   });
 
-  it('routes final CTAs to register/login with post-signup next intent', () => {
+  it('routes registration through post-signup and existing-user login to the dashboard', () => {
     mockQuery = new URLSearchParams('step=5&source=landing');
     render(<OnboardingPage />);
 
@@ -232,7 +278,7 @@ describe('/onboarding page', () => {
     expect(mockPush).toHaveBeenCalledWith('/login?mode=register&next=%2Fpost-signup');
 
     fireEvent.click(screen.getByRole('button', { name: 'I Already Have an Account' }));
-    expect(mockPush).toHaveBeenCalledWith('/login?mode=login&next=%2Fpost-signup');
+    expect(mockPush).toHaveBeenCalledWith('/login?mode=login&next=%2Fdashboard');
   });
 
   it('marks onboarding completed in localStorage on final step CTA', () => {

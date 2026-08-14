@@ -28,7 +28,8 @@ function toStep(value: string | null): number {
 }
 
 function buildLoginHref(mode: 'register' | 'login'): string {
-  return `/login?mode=${mode}&next=${encodeURIComponent('/post-signup')}`;
+  const nextPath = mode === 'register' ? '/post-signup' : '/dashboard';
+  return `/login?mode=${mode}&next=${encodeURIComponent(nextPath)}`;
 }
 
 function OnboardingContent() {
@@ -136,6 +137,7 @@ function OnboardingContent() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (status !== 'unauthenticated') return;
     if (step !== 1) return;
 
     const card = cardShellRef.current;
@@ -179,10 +181,11 @@ function OnboardingContent() {
       observer?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [step]);
+  }, [status, step]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (status !== 'unauthenticated') return;
     if (step !== 3) return;
 
     const card = cardShellRef.current;
@@ -226,10 +229,11 @@ function OnboardingContent() {
       observer?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [step]);
+  }, [status, step]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (status !== 'unauthenticated') return;
     if (step !== 4) return;
 
     const card = cardShellRef.current;
@@ -273,7 +277,7 @@ function OnboardingContent() {
       observer?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [step]);
+  }, [status, step]);
 
   const navigateToStep = (nextStep: number) => {
     router.replace(`/onboarding?step=${nextStep}&source=${encodeURIComponent(source)}`);
@@ -362,7 +366,7 @@ function OnboardingContent() {
     router.push(loginHref);
   };
 
-  if (status === 'loading') {
+  if (status !== 'unauthenticated') {
     return null;
   }
 

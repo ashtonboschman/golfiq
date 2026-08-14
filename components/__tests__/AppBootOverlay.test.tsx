@@ -46,6 +46,16 @@ describe('AppBootOverlay public route behavior', () => {
     expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
   });
 
+  it('keeps the boot visual over onboarding while the session resolves', () => {
+    mockPathname = '/onboarding';
+    mockedUseSession.mockReturnValue({ status: 'loading', data: null });
+
+    render(<AppBootOverlay />);
+
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.getByTestId('app-boot-visual')).toBeInTheDocument();
+  });
+
   it('does not show overlay on post-signup route while session loads', () => {
     mockPathname = '/post-signup';
     mockedUseSession.mockReturnValue({ status: 'loading', data: null });

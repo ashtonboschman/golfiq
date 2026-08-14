@@ -5,15 +5,18 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { useMessage } from '@/app/providers';
 import { clearLiveRoundRecoveryState } from '@/lib/rounds/liveRoundResume';
 import {
   isLiveRoundPath,
   requestLiveRoundNavigation,
 } from '@/lib/rounds/liveRoundNavigation';
+import { isNativeIOS } from '@/lib/platform';
 
 const ADD_ROUND_DIRTY_KEY = 'golfiq-add-round-dirty';
+const subscribeToNativePlatform = () => () => {};
+const getServerNativePlatformSnapshot = () => false;
 
 const LOGO_BY_THEME: Record<string, string> = {
   dark: '/logos/wordmark/golfiq-wordmark.png',
@@ -39,6 +42,13 @@ export default function Header() {
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isNativeClient = useSyncExternalStore(
+    subscribeToNativePlatform,
+    isNativeIOS,
+    getServerNativePlatformSnapshot,
+  );
+  const isNativeAuthBranding =
+    isNativeClient && (pathname === '/login' || pathname === '/onboarding');
 
   // Check if viewing someone else's dashboard
   const isViewingOthersDashboard = pathname === '/dashboard' && searchParams.has('user_id');
@@ -281,12 +291,12 @@ export default function Header() {
         )}
 
         <div
-          className="logo-wrap"
-          onClick={handleLogoClick}
-          title={user ? 'Dashboard' : 'Home'}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
+          className={`logo-wrap${isNativeAuthBranding ? ' logo-wrap-static' : ''}`}
+          onClick={isNativeAuthBranding ? undefined : handleLogoClick}
+          title={isNativeAuthBranding ? undefined : (user ? 'Dashboard' : 'Home')}
+          role={isNativeAuthBranding ? undefined : 'button'}
+          tabIndex={isNativeAuthBranding ? undefined : 0}
+          onKeyDown={isNativeAuthBranding ? undefined : (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               handleLogoClick();

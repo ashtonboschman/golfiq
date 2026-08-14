@@ -853,6 +853,10 @@ select option {
   justify-content: center;
 }
 
+.header .logo-wrap.logo-wrap-static {
+  cursor: default;
+}
+
 .header .logo {
   display: none;
   height: 40px;

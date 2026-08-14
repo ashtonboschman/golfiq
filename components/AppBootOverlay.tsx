@@ -46,7 +46,8 @@ export default function AppBootOverlay() {
     };
   }, [isPublicRoute, status, pathname]);
 
-  const showOverlay = !isPublicRoute && (status === 'loading' || holdUnauthOverlay);
+  const isResolvingOnboardingSession = pathname === '/onboarding' && status !== 'unauthenticated';
+  const showOverlay = isResolvingOnboardingSession || (!isPublicRoute && (status === 'loading' || holdUnauthOverlay));
 
   if (!showOverlay) return null;
 
