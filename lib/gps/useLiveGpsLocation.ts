@@ -327,6 +327,7 @@ export function useLiveGpsLocation(active: boolean) {
       if (isDocumentHidden) {
         if (nativeBackgroundAvailable) return;
 
+        stopWatch();
         if (acceptedFixRef.current) {
           setLocation(locationFromAcceptedFix(acceptedFixRef.current, 'stale'));
         }

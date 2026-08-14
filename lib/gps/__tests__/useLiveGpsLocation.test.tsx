@@ -157,14 +157,14 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     );
   });
 
-  it('keeps the watcher registered and requests an uncached fix when visible again', () => {
+  it('restarts the watcher and requests an uncached fix when visible again', () => {
     render(<LocationHarness active />);
 
     setDocumentHidden(true);
-    expect(mockClearWatch).not.toHaveBeenCalled();
+    expect(mockClearWatch).toHaveBeenCalledWith(1);
 
     setDocumentHidden(false);
-    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
     expect(mockGetCurrentPosition).toHaveBeenCalledWith(
       expect.any(Function),
       expect.any(Function),
@@ -202,11 +202,11 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
 
     setDocumentHidden(true);
     setDocumentHidden(true);
-    expect(mockClearWatch).not.toHaveBeenCalled();
+    expect(mockClearWatch).toHaveBeenCalledTimes(1);
 
     setDocumentHidden(false);
     setDocumentHidden(false);
-    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
     expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1);
   });
 
@@ -318,7 +318,7 @@ describe('useLiveGpsLocation visibility lifecycle', () => {
     expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
 
     setDocumentHidden(false);
-    expect(mockWatchPosition).toHaveBeenCalledTimes(1);
+    expect(mockWatchPosition).toHaveBeenCalledTimes(2);
     expect(mockGetCurrentPosition).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('location')).toHaveAttribute('data-lat', '49.901');
 
