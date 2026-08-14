@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { signOutOfGolfIQ } from '@/lib/auth/logout';
 import { useMessage } from '../providers';
 import { AsyncPaginate } from 'react-select-async-paginate';
 import Select from 'react-select';
@@ -472,14 +473,6 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
-    const clearThemeAuthMarker = () => {
-      try {
-        localStorage.removeItem('golfiq:auth');
-      } catch {
-        // noop
-      }
-    };
-
     if (hasChanges) {
       showConfirm({
         title: 'Discard changes?',
@@ -490,14 +483,12 @@ export default function ProfilePage() {
         confirmVariant: 'danger',
         onConfirm: async () => {
           sessionStorage.removeItem('profile-has-changes');
-          clearThemeAuthMarker();
-          await signOut({ redirect: false });
+          await signOutOfGolfIQ();
           router.replace('/login');
         }
       });
     } else {
-      clearThemeAuthMarker();
-      await signOut({ redirect: false });
+      await signOutOfGolfIQ();
       router.replace('/login');
     }
   };

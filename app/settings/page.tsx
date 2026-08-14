@@ -1,7 +1,8 @@
 'use client';
 
-import { signOut, useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { signOutOfGolfIQ } from '@/lib/auth/logout';
 import { type FormEvent, useEffect, useState } from 'react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -237,12 +238,7 @@ export default function SettingsPage() {
           }
 
           showMessage(data.message || 'Account deleted successfully.', 'success');
-          try {
-            localStorage.removeItem('golfiq:auth');
-          } catch {
-            // noop
-          }
-          await signOut({ redirect: false });
+          await signOutOfGolfIQ();
           router.replace('/');
         } catch (error: any) {
           console.error('Delete account error:', error);

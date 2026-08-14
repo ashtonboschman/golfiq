@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
@@ -13,6 +13,7 @@ import {
   requestLiveRoundNavigation,
 } from '@/lib/rounds/liveRoundNavigation';
 import { isNativeIOS } from '@/lib/platform';
+import { signOutOfGolfIQ } from '@/lib/auth/logout';
 
 const ADD_ROUND_DIRTY_KEY = 'golfiq-add-round-dirty';
 const subscribeToNativePlatform = () => () => {};
@@ -132,8 +133,7 @@ export default function Header() {
     if (hasAddRoundUnsavedChanges()) {
       showAddRoundDiscardConfirm(async () => {
         setDropdownOpen(false);
-        clearThemeAuthMarker();
-        await signOut({ redirect: false });
+        await signOutOfGolfIQ();
         router.replace('/login');
       });
     } else if (isOnEditRoundPage || hasUnsavedChanges) {
@@ -149,15 +149,13 @@ export default function Header() {
             sessionStorage.removeItem('profile-has-changes');
           }
           setDropdownOpen(false);
-          clearThemeAuthMarker();
-          await signOut({ redirect: false });
+          await signOutOfGolfIQ();
           router.replace('/login');
         }
       });
     } else {
       setDropdownOpen(false);
-      clearThemeAuthMarker();
-      await signOut({ redirect: false });
+      await signOutOfGolfIQ();
       router.replace('/login');
     }
   };
@@ -373,11 +371,3 @@ export default function Header() {
     </header>
   );
 }
-
-const clearThemeAuthMarker = () => {
-  try {
-    localStorage.removeItem('golfiq:auth');
-  } catch {
-    // noop
-  }
-};
