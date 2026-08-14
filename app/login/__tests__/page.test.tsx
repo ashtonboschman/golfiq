@@ -129,7 +129,7 @@ describe('/login page mode + next handling', () => {
     const appleButton = await screen.findByRole('button', { name: /Continue with Apple/i });
 
     expect(googleButton.querySelector('.login-google-icon')).toBeInTheDocument();
-    expect(appleButton.querySelector('.login-apple-icon')).toBeInTheDocument();
+    expect(appleButton.querySelector('svg.login-apple-icon')).toBeInTheDocument();
   });
 
   it('respects mode=login by defaulting to login fields', () => {

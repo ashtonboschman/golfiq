@@ -37,6 +37,24 @@ function GoogleIcon() {
   );
 }
 
+function AppleIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 384 512"
+      width="18"
+      height="18"
+      className="login-apple-icon"
+    >
+      <path
+        fill="currentColor"
+        d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5c0 25.7 4.7 52.4 14 80.1 12.5 36.7 57.7 126.7 104.9 125.2 24.7-.6 42.2-17.5 74.4-17.5 31.2 0 47.3 17.5 74.7 17.5 47.6-.7 88.7-82.5 100.6-119.3-63.9-30.1-60.5-89-53.9-90.8zM260.9 104.5c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"
+      />
+    </svg>
+  );
+}
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -436,7 +454,7 @@ function LoginContent() {
             {isGoogleEnabled && (
               <button
                 type="button"
-                className="btn btn-apple u-w-full"
+                className="btn btn-secondary u-w-full"
                 disabled={loading || !!oauthLoadingProvider}
                 onClick={() => handleOauthSignIn('google')}
               >
@@ -461,8 +479,8 @@ function LoginContent() {
                 disabled={loading || !!oauthLoadingProvider}
                 onClick={() => handleOauthSignIn('apple')}
               >
-                <span className="oauth-provider-content oauth-provider-content-apple">
-                  <span aria-hidden="true" className="login-apple-icon" />
+                <span className="oauth-provider-content">
+                  <AppleIcon />
                   <span>
                     {oauthLoadingProvider === 'apple'
                       ? authPlatform === 'native'

@@ -8927,11 +8927,8 @@ input[type='date'].form-input {
 .auth-input-control { padding-right: 45px; }
 .auth-input-toggle { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 0; color: var(--color-secondary-text); font-size: 1.2rem; display: inline-flex; align-items: center; }
 .auth-input-toggle.padded { padding: 4px; }
-.login-google-icon { display: block; flex-shrink: 0; }
-.btn-apple { min-height: 40px; padding-top: 0; padding-bottom: 0; background-color: var(--color-white); color: #000; }
-.btn-apple:hover { background-color: var(--color-white); }
-.login-apple-icon { display: block; flex: 0 0 40px; width: 40px; height: 40px; background: center / 40px 40px no-repeat url("https://appleid.cdn-apple.com/appleid/button/logo?color=white&border=false&border_radius=0&size=40&scale=2"); }
-.oauth-provider-content-apple { gap: 0; }
+.login-google-icon,
+.login-apple-icon { display: block; flex-shrink: 0; }
 .oauth-stack { display: flex; flex-direction: column; gap: var(--gap); }
 .oauth-divider { display: flex; align-items: center; gap: 10px; margin-top: var(--gap-small); margin-bottom: var(--gap-small); color: var(--color-secondary-text); font-size: 12px; }
 .oauth-divider-line { flex: 1; height: 1px; background: var(--color-border); }
