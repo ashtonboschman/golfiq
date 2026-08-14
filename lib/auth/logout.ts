@@ -1,11 +1,18 @@
 'use client';
 
 import { signOut } from 'next-auth/react';
+import { markOnboardingCompleted, readOnboardingState } from '@/lib/onboarding/state';
 import { isNativeIOS } from '@/lib/platform';
 
 const AUTH_THEME_MARKER = 'golfiq:auth';
 
 export async function signOutOfGolfIQ(): Promise<void> {
+  // Anyone signing out is a returning user and should not be sent through the
+  // first-run onboarding flow on their next native launch.
+  if (!readOnboardingState().completed) {
+    markOnboardingCompleted();
+  }
+
   try {
     localStorage.removeItem(AUTH_THEME_MARKER);
   } catch {

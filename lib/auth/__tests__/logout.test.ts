@@ -38,6 +38,10 @@ describe('signOutOfGolfIQ', () => {
     await signOutOfGolfIQ();
 
     expect(localStorage.getItem('golfiq:auth')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('golfiq:onboarding:v1') as string)).toMatchObject({
+      completed: true,
+      lastStep: 5,
+    });
     expect(mockedSignOut).toHaveBeenCalledWith({ redirect: false });
     expect(mockedClearCookies).not.toHaveBeenCalled();
   });

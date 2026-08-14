@@ -2,31 +2,40 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { isNativeIOS } from '@/lib/platform';
+import { readOnboardingState } from '@/lib/onboarding/state';
 import AppBootVisual from './AppBootVisual';
 import type { ReactNode } from 'react';
 
-type NativeEntryState = 'pending' | 'web' | 'native';
+type NativeEntryState = 'pending' | 'web';
 
 export default function NativeRootEntryGate({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { status } = useSession();
   const [entryState, setEntryState] = useState<NativeEntryState>('pending');
   const redirectedRef = useRef(false);
 
   useEffect(() => {
     const nativeIOS = isNativeIOS();
-    const nextState: NativeEntryState = nativeIOS ? 'native' : 'web';
-    const resolveStateTimer = window.setTimeout(() => {
-      setEntryState(nextState);
-    }, 0);
-
-    if (nativeIOS && !redirectedRef.current) {
-      redirectedRef.current = true;
-      router.replace('/onboarding');
+    if (!nativeIOS) {
+      const resolveStateTimer = window.setTimeout(() => {
+        setEntryState('web');
+      }, 0);
+      return () => window.clearTimeout(resolveStateTimer);
     }
 
-    return () => window.clearTimeout(resolveStateTimer);
-  }, [router]);
+    if (status === 'loading' || redirectedRef.current) return;
+
+    redirectedRef.current = true;
+    if (status === 'authenticated') {
+      router.replace('/dashboard');
+      return;
+    }
+
+    const destination = readOnboardingState().completed ? '/login' : '/onboarding';
+    router.replace(destination);
+  }, [router, status]);
 
   if (entryState !== 'web') {
     return (

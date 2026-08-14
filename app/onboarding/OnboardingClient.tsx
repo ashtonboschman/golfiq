@@ -303,6 +303,22 @@ function OnboardingContent() {
     router.push(registerHref);
   };
 
+  const handleIntroLogin = () => {
+    markOnboardingCompleted();
+    if (!isAnalyticsEligible) return;
+
+    captureClientEvent(
+      ANALYTICS_EVENTS.onboardingSkipped,
+      { step: 1, source },
+      analyticsContext,
+    );
+    captureClientEvent(
+      ANALYTICS_EVENTS.onboardingLoginStarted,
+      { source },
+      analyticsContext,
+    );
+  };
+
   const handleGoalSelect = (goal: OnboardingGoal) => {
     setSessionSelectedGoal(goal);
     writeOnboardingState({
@@ -424,7 +440,7 @@ function OnboardingContent() {
               >
                 Get Started
               </button>
-              <Link href={loginHref} className={styles.secondaryLink}>
+              <Link href={loginHref} className={styles.secondaryLink} onClick={handleIntroLogin}>
                 I already have an account
               </Link>
             </div>

@@ -152,13 +152,20 @@ describe('/onboarding page', () => {
     expect(mockReplace).toHaveBeenCalledWith('/onboarding?step=2&source=landing');
   });
 
-  it('routes existing users from the first screen to login and then the dashboard', () => {
+  it('routes existing users from the first screen to login and remembers them as returning', () => {
     render(<OnboardingPage />);
 
-    expect(screen.getByRole('link', { name: 'I already have an account' })).toHaveAttribute(
+    const existingAccountLink = screen.getByRole('link', { name: 'I already have an account' });
+    expect(existingAccountLink).toHaveAttribute(
       'href',
       '/login?mode=login&next=%2Fdashboard',
     );
+
+    existingAccountLink.addEventListener('click', (event) => event.preventDefault(), { once: true });
+    fireEvent.click(existingAccountLink);
+
+    const storedState = JSON.parse(localStorage.getItem('golfiq:onboarding:v1') as string);
+    expect(storedState.completed).toBe(true);
   });
 
   it('marks only one active progress dot for the current step', () => {
