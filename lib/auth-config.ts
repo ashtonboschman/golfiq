@@ -10,6 +10,7 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyNativeSocialIdToken } from '@/lib/auth/nativeSocial';
 import { getAppleProviderCredentials } from '@/lib/auth/appleClientSecret';
+import { buildPkceCodeVerifierCookie } from '@/lib/auth/pkceCookie';
 
 type OAuthProviderId = 'google' | 'apple';
 
@@ -569,6 +570,9 @@ if (appleProviderCredentials) {
 
 export const authOptions: NextAuthOptions = {
   providers,
+  cookies: {
+    pkceCodeVerifier: buildPkceCodeVerifierCookie(),
+  },
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days

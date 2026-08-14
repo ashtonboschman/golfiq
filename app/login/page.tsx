@@ -436,7 +436,7 @@ function LoginContent() {
             {isGoogleEnabled && (
               <button
                 type="button"
-                className="btn btn-secondary u-w-full"
+                className="btn btn-apple u-w-full"
                 disabled={loading || !!oauthLoadingProvider}
                 onClick={() => handleOauthSignIn('google')}
               >
@@ -461,13 +461,18 @@ function LoginContent() {
                 disabled={loading || !!oauthLoadingProvider}
                 onClick={() => handleOauthSignIn('apple')}
               >
-                {oauthLoadingProvider === 'apple'
-                  ? authPlatform === 'native'
-                    ? 'Signing in with Apple...'
-                    : 'Redirecting to Apple...'
-                  : isRegister
-                  ? 'Sign up with Apple'
-                  : 'Continue with Apple'}
+                <span className="oauth-provider-content oauth-provider-content-apple">
+                  <span aria-hidden="true" className="login-apple-icon" />
+                  <span>
+                    {oauthLoadingProvider === 'apple'
+                      ? authPlatform === 'native'
+                        ? 'Signing in with Apple...'
+                        : 'Redirecting to Apple...'
+                      : isRegister
+                      ? 'Sign up with Apple'
+                      : 'Continue with Apple'}
+                  </span>
+                </span>
               </button>
             )}
           </div>

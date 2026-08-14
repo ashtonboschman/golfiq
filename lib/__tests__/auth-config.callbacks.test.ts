@@ -74,7 +74,7 @@ describe('authOptions callbacks', () => {
     expect(user.subscription_tier).toBe('lifetime');
   });
 
-  it('links google sign-in to an existing same-email account', async () => {
+  it.each(['google', 'apple'] as const)('links %s sign-in to an existing same-email account', async (provider) => {
     const signIn = authOptions.callbacks?.signIn;
     expect(signIn).toBeDefined();
 
@@ -128,8 +128,8 @@ describe('authOptions callbacks', () => {
       {
         user: oauthUser as any,
         account: {
-          provider: 'google',
-          providerAccountId: 'google-account-123',
+          provider,
+          providerAccountId: `${provider}-account-123`,
         },
         profile: {
           email: 'golfer@example.com',

@@ -120,6 +120,18 @@ describe('/login page mode + next handling', () => {
     expect(screen.getByRole('button', { name: /Apple/i })).toBeInTheDocument();
   });
 
+  it('renders icons for both social sign-in providers', async () => {
+    process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED = '1';
+
+    render(<LoginPage />);
+
+    const googleButton = await screen.findByRole('button', { name: /Continue with Google/i });
+    const appleButton = await screen.findByRole('button', { name: /Continue with Apple/i });
+
+    expect(googleButton.querySelector('.login-google-icon')).toBeInTheDocument();
+    expect(appleButton.querySelector('.login-apple-icon')).toBeInTheDocument();
+  });
+
   it('respects mode=login by defaulting to login fields', () => {
     mockQuery = new URLSearchParams('mode=login&next=/post-signup');
     render(<LoginPage />);
