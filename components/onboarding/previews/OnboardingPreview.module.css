@@ -126,7 +126,7 @@
 
 .gpsPreviewRoot :global(.live-round-gps-controls) {
   right: var(--gap);
-  bottom: 28px;
+  bottom: var(--gap);
   left: var(--gap);
   gap: var(--gap-small);
 }
