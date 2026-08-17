@@ -12,22 +12,22 @@ const previewTrends: Array<{
     label: 'Recent Form',
     icon: BarChart3,
     role: 'recent_form',
-    conclusion: 'Your recent scoring has been better than your usual level.',
-    supporting: 'Your latest 5 rounds average 84.2 compared with 88.0 across the previous 12.',
+    conclusion: 'Your latest 5 rounds average 84.2 compared with 88.0',
+    supporting: 'across your previous 12.',
   },
   {
     label: 'Strength',
     icon: CircleCheck,
     role: 'strength',
-    conclusion: 'Putting has consistently been the strongest part of your game.',
-    supporting: 'You averaged +1.7 strokes gained per round over your last 5 tracked rounds.',
+    conclusion: 'Putting is your strongest area at +1.7 strokes gained per round',
+    supporting: 'over your last 5 rounds.',
   },
   {
     label: 'Stability',
     icon: CircleCheck,
     role: 'stable',
-    conclusion: 'Your recent scoring has been stable from round to round.',
-    supporting: 'Seven strokes separated your best and worst scores across your last five rounds.',
+    conclusion: 'Seven strokes separated your best and worst scores',
+    supporting: 'over your last 5 rounds.',
   },
 ];
 

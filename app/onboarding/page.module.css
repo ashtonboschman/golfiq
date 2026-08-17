@@ -3,8 +3,8 @@
   justify-content: center;
   align-items: flex-start;
   width: 100%;
-  height: calc(100dvh - var(--app-page-top-offset) - var(--safe-area-bottom));
-  max-height: calc(100dvh - var(--app-page-top-offset) - var(--safe-area-bottom));
+  height: calc(100dvh - var(--app-page-top-offset) - var(--safe-area-bottom) - var(--app-page-bottom-padding));
+  max-height: calc(100dvh - var(--app-page-top-offset) - var(--safe-area-bottom) - var(--app-page-bottom-padding));
   box-sizing: border-box;
   overflow: hidden;
   padding-bottom: 0;

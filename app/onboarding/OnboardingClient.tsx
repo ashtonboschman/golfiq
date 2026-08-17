@@ -30,6 +30,13 @@ function buildLoginHref(mode: 'register' | 'login'): string {
   return `/login?mode=${mode}&next=${encodeURIComponent(nextPath)}`;
 }
 
+function getCardMaxHeight(card: HTMLElement, wrapper: HTMLElement | null): number {
+  const computedMaxHeight = Number.parseFloat(window.getComputedStyle(card).maxHeight);
+  return Number.isFinite(computedMaxHeight)
+    ? computedMaxHeight
+    : (wrapper?.clientHeight ?? card.clientHeight);
+}
+
 function OnboardingContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -149,7 +156,7 @@ function OnboardingContent() {
         const insightsViewport = preview.querySelector<HTMLElement>('[data-onboarding-insights-scroll]');
         const naturalPreviewHeight = insightsViewport?.scrollHeight ?? preview.scrollHeight;
         const currentPreviewHeight = preview.clientHeight;
-        const maxCardHeight = wrapper?.clientHeight ?? card.clientHeight;
+        const maxCardHeight = getCardMaxHeight(card, wrapper);
         const projectedCardHeight = card.scrollHeight - currentPreviewHeight + naturalPreviewHeight;
         const overflow = projectedCardHeight - maxCardHeight;
 
@@ -197,7 +204,7 @@ function OnboardingContent() {
         const liveScrollViewport = preview.querySelector<HTMLElement>('[data-onboarding-live-scroll]');
         const naturalPreviewHeight = liveScrollViewport?.scrollHeight ?? preview.scrollHeight;
         const currentPreviewHeight = preview.clientHeight;
-        const maxCardHeight = wrapper?.clientHeight ?? card.clientHeight;
+        const maxCardHeight = getCardMaxHeight(card, wrapper);
         const projectedCardHeight = card.scrollHeight - currentPreviewHeight + naturalPreviewHeight;
         const overflow = projectedCardHeight - maxCardHeight;
 
@@ -245,7 +252,7 @@ function OnboardingContent() {
         const trendViewport = preview.querySelector<HTMLElement>('[data-onboarding-trend-scroll]');
         const naturalPreviewHeight = trendViewport?.scrollHeight ?? preview.scrollHeight;
         const currentPreviewHeight = preview.clientHeight;
-        const maxCardHeight = wrapper?.clientHeight ?? card.clientHeight;
+        const maxCardHeight = getCardMaxHeight(card, wrapper);
         const projectedCardHeight = card.scrollHeight - currentPreviewHeight + naturalPreviewHeight;
         const overflow = projectedCardHeight - maxCardHeight;
 
