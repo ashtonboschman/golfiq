@@ -965,9 +965,9 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .login-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
+  gap: var(--gap);
+  padding: var(--padding);
+  border-radius: var(--border-radius);
   background: var(--color-primary-surface);
 }
 
@@ -987,7 +987,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .login-context {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--gap-small);
 }
 
 .login-title {
@@ -7263,15 +7263,15 @@ input[type='date'].form-input {
 .legal-page {
   min-height: 100vh;
   background-color: var(--color-primary-bg);
-  padding: 10px 10px 60px;
+  padding: 0 0 60px;
 }
 
 .legal-container {
   max-width: 800px;
   margin: 0 auto;
   background-color: var(--color-primary-surface);
-  border-radius: 12px;
-  padding: 30px;
+  border-radius: var(--border-radius);
+  padding: calc(var(--padding-large) + var(--padding));
   border: 1px solid var(--color-border);
 }
 
@@ -7352,11 +7352,11 @@ input[type='date'].form-input {
 
 @media (max-width: 768px) {
   .legal-page {
-    padding: 10px 10px 60px;
+    padding: 0 0 60px;
   }
 
   .legal-container {
-    padding: 32px 24px;
+    padding: var(--padding-large);
   }
 
   .legal-title {
@@ -7392,7 +7392,7 @@ input[type='date'].form-input {
   }
 
   .legal-container {
-    padding: 24px 16px;
+    padding: var(--padding-large);
   }
 }
 
@@ -8920,13 +8920,15 @@ input[type='date'].form-input {
 .u-minw-120 { min-width: 120px; }
 .u-w-full { width: 100%; }
 .auth-no-scroll { overflow: hidden; }
-.auth-status-header { text-align: center; margin-bottom: 24px; }
-.auth-status-icon { display: flex; justify-content: center; margin-bottom: 16px; }
-.auth-copy-block { margin-bottom: 24px; text-align: center; }
-.auth-copy-tight { margin-bottom: 12px; }
+.auth-status-header { display: flex; flex-direction: column; align-items: center; gap: var(--gap-small); text-align: center; margin: 0; }
+.auth-status-header > * { margin: 0; }
+.auth-status-icon { display: flex; justify-content: center; margin: 0; }
+.auth-copy-block { display: flex; flex-direction: column; gap: var(--gap-small); margin: 0; text-align: center; }
+.auth-copy-block > * { margin: 0; }
+.auth-copy-tight { margin: 0; }
 .auth-copy-small { font-size: 14px; }
-.auth-actions-stack { display: flex; flex-direction: column; gap: 10px; }
-.auth-actions-stack-wide { display: flex; flex-direction: column; gap: 12px; }
+.auth-actions-stack { display: flex; flex-direction: column; gap: var(--gap); }
+.auth-actions-stack-wide { display: flex; flex-direction: column; gap: var(--gap); }
 .auth-input-wrap { position: relative; }
 .auth-input-control { padding-right: 45px; }
 .auth-input-toggle { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 0; color: var(--color-secondary-text); font-size: 1.2rem; display: inline-flex; align-items: center; }

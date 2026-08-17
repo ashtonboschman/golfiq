@@ -254,12 +254,7 @@ function LoginContent() {
           throw new HandledAuthError(data.message || 'Failed to create account. Please try again.');
         }
 
-        showMessage(
-          safeNextPath === '/dashboard'
-            ? 'Account created successfully! Please check your email to verify your account. You can still login and use the app while unverified.'
-            : 'Account created successfully! Check your email to verify your account, then log in to continue.',
-          'success',
-        );
+        showMessage('Account created.', 'success');
         setIsRegister(false);
         setForm({ first_name: '', last_name: '', email: '', password: '', confirmPassword: '' });
         setShowPassword(false);
@@ -436,11 +431,11 @@ function LoginContent() {
           <button type="submit" className="btn btn-accent" disabled={loading || !!oauthLoadingProvider}>
             {loading
               ? isRegister
-                ? 'Registering...'
-                : 'Logging in...'
+                ? 'Creating Account...'
+                : 'Signing In...'
               : isRegister
-              ? 'Register'
-              : 'Login'}
+              ? 'Create Account'
+              : 'Sign In'}
           </button>
         </form>
 
@@ -505,7 +500,7 @@ function LoginContent() {
         )}
 
         <button onClick={() => setIsRegister(!isRegister)} className="btn btn-secondary">
-          {isRegister ? 'Already have an account? Login' : 'Need an account? Register'}
+          {isRegister ? 'Sign In' : 'Create Free Account'}
         </button>
       </div>
     </div>

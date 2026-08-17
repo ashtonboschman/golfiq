@@ -92,7 +92,8 @@ describe('/login page mode + next handling', () => {
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText('First Name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Last Name')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Register' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create Account' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /Sign up with Google/i })).toBeInTheDocument();
   });
 
@@ -139,7 +140,8 @@ describe('/login page mode + next handling', () => {
     expect(screen.getByRole('heading', { name: 'Welcome Back' })).toBeInTheDocument();
     expect(screen.getByText('Pick up where you left off.')).toBeInTheDocument();
     expect(screen.queryByPlaceholderText('First Name')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Login' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create Free Account' })).toBeInTheDocument();
   });
 
   it('redirects authenticated users to safe internal next path', async () => {
@@ -185,7 +187,7 @@ describe('/login page mode + next handling', () => {
     fireEvent.change(screen.getByPlaceholderText('Password'), {
       target: { value: 'supersecure123' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
     await waitFor(() => {
       expect(mockedSignIn).toHaveBeenCalledWith('credentials', {
