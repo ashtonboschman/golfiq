@@ -54,7 +54,7 @@ function ProfileMessage({ conclusion, role }: { conclusion: GameProfileConclusio
 
 function GameTrendsSkeleton() {
   return (
-    <div className="game-trends-sections" aria-label="Loading Game Trends">
+    <div className="game-trends-sections" role="status" aria-label="Loading Game Trends">
       {['Recent Form', 'Strength', 'Opportunity', 'Stability'].map((label, index) => (
         <section className="insight-message game-trends-message insight-message-skeleton" key={label}>
           <div className="insight-message-content game-trends-message-content">

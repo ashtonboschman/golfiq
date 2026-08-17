@@ -1405,6 +1405,7 @@ export default function InsightsPage() {
         <Select
           instanceId="insights-stats-mode"
           inputId="insights-stats-mode-input"
+          aria-label="Round format"
           value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
           onChange={(option) => {
             if (!option) return;

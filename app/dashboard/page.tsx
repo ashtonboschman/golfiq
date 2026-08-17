@@ -1306,6 +1306,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         <Select
           instanceId="dashboard-stats-mode"
           inputId="dashboard-stats-mode-input"
+          aria-label="Round format"
           value={{ value: statsMode, label: statsMode === 'combined' ? 'Combined' : statsMode === '9' ? '9 Holes' : '18 Holes' }}
           onChange={(option) => {
             if (!option) return;
@@ -1327,6 +1328,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
         <Select
           instanceId="dashboard-date-filter"
           inputId="dashboard-date-filter-input"
+          aria-label="Date range"
           value={{
             value: isFreeTierDateFilterLocked && dateFilter !== 'last20' ? 'last20' : dateFilter,
             label:
