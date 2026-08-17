@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+.insightsPreviewRoot :global(.game-trends-sections) {
+  padding-top: 0;
+}
+
 .previewNonInteractive {
   user-select: none;
 }
@@ -57,4 +61,88 @@
 .previewTrendWrap :global(.trend-card) {
   max-width: none;
   width: 100%;
+}
+
+.gpsPreviewRoot {
+  --app-shell-safe-left: var(--padding);
+  --app-shell-safe-right: var(--padding);
+  --live-round-gps-green-card-width: 72px;
+  position: relative;
+  width: 100%;
+  height: clamp(350px, 52dvh, 465px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  background: #101815;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.gpsPreviewMap,
+.gpsPreviewRoot :global(.live-round-gps-interactive-shell),
+.gpsPreviewRoot :global(.live-round-gps-map-shell),
+.gpsPreviewRoot :global(.live-round-gps-map-frame),
+.gpsPreviewRoot :global(.live-round-gps-map) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.gpsPreviewRoot :global(.live-round-gps-hud) {
+  top: var(--gap);
+}
+
+.gpsPreviewRoot :global(.live-round-gps-hole-card) {
+  padding: var(--padding);
+}
+
+.gpsPreviewRoot :global(.live-round-gps-hole-card strong) {
+  font-size: 1.05rem;
+}
+
+.gpsPreviewRoot :global(.live-round-gps-hole-card small) {
+  font-size: 0.68rem;
+}
+
+.gpsPreviewRoot :global(.gps-distance-stack-overlay) {
+  top: var(--gap);
+  gap: var(--gap);
+  width: var(--live-round-gps-green-card-width);
+}
+
+.gpsPreviewRoot :global(.gps-green-distance-overlay div),
+.gpsPreviewRoot :global(.gps-club-suggestion-overlay) {
+  padding: var(--padding-small) var(--padding);
+}
+
+.gpsPreviewRoot :global(.gps-green-distance-overlay strong),
+.gpsPreviewRoot :global(.gps-club-suggestion-overlay strong) {
+  font-size: 1.15rem;
+}
+
+.gpsPreviewRoot :global(.live-round-gps-controls) {
+  right: var(--gap);
+  bottom: 28px;
+  left: var(--gap);
+  gap: var(--gap-small);
+}
+
+.gpsPreviewRoot :global(.live-round-gps-controls .btn) {
+  min-height: 36px;
+  padding: var(--padding-small) var(--padding);
+  font-size: 0.78rem;
+}
+
+.gpsPreviewRoot :global(.live-round-gps-reset-target) {
+  display: none;
+}
+
+@media (max-height: 720px) {
+  .gpsPreviewRoot {
+    height: 315px;
+  }
 }

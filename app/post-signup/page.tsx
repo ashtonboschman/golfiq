@@ -53,8 +53,8 @@ export default function PostSignupPage() {
     <div className={styles.wrapper}>
       <section className={styles.cardShell}>
         <div className={styles.contentZone}>
-          <h1 className={styles.title}>Your GolfIQ Starts With Your First Round</h1>
-          <p className={styles.copy}>Track your rounds and start uncovering what's shaping your scores.</p>
+          <h1 className={styles.title}>Welcome to GolfIQ.</h1>
+          <p className={styles.copy}>Start tracking to understand what shapes your scores over time.</p>
         </div>
         <div className={styles.actionZone}>
           <button
@@ -77,7 +77,7 @@ export default function PostSignupPage() {
               router.push('/rounds/add?from=onboarding');
             }}
           >
-            Log First Round
+            Log Your First Round
           </button>
           <button
             type="button"
@@ -91,7 +91,7 @@ export default function PostSignupPage() {
               router.push('/dashboard');
             }}
           >
-            Explore Dashboard First
+            Explore the Dashboard
           </button>
         </div>
       </section>

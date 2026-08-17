@@ -1,11 +1,34 @@
-import { Sparkles } from 'lucide-react';
-import OverallInsightMessage from '@/components/insights/OverallInsightMessage';
+import { BarChart3, CircleCheck, Sparkles, type LucideIcon } from 'lucide-react';
 import styles from './OnboardingPreview.module.css';
 
-const previewCards = [
-  'Your recent scores are about 5 strokes better than your usual level.',
-  'Your putting has been helping, but missed greens are leaving extra work.',
-  'Your recent scores are starting to settle into a clearer pattern.',
+const previewTrends: Array<{
+  label: string;
+  icon: LucideIcon;
+  role: 'recent_form' | 'strength' | 'stable';
+  conclusion: string;
+  supporting: string;
+}> = [
+  {
+    label: 'Recent Form',
+    icon: BarChart3,
+    role: 'recent_form',
+    conclusion: 'Your recent scoring has been better than your usual level.',
+    supporting: 'Your latest 5 rounds average 84.2 compared with 88.0 across the previous 12.',
+  },
+  {
+    label: 'Strength',
+    icon: CircleCheck,
+    role: 'strength',
+    conclusion: 'Putting has consistently been the strongest part of your game.',
+    supporting: 'You averaged +1.7 strokes gained per round over your last 5 tracked rounds.',
+  },
+  {
+    label: 'Stability',
+    icon: CircleCheck,
+    role: 'stable',
+    conclusion: 'Your recent scoring has been stable from round to round.',
+    supporting: 'Seven strokes separated your best and worst scores across your last five rounds.',
+  },
 ];
 
 export default function OnboardingInsightsPreview() {
@@ -14,14 +37,35 @@ export default function OnboardingInsightsPreview() {
       <div className={`card insights-card ${styles.previewSurface} ${styles.insightsScrollViewport}`} data-onboarding-insights-scroll>
         <div className="insights-header">
           <div className="insights-title">
-            <Sparkles size={20} />
-            <h3>Overall Insights</h3>
+            <Sparkles aria-hidden="true" size={20} />
+            <h3>Game Trends</h3>
           </div>
           <span className="insights-confidence-pill is-high">Strong</span>
         </div>
-        <div className="insights-content">
-          {previewCards.map((card, idx) => (
-            <OverallInsightMessage key={`onboarding-overall-card-${idx}`} card={card} index={idx} />
+        <div className="game-trends-sections">
+          {previewTrends.map(({ label, icon: Icon, role, conclusion, supporting }) => (
+            <section
+              key={role}
+              className="insight-message game-trends-message"
+              data-conclusion-type={role}
+            >
+              <div className="insight-message-content game-trends-message-content">
+                <Icon
+                  aria-hidden="true"
+                  size={18}
+                  className="insight-message-icon game-trends-message-icon"
+                  data-icon-role={role}
+                />
+                <div className="game-trends-row-heading">
+                  <h4>{label}</h4>
+                </div>
+                <div className="game-trends-copy">
+                  <p className="game-trends-conclusion">
+                    <span>{conclusion}</span> <span>{supporting}</span>
+                  </p>
+                </div>
+              </div>
+            </section>
           ))}
         </div>
       </div>

@@ -14,17 +14,17 @@
   width: min(100%, 520px);
   box-sizing: border-box;
   border: 1px solid var(--color-border);
-  border-radius: 22px;
+  border-radius: var(--border-radius);
   background: var(--color-primary-surface);
-  padding: 14px;
-  margin-bottom: 10px;
+  padding: var(--padding);
+  margin-bottom: var(--gap);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--gap);
 }
 
 .cardShellConstrained {
-  max-height: calc(100% - 10px);
+  max-height: calc(100% - var(--gap));
   overflow: hidden;
 }
 
@@ -81,7 +81,7 @@
 .contentZone {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--gap);
   animation: fadeSlideIn 200ms ease;
 }
 
@@ -99,17 +99,19 @@
 }
 
 .actionZone {
-  margin-top: 12px;
-  padding-top: 10px;
-  padding-bottom: 4px;
+  margin-top: var(--gap);
+  padding-top: var(--padding);
+  padding-bottom: 0;
   border-top: 1px solid rgba(154, 163, 178, 0.18);
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: var(--gap);
 }
 
 .actionZone :global(.btn) {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .secondaryButton {
@@ -150,11 +152,17 @@
 
 .title {
   margin: 0;
-  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-size: clamp(1.5rem, 5vw, 1.75rem);
   line-height: 1.18;
   letter-spacing: -0.01em;
   color: var(--color-primary-text);
   text-align: center;
+}
+
+@media (max-width: 479px) {
+  .gpsTitle span {
+    display: block;
+  }
 }
 
 .titleFinal {
@@ -170,7 +178,7 @@
 }
 
 .actionZoneFinal {
-  margin-top: 12px;
+  margin-top: var(--gap);
 }
 
 .copy {
@@ -181,6 +189,12 @@
   text-align: center;
 }
 
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
 .copyMuted {
   margin: 0;
   color: var(--color-secondary-text);
@@ -188,15 +202,18 @@
   line-height: 1.36;
 }
 
-.secondaryLink {
-  text-align: center;
-  color: var(--color-secondary-text);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
+@media (max-height: 620px) {
+  .wrapper {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 
-.secondaryLink:hover {
-  text-decoration: underline;
+  .cardShellConstrained {
+    max-height: none;
+    overflow: visible;
+    flex: 0 0 auto;
+  }
 }
 
 .optionGrid {
@@ -208,7 +225,7 @@
 .optionButton {
   width: 100%;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--border-radius);
   background: var(--color-secondary-surface);
   color: var(--color-primary-text);
   padding: 13px 12px;
@@ -232,7 +249,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-radius: 13px;
+  border-radius: var(--border-radius);
   border: 1px solid var(--color-border);
   background: rgba(42, 49, 61, 0.4);
   padding: 10px;
@@ -288,10 +305,6 @@
 }
 
 @media (min-width: 768px) {
-  .cardShell {
-    padding: 18px;
-  }
-
   .progressionRow {
     grid-template-columns: 110px 1fr;
   }

@@ -48,6 +48,11 @@ jest.mock('@/components/onboarding/previews/OnboardingPreview.module.css', () =>
   return proxy;
 });
 
+jest.mock('@/components/onboarding/previews/OnboardingGpsPreview', () => ({
+  __esModule: true,
+  default: () => <div data-testid="onboarding-gps-preview">GPS Preview</div>,
+}));
+
 jest.mock('next/image', () => ({
   __esModule: true,
   default: () => <span data-testid="mock-next-image" />,
@@ -82,12 +87,20 @@ describe('/onboarding page', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Track your rounds. Understand what shaped them.',
+        name: 'Your Game, Explained.',
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Overall Insights')).toBeInTheDocument();
+    expect(
+      screen.getByText('See how your scoring is trending, what’s working, and how consistent you’ve been.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Game Trends')).toBeInTheDocument();
     expect(screen.getByText('Strong')).toBeInTheDocument();
-    expect(screen.getByText(/about 5 strokes better than your usual level/i)).toBeInTheDocument();
+    expect(screen.getByText('Recent Form')).toBeInTheDocument();
+    expect(screen.getByText('Strength')).toBeInTheDocument();
+    expect(screen.getByText('Stability')).toBeInTheDocument();
+    expect(screen.getByText(/latest 5 rounds average 84\.2 compared with 88\.0/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Onboarding progress')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
@@ -155,7 +168,7 @@ describe('/onboarding page', () => {
   it('routes existing users from the first screen to login and remembers them as returning', () => {
     render(<OnboardingPage />);
 
-    const existingAccountLink = screen.getByRole('link', { name: 'I already have an account' });
+    const existingAccountLink = screen.getByRole('link', { name: 'Sign In' });
     expect(existingAccountLink).toHaveAttribute(
       'href',
       '/login?mode=login&next=%2Fdashboard',
@@ -168,14 +181,19 @@ describe('/onboarding page', () => {
     expect(storedState.completed).toBe(true);
   });
 
-  it('marks only one active progress dot for the current step', () => {
+  it('starts four-step onboarding progress after the intro', () => {
     mockQuery = new URLSearchParams('step=3&source=landing');
     render(<OnboardingPage />);
 
+    expect(document.querySelectorAll('[aria-label="Onboarding progress"] > span')).toHaveLength(4);
     const activeDots = document.querySelectorAll('[aria-current="step"]');
     expect(activeDots).toHaveLength(1);
+    expect(document.querySelectorAll('[aria-label="Onboarding progress"] > span')[1]).toHaveAttribute('aria-current', 'step');
     expect(
-      screen.getByRole('heading', { name: 'Fast, Distraction-Free Tracking' }),
+      screen.getByRole('heading', { name: 'Built for the Pace of Play.' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Log each hole in seconds, track what matters, and keep play moving.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Hole 6')).toBeInTheDocument();
     expect(screen.getByText('Next Hole')).toBeInTheDocument();
@@ -218,41 +236,17 @@ describe('/onboarding page', () => {
     scrollHeight.mockRestore();
   });
 
-  it('stores selected goal in localStorage and moves to step 3', () => {
+  it('shows the GPS experience after the intro instead of the goal screen', () => {
     mockQuery = new URLSearchParams('step=2&source=landing');
     render(<OnboardingPage />);
 
-    expect(screen.getByRole('button', { name: "Find out where I'm losing strokes" })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Understand my game better' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Break 90' }));
-
-    const raw = localStorage.getItem('golfiq:onboarding:v1');
-    expect(raw).toBeTruthy();
-    const parsed = JSON.parse(raw as string);
-    expect(parsed.selectedGoal).toBe('Break 90');
-    expect(parsed.lastStep).toBe(2);
-    expect(mockReplace).toHaveBeenCalledWith('/onboarding?step=3&source=landing');
-  });
-
-  it('does not pre-highlight stored goal on a fresh step 2 visit', () => {
-    localStorage.setItem(
-      'golfiq:onboarding:v1',
-      JSON.stringify({
-        version: 1,
-        selectedGoal: 'Break 90',
-        completed: false,
-        completedAt: null,
-        lastStep: 2,
-        source: 'landing',
-        startedAt: '2026-05-23T00:00:00.000Z',
-      }),
-    );
-    mockQuery = new URLSearchParams('step=2&source=landing');
-    render(<OnboardingPage />);
-
-    const break90 = screen.getByRole('button', { name: 'Break 90' });
-    expect(break90).not.toHaveClass('optionActive');
+    expect(screen.getByTestId('onboarding-gps-preview')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Less Guessing. More Confidence.' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Get live distances and club suggestions on mapped courses so you can focus on the shot.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: "What's your current goal?" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Break 90' })).not.toBeInTheDocument();
   });
 
   it('routes Skip to onboarding auth register path', () => {
@@ -262,6 +256,10 @@ describe('/onboarding page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
 
     expect(mockPush).toHaveBeenCalledWith('/login?mode=register&next=%2Fpost-signup');
+    expect(JSON.parse(localStorage.getItem('golfiq:onboarding:v1') as string)).toMatchObject({
+      completed: true,
+      lastStep: 5,
+    });
   });
 
   it('renders progression ladder milestones on step 4', () => {
@@ -269,22 +267,31 @@ describe('/onboarding page', () => {
     render(<OnboardingPage />);
 
     expect(screen.getByTestId('mock-trend-card')).toHaveTextContent('Score History');
+    expect(
+      screen.getByRole('heading', { name: 'Your Game Gets Clearer With Every Round.' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('1 Round')).toBeInTheDocument();
     expect(screen.getByText('See what shaped your score')).toBeInTheDocument();
     expect(screen.getByText('3 Rounds')).toBeInTheDocument();
     expect(screen.getByText('Start spotting real patterns')).toBeInTheDocument();
     expect(screen.getByText('10 Rounds')).toBeInTheDocument();
-    expect(screen.getByText('See stronger trends and clearer score patterns')).toBeInTheDocument();
+    expect(screen.getByText('See stronger game trends')).toBeInTheDocument();
   });
 
   it('routes registration through post-signup and existing-user login to the dashboard', () => {
     mockQuery = new URLSearchParams('step=5&source=landing');
     render(<OnboardingPage />);
 
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your Next Round Starts Here.' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Track rounds, play with confidence, and understand your game.'),
+    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Create Free Account' }));
     expect(mockPush).toHaveBeenCalledWith('/login?mode=register&next=%2Fpost-signup');
 
-    fireEvent.click(screen.getByRole('button', { name: 'I Already Have an Account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
     expect(mockPush).toHaveBeenCalledWith('/login?mode=login&next=%2Fdashboard');
   });
 

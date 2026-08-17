@@ -7,24 +7,22 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import OnboardingInsightsPreview from '@/components/onboarding/previews/OnboardingInsightsPreview';
+import OnboardingGpsPreview from '@/components/onboarding/previews/OnboardingGpsPreview';
 import OnboardingLiveRoundPreview from '@/components/onboarding/previews/OnboardingLiveRoundPreview';
 import OnboardingTrendPreview from '@/components/onboarding/previews/OnboardingTrendPreview';
 import {
-  ONBOARDING_GOALS,
+  ONBOARDING_TOTAL_STEPS,
   markOnboardingCompleted,
   readOnboardingState,
   writeOnboardingState,
-  type OnboardingGoal,
 } from '@/lib/onboarding/state';
 import styles from './page.module.css';
-
-const TOTAL_STEPS = 5;
 
 function toStep(value: string | null): number {
   const parsed = Number(value ?? '1');
   if (!Number.isFinite(parsed)) return 1;
   const rounded = Math.floor(parsed);
-  return Math.min(TOTAL_STEPS, Math.max(1, rounded));
+  return Math.min(ONBOARDING_TOTAL_STEPS, Math.max(1, rounded));
 }
 
 function buildLoginHref(mode: 'register' | 'login'): string {
@@ -43,7 +41,6 @@ function OnboardingContent() {
   const insightsPreviewRef = useRef<HTMLDivElement | null>(null);
   const livePreviewRef = useRef<HTMLDivElement | null>(null);
   const trendPreviewRef = useRef<HTMLDivElement | null>(null);
-  const [sessionSelectedGoal, setSessionSelectedGoal] = useState<OnboardingGoal | null>(null);
   const [insightsPreviewMaxHeight, setInsightsPreviewMaxHeight] = useState<number | null>(null);
   const [livePreviewMaxHeight, setLivePreviewMaxHeight] = useState<number | null>(null);
   const [trendPreviewMaxHeight, setTrendPreviewMaxHeight] = useState<number | null>(null);
@@ -293,6 +290,8 @@ function OnboardingContent() {
   };
 
   const handleSkip = () => {
+    markOnboardingCompleted();
+
     if (isAnalyticsEligible) {
       captureClientEvent(
         ANALYTICS_EVENTS.onboardingSkipped,
@@ -317,28 +316,6 @@ function OnboardingContent() {
       { source },
       analyticsContext,
     );
-  };
-
-  const handleGoalSelect = (goal: OnboardingGoal) => {
-    setSessionSelectedGoal(goal);
-    writeOnboardingState({
-      selectedGoal: goal,
-      lastStep: 2,
-      source,
-    });
-
-    if (isAnalyticsEligible) {
-      captureClientEvent(
-        ANALYTICS_EVENTS.onboardingGoalSelected,
-        {
-          selected_goal: goal,
-          source,
-        },
-        analyticsContext,
-      );
-    }
-    completeCurrentStep(2);
-    navigateToStep(3);
   };
 
   const handleFinalCta = (mode: 'register' | 'login') => {
@@ -390,25 +367,29 @@ function OnboardingContent() {
     <div ref={wrapperRef} className={styles.wrapper}>
       <section
         ref={cardShellRef}
-        className={`${styles.cardShell} ${step === 1 || step === 3 || step === 4 ? styles.cardShellConstrained : ''}`}
+        className={`${styles.cardShell} ${step >= 1 && step <= 4 ? styles.cardShellConstrained : ''}`}
       >
-        <div className={styles.topRow}>
-          <div className={styles.dots} aria-label="Onboarding progress">
-            {Array.from({ length: TOTAL_STEPS }).map((_, index) => {
-              const dotStep = index + 1;
-              return (
-                <span
-                  key={`onboarding-dot-${dotStep}`}
-                  className={`${styles.dot} ${dotStep === step ? styles.dotActive : ''}`}
-                  aria-current={dotStep === step ? 'step' : undefined}
-                />
-              );
-            })}
+        {step > 1 && (
+          <div className={styles.topRow}>
+            <div className={styles.dots} aria-label="Onboarding progress">
+              {Array.from({ length: ONBOARDING_TOTAL_STEPS - 1 }).map((_, index) => {
+                const onboardingStep = index + 1;
+                return (
+                  <span
+                    key={`onboarding-dot-${onboardingStep}`}
+                    className={`${styles.dot} ${onboardingStep === step - 1 ? styles.dotActive : ''}`}
+                    aria-current={onboardingStep === step - 1 ? 'step' : undefined}
+                  />
+                );
+              })}
+            </div>
+            {step < ONBOARDING_TOTAL_STEPS && (
+              <button type="button" className={styles.skipButton} onClick={handleSkip}>
+                Skip
+              </button>
+            )}
           </div>
-          <button type="button" className={styles.skipButton} onClick={handleSkip}>
-            Skip
-          </button>
-        </div>
+        )}
 
         {step === 1 && (
           <div className={styles.screen}>
@@ -424,10 +405,12 @@ function OnboardingContent() {
               >
                 <OnboardingInsightsPreview />
               </div>
-              <h1 className={styles.title}>Track your rounds. Understand what shaped them.</h1>
-              <p className={styles.copy}>
-                GolfIQ helps explain your score, not just record it.
-              </p>
+              <div className={styles.titleGroup}>
+                <h1 className={styles.title}>Your Game, Explained.</h1>
+                <p className={styles.copy}>
+                  See how your scoring is trending, what’s working, and how consistent you’ve been.
+                </p>
+              </div>
             </div>
             <div className={styles.actionZone}>
               <button
@@ -440,8 +423,8 @@ function OnboardingContent() {
               >
                 Get Started
               </button>
-              <Link href={loginHref} className={styles.secondaryLink} onClick={handleIntroLogin}>
-                I already have an account
+              <Link href={loginHref} className={`btn btn-secondary ${styles.secondaryButton}`} onClick={handleIntroLogin}>
+                Sign In
               </Link>
             </div>
           </div>
@@ -450,19 +433,30 @@ function OnboardingContent() {
         {step === 2 && (
           <div className={styles.screen}>
             <div className={styles.contentZone}>
-              <h1 className={styles.title}>What's your current goal?</h1>
-              <div className={styles.optionGrid}>
-                {ONBOARDING_GOALS.map((goal) => (
-                  <button
-                    key={goal}
-                    type="button"
-                    className={`${styles.optionButton} ${sessionSelectedGoal === goal ? styles.optionActive : ''}`}
-                    onClick={() => handleGoalSelect(goal)}
-                  >
-                    {goal}
-                  </button>
-                ))}
+              <div className={styles.visual}>
+                <OnboardingGpsPreview />
               </div>
+              <div className={styles.titleGroup}>
+                <h1 className={`${styles.title} ${styles.gpsTitle}`}>
+                  <span>Less Guessing.</span>{' '}
+                  <span>More Confidence.</span>
+                </h1>
+                <p className={styles.copy}>
+                  Get live distances and club suggestions on mapped courses so you can focus on the shot.
+                </p>
+              </div>
+            </div>
+            <div className={styles.actionZone}>
+              <button
+                type="button"
+                className="btn btn-accent"
+                onClick={() => {
+                  completeCurrentStep(2);
+                  navigateToStep(3);
+                }}
+              >
+                Continue
+              </button>
             </div>
           </div>
         )}
@@ -481,8 +475,12 @@ function OnboardingContent() {
               >
                 <OnboardingLiveRoundPreview />
               </div>
-              <h1 className={styles.title}>Fast, Distraction-Free Tracking</h1>
-              <p className={styles.copy}>Log each hole in seconds and stay focused on the round.</p>
+              <div className={styles.titleGroup}>
+                <h1 className={styles.title}>Built for the Pace of Play.</h1>
+                <p className={styles.copy}>
+                  Log each hole in seconds, track what matters, and keep play moving.
+                </p>
+              </div>
             </div>
             <div className={styles.actionZone}>
               <button
@@ -513,7 +511,7 @@ function OnboardingContent() {
               >
                 <OnboardingTrendPreview />
               </div>
-              <h1 className={styles.title}>Your game gets clearer as the rounds add up</h1>
+              <h1 className={styles.title}>Your Game Gets Clearer With Every Round.</h1>
               <div className={styles.progressionLadder} aria-label="Round progression milestones">
                 <div className={styles.progressionRow}>
                   <span className={styles.progressionBadge}>1 Round</span>
@@ -527,7 +525,7 @@ function OnboardingContent() {
                 <div className={styles.progressionConnector} aria-hidden="true" />
                 <div className={styles.progressionRow}>
                   <span className={styles.progressionBadge}>10 Rounds</span>
-                  <p>See stronger trends and clearer score patterns</p>
+                  <p>See stronger game trends</p>
                 </div>
               </div>
             </div>
@@ -549,17 +547,17 @@ function OnboardingContent() {
         {step === 5 && (
           <div className={`${styles.screen} ${styles.screenFinal}`}>
             <div className={`${styles.contentZone} ${styles.contentZoneFinal}`}>
-              <h1 className={`${styles.title} ${styles.titleFinal}`}>Start Learning Your Game</h1>
-              <p className={styles.copy}>
-                Create your account and start seeing what helped, what hurt, and what to work on next.
-              </p>
+              <div className={styles.titleGroup}>
+                <h1 className={`${styles.title} ${styles.titleFinal}`}>Your Next Round Starts Here.</h1>
+                <p className={styles.copy}>Track rounds, play with confidence, and understand your game.</p>
+              </div>
             </div>
             <div className={`${styles.actionZone} ${styles.actionZoneFinal}`}>
               <button type="button" className="btn btn-accent" onClick={() => handleFinalCta('register')}>
                 Create Free Account
               </button>
               <button type="button" className={`btn btn-secondary ${styles.secondaryButton}`} onClick={() => handleFinalCta('login')}>
-                I Already Have an Account
+                Sign In
               </button>
             </div>
           </div>

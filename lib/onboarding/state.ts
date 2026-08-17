@@ -1,5 +1,6 @@
 export const ONBOARDING_STORAGE_KEY = 'golfiq:onboarding:v1';
 export const ONBOARDING_VERSION = 1;
+export const ONBOARDING_TOTAL_STEPS = 5;
 
 export const ONBOARDING_GOALS = [
   'Break 100',
@@ -38,7 +39,7 @@ function isGoal(value: unknown): value is OnboardingGoal {
 function toSafeStep(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
   const rounded = Math.floor(value);
-  return Math.min(5, Math.max(1, rounded));
+  return Math.min(ONBOARDING_TOTAL_STEPS, Math.max(1, rounded));
 }
 
 function normalize(raw: unknown): OnboardingState {
@@ -88,7 +89,7 @@ export function markOnboardingCompleted(): OnboardingState {
   return writeOnboardingState({
     completed: true,
     completedAt: new Date().toISOString(),
-    lastStep: 5,
+    lastStep: ONBOARDING_TOTAL_STEPS,
   });
 }
 

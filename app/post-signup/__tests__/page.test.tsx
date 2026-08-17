@@ -58,15 +58,15 @@ describe('/post-signup route', () => {
   it('renders transition content and tracks viewed event', async () => {
     render(<PostSignupPage />);
 
-    expect(screen.getByRole('heading', { name: 'Your GolfIQ Starts With Your First Round' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Welcome to GolfIQ.' })).toBeInTheDocument();
     expect(
-      screen.getByText("Track your rounds and start uncovering what's shaping your scores."),
+      screen.getByText('Start tracking to understand what shapes your scores over time.'),
     ).toBeInTheDocument();
     expect(
       screen.queryByText('Already played? You can add a round after the fact too.'),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Log First Round' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Explore Dashboard First' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Log Your First Round' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explore the Dashboard' })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
@@ -80,10 +80,10 @@ describe('/post-signup route', () => {
   it('routes primary and secondary CTAs correctly', () => {
     render(<PostSignupPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Log First Round' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Log Your First Round' }));
     expect(mockPush).toHaveBeenCalledWith('/rounds/add?from=onboarding');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Explore Dashboard First' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Explore the Dashboard' }));
     expect(mockPush).toHaveBeenCalledWith('/dashboard');
   });
 
