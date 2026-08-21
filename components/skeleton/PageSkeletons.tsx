@@ -174,7 +174,7 @@ export function RoundsSkeleton() {
     <div className="page-stack skeleton-stack" aria-busy="true">
       <SkeletonBlock className="skeleton-btn" height={44} />
       <SkeletonBlock className="skeleton-input" />
-      <RoundListSkeleton count={12} useGridList />
+      <RoundListSkeleton count={20} useGridList />
     </div>
   );
 }

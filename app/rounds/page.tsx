@@ -453,7 +453,7 @@ export default function RoundsPage() {
       />
 
       {showInitialListSkeleton ? (
-        <RoundListSkeleton count={12} useGridList />
+        <RoundListSkeleton count={20} useGridList />
       ) : rounds.length === 0 && !loading ? (
         <p className='secondary-text text-center'>No rounds logged.</p>
       ) : (
