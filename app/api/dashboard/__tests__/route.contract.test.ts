@@ -181,6 +181,56 @@ describe('/api/dashboard route contract', () => {
     }));
   });
 
+  it('uses 18-hole equivalents for 9-hole handicap without changing 9-hole score stats', async () => {
+    mockedPrisma.round.findMany.mockResolvedValue(
+      [40, 42, 44].map((score, index) => ({
+        ...makeDbRound(index + 1),
+        score,
+        toPar: score - 36,
+      })),
+    );
+    mockedResolveTeeContext.mockReturnValue({
+      holes: 9,
+      courseRating: 36,
+      slopeRating: 113,
+      parTotal: 36,
+      nonPar3Holes: 7,
+    });
+    mockedNormalizeRoundsByMode.mockImplementation(
+      (rounds: any[], mode: 'combined' | '9' | '18') => {
+        if (mode === '9') return rounds.filter((round) => round.holes === 9);
+        if (mode === '18') return rounds.filter((round) => round.holes === 18);
+        return rounds.map((round) => ({
+          ...round,
+          holes: 18,
+          number_of_holes: 18,
+          score: round.score * 2,
+          rating: round.rating * 2,
+          par: round.par * 2,
+        }));
+      },
+    );
+    mockedCalculateHandicap.mockReturnValue(21.4);
+
+    const response = await GET(
+      new Request('http://localhost/api/dashboard?statsMode=9') as any,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(expect.objectContaining({
+      handicap: 21.4,
+      average_score: 42,
+      best_score: 40,
+      worst_score: 44,
+    }));
+    expect(mockedCalculateHandicap).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ holes: 18, score: 80, rating: 72, par: 72 }),
+      expect.objectContaining({ holes: 18, score: 84, rating: 72, par: 72 }),
+      expect.objectContaining({ holes: 18, score: 88, rating: 72, par: 72 }),
+    ]));
+  });
+
   it('returns a safe permanent focus state without failing the Dashboard when the pipeline throws', async () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     mockedBuildDashboardRoundFocus.mockRejectedValueOnce(new Error('focus failure'));

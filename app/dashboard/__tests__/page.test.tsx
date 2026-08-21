@@ -248,7 +248,7 @@ describe('/dashboard Round Focus card', () => {
       const tooltipTexts = mockInfoTooltip.mock.calls.map(([props]) => props?.text);
       expect(tooltipTexts).toEqual(
         expect.arrayContaining([
-          'Your estimated playing ability based on recent rounds. Lower is better.',
+          'Your calculated WHS-based handicap, based on your best recent rounds and adjusted for course difficulty. Lower indicates better scoring potential.',
           'Your typical score per round. Lower is better.',
           'Your lowest recorded round.',
           'Your highest recorded round.',

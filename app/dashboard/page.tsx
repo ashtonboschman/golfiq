@@ -1517,7 +1517,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
               <h3>Scoring Summary</h3>
               <div className="dashboard-summary-primary-row">
                 <div className="dashboard-summary-stat is-primary">
-                  <InfoTooltip text="Your estimated playing ability based on recent rounds. Lower is better." />
+                  <InfoTooltip text="Your calculated WHS-based handicap, based on your best recent rounds and adjusted for course difficulty. Lower indicates better scoring potential." />
                   <h4>Handicap</h4>
                   <p>{formatHandicap(stats.handicap)}</p>
                 </div>

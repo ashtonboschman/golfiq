@@ -280,7 +280,11 @@ export async function GET(request: NextRequest) {
         .slice(0, 20);
     }
 
-    const handicap = calculateHandicap(roundsForStats);
+    const handicapRounds =
+      statsMode === '9'
+        ? normalizeRoundsByMode(roundsForStats, 'combined')
+        : roundsForStats;
+    const handicap = calculateHandicap(handicapRounds);
 
     const roundIds = roundsForStats.map((r: any) => BigInt(r.id));
 
