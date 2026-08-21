@@ -6,12 +6,12 @@ import { isAdminUserId } from '@/lib/admin';
 import { authOptions } from '@/lib/auth-config';
 import type { GpsScorecardHole } from '@/lib/gps/adminMappingTypes';
 import {
-  duplicateGpsFrontNineToBackNine,
   getGpsMappedCourse,
   markGpsMappedCourseReady,
   markGpsMappedHoleReady,
   recalculateGpsCourseBounds,
   saveGpsMappedHoleDraft,
+  syncGpsFrontNineToBackNine,
   startGpsMappingForCourse,
 } from '@/lib/gps/mappingActions';
 
@@ -69,58 +69,61 @@ export default async function GpsMappingCoursePage({ params }: GpsMappingCourseP
     redirect(`/admin/gps-mapping/${courseId}`);
   }
 
+  const courseCard = (
+    <section
+      key={`gps-course-card-${payload.course.id}`}
+      className="gps-admin-page-header gps-admin-course-page-header"
+    >
+      <div>
+        <h1>{payload.course.clubName}</h1>
+        {courseDetails && <p>{courseDetails}</p>}
+      </div>
+      <div className="gps-admin-heading-actions">
+        {payload.mappedCourse && (
+          <span className={`gps-admin-status-pill${
+            payload.mappedCourse.mappingStatus === 'READY'
+              || payload.mappedCourse.mappingStatus === 'VERIFIED'
+              ? ' is-ready'
+              : ''
+          }`}>
+            {payload.mappedCourse.mappingStatus.toLowerCase()}
+          </span>
+        )}
+        <Link href="/admin/gps-mapping" className="gps-admin-courses-link">
+          Courses
+        </Link>
+      </div>
+    </section>
+  );
+
   return (
     <div className="gps-admin-page">
-      <section className="gps-admin-page-header gps-admin-course-page-header">
-        <div>
-          <p className="gps-admin-kicker">Admin GPS Mapping</p>
-          <h1>{payload.course.clubName}</h1>
-          {courseDetails && <p>{courseDetails}</p>}
-          {payload.mappedCourse && (
-            <p className="gps-admin-course-source">
-              Source: {payload.mappedCourse.source.toLowerCase().replaceAll('_', ' ')}
-            </p>
-          )}
-        </div>
-        <div className="gps-admin-heading-actions">
-          {payload.mappedCourse && (
-            <span className={`gps-admin-status-pill${
-              payload.mappedCourse.mappingStatus === 'READY'
-                || payload.mappedCourse.mappingStatus === 'VERIFIED'
-                ? ' is-ready'
-                : ''
-            }`}>
-              {payload.mappedCourse.mappingStatus.toLowerCase()}
-            </span>
-          )}
-          <Link href="/admin/gps-mapping" className="gps-admin-courses-link">
-            Courses
-          </Link>
-        </div>
-      </section>
-
       {!payload.mappedCourse ? (
-        <section className="gps-admin-empty">
-          <h2>GPS mapping has not started for this course.</h2>
-          <p>
-            This will create a draft mapped course record. Hole geometry is added one hole at a time.
-          </p>
-          <form action={startMapping}>
-            <button type="submit" className="btn btn-primary">Start Mapping</button>
-          </form>
-        </section>
+        <>
+          {courseCard}
+          <section className="gps-admin-empty">
+            <h2>GPS mapping has not started for this course.</h2>
+            <p>
+              This will create a draft mapped course record. Hole geometry is added one hole at a time.
+            </p>
+            <form action={startMapping}>
+              <button type="submit" className="btn btn-primary">Start Mapping</button>
+            </form>
+          </section>
+        </>
       ) : (
         <AdminGpsMappingCourseClient
           course={payload.course}
           mappedCourse={payload.mappedCourse}
           scorecardHoles={scorecardHoles}
           googleMapsKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+          courseCard={courseCard}
           actions={{
             saveDraft: saveGpsMappedHoleDraft,
             markHoleReady: markGpsMappedHoleReady,
             markCourseReady: markGpsMappedCourseReady,
             recalculateBounds: recalculateGpsCourseBounds,
-            duplicateFrontNine: duplicateGpsFrontNineToBackNine,
+            syncBackNine: syncGpsFrontNineToBackNine,
           }}
         />
       )}

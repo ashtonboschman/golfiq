@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AdminGpsMappingCourseClient from '@/components/gps/AdminGpsMappingCourseClient';
 import type {
@@ -9,6 +9,7 @@ import type {
   GpsScorecardHole,
   SerializedMappedHole,
 } from '@/lib/gps/adminMappingTypes';
+import type { ReactNode } from 'react';
 
 const refresh = jest.fn();
 
@@ -18,7 +19,23 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/components/gps/AdminGpsMappingMap', () => ({
   __esModule: true,
-  default: () => <div data-testid="gps-mapping-map" />,
+  default: ({
+    overlay,
+    onPointChange,
+  }: {
+    overlay?: ReactNode;
+    onPointChange?: (field: 'tee', point: { lat: number; lng: number }) => void;
+  }) => (
+    <>
+      <div data-testid="gps-mapping-map">
+        {overlay}
+        <button type="button" onClick={() => onPointChange?.('tee', { lat: 1, lng: 2 })}>
+          Move Tee
+        </button>
+      </div>
+      <details><summary>Map Diagnostics</summary></details>
+    </>
+  ),
 }));
 
 const course: GpsCourseMappingCourse = {
@@ -106,7 +123,12 @@ function actions() {
     }),
     markCourseReady: jest.fn(),
     recalculateBounds: jest.fn(),
-    duplicateFrontNine: jest.fn(),
+    syncBackNine: jest.fn().mockResolvedValue({
+      created: [],
+      updated: [],
+      missingSource: [],
+      mappedHoles: [],
+    }),
   };
 }
 
@@ -122,18 +144,45 @@ describe('AdminGpsMappingCourseClient compact layout', () => {
         mappedCourse={mappedCourse('READY')}
         scorecardHoles={scorecardHoles}
         googleMapsKey="test-key"
+        courseCard={<section data-testid="course-card">Course Card</section>}
         actions={actions()}
       />,
     );
 
     expect(screen.getByTestId('gps-mapping-map')).toBeInTheDocument();
-    expect(screen.getByText('Course Tools').closest('details')).not.toHaveAttribute('open');
-    expect(screen.getByText('View Coordinates').closest('details')).not.toHaveAttribute('open');
+    const courseTools = screen.getByText('Course Tools').closest('details');
+    const coordinateDetails = screen.getByText('View Coordinates').closest('details');
+    const mapDiagnostics = screen.getByText('Map Diagnostics').closest('details');
+    expect(courseTools).not.toHaveAttribute('open');
+    expect(coordinateDetails).not.toHaveAttribute('open');
+    expect(mapDiagnostics).not.toHaveAttribute('open');
+    expect(mapDiagnostics?.nextElementSibling).toBe(coordinateDetails);
+    expect(coordinateDetails?.nextElementSibling).toBe(courseTools);
+    const courseCard = screen.getByTestId('course-card');
+    const editor = screen.getByTestId('gps-mapping-map').closest('.gps-admin-main');
+    const mappedHoles = screen.getByRole('region', { name: 'Mapped holes' });
+    expect(editor?.nextElementSibling).toBe(courseCard);
+    expect(courseCard.nextElementSibling).toBe(mappedHoles);
     expect(screen.queryByRole('button', { name: 'Mark Course Ready' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Suggested steps/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Ready Validation')).not.toBeInTheDocument();
-    expect(screen.getByText('4/4 Ready')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Show Bounds' })).toBeEnabled();
+    expect(screen.queryByText('Active Hole')).not.toBeInTheDocument();
+    expect(screen.queryByText('Click the map or drag a marker to update the selected geometry field.')).not.toBeInTheDocument();
+    const markerControls = screen.getByRole('combobox', { name: 'Coordinate Field' }).parentElement;
+    expect(markerControls).toHaveClass('gps-admin-edit-controls');
+    expect(within(markerControls as HTMLElement).getByRole('button', { name: 'Save & Mark Ready' })).toBeInTheDocument();
+
+    const map = screen.getByTestId('gps-mapping-map');
+    expect(within(map).getByText('Hole 1')).toBeInTheDocument();
+    expect(within(map).getByText('Par 5 · 532 yd')).toBeInTheDocument();
+    expect(within(map).getByText('4/4 Ready')).toHaveClass('gps-admin-status-pill', 'is-ready');
+    expect(within(map).getByRole('button', { name: 'Previous Hole' })).toBeInTheDocument();
+    expect(within(map).getByRole('button', { name: 'Next Hole' })).toBeInTheDocument();
+    fireEvent.click(within(map).getByRole('button', { name: 'Next Hole' }));
+    expect(within(map).getByText('Hole 2')).toBeInTheDocument();
+    expect(within(map).getByText('Par 3 · 180 yd')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fit Hole' })).not.toBeInTheDocument();
+    expect(within(courseTools as HTMLElement).getByRole('checkbox', { name: 'Show Bounds' })).toBeEnabled();
     expect(screen.getByText('2 Holes')).toBeInTheDocument();
 
     const readyHole = screen.getByRole('button', { name: /Hole 1 \| Par 5 \| 532 yd/i });
@@ -176,7 +225,28 @@ describe('AdminGpsMappingCourseClient compact layout', () => {
       />,
     );
 
-    expect(screen.getByText('1/4 Complete')).toBeInTheDocument();
+    expect(screen.getByText('1/4 Complete')).toHaveClass('gps-admin-status-pill');
+  });
+
+  it('reverts unsaved active-hole geometry to the latest saved values', () => {
+    render(
+      <AdminGpsMappingCourseClient
+        course={course}
+        mappedCourse={mappedCourse('READY')}
+        scorecardHoles={scorecardHoles}
+        googleMapsKey="test-key"
+        actions={actions()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Revert Hole Changes' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Move Tee' }));
+    expect(screen.getByText('1.0000000, 2.0000000')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revert Hole Changes' }));
+
+    expect(screen.queryByRole('button', { name: 'Revert Hole Changes' })).not.toBeInTheDocument();
+    expect(screen.getByText('49.9676829, -98.3002436')).toBeInTheDocument();
   });
 
   it('saves the latest hole geometry before marking the hole ready', async () => {
@@ -193,7 +263,7 @@ describe('AdminGpsMappingCourseClient compact layout', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Mark Hole Ready' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save & Mark Ready' }));
 
     await waitFor(() => expect(actionMocks.markHoleReady).toHaveBeenCalledWith('hole-1'));
     expect(actionMocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
@@ -206,5 +276,60 @@ describe('AdminGpsMappingCourseClient compact layout', () => {
       actionMocks.markHoleReady.mock.invocationCallOrder[0],
     );
     expect(await screen.findByText('Hole 1 saved and marked ready.')).toBeInTheDocument();
+  });
+
+  it('does not sync the back nine when the admin cancels the warning', () => {
+    const actionMocks = actions();
+    const confirmMock = jest.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(
+      <AdminGpsMappingCourseClient
+        course={course}
+        mappedCourse={mappedCourse('DRAFT')}
+        scorecardHoles={scorecardHoles}
+        googleMapsKey="test-key"
+        actions={actionMocks}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Course Tools'));
+    expect(screen.queryByRole('button', { name: 'Duplicate Front 9' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sync Back 9 From Front' }));
+
+    expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining(
+      'Any existing back-nine GPS mapping will be overwritten and reset to Draft.',
+    ));
+    expect(actionMocks.syncBackNine).not.toHaveBeenCalled();
+    confirmMock.mockRestore();
+  });
+
+  it('syncs the back nine after the admin confirms the overwrite warning', async () => {
+    const actionMocks = actions();
+    actionMocks.syncBackNine.mockResolvedValue({
+      created: [10],
+      updated: [11],
+      missingSource: [3],
+      mappedHoles: [],
+    });
+    const confirmMock = jest.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(
+      <AdminGpsMappingCourseClient
+        course={course}
+        mappedCourse={mappedCourse('DRAFT')}
+        scorecardHoles={scorecardHoles}
+        googleMapsKey="test-key"
+        actions={actionMocks}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Course Tools'));
+    fireEvent.click(screen.getByRole('button', { name: 'Sync Back 9 From Front' }));
+
+    await waitFor(() => expect(actionMocks.syncBackNine).toHaveBeenCalledWith('mapped-course-1'));
+    expect(await screen.findByText(
+      'Created 1 back-nine holes. Updated 1. Missing front-nine sources 1.',
+    )).toBeInTheDocument();
+    confirmMock.mockRestore();
   });
 });

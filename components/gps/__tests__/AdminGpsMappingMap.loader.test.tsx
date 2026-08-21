@@ -44,7 +44,6 @@ function mapProps() {
     courseBounds: null,
     showCourseBounds: false,
     fallbackCenter: { lat: 49.9, lng: -97.1 },
-    derivedCameraRequest: 0,
     onFieldSelect: jest.fn(),
     onPointChange: jest.fn(),
   };
@@ -92,6 +91,11 @@ describe('AdminGpsMappingMap loader integration', () => {
       formatYardNumber(distanceYards(tee, { lat: hole.greenCenterLat!, lng: hole.greenCenterLng! })),
       formatYardNumber(distanceYards(tee, { lat: hole.greenFrontLat!, lng: hole.greenFrontLng! })),
     ];
+    const expectedDifferences = [
+      String(Number(expectedDistances[0]) - Number(expectedDistances[1])),
+      String(Number(expectedDistances[1]) - Number(expectedDistances[2])),
+    ];
+    const differenceOverlay = screen.getByLabelText('Green distance differences');
 
     expect(within(overlay).getByText('Back')).toBeInTheDocument();
     expect(within(overlay).getByText('Mid')).toBeInTheDocument();
@@ -99,6 +103,27 @@ describe('AdminGpsMappingMap loader integration', () => {
     expectedDistances.forEach((distance) => {
       expect(within(overlay).getByText(distance)).toBeInTheDocument();
     });
+    expect(within(differenceOverlay).getByText('Back')).toBeInTheDocument();
+    expect(within(differenceOverlay).getByText('Front')).toBeInTheDocument();
+    const backToMidRow = within(differenceOverlay).getByText('Back').closest('div');
+    const midToFrontRow = within(differenceOverlay).getByText('Front').closest('div');
+    expect(backToMidRow).not.toBeNull();
+    expect(midToFrontRow).not.toBeNull();
+    expect(within(backToMidRow!).getByText(expectedDifferences[0])).toBeInTheDocument();
+    expect(within(midToFrontRow!).getByText(expectedDifferences[1])).toBeInTheDocument();
     expect(screen.getByText('Map Diagnostics').closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('renders supplied UI inside the map frame', () => {
+    mockedLoadGoogleMaps.mockImplementation(() => new Promise<void>(() => {}));
+
+    render(
+      <AdminGpsMappingMap
+        {...mapProps()}
+        overlay={<div data-testid="map-overlay">Map Overlay</div>}
+      />,
+    );
+
+    expect(screen.getByTestId('map-overlay').closest('.gps-admin-map-frame')).not.toBeNull();
   });
 });

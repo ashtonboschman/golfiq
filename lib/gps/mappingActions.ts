@@ -644,10 +644,7 @@ export async function recalculateGpsCourseBounds(mappedCourseIdInput: IdInput) {
   };
 }
 
-export async function duplicateGpsFrontNineToBackNine(
-  mappedCourseIdInput: IdInput,
-  options?: { overwrite?: boolean },
-) {
+export async function syncGpsFrontNineToBackNine(mappedCourseIdInput: IdInput) {
   await requireAdmin();
 
   const mappedCourseId = toBigIntId(mappedCourseIdInput, 'mapped course id');
@@ -676,9 +673,7 @@ export async function duplicateGpsFrontNineToBackNine(
   const createdHoles: Prisma.MappedHoleGetPayload<{ select: ReturnType<typeof mappedHoleSelect> }>[] = [];
   const updated: number[] = [];
   const updatedHoles: Prisma.MappedHoleGetPayload<{ select: ReturnType<typeof mappedHoleSelect> }>[] = [];
-  const skipped: number[] = [];
   const missingSource: number[] = [];
-  const overwrite = options?.overwrite === true;
 
   for (let sourceHoleNumber = 1; sourceHoleNumber <= 9; sourceHoleNumber++) {
     const destinationHoleNumber = sourceHoleNumber + 9;
@@ -706,12 +701,8 @@ export async function duplicateGpsFrontNineToBackNine(
       greenBackLng: sourceHole.greenBackLng,
       mappingStatus: GpsMappingStatus.DRAFT,
       source: sourceHole.source,
+      verifiedAt: null,
     };
-
-    if (existingBackNineNumbers.has(destinationHoleNumber) && !overwrite) {
-      skipped.push(destinationHoleNumber);
-      continue;
-    }
 
     if (existingBackNineNumbers.has(destinationHoleNumber)) {
       const updatedHole = await prisma.mappedHole.update({
@@ -743,7 +734,6 @@ export async function duplicateGpsFrontNineToBackNine(
   return {
     created,
     updated,
-    skipped,
     missingSource,
     mappedHoles: [...createdHoles, ...updatedHoles].map(serializeMappedHole),
   };

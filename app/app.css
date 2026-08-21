@@ -10033,6 +10033,26 @@ input[type='date'].form-input {
   z-index: auto;
 }
 
+.gps-admin-green-distance-overlays {
+  position: absolute;
+  top: var(--gap);
+  right: var(--gap);
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(2, 82px);
+  align-items: flex-start;
+  gap: var(--gap-small);
+  pointer-events: none;
+}
+
+.gps-admin-green-distance-overlays .gps-green-distance-overlay {
+  position: static;
+  inset: auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
 .gps-club-suggestion-overlay {
   position: absolute;
   top: calc(var(--gps-green-distance-inset, var(--gap)) + 154px);
@@ -10084,6 +10104,10 @@ input[type='date'].form-input {
   .gps-green-distance-overlay div {
     padding: var(--padding-small) var(--padding);
   }
+
+  .gps-admin-green-distance-overlays {
+    grid-template-columns: repeat(2, 66px);
+  }
 }
 
 @media (max-width: 430px) {
@@ -10120,8 +10144,6 @@ input[type='date'].form-input {
 .gps-admin-page-header p,
 .gps-admin-empty h2,
 .gps-admin-empty p,
-.gps-admin-editor-header h2,
-.gps-admin-editor-header p,
 .gps-admin-required h3,
 .gps-admin-required p {
   margin: 0;
@@ -10135,7 +10157,6 @@ input[type='date'].form-input {
 
 .gps-admin-page-header p,
 .gps-admin-empty p,
-.gps-admin-editor-header p,
 .gps-admin-required p {
   color: var(--color-secondary-text);
   line-height: 1.4;
@@ -10149,11 +10170,6 @@ input[type='date'].form-input {
 .gps-admin-course-page-header h1 {
   font-size: 1.45rem;
   line-height: 1.15;
-}
-
-.gps-admin-course-page-header .gps-admin-course-source {
-  margin-top: 2px;
-  font-size: 0.78rem;
 }
 
 .gps-admin-heading-actions {
@@ -10419,19 +10435,6 @@ input[type='date'].form-input {
   gap: 12px;
 }
 
-.gps-admin-editor-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
-}
-
-.gps-admin-editor-header h2 {
-  margin-top: 4px;
-  color: var(--color-primary-text);
-  font-size: 1.25rem;
-}
-
 .gps-admin-status-pill {
   align-self: flex-start;
   border: 1px solid var(--color-border);
@@ -10447,34 +10450,6 @@ input[type='date'].form-input {
   border-color: color-mix(in srgb, var(--color-success) 60%, var(--color-border));
   color: var(--color-success);
   background: color-mix(in srgb, var(--color-success) 12%, var(--color-secondary-surface));
-}
-
-.gps-admin-header-actions {
-  display: grid;
-  justify-items: end;
-  gap: 8px;
-}
-
-.gps-admin-hole-nav {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  min-width: min(360px, 100%);
-}
-
-.gps-admin-hole-nav .btn {
-  min-width: 0;
-  width: 100%;
-  padding-inline: 10px;
-  white-space: normal;
-}
-
-.gps-admin-hole-nav span {
-  color: var(--color-secondary-text);
-  font-size: 0.82rem;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .gps-admin-message {
@@ -10495,13 +10470,15 @@ input[type='date'].form-input {
 
 .gps-admin-edit-controls {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--gap-small);
+  min-width: 0;
 }
 
-.gps-admin-edit-controls p {
-  margin: 0;
-  color: var(--color-secondary-text);
-  font-size: 0.88rem;
+.gps-admin-edit-controls .btn {
+  width: 100%;
+  white-space: nowrap;
 }
 
 .gps-admin-map-options {
@@ -10539,16 +10516,6 @@ input[type='date'].form-input {
   font-size: 0.82rem;
 }
 
-.gps-admin-map-toolbar {
-  display: grid;
-  grid-template-columns: minmax(120px, auto) repeat(2, minmax(120px, 1fr));
-  gap: var(--gap-small);
-}
-
-.gps-admin-map-toolbar .btn {
-  width: 100%;
-}
-
 .gps-admin-bounds-toggle {
   justify-content: center;
   width: 100%;
@@ -10571,7 +10538,22 @@ input[type='date'].form-input {
 }
 
 .gps-admin-map-frame {
+  --gps-admin-distance-overlays-width: 169px;
   position: relative;
+}
+
+.live-round-gps-hud.gps-admin-map-hud {
+  right: calc(var(--gap) + var(--gps-admin-distance-overlays-width) + var(--gap-small));
+}
+
+.live-round-gps-hole-card.gps-admin-map-hole-card {
+  cursor: default;
+}
+
+.gps-admin-map-hole-card .gps-admin-status-pill {
+  align-self: center;
+  padding: var(--padding-small) var(--padding);
+  white-space: nowrap;
 }
 
 .gps-admin-map {
@@ -10723,8 +10705,7 @@ input[type='date'].form-input {
   }
 
   .gps-admin-page-header,
-  .gps-admin-course-row,
-  .gps-admin-editor-header {
+  .gps-admin-course-row {
     grid-template-columns: 1fr;
     flex-direction: column;
   }
@@ -10783,37 +10764,8 @@ input[type='date'].form-input {
     justify-self: stretch;
   }
 
-  .gps-admin-editor-header {
-    gap: 8px;
-  }
-
-  .gps-admin-editor-header h2 {
-    font-size: 1.08rem;
-  }
-
-  .gps-admin-editor-header p {
-    font-size: 0.84rem;
-  }
-
-  .gps-admin-header-actions {
-    justify-items: stretch;
-  }
-
-  .gps-admin-status-pill {
-    justify-self: start;
-  }
-
-  .gps-admin-hole-nav {
-    min-width: 0;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  }
-
-  .gps-admin-edit-controls {
-    gap: 6px;
-  }
-
-  .gps-admin-edit-controls p {
-    font-size: 0.82rem;
+  .gps-admin-map-frame {
+    --gps-admin-distance-overlays-width: 137px;
   }
 
   .gps-admin-map {
@@ -10824,14 +10776,6 @@ input[type='date'].form-input {
 
   .gps-admin-map-debug {
     font-size: 0.76rem;
-  }
-
-  .gps-admin-map-toolbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .gps-admin-map-toolbar .btn-primary {
-    grid-column: 1 / -1;
   }
 
   .gps-admin-required {

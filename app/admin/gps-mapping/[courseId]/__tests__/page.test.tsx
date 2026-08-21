@@ -5,6 +5,7 @@ import '@testing-library/jest-dom';
 import { getServerSession } from 'next-auth';
 import GpsMappingCoursePage from '@/app/admin/gps-mapping/[courseId]/page';
 import { getGpsMappedCourse } from '@/lib/gps/mappingActions';
+import type { ReactNode } from 'react';
 
 jest.mock('next-auth', () => ({
   getServerSession: jest.fn(),
@@ -23,7 +24,7 @@ jest.mock('@/lib/auth-config', () => ({
 }));
 
 jest.mock('@/lib/gps/mappingActions', () => ({
-  duplicateGpsFrontNineToBackNine: jest.fn(),
+  syncGpsFrontNineToBackNine: jest.fn(),
   getGpsMappedCourse: jest.fn(),
   markGpsMappedCourseReady: jest.fn(),
   markGpsMappedHoleReady: jest.fn(),
@@ -34,7 +35,9 @@ jest.mock('@/lib/gps/mappingActions', () => ({
 
 jest.mock('@/components/gps/AdminGpsMappingCourseClient', () => ({
   __esModule: true,
-  default: () => <div data-testid="gps-course-editor" />,
+  default: ({ courseCard }: { courseCard?: ReactNode }) => (
+    <div data-testid="gps-course-editor">{courseCard}</div>
+  ),
 }));
 
 const mockedGetServerSession = getServerSession as jest.MockedFunction<typeof getServerSession>;
@@ -86,7 +89,8 @@ describe('GPS mapping course page header', () => {
     expect(screen.getByRole('heading', { name: 'Portage Golf Club' })).toBeInTheDocument();
     expect(screen.getAllByText('Portage Golf Club')).toHaveLength(1);
     expect(screen.getByText('Portage la Prairie, MB, Canada')).toBeInTheDocument();
-    expect(screen.getByText('Source: manual admin google')).toBeInTheDocument();
+    expect(screen.queryByText('Admin GPS Mapping')).not.toBeInTheDocument();
+    expect(screen.queryByText('Source: manual admin google')).not.toBeInTheDocument();
     expect(screen.getByText('ready')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Courses' })).toHaveAttribute('href', '/admin/gps-mapping');
     expect(screen.queryByRole('link', { name: 'All Courses' })).not.toBeInTheDocument();

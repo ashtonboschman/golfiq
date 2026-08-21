@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   GpsMappedHoleDraft,
   GpsMappingEditField,
@@ -17,7 +17,7 @@ type AdminGpsMappingMapProps = {
   courseBounds: CourseBounds | null;
   showCourseBounds: boolean;
   fallbackCenter: LatLng;
-  derivedCameraRequest: number;
+  overlay?: ReactNode;
   onFieldSelect: (field: GpsMappingEditField) => void;
   onPointChange: (field: GpsMappingEditField, point: LatLng) => void;
 };
@@ -130,6 +130,14 @@ function formatMapDistanceLabel(from: LatLng, to: LatLng) {
   return formatYardNumber(distanceYards(from, to));
 }
 
+function roundedYardDifference(
+  minuend: number | null,
+  subtrahend: number | null,
+): number | null {
+  if (minuend == null || subtrahend == null) return null;
+  return Math.round(minuend) - Math.round(subtrahend);
+}
+
 function pointForField(hole: GpsMappedHoleDraft, field: GpsMappingEditField): LatLng | null {
   switch (field) {
     case 'tee':
@@ -191,7 +199,7 @@ export default function AdminGpsMappingMap({
   courseBounds,
   showCourseBounds,
   fallbackCenter,
-  derivedCameraRequest,
+  overlay,
   onFieldSelect,
   onPointChange,
 }: AdminGpsMappingMapProps) {
@@ -236,6 +244,10 @@ export default function AdminGpsMappingMap({
       back: tee && back ? distanceYards(tee, back) : null,
     };
   }, [hole]);
+  const greenDistanceDifferences = useMemo(() => ({
+    backToMiddle: roundedYardDifference(greenDistances.back, greenDistances.middle),
+    middleToFront: roundedYardDifference(greenDistances.middle, greenDistances.front),
+  }), [greenDistances]);
 
   useEffect(() => {
     holeRef.current = hole;
@@ -611,11 +623,6 @@ export default function AdminGpsMappingMap({
   }, [hole.holeNumber, mapReady]);
 
   useEffect(() => {
-    if (!mapReady || derivedCameraRequest === 0) return;
-    applyDerivedCamera(holeRef.current);
-  }, [derivedCameraRequest, mapReady]);
-
-  useEffect(() => {
     if (!mapReady) return;
     updateCourseBoundsOverlay();
   }, [courseBounds, showCourseBounds, mapReady]);
@@ -650,7 +657,20 @@ export default function AdminGpsMappingMap({
     <div className="gps-admin-map-shell">
       <div className="gps-admin-map-frame">
         <div ref={containerRef} className="gps-map gps-admin-map" aria-label="Admin GPS mapping map" />
-        <div className="gps-distance-stack-overlay">
+        <div className="gps-admin-green-distance-overlays">
+          <div
+            className="gps-green-distance-overlay"
+            aria-label="Green distance differences"
+          >
+            <div>
+              <span>Back</span>
+              <strong>{formatYardNumber(greenDistanceDifferences.backToMiddle)}</strong>
+            </div>
+            <div>
+              <span>Front</span>
+              <strong>{formatYardNumber(greenDistanceDifferences.middleToFront)}</strong>
+            </div>
+          </div>
           <div className="gps-green-distance-overlay" aria-label="Green distances">
             <div>
               <span>Back</span>
@@ -666,6 +686,7 @@ export default function AdminGpsMappingMap({
             </div>
           </div>
         </div>
+        {overlay}
       </div>
       <details className="gps-admin-map-debug">
         <summary>Map Diagnostics</summary>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import AdminGpsMappingMap from '@/components/gps/AdminGpsMappingMap';
 import type {
   GpsCourseMappingCourse,
@@ -35,10 +36,9 @@ type BoundsResult = {
   mappedCourse?: SerializedMappedCourse | null;
 };
 
-type DuplicateResult = {
+type SyncBackNineResult = {
   created: number[];
   updated: number[];
-  skipped: number[];
   missingSource: number[];
   mappedHoles: SerializedMappedHole[];
 };
@@ -48,12 +48,13 @@ type AdminGpsMappingCourseClientProps = {
   mappedCourse: GpsMappedCourseSummary;
   scorecardHoles: GpsScorecardHole[];
   googleMapsKey: string | undefined;
+  courseCard?: ReactNode;
   actions: {
     saveDraft: (input: SaveGpsMappedHoleDraftPayload) => Promise<{ mappedHole: SerializedMappedHole }>;
     markHoleReady: (mappedHoleId: string) => Promise<ReadyHoleResult>;
     markCourseReady: (mappedCourseId: string) => Promise<ReadyCourseResult>;
     recalculateBounds: (mappedCourseId: string) => Promise<BoundsResult>;
-    duplicateFrontNine: (mappedCourseId: string, options?: { overwrite?: boolean }) => Promise<DuplicateResult>;
+    syncBackNine: (mappedCourseId: string) => Promise<SyncBackNineResult>;
   };
 };
 
@@ -125,6 +126,19 @@ function normalizeMappedHole(
   };
 }
 
+function initialHolesByNumber(
+  mappedCourse: GpsMappedCourseSummary,
+  scorecardHoles: GpsScorecardHole[],
+) {
+  const mappedByNumber = new Map(mappedCourse.holes.map((hole) => [hole.holeNumber, hole]));
+  return new Map(
+    scorecardHoles.map((hole) => [
+      hole.holeNumber,
+      normalizeMappedHole(mappedCourse.id, hole.holeNumber, mappedByNumber.get(hole.holeNumber)),
+    ]),
+  );
+}
+
 function missingRequiredPoints(hole: GpsMappedHoleDraft) {
   return REQUIRED_POINTS
     .filter(({ latKey, lngKey }) => hole[latKey] == null || hole[lngKey] == null)
@@ -178,6 +192,13 @@ function holeToSavePayload(hole: GpsMappedHoleDraft): SaveGpsMappedHoleDraftPayl
   };
 }
 
+function holeHasUnsavedChanges(current: GpsMappedHoleDraft, saved: GpsMappedHoleDraft) {
+  const currentPayload = holeToSavePayload(current);
+  const savedPayload = holeToSavePayload(saved);
+  return (Object.keys(currentPayload) as Array<keyof SaveGpsMappedHoleDraftPayload>)
+    .some((key) => currentPayload[key] !== savedPayload[key]);
+}
+
 function fallbackMapCenter(course: GpsCourseMappingCourse): LatLng {
   const lat = course.location?.latitude;
   const lng = course.location?.longitude;
@@ -208,21 +229,16 @@ export default function AdminGpsMappingCourseClient({
   mappedCourse,
   scorecardHoles,
   googleMapsKey,
+  courseCard,
   actions,
 }: AdminGpsMappingCourseClientProps) {
   const router = useRouter();
-  const [holesByNumber, setHolesByNumber] = useState(() => {
-    const mappedByNumber = new Map(mappedCourse.holes.map((hole) => [hole.holeNumber, hole]));
-    return new Map(
-      scorecardHoles.map((hole) => [
-        hole.holeNumber,
-        normalizeMappedHole(mappedCourse.id, hole.holeNumber, mappedByNumber.get(hole.holeNumber)),
-      ]),
-    );
-  });
+  const [holesByNumber, setHolesByNumber] = useState(() => initialHolesByNumber(mappedCourse, scorecardHoles));
+  const [savedHolesByNumber, setSavedHolesByNumber] = useState(
+    () => initialHolesByNumber(mappedCourse, scorecardHoles),
+  );
   const [activeHoleNumber, setActiveHoleNumber] = useState(scorecardHoles[0]?.holeNumber ?? 1);
   const [selectedField, setSelectedField] = useState<GpsMappingEditField>('tee');
-  const [derivedCameraRequest, setDerivedCameraRequest] = useState(0);
   const [courseBounds, setCourseBounds] = useState<CourseBounds | null>(() => boundsFromMappedCourse(mappedCourse));
   const [showCourseBounds, setShowCourseBounds] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -239,12 +255,16 @@ export default function AdminGpsMappingCourseClient({
   const activeHole =
     holesByNumber.get(activeHoleNumber) ??
     normalizeMappedHole(mappedCourse.id, activeHoleNumber);
+  const activeSavedHole =
+    savedHolesByNumber.get(activeHoleNumber) ??
+    normalizeMappedHole(mappedCourse.id, activeHoleNumber);
   const fieldOptions = useMemo(
     () => fieldOptionsForPar(activeScorecardHole?.par ?? null),
     [activeScorecardHole?.par],
   );
   const activeCompletion = completionSummary(activeHole);
   const activeHoleReady = activeHole.mappingStatus === 'READY' || activeHole.mappingStatus === 'VERIFIED';
+  const activeHoleHasUnsavedChanges = holeHasUnsavedChanges(activeHole, activeSavedHole);
   const courseReady = mappedCourse.mappingStatus === 'READY' || mappedCourse.mappingStatus === 'VERIFIED';
 
   function patchHole(holeNumber: number, patch: Partial<GpsMappedHoleDraft>) {
@@ -271,6 +291,18 @@ export default function AdminGpsMappingCourseClient({
     } as Partial<GpsMappedHoleDraft>);
   }
 
+  function commitSavedHole(mappedHole: SerializedMappedHole) {
+    const normalized = normalizeMappedHole(mappedCourse.id, mappedHole.holeNumber, mappedHole);
+    setHolesByNumber((current) => new Map(current).set(mappedHole.holeNumber, normalized));
+    setSavedHolesByNumber((current) => new Map(current).set(mappedHole.holeNumber, normalized));
+  }
+
+  function handleRevertHoleChanges() {
+    setHolesByNumber((current) => new Map(current).set(activeHoleNumber, { ...activeSavedHole }));
+    setErrorMessage(null);
+    setStatusMessage(null);
+  }
+
   function handleMarkHoleReady() {
     setErrorMessage(null);
     setStatusMessage(null);
@@ -278,8 +310,9 @@ export default function AdminGpsMappingCourseClient({
     startTransition(async () => {
       try {
         const saved = await actions.saveDraft(holeToSavePayload(activeHole));
+        commitSavedHole(saved.mappedHole);
         const result = await actions.markHoleReady(saved.mappedHole.id);
-        patchHole(activeHoleNumber, normalizeMappedHole(mappedCourse.id, activeHoleNumber, result.mappedHole));
+        commitSavedHole(result.mappedHole);
 
         if (!result.ok) {
           setErrorMessage(`Missing required fields: ${result.missingFields.join(', ')}`);
@@ -307,9 +340,25 @@ export default function AdminGpsMappingCourseClient({
       });
       return next;
     });
+    setSavedHolesByNumber((current) => {
+      const next = new Map(current);
+      mappedHoles.forEach((mappedHole) => {
+        next.set(
+          mappedHole.holeNumber,
+          normalizeMappedHole(mappedCourse.id, mappedHole.holeNumber, mappedHole),
+        );
+      });
+      return next;
+    });
   }
 
-  function handleCourseAction(action: 'bounds' | 'duplicate' | 'sync' | 'ready') {
+  function handleCourseAction(action: 'bounds' | 'sync' | 'ready') {
+    if (action === 'sync' && !window.confirm(
+      'Copy holes 1–9 to holes 10–18? This is only for nine-hole courses played twice. Any existing back-nine GPS mapping will be overwritten and reset to Draft.',
+    )) {
+      return;
+    }
+
     setErrorMessage(null);
     setStatusMessage(null);
 
@@ -327,13 +376,11 @@ export default function AdminGpsMappingCourseClient({
           setStatusMessage(`Bounds recalculated from ${result.pointCount} mapped points.`);
         }
 
-        if (action === 'duplicate' || action === 'sync') {
-          const result = await actions.duplicateFrontNine(mappedCourse.id, {
-            overwrite: action === 'sync',
-          });
+        if (action === 'sync') {
+          const result = await actions.syncBackNine(mappedCourse.id);
           mergeMappedHoles(result.mappedHoles);
           setStatusMessage(
-            `Created ${result.created.length} back-nine holes. Updated ${result.updated.length}. Skipped ${result.skipped.length}. Missing front-nine sources ${result.missingSource.length}.`,
+            `Created ${result.created.length} back-nine holes. Updated ${result.updated.length}. Missing front-nine sources ${result.missingSource.length}.`,
           );
         }
 
@@ -356,37 +403,14 @@ export default function AdminGpsMappingCourseClient({
     });
   }
 
-  return (
-    <div className="gps-admin-layout">
-      <details className="gps-admin-course-tools">
-        <summary>Course Tools</summary>
-        <div className="gps-admin-course-actions">
-          <button type="button" className="btn btn-secondary" onClick={() => handleCourseAction('bounds')} disabled={isPending}>
-            Recalculate Bounds
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleCourseAction('duplicate')} disabled={isPending}>
-            Duplicate Front 9
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleCourseAction('sync')} disabled={isPending}>
-            Sync Back 9
-          </button>
-          {!courseReady && (
-            <button type="button" className="btn btn-primary" onClick={() => handleCourseAction('ready')} disabled={isPending}>
-              Mark Course Ready
-            </button>
-          )}
-        </div>
-      </details>
-
-      <main className="gps-admin-main">
-        <section className="gps-admin-editor-card">
-          <div className="gps-admin-editor-header">
-            <div>
-              <span className="gps-admin-card-label">Active Hole</span>
-              <h2>{activeScorecardHole ? scorecardHoleLabel(activeScorecardHole) : `Hole ${activeHoleNumber}`}</h2>
-            </div>
-            <div className="gps-admin-header-actions">
-              <div
+  const mapOverlay = (
+    <>
+      <div className="live-round-gps-hud gps-admin-map-hud">
+        <div className="live-round-gps-hole-menu">
+          <div className="live-round-gps-hole-card gps-admin-map-hole-card">
+            <strong>
+              Hole {activeHoleNumber}
+              <span
                 className={`gps-admin-status-pill${activeHoleReady ? ' is-ready' : ''}`}
                 title={activeCompletion.missing.length > 0
                   ? `Missing: ${activeCompletion.missing.join(', ')}`
@@ -394,31 +418,62 @@ export default function AdminGpsMappingCourseClient({
               >
                 {activeCompletion.complete}/{activeCompletion.total}{' '}
                 {activeHoleReady ? 'Ready' : 'Complete'}
-              </div>
-              <div className="gps-admin-hole-nav" aria-label="Hole navigation">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => previousHole && selectHole(previousHole.holeNumber)}
-                  disabled={!previousHole}
-                >
-                  Previous Hole
-                </button>
-                <span>
-                  {activeHoleIndex >= 0 ? activeHoleIndex + 1 : activeHoleNumber}/{scorecardHoles.length}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => nextHole && selectHole(nextHole.holeNumber)}
-                  disabled={!nextHole}
-                >
-                  Next Hole
-                </button>
-              </div>
-            </div>
+              </span>
+            </strong>
+            {activeScorecardHole && (
+              <small className="live-round-gps-hole-meta">
+                {activeScorecardHole.par == null ? null : `Par ${activeScorecardHole.par}`}
+                {activeScorecardHole.par != null && activeScorecardHole.yardage != null ? ' · ' : null}
+                {activeScorecardHole.yardage == null ? null : `${activeScorecardHole.yardage} yd`}
+              </small>
+            )}
           </div>
+        </div>
+      </div>
 
+      <div
+        className="live-round-gps-controls gps-admin-map-navigation"
+        role="group"
+        aria-label="Hole navigation"
+      >
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => previousHole && selectHole(previousHole.holeNumber)}
+          disabled={!previousHole}
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+          Previous Hole
+        </button>
+        <button
+          type="button"
+          className="btn btn-accent"
+          onClick={() => nextHole && selectHole(nextHole.holeNumber)}
+          disabled={!nextHole}
+        >
+          Next Hole
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </div>
+
+      {activeHoleHasUnsavedChanges && (
+        <button
+          type="button"
+          className="btn btn-secondary live-round-gps-reset-target"
+          onClick={handleRevertHoleChanges}
+          aria-label="Revert Hole Changes"
+          title="Revert Hole Changes"
+        >
+          <RotateCcw size={19} aria-hidden="true" />
+        </button>
+      )}
+    </>
+  );
+
+  return (
+    <div className="gps-admin-layout">
+      <main className="gps-admin-main">
+        <section className="gps-admin-editor-card">
           {(statusMessage || errorMessage) && (
             <div className={`gps-admin-message ${errorMessage ? 'error' : 'success'}`} role="status">
               {errorMessage ?? statusMessage}
@@ -426,9 +481,9 @@ export default function AdminGpsMappingCourseClient({
           )}
 
           <div className="gps-admin-edit-controls">
-            <label htmlFor="gps-admin-field">Coordinate Field</label>
             <select
               id="gps-admin-field"
+              aria-label="Coordinate Field"
               value={selectedField}
               onChange={(event) => setSelectedField(event.target.value as GpsMappingEditField)}
             >
@@ -438,7 +493,9 @@ export default function AdminGpsMappingCourseClient({
                 </option>
               ))}
             </select>
-            <p>Click the map or drag a marker to update the selected geometry field.</p>
+            <button type="button" className="btn btn-primary" onClick={handleMarkHoleReady} disabled={isPending}>
+              Save &amp; Mark Ready
+            </button>
           </div>
 
           <AdminGpsMappingMap
@@ -448,37 +505,10 @@ export default function AdminGpsMappingCourseClient({
             courseBounds={courseBounds}
             showCourseBounds={showCourseBounds}
             fallbackCenter={fallbackMapCenter(course)}
-            derivedCameraRequest={derivedCameraRequest}
+            overlay={mapOverlay}
             onFieldSelect={setSelectedField}
             onPointChange={handlePointChange}
           />
-
-          <div className="gps-admin-map-toolbar">
-            <label
-              className="gps-admin-toggle gps-admin-bounds-toggle"
-              title={courseBounds
-                ? 'Show the saved mapped-course bounds.'
-                : 'Recalculate bounds before showing the course box.'}
-            >
-              <input
-                type="checkbox"
-                checked={showCourseBounds}
-                onChange={(event) => setShowCourseBounds(event.target.checked)}
-                disabled={!courseBounds}
-              />
-              <span>Show Bounds</span>
-            </label>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setDerivedCameraRequest((current) => current + 1)}
-            >
-              Fit Hole
-            </button>
-            <button type="button" className="btn btn-primary" onClick={handleMarkHoleReady} disabled={isPending}>
-              Mark Hole Ready
-            </button>
-          </div>
 
           <details className="gps-admin-coordinate-details">
             <summary>View Coordinates</summary>
@@ -494,8 +524,41 @@ export default function AdminGpsMappingCourseClient({
               })}
             </section>
           </details>
+
+          <details className="gps-admin-course-tools">
+            <summary>Course Tools</summary>
+            <div className="gps-admin-course-actions">
+              <label
+                className="gps-admin-toggle gps-admin-bounds-toggle"
+                title={courseBounds
+                  ? 'Show the saved mapped-course bounds.'
+                  : 'Recalculate bounds before showing the course box.'}
+              >
+                <input
+                  type="checkbox"
+                  checked={showCourseBounds}
+                  onChange={(event) => setShowCourseBounds(event.target.checked)}
+                  disabled={!courseBounds}
+                />
+                <span>Show Bounds</span>
+              </label>
+              <button type="button" className="btn btn-secondary" onClick={() => handleCourseAction('bounds')} disabled={isPending}>
+                Recalculate Bounds
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => handleCourseAction('sync')} disabled={isPending}>
+                Sync Back 9 From Front
+              </button>
+              {!courseReady && (
+                <button type="button" className="btn btn-primary" onClick={() => handleCourseAction('ready')} disabled={isPending}>
+                  Mark Course Ready
+                </button>
+              )}
+            </div>
+          </details>
         </section>
       </main>
+
+      {courseCard}
 
       <section className="gps-admin-hole-section" aria-label="Mapped holes">
         <div className="gps-admin-hole-section-header">
