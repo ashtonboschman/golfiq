@@ -9,8 +9,8 @@ export default function AppBootVisual() {
       <Image
         src="/logos/favicon/golfiq-icon-512-transparent.png"
         alt="GolfIQ"
-        width={50}
-        height={50}
+        width={70}
+        height={70}
         className="app-boot-logo"
         priority
       />
