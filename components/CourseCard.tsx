@@ -32,11 +32,9 @@ interface CourseCardProps {
 
 export default function CourseCard({ course, locations = [], tees = [] }: CourseCardProps) {
   const location = locations.length > 0 ? locations[0] : (course.location || {});
-  const address = location.address || '-';
-  const city = location.city || '-';
-  const state = location.state || '-';
-  const country = location.country || '-';
-  const locationString = `${address},  ${city}, ${state}, ${country}`;
+  const locationString = [location.address, location.city, location.state, location.country]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(', ') || '-';
 
   const holes =
     tees.length > 0 && tees[0].number_of_holes

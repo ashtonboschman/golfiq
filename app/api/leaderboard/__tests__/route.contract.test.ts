@@ -71,6 +71,38 @@ describe('/api/leaderboard route contract', () => {
     );
   });
 
+  it('serializes Decimal leaderboard values as numbers', async () => {
+    mockedPrisma.userLeaderboardStats.findMany.mockResolvedValue([
+      {
+        userId: BigInt(2),
+        handicap: '10.2',
+        averageToPar: '3.4',
+        bestToPar: '-0.0',
+        totalRounds: 4,
+        user: {
+          profile: {
+            firstName: 'Test',
+            lastName: 'Golfer',
+            avatarUrl: null,
+          },
+        },
+      },
+    ]);
+
+    const response = await GET(
+      new Request('http://localhost/api/leaderboard?scope=global') as any,
+    );
+    const body = await response.json();
+
+    expect(body.users[0]).toEqual(
+      expect.objectContaining({
+        handicap: 10.2,
+        average_score: 3.4,
+        best_score: 0,
+      }),
+    );
+  });
+
   it('caps a free user outside the top 50 at rank 51', async () => {
     mockedPrisma.userLeaderboardStats.count
       .mockResolvedValueOnce(75)

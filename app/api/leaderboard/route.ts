@@ -115,9 +115,9 @@ export async function GET(request: NextRequest) {
             FREE_GLOBAL_LEADERBOARD_LIMIT,
           ),
           user_id: Number(s.userId),
-          handicap: s.handicap ?? null,
-          average_score: s.averageToPar ?? null,
-          best_score: s.bestToPar,
+          handicap: toApiNumber(s.handicap),
+          average_score: toApiNumber(s.averageToPar),
+          best_score: toApiNumber(s.bestToPar),
           total_rounds: s.totalRounds,
           first_name: s.user.profile?.firstName ?? null,
           last_name: s.user.profile?.lastName ?? null,
@@ -140,9 +140,9 @@ export async function GET(request: NextRequest) {
             FREE_GLOBAL_LEADERBOARD_LIMIT,
           ),
           user_id: Number(currentStat.userId),
-          handicap: currentStat.handicap ?? null,
-          average_score: currentStat.averageToPar ?? null,
-          best_score: currentStat.bestToPar,
+          handicap: toApiNumber(currentStat.handicap),
+          average_score: toApiNumber(currentStat.averageToPar),
+          best_score: toApiNumber(currentStat.bestToPar),
           total_rounds: currentStat.totalRounds,
           first_name: user?.profile?.firstName ?? null,
           last_name: user?.profile?.lastName ?? null,
@@ -188,9 +188,9 @@ export async function GET(request: NextRequest) {
       stats.map(async s => ({
         rank: await getCompetitionRank(whereClause, sortBy, sortOrder, s),
         user_id: Number(s.userId),
-        handicap: s.handicap ?? null,
-        average_score: s.averageToPar ?? null,
-        best_score: s.bestToPar,
+        handicap: toApiNumber(s.handicap),
+        average_score: toApiNumber(s.averageToPar),
+        best_score: toApiNumber(s.bestToPar),
         total_rounds: s.totalRounds,
         first_name: s.user.profile?.firstName ?? null,
         last_name: s.user.profile?.lastName ?? null,
@@ -217,6 +217,13 @@ export async function GET(request: NextRequest) {
 // ============================================================
 // HELPERS
 // ============================================================
+
+function toApiNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return null;
+  return Object.is(numberValue, -0) ? 0 : numberValue;
+}
 
 function getSortColumn(sortBy: SortKey) {
   if (sortBy === 'handicap') return 'handicap';
