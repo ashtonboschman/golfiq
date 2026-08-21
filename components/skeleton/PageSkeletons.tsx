@@ -3,14 +3,12 @@ import { SkeletonBlock, SkeletonCard, SkeletonCircle, SkeletonText } from '@/com
 
 type RoundListSkeletonProps = {
   count?: number;
-  metricCount?: number;
   showHolesTag?: boolean;
   useGridList?: boolean;
 };
 
 export function RoundListSkeleton({
   count = 4,
-  metricCount = 8,
   showHolesTag = true,
   useGridList = false,
 }: RoundListSkeletonProps) {
@@ -22,7 +20,7 @@ export function RoundListSkeleton({
         <div key={`round-skeleton-wrap-${index}`}>
           <SkeletonCard
             key={`round-skeleton-${index}`}
-            className={`skeleton-round-card${metricCount > 4 ? ' skeleton-round-card-advanced' : ''}`}
+            className="skeleton-round-card"
           >
             <div className="skeleton-round-top">
               <div className="roundcard-header">
@@ -34,18 +32,17 @@ export function RoundListSkeleton({
                   {showHolesTag && <SkeletonBlock className="skeleton-holes-tag" height={22} />}
                 </div>
               </div>
-              <div className="roundcard-header-info">
+            </div>
+            <div className="roundcard-summary skeleton-round-summary">
+              <div className="roundcard-meta">
                 <SkeletonBlock className="skeleton-round-location" height={14} />
                 <SkeletonBlock className="skeleton-round-date" height={14} />
               </div>
-            </div>
-            <div className="roundcard-bottom skeleton-round-bottom">
-              <div className={`grid grid-4${metricCount > 4 ? ' skeleton-round-grid-advanced' : ''}`}>
-                {Array.from({ length: metricCount }).map((__, metricIndex) => (
-                  <SkeletonBlock key={`metric-${metricIndex}`} className="skeleton-round-metric" height={20} />
-                ))}
+              <div className="skeleton-round-score">
+                <SkeletonBlock width={52} height={32} />
+                <SkeletonBlock width={24} height={12} />
               </div>
-              <div className="roundcard-bottom-right">
+              <div className="roundcard-details-icon">
                 <SkeletonCircle size={18} />
               </div>
             </div>
@@ -89,7 +86,7 @@ export function DashboardSkeleton() {
         <SkeletonCard className="last-five-rounds-card">
           <SkeletonBlock width={120} height={22} center />
         </SkeletonCard>
-        <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
+        <RoundListSkeleton count={5} showHolesTag={false} />
       </div>
       <SkeletonBlock className="skeleton-btn" height={44} />
     </div>

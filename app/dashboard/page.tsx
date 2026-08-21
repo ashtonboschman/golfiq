@@ -216,7 +216,7 @@ function DashboardFallback() {
         <div className="card last-five-rounds-card">
           <h3>Last 5 Rounds</h3>
         </div>
-        <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
+        <RoundListSkeleton count={5} showHolesTag={false} />
       </div>
     </div>
   );
@@ -1604,7 +1604,7 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
           <h3>Last 5 Rounds</h3>
         </div>
         {loading ? (
-          <RoundListSkeleton count={5} metricCount={8} showHolesTag={false} />
+          <RoundListSkeleton count={5} showHolesTag={false} />
         ) : lastRounds.length === 0 ? (
           <p className='secondary-text text-center'>Add your first round to start tracking progress.</p>
         ) : (

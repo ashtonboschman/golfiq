@@ -1501,6 +1501,10 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 /* ===========================
    RoundCard Specific
 =========================== */
+.roundcard-card {
+  gap: 0;
+}
+
 .roundcard-header {
   display: flex;
   flex-direction: row;
@@ -1535,25 +1539,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   margin: 0;
 }
 
-.roundcard-header-info {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: var(--gap);
-  margin-top: var(--gap-small);
-  color: var(--color-secondary-text);
-}
-
-.roundcard-city {
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-.round-date {
-  font-size: 0.8rem;
-  margin: 0;
-}
-
 .roundcard-button-group {
   position: absolute;
   top: 0;
@@ -1567,35 +1552,107 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   padding: var(--padding-small);
 }
 
-.roundcard-bottom {
+.roundcard-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(90px, 22vw, 120px) auto;
+  align-items: center;
+  gap: var(--gap);
+  margin-top: var(--gap-small);
+}
+
+.roundcard-meta {
   display: flex;
-  flex-direction: row;
+  align-self: last baseline;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.roundcard-meta-item {
+  display: flex;
   align-items: center;
   gap: var(--gap-small);
-  justify-content: flex-start;
+  min-width: 0;
+  color: var(--color-secondary-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-.roundcard-bottom-right {
+.roundcard-meta-item svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.roundcard-score-summary {
+  display: flex;
+  align-self: stretch;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  min-width: 90px;
+  padding: 0;
+}
+
+.roundcard-score-values {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-small);
+  padding: 0;
+}
+
+.roundcard-score-value {
+  color: var(--color-primary-text);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.roundcard-to-par-value {
+  color: var(--color-secondary-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.roundcard-details-icon {
   display: flex;
   align-items: center;
-  margin-left: auto;
 }
 
-.roundcard-info-row {
-  color: var(--color-secondary-text);
-  font-size: 1rem;
-  white-space: nowrap;
+@media (max-width: 480px) {
+  .roundcard-header.has-three-tags .roundcard-header-right {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+  }
+
+  .roundcard-header.has-three-tags .tee-tag {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .roundcard-header.has-three-tags .round-holes-tag {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .roundcard-header.has-three-tags .round-context-tag {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+  }
 }
 
 .roundcard-subtitle {
   margin-top: 0;
   font-size: 0.85rem;
   color: var(--color-secondary-text);
-}
-
-.roundcard-notes {
-  color: var(--color-secondary-text);
-  font-size: 0.8rem;
 }
 
 .tee-tag {
@@ -1823,11 +1880,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .skeleton-round-card {
   align-items: stretch;
   gap: 0;
-  padding-bottom: calc(var(--padding) + 5px);
-}
-
-.skeleton-round-card-advanced {
-  padding-bottom: calc(var(--padding) - 4px);
 }
 
 .skeleton-round-top {
@@ -1835,8 +1887,8 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   flex-direction: column;
 }
 
-.skeleton-round-bottom {
-  margin-top: 15px;
+.skeleton-round-summary {
+  margin-top: var(--gap-small);
 }
 
 .round-insights-line {
@@ -1903,15 +1955,16 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 }
 
 .skeleton-round-date {
-  width: 13%;
+  width: 35%;
 }
 
-.skeleton-round-metric {
-  width: 50%;
-}
-
-.skeleton-round-grid-advanced {
-  row-gap: calc(var(--gap-small) + 5px);
+.skeleton-round-score {
+  display: flex;
+  align-self: end;
+  width: 90px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: var(--gap-small);
 }
 
 .skeleton-insight-message-content {

@@ -1,4 +1,4 @@
-import { ChevronRight, Edit, MapPin, Trash2 } from 'lucide-react';
+import { CalendarDays, ChevronRight, MapPin } from 'lucide-react';
 import Link from 'next/link';
 
 interface RoundCardProps {
@@ -60,6 +60,7 @@ export default function RoundCard({
 
   const teeName = round.tee_name || 'default';
   const par = round.par ?? null;
+  const locationLabel = [round.city, round.state].filter(Boolean).join(', ');
   const roundContext = round.round_context ?? 'real';
   const roundContextLabel =
     roundContext === 'simulator'
@@ -74,7 +75,7 @@ export default function RoundCard({
     <>
       {/* Header */}
       <div>
-        <div className="roundcard-header">
+        <div className={`roundcard-header${roundContextLabel && showHoles ? ' has-three-tags' : ''}`}>
           <div className="roundcard-header-left">
             <h3 className="roundcard-course-name">
               {round.club_name === round.course_name
@@ -93,64 +94,50 @@ export default function RoundCard({
             )}
           </div>
         </div>
-        <div className="roundcard-header-info">
-          <h5 className="roundcard-city"><MapPin size='14'/> {round.city + ', ' + round.state || '-'}</h5>
-          <span className="round-date">{formatDate(round.date)}</span>
-        </div>
       </div>
-      <div className='roundcard-bottom'>
-        {/* Info Grid */}
-        <div className="grid grid-4">
-          <div className="roundcard-info-row">
-            <strong>Score</strong> {formatValue(round.score)}
-          </div>
-          <div className="roundcard-info-row">
-            <strong>To Par</strong> {formatToPar(round.score, par)}
-          </div>
-          <div className="roundcard-info-row">
-            <strong>Net</strong> {formatToPar(round.net_score, par)}
-          </div>
-          <div className="roundcard-info-row">
-            <strong>Par</strong> {formatValue(par)}
-          </div>
-          <div className="roundcard-info-row">
-            <strong>FIR</strong> {formatValue(round.fir_hit)}
-          </div>
-          <div className="roundcard-info-row">
-            <strong>GIR</strong> {formatValue(round.gir_hit)}
-          </div>
-          <div className="roundcard-info-row">
-            <strong>Putts</strong> {formatValue(round.putts)}
-          </div>
-          <div className="roundcard-info-row">
-            <strong>Pen</strong> {formatValue(round.penalties)}
+      <div className="roundcard-summary">
+        <div className="roundcard-meta">
+          {locationLabel && (
+            <span className="roundcard-meta-item">
+              <MapPin size={14} aria-hidden="true" />
+              {locationLabel}
+            </span>
+          )}
+          <span className="roundcard-meta-item">
+            <CalendarDays size={14} aria-hidden="true" />
+            {formatDate(round.date)}
+          </span>
+        </div>
+
+        <div
+          className="roundcard-score-summary"
+          aria-label={`Score ${formatValue(round.score)}, ${formatToPar(round.score, par)} to par`}
+        >
+          <div className="roundcard-score-values">
+            <strong className="roundcard-score-value">{formatValue(round.score)}</strong>
+            <span className="roundcard-to-par-value">{formatToPar(round.score, par)}</span>
           </div>
         </div>
+
         {!disableClick && (
-          <div  className='roundcard-bottom-right'>
-            <ChevronRight className='primary-text'/>
+          <div className="roundcard-details-icon" aria-hidden="true">
+            <ChevronRight className="primary-text" />
           </div>
         )}
       </div>
-
-      {round.notes && (
-        <div className="roundcard-notes">
-          <strong>Notes</strong> {round.notes}
-        </div>
-      )}
     </>
   );
 
   if (disableClick) {
     return (
-      <div className="card u-link-reset">
+      <div className="card roundcard-card u-link-reset">
         {cardContent}
       </div>
     );
   }
 
   return (
-    <Link href={`/rounds/${round.id}/stats`} className="card clickable u-link-reset">
+    <Link href={`/rounds/${round.id}/stats`} className="card roundcard-card clickable u-link-reset">
       {cardContent}
     </Link>
   );
