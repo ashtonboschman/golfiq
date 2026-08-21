@@ -7,6 +7,8 @@ import { useMessage } from '@/app/providers';
 import { CoursesSearchSkeleton } from '@/components/skeleton/PageSkeletons';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { GOLF_COURSE_API_PROVIDER } from '@/lib/courses/externalIds';
+import { getGolfCourseTeeCount, getGolfCourseTees } from '@/lib/courses/golfCourseApi';
 
 export default function CourseSearchPage() {
   const { data: session, status } = useSession();
@@ -18,7 +20,7 @@ export default function CourseSearchPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [lastSearchOutcome, setLastSearchOutcome] = useState<'idle' | 'success_with_results' | 'success_no_results' | 'error'>('idle');
-  const [importingCourseId, setImportingCourseId] = useState<number | null>(null);
+  const [importingCourseId, setImportingCourseId] = useState<string | null>(null);
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestForm, setRequestForm] = useState({
     courseName: '',
@@ -59,29 +61,20 @@ export default function CourseSearchPage() {
   const getValidTees = (tees: any) => {
     const validTees: { male: string[]; female: string[] } = { male: [], female: [] };
 
-    if (tees?.male) {
-      tees.male.forEach((tee: any) => {
+    getGolfCourseTees({ tees }, 'male').forEach((tee: any) => {
         const teeName = tee.tee_name || '';
         if (!teeName.toLowerCase().includes('combo') && !teeName.includes('/') && !teeName.includes('-')) {
           validTees.male.push(teeName);
         }
-      });
-    }
-    if (tees?.female) {
-      tees.female.forEach((tee: any) => {
+    });
+    getGolfCourseTees({ tees }, 'female').forEach((tee: any) => {
         const teeName = tee.tee_name || '';
         if (!teeName.toLowerCase().includes('combo') && !teeName.includes('/') && !teeName.includes('-')) {
           validTees.female.push(teeName);
         }
-      });
-    }
+    });
 
     return validTees;
-  };
-
-  const getValidTeeCount = (tees: any) => {
-    const validTees = getValidTees(tees);
-    return validTees.male.length + validTees.female.length;
   };
 
   const handleSearch = async () => {
@@ -120,9 +113,10 @@ export default function CourseSearchPage() {
       }
 
       if (data.courses && data.courses.length > 0) {
-        // Filter out courses with 0 valid tees
+        // Search results now contain tee counts; full tee arrays are loaded
+        // only when a course is selected for import.
         const coursesWithValidTees = data.courses.filter((course: any) => {
-          return getValidTeeCount(course.tees) > 0;
+          return getGolfCourseTeeCount(course, 'male') + getGolfCourseTeeCount(course, 'female') > 0;
         });
 
         if (coursesWithValidTees.length > 0) {
@@ -208,7 +202,10 @@ export default function CourseSearchPage() {
   };
 
   const handleAddCourse = async (course: any) => {
-    setImportingCourseId(course.id);
+    const courseId = String(course?.id ?? '').trim();
+    if (!courseId) return;
+
+    setImportingCourseId(courseId);
     clearMessage();
     let capturedFailure = false;
 
@@ -218,7 +215,10 @@ export default function CourseSearchPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(course),
+        body: JSON.stringify({
+          provider: GOLF_COURSE_API_PROVIDER,
+          external_id: courseId,
+        }),
       });
 
       const data = await res.json();
@@ -306,6 +306,8 @@ export default function CourseSearchPage() {
             <div className="course-search-results-list">
               {searchResults.map((course) => {
                 const validTees = getValidTees(course.tees);
+                const maleTeeCount = getGolfCourseTeeCount(course, 'male');
+                const femaleTeeCount = getGolfCourseTeeCount(course, 'female');
 
                 return (
                   <div
@@ -326,31 +328,31 @@ export default function CourseSearchPage() {
                       </div>
                     )}
 
-                    {validTees.male.length > 0 && (
+                    {maleTeeCount > 0 && (
                       <div>
                         <span className="secondary-text u-font-semibold u-fs-085">Male Tees: </span>
                         <span className="u-fs-085 u-color-blue">
-                          {validTees.male.join(', ')}
+                          {validTees.male.length > 0 ? validTees.male.join(', ') : maleTeeCount}
                         </span>
                       </div>
                     )}
 
-                    {validTees.female.length > 0 && (
+                    {femaleTeeCount > 0 && (
                       <div>
                         <span className="secondary-text u-font-semibold u-fs-085">Female Tees: </span>
                         <span className="u-fs-085 u-color-pink">
-                          {validTees.female.join(', ')}
+                          {validTees.female.length > 0 ? validTees.female.join(', ') : femaleTeeCount}
                         </span>
                       </div>
                     )}
 
                     <button
                       type="button"
-                      onClick={() => handleAddCourse(course)}
+                      onClick={() => void handleAddCourse(course)}
                       disabled={importingCourseId !== null}
                       className="btn btn-add u-w-full"
                     >
-                      {importingCourseId === course.id ? 'Adding...' : 'Add Course'}
+                      {importingCourseId === String(course.id) ? 'Adding...' : 'Add Course'}
                     </button>
                   </div>
                 );

@@ -1,15 +1,15 @@
 import { GET, POST } from '@/app/api/courses/route';
 import { requireAuth } from '@/lib/api-auth';
-import { requireAdmin } from '@/lib/admin-auth';
 import { prisma } from '@/lib/db';
+import { logApiCall } from '@/lib/utils/apiRateLimit';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
   return { ...actual, requireAuth: jest.fn() };
 });
 
-jest.mock('@/lib/admin-auth', () => ({
-  requireAdmin: jest.fn(),
+jest.mock('@/lib/utils/apiRateLimit', () => ({
+  logApiCall: jest.fn(),
 }));
 
 jest.mock('@/lib/db', () => ({
@@ -49,7 +49,7 @@ type MockPrisma = {
 };
 
 const mockedRequireAuth = requireAuth as jest.Mock;
-const mockedRequireAdmin = requireAdmin as jest.Mock;
+const mockedLogApiCall = logApiCall as jest.Mock;
 const mockedPrisma = prisma as unknown as MockPrisma;
 
 const courseRow = {
@@ -83,8 +83,10 @@ function apiImport(overrides: Record<string, unknown> = {}) {
 describe('/api/courses route', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedRequireAuth.mockResolvedValue(BigInt(7));
-    mockedRequireAdmin.mockResolvedValue(BigInt(1));
+    mockedRequireAuth.mockResolvedValue(BigInt(1));
+    mockedLogApiCall.mockResolvedValue(undefined);
+    process.env.GOLF_COURSE_API_KEY = 'Key test-key';
+    (global as any).fetch = jest.fn();
     mockedPrisma.$queryRaw.mockResolvedValue([]);
     mockedPrisma.courseExternalId.findUnique.mockResolvedValue(null);
     mockedPrisma.courseExternalId.create.mockResolvedValue({ id: BigInt(1) });
@@ -146,12 +148,130 @@ describe('/api/courses route', () => {
     }));
   });
 
-  it('returns 403 for non-admin course creation', async () => {
-    mockedRequireAdmin.mockRejectedValue(new Error('Forbidden'));
+  it('includes unverified courses without coordinates in location-aware searches', async () => {
+    mockedPrisma.$queryRaw.mockResolvedValue([{ id: BigInt(235), distance: null }]);
+    mockedPrisma.course.findUnique.mockResolvedValue({
+      ...courseRow,
+      id: BigInt(235),
+      clubName: 'Tpc Jasna Polana',
+      courseName: 'Tpc Jasna Polana',
+      verified: false,
+      location: {
+        city: 'Princeton',
+        state: 'NJ',
+        country: 'United States',
+        address: '4519 Province Line Rd',
+        latitude: null,
+        longitude: null,
+      },
+    });
 
-    const response = await postCourse(apiImport());
+    const response = await GET(new Request(
+      'http://localhost/api/courses?search=Jasna&lat=49.8951&lng=-97.1384',
+    ) as never);
+    const body = await response.json();
+    const querySegments = mockedPrisma.$queryRaw.mock.calls[0][0] as readonly string[];
+    const queryText = querySegments.join('?');
+
+    expect(response.status).toBe(200);
+    expect(body.courses).toEqual([
+      expect.objectContaining({
+        id: 235,
+        verified: false,
+        club_name: 'Tpc Jasna Polana',
+      }),
+    ]);
+    expect(queryText).toContain('WHEN l.latitude IS NOT NULL AND l.longitude IS NOT NULL');
+    expect(queryText).not.toContain('WHERE l.latitude IS NOT NULL');
+    expect(queryText).toContain('ORDER BY distance ASC NULLS LAST');
+  });
+
+  it('keeps courses without coordinates in the location-aware course list', async () => {
+    mockedPrisma.$queryRaw.mockResolvedValue([{ id: BigInt(235), distance: null }]);
+    mockedPrisma.course.findUnique.mockResolvedValue({
+      ...courseRow,
+      id: BigInt(235),
+      verified: false,
+    });
+
+    const response = await GET(new Request(
+      'http://localhost/api/courses?lat=49.8951&lng=-97.1384',
+    ) as never);
+    const body = await response.json();
+    const querySegments = mockedPrisma.$queryRaw.mock.calls[0][0] as readonly string[];
+    const queryText = querySegments.join('?');
+
+    expect(response.status).toBe(200);
+    expect(body.courses).toEqual([
+      expect.objectContaining({ id: 235, verified: false }),
+    ]);
+    expect(queryText).toContain('WHEN l.latitude IS NOT NULL AND l.longitude IS NOT NULL');
+    expect(queryText).not.toContain('WHERE l.latitude IS NOT NULL');
+    expect(queryText).toContain('ORDER BY distance ASC NULLS LAST');
+  });
+
+  it('returns 403 for non-admin manual course creation', async () => {
+    mockedRequireAuth.mockResolvedValue(BigInt(7));
+
+    const response = await postCourse({
+      club_name: 'Manual Club',
+      course_name: 'Manual Course',
+    });
 
     expect(response.status).toBe(403);
+    expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('allows authenticated users to add an authoritative GolfCourseAPI course', async () => {
+    mockedRequireAuth.mockResolvedValue(BigInt(7));
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: '93kzhy6b',
+        club_name: 'Provider Club',
+        course_name: 'Provider Course',
+        tees: {
+          male: [{ tee_name: 'Blue', holes: [] }],
+          female: [],
+        },
+      }),
+    });
+
+    const response = await postCourse({
+      provider: 'golfcourseapi',
+      external_id: '93kzhy6b',
+    });
+
+    expect(response.status).toBe(200);
+    expect((global as any).fetch).toHaveBeenCalledWith(
+      'https://api.golfcourseapi.com/v1/courses/93kzhy6b',
+      { headers: { Authorization: 'Key test-key' } },
+    );
+    expect(mockedPrisma.course.create).toHaveBeenCalledWith({
+      data: { clubName: 'Provider Club', courseName: 'Provider Course' },
+    });
+    expect(mockedPrisma.courseExternalId.create).toHaveBeenCalledWith({
+      data: {
+        courseId: BigInt(1),
+        provider: 'golfcourseapi',
+        externalId: '93kzhy6b',
+      },
+    });
+  });
+
+  it('rejects a duplicate user import before spending a provider detail call', async () => {
+    mockedRequireAuth.mockResolvedValue(BigInt(7));
+    mockedPrisma.courseExternalId.findUnique.mockResolvedValueOnce({ courseId: BigInt(42) });
+
+    const response = await postCourse({
+      provider: 'golfcourseapi',
+      external_id: '93kzhy6b',
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.message).toContain('GolfIQ course 42');
+    expect((global as any).fetch).not.toHaveBeenCalled();
     expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
   });
 

@@ -10,6 +10,11 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { isAdminUserId } from '@/lib/admin';
 import { GOLF_COURSE_API_PROVIDER } from '@/lib/courses/externalIds';
+import {
+  buildGolfCourseTeeSelections,
+  getGolfCourseTeeCount,
+  getGolfCourseTees,
+} from '@/lib/courses/golfCourseApi';
 
 function formatNineRating(tee: any, segment: 'front' | 'back') {
   const rating = tee[`${segment}_course_rating`];
@@ -42,6 +47,7 @@ export default function ImportCoursePage() {
   const [preview, setPreview] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
+  const [courseDetailLoadingId, setCourseDetailLoadingId] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedTees, setSelectedTees] = useState<{[key: string]: boolean}>({});
   const [showManualEntry, setShowManualEntry] = useState(false);
@@ -80,19 +86,7 @@ export default function ImportCoursePage() {
       const parsed = JSON.parse(jsonInput);
       setPreview(parsed);
 
-      // Initialize all tees as selected by default
-      const teeSelections: {[key: string]: boolean} = {};
-      if (parsed.tees?.male) {
-        parsed.tees.male.forEach((tee: any, idx: number) => {
-          teeSelections[`male-${idx}`] = true;
-        });
-      }
-      if (parsed.tees?.female) {
-        parsed.tees.female.forEach((tee: any, idx: number) => {
-          teeSelections[`female-${idx}`] = true;
-        });
-      }
-      setSelectedTees(teeSelections);
+      setSelectedTees(buildGolfCourseTeeSelections(parsed));
 
       showMessage('JSON parsed successfully! Review the preview below.', 'success');
     } catch (err: any) {
@@ -130,21 +124,17 @@ export default function ImportCoursePage() {
     const selectedMaleTees: any[] = [];
     const selectedFemaleTees: any[] = [];
 
-    if (preview.tees?.male) {
-      preview.tees.male.forEach((tee: any, idx: number) => {
-        if (selectedTees[`male-${idx}`]) {
-          selectedMaleTees.push(tee);
-        }
-      });
-    }
+    getGolfCourseTees(preview, 'male').forEach((tee: any, idx: number) => {
+      if (selectedTees[`male-${idx}`]) {
+        selectedMaleTees.push(tee);
+      }
+    });
 
-    if (preview.tees?.female) {
-      preview.tees.female.forEach((tee: any, idx: number) => {
-        if (selectedTees[`female-${idx}`]) {
-          selectedFemaleTees.push(tee);
-        }
-      });
-    }
+    getGolfCourseTees(preview, 'female').forEach((tee: any, idx: number) => {
+      if (selectedTees[`female-${idx}`]) {
+        selectedFemaleTees.push(tee);
+      }
+    });
 
     // Check if at least one tee is selected
     if (selectedMaleTees.length === 0 && selectedFemaleTees.length === 0) {
@@ -227,18 +217,7 @@ export default function ImportCoursePage() {
   };
 
   const handleSelectAllTees = () => {
-    const allSelected: {[key: string]: boolean} = {};
-    if (preview?.tees?.male) {
-      preview.tees.male.forEach((_: any, idx: number) => {
-        allSelected[`male-${idx}`] = true;
-      });
-    }
-    if (preview?.tees?.female) {
-      preview.tees.female.forEach((_: any, idx: number) => {
-        allSelected[`female-${idx}`] = true;
-      });
-    }
-    setSelectedTees(allSelected);
+    setSelectedTees(buildGolfCourseTeeSelections(preview));
   };
 
   const handleDeselectAllTees = () => {
@@ -295,27 +274,39 @@ export default function ImportCoursePage() {
     }
   };
 
-  const handleSelectCourse = (course: any) => {
-    setJsonInput(JSON.stringify(course, null, 2));
-    setPreview(course);
+  const handleSelectCourse = async (course: any) => {
+    const courseId = String(course?.id ?? '').trim();
+    if (!courseId || courseDetailLoadingId) return;
 
-    // Initialize all tees as selected by default
-    const teeSelections: {[key: string]: boolean} = {};
-    if (course.tees?.male) {
-      course.tees.male.forEach((_: any, idx: number) => {
-        teeSelections[`male-${idx}`] = true;
-      });
-    }
-    if (course.tees?.female) {
-      course.tees.female.forEach((_: any, idx: number) => {
-        teeSelections[`female-${idx}`] = true;
-      });
-    }
-    setSelectedTees(teeSelections);
+    setCourseDetailLoadingId(courseId);
+    clearMessage();
 
-    setSearchResults([]);
-    setSearchQuery('');
-    showMessage('Course selected! Review the preview and select tees to import.', 'success');
+    try {
+      const res = await fetch(`/api/golf-course-api/courses/${encodeURIComponent(courseId)}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        trackApiFailure({
+          endpoint: '/api/golf-course-api/courses/[id]',
+          method: 'GET',
+          status_code: res.status,
+          feature_area: 'admin_import_course',
+        });
+        throw new Error(data.error || 'Failed to load course details');
+      }
+
+      const detailedCourse = data.course;
+      setJsonInput(JSON.stringify(detailedCourse, null, 2));
+      setPreview(detailedCourse);
+      setSelectedTees(buildGolfCourseTeeSelections(detailedCourse));
+      setSearchResults([]);
+      setSearchQuery('');
+      showMessage('Course selected! Review the preview and select tees to import.', 'success');
+    } catch (err: any) {
+      showMessage(err.message || 'Failed to load course details', 'error');
+    } finally {
+      setCourseDetailLoadingId(null);
+    }
   };
 
   if (status === 'loading' || !authChecked) {
@@ -358,7 +349,7 @@ export default function ImportCoursePage() {
                 <div
                   key={course.id}
                   className="card admin-course-search-card"
-                  onClick={() => handleSelectCourse(course)}
+                  onClick={() => void handleSelectCourse(course)}
                 >
                   <div className="u-font-bold u-fs-11 u-color-primary">{course.course_name}</div>
                   <div className="u-color-secondary u-fs-09">{course.club_name}</div>
@@ -370,7 +361,8 @@ export default function ImportCoursePage() {
                     </div>
                   )}
                   <div className="admin-course-search-meta u-fs-085">
-                    {course.tees?.male?.length || 0} male tees, {course.tees?.female?.length || 0} female tees
+                    {getGolfCourseTeeCount(course, 'male')} male tees, {getGolfCourseTeeCount(course, 'female')} female tees
+                    {courseDetailLoadingId === String(course.id) ? ' · Loading details...' : ''}
                   </div>
                 </div>
               ))}
@@ -400,19 +392,7 @@ export default function ImportCoursePage() {
               setJsonInput(JSON.stringify(courseData, null, 2));
               setPreview(courseData);
 
-              // Initialize all tees as selected by default
-              const teeSelections: {[key: string]: boolean} = {};
-              if (courseData.tees?.male) {
-                courseData.tees.male.forEach((_: any, idx: number) => {
-                  teeSelections[`male-${idx}`] = true;
-                });
-              }
-              if (courseData.tees?.female) {
-                courseData.tees.female.forEach((_: any, idx: number) => {
-                  teeSelections[`female-${idx}`] = true;
-                });
-              }
-              setSelectedTees(teeSelections);
+              setSelectedTees(buildGolfCourseTeeSelections(courseData));
 
               setShowManualEntry(false);
               showMessage('Manual course created! Review the preview and click Import when ready.', 'success');
@@ -511,11 +491,11 @@ export default function ImportCoursePage() {
                 </div>
               </div>
 
-              {preview.tees.male && preview.tees.male.length > 0 && (
+              {getGolfCourseTees(preview, 'male').length > 0 && (
                 <div className="admin-course-tee-group">
-                  <em className="u-font-bold admin-course-tee-label is-male">Male Tees ({preview.tees.male.length}):</em>
+                  <em className="u-font-bold admin-course-tee-label is-male">Male Tees ({getGolfCourseTees(preview, 'male').length}):</em>
                   <div className="admin-course-tee-list">
-                    {preview.tees.male.map((tee: any, idx: number) => (
+                    {getGolfCourseTees(preview, 'male').map((tee: any, idx: number) => (
                       <label
                         key={idx}
                         className={`admin-course-tee-item ${selectedTees[`male-${idx}`] ? 'is-selected-male' : ''}`}
@@ -536,11 +516,11 @@ export default function ImportCoursePage() {
                 </div>
               )}
 
-              {preview.tees.female && preview.tees.female.length > 0 && (
+              {getGolfCourseTees(preview, 'female').length > 0 && (
                 <div className="admin-course-tee-group">
-                  <em className="u-font-bold admin-course-tee-label is-female">Female Tees ({preview.tees.female.length}):</em>
+                  <em className="u-font-bold admin-course-tee-label is-female">Female Tees ({getGolfCourseTees(preview, 'female').length}):</em>
                   <div className="admin-course-tee-list">
-                    {preview.tees.female.map((tee: any, idx: number) => (
+                    {getGolfCourseTees(preview, 'female').map((tee: any, idx: number) => (
                       <label
                         key={idx}
                         className={`admin-course-tee-item ${selectedTees[`female-${idx}`] ? 'is-selected-female' : ''}`}
@@ -572,14 +552,14 @@ export default function ImportCoursePage() {
                 let selectedMaleHoles = 0;
                 let selectedFemaleHoles = 0;
 
-                preview.tees?.male?.forEach((tee: any, idx: number) => {
+                getGolfCourseTees(preview, 'male').forEach((tee: any, idx: number) => {
                   if (selectedTees[`male-${idx}`]) {
                     selectedMaleCount++;
                     selectedMaleHoles += tee.holes?.length || 0;
                   }
                 });
 
-                preview.tees?.female?.forEach((tee: any, idx: number) => {
+                getGolfCourseTees(preview, 'female').forEach((tee: any, idx: number) => {
                   if (selectedTees[`female-${idx}`]) {
                     selectedFemaleCount++;
                     selectedFemaleHoles += tee.holes?.length || 0;
@@ -635,7 +615,7 @@ export default function ImportCoursePage() {
         </div>
 
         <div className="u-note-box-warning">
-          <strong>Note:</strong> Each API search uses one of your daily API calls. You have 200 free calls per day with GolfCourseAPI.com.
+          <strong>Note:</strong> Each search and selected course detail uses an API call. GolfCourseAPI.com currently allows 50 free calls per day.
         </div>
       </div>
 
@@ -643,7 +623,7 @@ export default function ImportCoursePage() {
         <h3>Example JSON Structure</h3>
         <pre className="u-pre-code-block">
           {`{
-            "id": 123456,
+            "id": "7k2m9qb4",
             "club_name": "Example Golf Club",
             "course_name": "Championship Course",
             "location": {

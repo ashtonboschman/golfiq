@@ -200,4 +200,25 @@ describe('/api/golf-course-api/search route contract', () => {
     expect(response.status).toBe(200);
     expect(body.courses[0].id).toBe('1');
   });
+
+  it('preserves condensed tee counts returned by current search responses', async () => {
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        courses: [{
+          id: '93kzhy6b',
+          course_name: 'MacGregor',
+          tees: { male: 4, female: 3 },
+        }],
+      }),
+    });
+
+    const response = await GET(
+      new Request('http://localhost/api/golf-course-api/search?query=macgregor') as any,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.courses[0].tees).toEqual({ male: 4, female: 3 });
+  });
 });

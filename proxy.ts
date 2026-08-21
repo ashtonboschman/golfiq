@@ -30,7 +30,7 @@ function withRateLimitHeaders(response: NextResponse, params: {
   response.headers.set('X-RateLimit-Limit', String(params.limit));
   response.headers.set('X-RateLimit-Remaining', String(Math.max(0, params.remaining)));
   response.headers.set('X-RateLimit-Reset', String(Math.max(0, Math.ceil(params.resetAt / 1000))));
-  if (params.retryAfterSec > 0) {
+  if (response.status === 429 && params.retryAfterSec > 0) {
     response.headers.set('Retry-After', String(params.retryAfterSec));
   }
   return response;

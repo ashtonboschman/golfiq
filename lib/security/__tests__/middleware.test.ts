@@ -15,6 +15,7 @@ describe('API middleware auth throttling', () => {
         }),
       );
       expect(response.status).toBe(200);
+      expect(response.headers.get('Retry-After')).toBeNull();
     }
 
     const blocked = proxy(
@@ -24,6 +25,7 @@ describe('API middleware auth throttling', () => {
     );
 
     expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get('Retry-After'))).toBeGreaterThan(0);
     const body = await blocked.json();
     expect(body.message).toBe('Too many authentication attempts. Please wait 15 minutes and try again.');
   });

@@ -426,6 +426,47 @@ describe('/courses/search page fallback flow', () => {
     expect(screen.getByRole('button', { name: 'Add Course' })).toBeInTheDocument();
   });
 
+  it('submits only the provider identity when adding a condensed search result', async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          courses: [{
+            id: '93kzhy6b',
+            course_name: 'MacGregor Golf Course',
+            club_name: 'MacGregor',
+            tees: { male: 4, female: 3 },
+          }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ message: 'Course added successfully!' }),
+      });
+
+    render(<CourseSearchPage />);
+
+    fireEvent.change(screen.getByPlaceholderText(/search course or club name/i), {
+      target: { value: 'MacGregor' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(await screen.findByText('MacGregor Golf Course')).toBeInTheDocument();
+    expect(screen.getByText('Male Tees:').parentElement).toHaveTextContent('Male Tees: 4');
+    expect(screen.getByText('Female Tees:').parentElement).toHaveTextContent('Female Tees: 3');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Course' }));
+
+    await waitFor(() => {
+      expect((global.fetch as jest.Mock).mock.calls).toHaveLength(2);
+    });
+    expect((global.fetch as jest.Mock).mock.calls[1][0]).toBe('/api/courses');
+    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body)).toEqual({
+      provider: 'golfcourseapi',
+      external_id: '93kzhy6b',
+    });
+  });
+
   it('renders request-course card after search results', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,

@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
-import { requireAdmin } from '@/lib/admin-auth';
+import { isAdminUserId } from '@/lib/admin';
 import { GOLF_COURSE_API_PROVIDER, normalizeExternalId } from '@/lib/courses/externalIds';
+import { loadGolfCourseApiCourse } from '@/lib/courses/golfCourseApiServer';
+import { logApiCall } from '@/lib/utils/apiRateLimit';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
@@ -94,6 +96,10 @@ const teeInputSchema = z.object({
 
 const externalIdSchema = z.string().trim().min(1, 'external_id must not be empty').max(255);
 const providerSchema = z.string().trim().min(1, 'provider must not be empty').max(100);
+const externalCourseImportSchema = z.object({
+  provider: z.literal(GOLF_COURSE_API_PROVIDER),
+  external_id: externalIdSchema,
+}).strict();
 
 const createCourseSchema = z.object({
   // `id` remains an accepted legacy import field, but is always an opaque
@@ -255,26 +261,26 @@ export async function GET(request: NextRequest) {
             l.city,
             l.latitude,
             l.longitude,
-            (
-              6371 * acos(
-                LEAST(1.0,
-                  cos(radians(${lat})) * cos(radians(l.latitude::float)) *
-                  cos(radians(l.longitude::float) - radians(${lng})) +
-                  sin(radians(${lat})) * sin(radians(l.latitude::float))
+            CASE
+              WHEN l.latitude IS NOT NULL AND l.longitude IS NOT NULL THEN (
+                6371 * acos(
+                  LEAST(1.0,
+                    cos(radians(${lat})) * cos(radians(l.latitude::float)) *
+                    cos(radians(l.longitude::float) - radians(${lng})) +
+                    sin(radians(${lat})) * sin(radians(l.latitude::float))
+                  )
                 )
               )
-            ) as distance
+            END as distance
           FROM courses c
           LEFT JOIN locations l ON c.id = l.course_id
-          WHERE l.latitude IS NOT NULL
-            AND l.longitude IS NOT NULL
-            AND (
+          WHERE (
               c.club_name ILIKE ${searchPattern}
               OR c.course_name ILIKE ${searchPattern}
               OR l.city ILIKE ${searchPattern}
               OR l.state ILIKE ${searchPattern}
             )
-          ORDER BY distance ASC, c.club_name ASC
+          ORDER BY distance ASC NULLS LAST, c.club_name ASC
           LIMIT ${limit}
           OFFSET ${skip}
         `;
@@ -293,19 +299,20 @@ export async function GET(request: NextRequest) {
             l.city,
             l.latitude,
             l.longitude,
-            (
-              6371 * acos(
-                LEAST(1.0,
-                  cos(radians(${lat})) * cos(radians(l.latitude::float)) *
-                  cos(radians(l.longitude::float) - radians(${lng})) +
-                  sin(radians(${lat})) * sin(radians(l.latitude::float))
+            CASE
+              WHEN l.latitude IS NOT NULL AND l.longitude IS NOT NULL THEN (
+                6371 * acos(
+                  LEAST(1.0,
+                    cos(radians(${lat})) * cos(radians(l.latitude::float)) *
+                    cos(radians(l.longitude::float) - radians(${lng})) +
+                    sin(radians(${lat})) * sin(radians(l.latitude::float))
+                  )
                 )
               )
-            ) as distance
+            END as distance
           FROM courses c
           LEFT JOIN locations l ON c.id = l.course_id
-          WHERE l.latitude IS NOT NULL AND l.longitude IS NOT NULL
-          ORDER BY distance ASC, c.club_name ASC
+          ORDER BY distance ASC NULLS LAST, c.club_name ASC
           LIMIT ${limit}
           OFFSET ${skip}
         `;
@@ -489,9 +496,17 @@ function duplicateExternalCourseResponse(courseId: bigint) {
   );
 }
 
+async function safeLogApiUsage(input: Parameters<typeof logApiCall>[0]) {
+  try {
+    await logApiCall(input);
+  } catch (error) {
+    console.error('Failed to write api_usage_logs entry:', error);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(request);
+    const userId = await requireAuth(request);
 
     let body: unknown;
     try {
@@ -502,6 +517,43 @@ export async function POST(request: NextRequest) {
 
     if (!body || typeof body !== 'object') {
       return errorResponse('Invalid request body', 400);
+    }
+
+    if (!isAdminUserId(userId)) {
+      const importRequest = externalCourseImportSchema.safeParse(body);
+      if (!importRequest.success) {
+        return errorResponse(
+          'Only GolfCourseAPI courses can be added directly. Submit a course request for manual additions.',
+          403,
+        );
+      }
+
+      const externalIdentity = {
+        provider: GOLF_COURSE_API_PROVIDER,
+        externalId: normalizeExternalId(importRequest.data.external_id),
+      };
+      const existingCourseId = await findCourseIdByExternalIdentity(externalIdentity);
+      if (existingCourseId) return duplicateExternalCourseResponse(existingCourseId);
+
+      const result = await loadGolfCourseApiCourse(externalIdentity.externalId);
+      await safeLogApiUsage({
+        endpoint: 'golf-course-api-course-detail',
+        userId,
+        provider: GOLF_COURSE_API_PROVIDER,
+        resultCount: result.ok ? 1 : null,
+        status: result.ok ? 'success' : 'error',
+        errorCode: result.ok ? null : result.errorCode,
+      });
+
+      if (!result.ok) {
+        return errorResponse(result.error, result.status);
+      }
+
+      body = {
+        ...result.course,
+        provider: GOLF_COURSE_API_PROVIDER,
+        external_id: result.courseId,
+      };
     }
 
     const parsed = createCourseSchema.safeParse(body);
