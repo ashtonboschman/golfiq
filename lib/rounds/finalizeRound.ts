@@ -43,6 +43,7 @@ const completedRoundInputSchema = z.object({
   notes: z.string().optional().default(''),
   tee_segment: z.enum(['full', 'front9', 'back9', 'double9']).optional().default('full'),
   round_context: z.enum(ROUND_CONTEXT_VALUES).optional().default('real'),
+  duration_seconds: z.number().int().min(0).nullable().optional(),
   hole_by_hole: z.union([z.boolean(), z.number()])
     .transform((val: boolean | number) => (typeof val === 'number' ? val === 1 : val))
     .optional()
@@ -360,6 +361,7 @@ export async function createCompletedRoundFromInput({
       teeSegment,
       holesPlayed: ctx.holes,
       roundContext: data.round_context,
+      durationSeconds: data.duration_seconds ?? null,
       holeByHole: data.hole_by_hole,
       date: roundDate,
       score: insertScore,

@@ -10,6 +10,7 @@ import {
 } from '@/lib/rounds/finalizeRound';
 import { getValidTeeSegments, resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext';
 import { getLiveGpsAvailabilityForCourse } from '@/lib/gps/liveMapping';
+import { calculateRoundElapsedSeconds } from '@/lib/rounds/roundTimer';
 
 const TEE_SEGMENT_VALUES = ['full', 'front9', 'back9', 'double9'] as const;
 const LIVE_ROUND_STEP_VALUES = ['GPS', 'SCORE'] as const;
@@ -104,6 +105,8 @@ type LiveRoundSessionRow = {
   liveRoundTrackPutts: boolean;
   liveRoundTrackPenalties: boolean;
   startedAt: Date;
+  timerStartedAt: Date | null;
+  elapsedSeconds: number;
   lastSavedAt: Date;
   completedAt: Date | null;
   discardedAt: Date | null;
@@ -187,12 +190,14 @@ const updateLiveRoundNavigationSchema = z.object({
   tee_segment: z.enum(TEE_SEGMENT_VALUES).optional(),
   round_context: z.enum(ROUND_CONTEXT_VALUES).optional(),
   notes: z.string().max(4000).nullable().optional(),
+  timer_action: z.enum(['pause', 'resume']).optional(),
 }).refine((value) => (
   value.active_hole_number !== undefined ||
   value.active_step !== undefined ||
   value.tee_segment !== undefined ||
   value.round_context !== undefined ||
-  value.notes !== undefined
+  value.notes !== undefined ||
+  value.timer_action !== undefined
 ), {
   message: 'At least one live round field is required',
 });
@@ -331,6 +336,8 @@ export function serializeLiveRoundSession(session: LiveRoundSessionRow) {
       penalties: session.liveRoundTrackPenalties,
     },
     started_at: toIso(session.startedAt),
+    timer_started_at: toIso(session.timerStartedAt),
+    elapsed_seconds: session.elapsedSeconds,
     last_saved_at: toIso(session.lastSavedAt),
     completed_at: toIso(session.completedAt),
     discarded_at: toIso(session.discardedAt),
@@ -780,6 +787,8 @@ export async function updateLiveRoundNavigation(
       startHoleNumber?: number;
       roundContext?: RoundContext;
       notes?: string | null;
+      timerStartedAt?: Date | null;
+      elapsedSeconds?: number;
       lastSavedAt: Date;
     } = {
       lastSavedAt: new Date(),
@@ -833,6 +842,16 @@ export async function updateLiveRoundNavigation(
         if (!targetDraft) {
           throw liveRoundError('Active hole is not part of this live round session', 400, 'invalid_active_hole');
         }
+      }
+
+      if (data.timer_action === 'pause' && session.timerStartedAt) {
+        updateData.elapsedSeconds = calculateRoundElapsedSeconds({
+          elapsedSeconds: session.elapsedSeconds,
+          timerStartedAt: session.timerStartedAt,
+        }, updateData.lastSavedAt);
+        updateData.timerStartedAt = null;
+      } else if (data.timer_action === 'resume' && !session.timerStartedAt) {
+        updateData.timerStartedAt = updateData.lastSavedAt;
       }
 
       return tx.liveRoundSession.update({
@@ -942,6 +961,12 @@ export async function finalizeLiveRoundSession(userId: bigint, sessionIdParam: s
         };
       });
 
+      const now = new Date();
+      const durationSeconds = calculateRoundElapsedSeconds({
+        elapsedSeconds: session.elapsedSeconds,
+        timerStartedAt: session.timerStartedAt,
+      }, now);
+
       const finalizedRound = await createCompletedRoundFromInput({
         userId,
         db: tx,
@@ -953,6 +978,7 @@ export async function finalizeLiveRoundSession(userId: bigint, sessionIdParam: s
           tee_segment: teeSegment,
           round_context: session.roundContext,
           notes: session.notes ?? '',
+          duration_seconds: durationSeconds,
           hole_by_hole: 1,
           round_holes: roundHoles,
         },
@@ -963,7 +989,6 @@ export async function finalizeLiveRoundSession(userId: bigint, sessionIdParam: s
       });
       runPostCommitSideEffects = finalizedRound.runPostCommitSideEffects;
 
-      const now = new Date();
       const updatedSession = await tx.liveRoundSession.update({
         where: { id: session.id },
         data: {
@@ -971,6 +996,8 @@ export async function finalizeLiveRoundSession(userId: bigint, sessionIdParam: s
           finalRoundId: finalizedRound.roundId,
           completedAt: now,
           lastSavedAt: now,
+          timerStartedAt: null,
+          elapsedSeconds: durationSeconds,
         },
         include: sessionInclude,
       }) as LiveRoundSessionRow;

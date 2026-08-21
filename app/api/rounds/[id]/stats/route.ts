@@ -187,6 +187,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       score_to_par_formatted: scoreToParFormatted,
       net_to_par_formatted: netToParFormatted,
       handicap_at_round: round.handicapAtRound !== null ? Number(round.handicapAtRound) : null,
+      duration_seconds: round.durationSeconds,
 
       // Overall stats
       greens_in_regulation: totalGIR,

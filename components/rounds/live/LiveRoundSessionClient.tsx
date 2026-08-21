@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Flag, LoaderCircle, Trash2 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock3, Flag, LoaderCircle, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
@@ -32,6 +32,7 @@ import { isAdminUserId } from '@/lib/admin';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import type { ClubSuggestionClub } from '@/lib/clubs/clubSuggestion';
+import { calculateRoundElapsedSeconds, formatLiveRoundTime } from '@/lib/rounds/roundTimer';
 
 type LiveRoundSessionClientProps = {
   sessionId: string;
@@ -171,6 +172,35 @@ function scrollLiveRoundToTop({ defer = false }: { defer?: boolean } = {}) {
   }
 
   scroll();
+}
+
+type LiveRoundTimerProps = {
+  elapsedSeconds: number;
+  timerStartedAt: string | null;
+};
+
+function LiveRoundTimer({ elapsedSeconds, timerStartedAt }: LiveRoundTimerProps) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!timerStartedAt) return;
+
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [timerStartedAt]);
+
+  const roundTimeLabel = formatLiveRoundTime(calculateRoundElapsedSeconds({
+    elapsedSeconds,
+    timerStartedAt,
+  }, now));
+  const ariaLabel = `Round Time ${roundTimeLabel}`;
+
+  return (
+    <span className="live-round-header-date live-round-header-timer" aria-label={ariaLabel}>
+      <Clock3 size={14} aria-hidden="true" />
+      {roundTimeLabel}
+    </span>
+  );
 }
 
 export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionClientProps) {
@@ -382,10 +412,18 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     setError(null);
     try {
       const response = await fetch(`/api/rounds/live/sessions/${sessionId}`, { cache: 'no-store' });
-      const data = await readApiResponse<{ session: LiveRoundSession }>(response);
+      let data = await readApiResponse<{ session: LiveRoundSession }>(response);
       if (data.session.status === 'COMPLETED' && data.session.final_round_id) {
         router.replace(`/rounds/${data.session.final_round_id}/stats?from=rounds`);
         return;
+      }
+      if (data.session.status === 'ACTIVE' && !data.session.timer_started_at) {
+        const resumeResponse = await fetch(`/api/rounds/live/sessions/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timer_action: 'resume' }),
+        });
+        data = await readApiResponse<{ session: LiveRoundSession }>(resumeResponse);
       }
       setSession(data.session);
       setNotesDraft(data.session.notes ?? '');
@@ -624,8 +662,11 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     [sortedDrafts],
   );
 
-  const totalPar = useMemo(
-    () => sortedDrafts.reduce((sum, draft) => sum + (draft.hole?.par ?? 0), 0),
+  const currentPar = useMemo(
+    () => sortedDrafts.reduce(
+      (sum, draft) => sum + (draft.score === null ? 0 : (draft.hole?.par ?? 0)),
+      0,
+    ),
     [sortedDrafts],
   );
 
@@ -688,6 +729,16 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     return flushContext();
   }, [flushContext, flushNotes, flushSave]);
 
+  const pauseRoundTimer = useCallback(async () => {
+    const response = await fetch(`/api/rounds/live/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timer_action: 'pause' }),
+    });
+    const data = await readApiResponse<{ session: LiveRoundSession }>(response);
+    setSession(data.session);
+  }, [sessionId]);
+
   const retrySave = useCallback(async () => {
     setError(null);
     await flushAll();
@@ -747,10 +798,15 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       onConfirm: async () => {
         const saved = await flushAll();
         if (!saved) return;
-        navigate();
+        try {
+          await pauseRoundTimer();
+          navigate();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Unable to pause round timer');
+        }
       },
     });
-  }, [flushAll, session, showConfirm]);
+  }, [flushAll, pauseRoundTimer, session, showConfirm]);
 
   useEffect(() => {
     if (!session || session.status !== 'ACTIVE') return;
@@ -795,6 +851,13 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
             restoreGuard();
             return;
           }
+          try {
+            await pauseRoundTimer();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unable to pause round timer');
+            restoreGuard();
+            return;
+          }
           allowBrowserBackRef.current = true;
           window.history.back();
         },
@@ -803,7 +866,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [flushAll, session, showConfirm]);
+  }, [flushAll, pauseRoundTimer, session, showConfirm]);
 
   useEffect(() => {
     if (!session || session.status !== 'ACTIVE') return;
@@ -1350,6 +1413,10 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
                   <span className="round-holes-tag">{ratingSlopeLabel}</span>
                 )}
               </div>
+              <LiveRoundTimer
+                elapsedSeconds={session.elapsed_seconds}
+                timerStartedAt={session.timer_started_at}
+              />
             </div>
             <span
               className={`live-round-save-indicator ${showSaveSpinner ? 'is-saving' : 'is-idle'}`}
@@ -1380,20 +1447,16 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
 
         {viewMode === 'review' ? (
           <div className="live-round-review-panel">
-            <div className="live-round-review-heading">
-              <h2>Round Summary</h2>
-            </div>
-
             {liveRoundTypeSwitcher}
 
             <div className="live-round-review-grid">
               <div>
                 <span>Total</span>
-                <strong>{canFinish ? totalScore : '--'}</strong>
+                <strong>{totalScore}</strong>
               </div>
               <div>
                 <span>To Par</span>
-                <strong>{canFinish ? formatToPar(totalScore - totalPar) : '--'}</strong>
+                <strong>{formatToPar(totalScore - currentPar)}</strong>
               </div>
             </div>
 

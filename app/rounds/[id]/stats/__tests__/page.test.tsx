@@ -79,6 +79,7 @@ const statsPayload = {
   score_to_par_formatted: '+6',
   net_to_par_formatted: '+4',
   handicap_at_round: 12.3,
+  duration_seconds: null,
   greens_in_regulation: 8,
   gir_percentage: '44',
   total_holes_for_gir: 18,
@@ -163,6 +164,33 @@ describe('/rounds/[id]/stats page', () => {
 
     await screen.findByText('Pebble Beach');
     expect(screen.queryByText('Off Tee')).not.toBeInTheDocument();
+  });
+
+  it('shows Round Time only when a live-round duration was recorded', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        stats: { ...statsPayload, duration_seconds: 13_560 },
+      }),
+    });
+
+    const { unmount } = render(<RoundStatsPage />);
+    const roundTime = await screen.findByLabelText('Round Time 3h 46m');
+    expect(roundTime).toHaveTextContent('3h 46m');
+    expect(roundTime.closest('.stats-header-metadata')).not.toBeNull();
+    expect(document.querySelector('.stats-score-grid')).not.toContainElement(roundTime);
+    expect(document.querySelector('.stats-header-date .lucide-calendar-days')).toBeInTheDocument();
+    expect(roundTime.querySelector('.lucide-clock-3')).toBeInTheDocument();
+    unmount();
+
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ stats: statsPayload }),
+    });
+    render(<RoundStatsPage />);
+    await screen.findByText('Pebble Beach');
+    expect(screen.queryByLabelText(/Round Time/)).not.toBeInTheDocument();
   });
 
   it('fetches round stats endpoint and does not call profile endpoint', async () => {

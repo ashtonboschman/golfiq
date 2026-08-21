@@ -6,13 +6,14 @@ import { usePathname, useRouter, useParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import Link from 'next/link';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Crown, Edit, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Crown, Edit, Trash2, X } from 'lucide-react';
 import RoundInsights from '@/components/RoundInsights';
 import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
 import InfoTooltip from '@/components/InfoTooltip';
 import ParBreakdownChart, { type ParBreakdownChartRow } from '@/components/ParBreakdownChart';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import { formatRoundDuration } from '@/lib/rounds/roundTimer';
 
 const ROUND_STATS_VIEWED_DEDUPE_MS = 5000;
 const roundStatsViewedCache = new Map<string, number>();
@@ -59,6 +60,7 @@ interface RoundStats {
   score_to_par_formatted: string;
   net_to_par_formatted: string;
   handicap_at_round: number | null;
+  duration_seconds: number | null;
   greens_in_regulation: number | null;
   gir_percentage: string | null;
   total_holes_for_gir: number;
@@ -388,9 +390,21 @@ export default function RoundStatsPage() {
             <h1 className="stats-header-title">
               {stats.course_name}
             </h1>
-            <p className="stats-header-subtitle">
-              {formatDate(stats.date)}
-            </p>
+            <div className="stats-header-metadata">
+              <span className="stats-header-subtitle stats-header-date">
+                <CalendarDays size={14} aria-hidden="true" />
+                {formatDate(stats.date)}
+              </span>
+              {stats.duration_seconds !== null && (
+                <span
+                  className="stats-header-subtitle stats-header-duration"
+                  aria-label={`Round Time ${formatRoundDuration(stats.duration_seconds)}`}
+                >
+                  <Clock3 size={14} aria-hidden="true" />
+                  {formatRoundDuration(stats.duration_seconds)}
+                </span>
+              )}
+            </div>
             <div className='stats-holes-tees-container'>
               <p className="round-holes-tag">
                 {stats.number_of_holes} Holes

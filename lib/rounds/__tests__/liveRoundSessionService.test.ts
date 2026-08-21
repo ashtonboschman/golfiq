@@ -175,6 +175,8 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     liveRoundTrackPutts: true,
     liveRoundTrackPenalties: true,
     startedAt: now,
+    timerStartedAt: now,
+    elapsedSeconds: 0,
     lastSavedAt: now,
     completedAt: null,
     discardedAt: null,
@@ -193,6 +195,10 @@ function makeSession(overrides: Record<string, unknown> = {}) {
 }
 
 describe('liveRoundSessionService', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -691,6 +697,54 @@ describe('liveRoundSessionService', () => {
     expect(mockedPrisma.liveRoundSession.delete).not.toHaveBeenCalled();
   });
 
+  it('pauses the timer by accumulating the active segment', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-26T12:10:00.000Z'));
+    mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(makeSession({
+      timerStartedAt: new Date('2026-06-26T12:02:00.000Z'),
+      elapsedSeconds: 120,
+    }));
+    mockedPrisma.liveRoundSession.update.mockResolvedValue(makeSession({
+      timerStartedAt: null,
+      elapsedSeconds: 600,
+    }));
+
+    const result = await updateLiveRoundNavigation(BigInt(1), '500', {
+      timer_action: 'pause',
+    });
+
+    expect(mockedPrisma.liveRoundSession.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        timerStartedAt: null,
+        elapsedSeconds: 600,
+      }),
+    }));
+    expect(result.session.timer_started_at).toBeNull();
+    expect(result.session.elapsed_seconds).toBe(600);
+  });
+
+  it('resumes a paused timer without changing accumulated time', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-26T13:00:00.000Z'));
+    mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(makeSession({
+      timerStartedAt: null,
+      elapsedSeconds: 600,
+    }));
+    mockedPrisma.liveRoundSession.update.mockResolvedValue(makeSession({
+      timerStartedAt: new Date('2026-06-26T13:00:00.000Z'),
+      elapsedSeconds: 600,
+    }));
+
+    await updateLiveRoundNavigation(BigInt(1), '500', {
+      timer_action: 'resume',
+    });
+
+    expect(mockedPrisma.liveRoundSession.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        timerStartedAt: new Date('2026-06-26T13:00:00.000Z'),
+      }),
+    }));
+    expect(mockedPrisma.liveRoundSession.update.mock.calls[0][0].data.elapsedSeconds).toBeUndefined();
+  });
+
   it('rechecks active status under the session lock before discarding', async () => {
     mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(null);
 
@@ -726,6 +780,7 @@ describe('liveRoundSessionService', () => {
   });
 
   it('finalizes complete drafts through the shared completed-round helper', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-26T12:30:00.000Z'));
     const runPostCommitSideEffects = jest.fn().mockResolvedValue(undefined);
     mockedPrisma.liveRoundSession.findFirst.mockResolvedValue(makeSession());
     mockedCreateCompletedRoundFromInput.mockResolvedValue({
@@ -750,6 +805,7 @@ describe('liveRoundSessionService', () => {
         input: expect.objectContaining({
           course_id: '11',
           tee_id: '12',
+          duration_seconds: 1800,
           hole_by_hole: 1,
           round_holes: [
             expect.objectContaining({ hole_id: '101', pass: 1, score: 4 }),
@@ -767,6 +823,8 @@ describe('liveRoundSessionService', () => {
           finalRoundId: BigInt(900),
           completedAt: expect.any(Date),
           lastSavedAt: expect.any(Date),
+          timerStartedAt: null,
+          elapsedSeconds: 1800,
         }),
       }),
     );

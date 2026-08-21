@@ -390,6 +390,7 @@ model Round {
   teeSegment                String                 @default("full") @map("tee_segment")
   holesPlayed               Int                    @default(18) @map("holes_played")
   roundContext              RoundContext           @default(real) @map("round_context")
+  durationSeconds           Int?                   @map("duration_seconds")
   roundHoles                RoundHole[]
   RoundInsight              RoundInsight?
   roundStrokesGained        RoundStrokesGained?
@@ -454,6 +455,8 @@ model LiveRoundSession {
   liveRoundTrackPutts                Boolean                @default(true) @map("live_round_track_putts")
   liveRoundTrackPenalties            Boolean                @default(true) @map("live_round_track_penalties")
   startedAt                          DateTime               @default(now()) @map("started_at") @db.Timestamptz(6)
+  timerStartedAt                     DateTime?              @default(now()) @map("timer_started_at") @db.Timestamptz(6)
+  elapsedSeconds                     Int                    @default(0) @map("elapsed_seconds")
   lastSavedAt                        DateTime               @default(now()) @map("last_saved_at") @db.Timestamptz(6)
   completedAt                        DateTime?              @map("completed_at") @db.Timestamptz(6)
   discardedAt                        DateTime?              @map("discarded_at") @db.Timestamptz(6)

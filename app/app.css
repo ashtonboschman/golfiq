@@ -5716,9 +5716,22 @@ input[type='date'].form-input {
 }
 
 .stats-header-subtitle {
-  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-small);
   font-size: 0.9rem;
   color: var(--color-secondary-text);
+}
+
+.stats-header-metadata {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gap);
+}
+
+.stats-header-duration {
+  font-variant-numeric: tabular-nums;
 }
 
 .round-holes-tag {
@@ -10913,6 +10926,11 @@ input[type='date'].form-input {
   font-size: 0.95rem;
 }
 
+.live-round-header-timer {
+  margin-top: var(--gap-small);
+  font-variant-numeric: tabular-nums;
+}
+
 .live-round-start-card,
 .live-round-session-card {
   gap: var(--gap);
@@ -11568,22 +11586,6 @@ input[type='date'].form-input {
   width: 100%;
 }
 
-.live-round-review-heading {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--gap-small);
-}
-
-.live-round-review-heading h2 {
-  margin: 0;
-}
-
-.live-round-review-heading p {
-  margin: 4px 0 0;
-  color: var(--color-secondary-text);
-  line-height: 1.4;
-}
-
 .live-round-review-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -11665,6 +11667,10 @@ input[type='date'].form-input {
 }
 
 .live-round-notes {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--color-border);
+  box-shadow: none;
   min-height: 112px;
   resize: vertical;
 }

@@ -152,6 +152,8 @@ function makeSession(overrides: Partial<LiveRoundSession> = {}): LiveRoundSessio
       penalties: false,
     },
     started_at: '2026-06-26T12:00:00.000Z',
+    timer_started_at: '2026-06-26T12:00:00.000Z',
+    elapsed_seconds: 0,
     last_saved_at: '2026-06-26T12:00:00.000Z',
     completed_at: null,
     discarded_at: null,
@@ -321,7 +323,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     render(<LiveRoundSessionClient sessionId="500" />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Review Round' }));
-    await screen.findByText('Round Summary');
+    await screen.findByRole('combobox', { name: /Round Type/i });
     expect(screen.getByRole('heading', { name: 'GolfIQ Club - North' })).toBeInTheDocument();
     expect(screen.getByText('2026-06-26')).toBeInTheDocument();
     expect(document.querySelector('.live-round-header-meta')).toHaveTextContent('Front 9');
@@ -355,6 +357,22 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(push).toHaveBeenCalledWith('/dashboard');
   });
 
+  it('shows current review totals while unscored holes remain', async () => {
+    const session = makeTwoHoleSession({ active_hole_number: 2 });
+    session.hole_drafts[0].score = 5;
+    global.fetch = jest.fn().mockResolvedValue(apiResponse({ session })) as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Round' }));
+    await screen.findByRole('combobox', { name: /Round Type/i });
+
+    const reviewTotals = document.querySelector('.live-round-review-grid');
+    expect(reviewTotals).toHaveTextContent('Total5');
+    expect(reviewTotals).toHaveTextContent('To Par+1');
+    expect(screen.getByText('Missing')).toBeInTheDocument();
+  });
+
   it('replaces to rounds when header back is confirmed', async () => {
     global.fetch = jest.fn().mockResolvedValue(apiResponse({ session: makeSession() })) as typeof fetch;
 
@@ -370,6 +388,47 @@ describe('LiveRoundSessionClient autosave navigation', () => {
 
     expect(replace).toHaveBeenCalledWith('/rounds');
     expect(consumeLiveRoundExitRedirect('500')).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/rounds/live/sessions/500',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ timer_action: 'pause' }),
+      }),
+    );
+  });
+
+  it('resumes a paused timer when reopening a saved live round', async () => {
+    const pausedSession = makeSession({
+      timer_started_at: null,
+      elapsed_seconds: 900,
+    });
+    const resumedSession = makeSession({
+      timer_started_at: new Date().toISOString(),
+      elapsed_seconds: 900,
+    });
+    const fetchMock = jest.fn((_url: string, init?: RequestInit) => {
+      if (!init?.method) return Promise.resolve(apiResponse({ session: pausedSession }));
+      if (init.method === 'PATCH') return Promise.resolve(apiResponse({ session: resumedSession }));
+      throw new Error('Unexpected request');
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByRole('button', { name: 'Review Round' });
+    expect(screen.queryByLabelText(/Round Time/)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/rounds/live/sessions/500',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ timer_action: 'resume' }),
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
+    expect(await screen.findByLabelText(/Round Time 0:15:/)).toBeInTheDocument();
   });
 
   it('redirects stale live round history entries back to rounds once', async () => {
@@ -419,6 +478,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     render(<LiveRoundSessionClient sessionId="500" />);
 
     expect(await screen.findByTestId('live-gps-map')).toHaveAttribute('data-physical-hole', '1');
+    expect(screen.queryByLabelText(/Round Time/)).not.toBeInTheDocument();
     expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-course-hole-count', '2');
     expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-user-location-status', 'watching');
     expect(document.querySelector('.live-round-gps-fullscreen')).toBeInTheDocument();
@@ -639,7 +699,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Hole 1/ }));
     fireEvent.click(screen.getByRole('button', { name: /Review/ }));
 
-    expect(await screen.findByText('Round Summary')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: /Round Type/i })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /Choose Hole/ })).not.toBeInTheDocument();
   });
 
@@ -667,7 +727,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Log Score/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Review Round/ }));
 
-    await screen.findByText('Round Summary');
+    await screen.findByRole('combobox', { name: /Round Type/i });
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
     expect(mockClearWatch).not.toHaveBeenCalled();
 
@@ -928,8 +988,6 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     render(<LiveRoundSessionClient sessionId="500" />);
 
     fireEvent.click(await screen.findByRole('button', { name: /Review Round/i }));
-    expect(await screen.findByText('Round Summary')).toBeInTheDocument();
-
     const roundTypeSelect = await screen.findByRole('combobox', { name: /Round Type/i });
     fireEvent.change(roundTypeSelect, { target: { value: 'full' } });
 
@@ -939,7 +997,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
       expect(JSON.parse(patchRequest?.[1]?.body as string)).toEqual({ tee_segment: 'full' });
     });
     await waitFor(() => expect(screen.getByRole('combobox', { name: /Round Type/i })).toHaveValue('full'));
-    expect(screen.getByText('Round Summary')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Round Type/i })).toBeInTheDocument();
   });
 
   it('advances a GPS-enabled score screen to GPS on the next hole', async () => {

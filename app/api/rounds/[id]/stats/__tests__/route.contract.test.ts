@@ -63,6 +63,7 @@ describe('/api/rounds/[id]/stats route contract', () => {
       greensideBunkerShots: 2,
       shortGameShots: 6,
       handicapAtRound: 8.5,
+      durationSeconds: 13_560,
       roundContext: 'real',
       holeByHole: true,
       notes: null,
@@ -136,6 +137,7 @@ describe('/api/rounds/[id]/stats route contract', () => {
         total_chips: 4,
         total_greenside_bunker_shots: 2,
         total_short_game_shots: 6,
+        duration_seconds: 13_560,
         sg_short_game: 0.3,
       }),
     );

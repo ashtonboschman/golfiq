@@ -67,6 +67,8 @@ export type LiveRoundSession = {
     penalties: boolean;
   };
   started_at: string | null;
+  timer_started_at: string | null;
+  elapsed_seconds: number;
   last_saved_at: string | null;
   completed_at: string | null;
   discarded_at: string | null;
