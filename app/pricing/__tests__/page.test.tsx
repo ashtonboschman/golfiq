@@ -5,9 +5,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import PricingPage from '@/app/pricing/page';
 import { useSession } from 'next-auth/react';
-import { useSubscription } from '@/hooks/useSubscription';
+import { clearSubscriptionCache, useSubscription } from '@/hooks/useSubscription';
 import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
 import { redirectToUrl } from '@/lib/browser/redirect';
+import {
+  getNativePremiumOffering,
+  purchaseNativePremiumPlan,
+  restoreNativePremiumPurchases,
+} from '@/lib/revenuecat/nativePurchases';
+import { waitForServerPremiumEntitlement } from '@/lib/revenuecat/serverEntitlement';
 
 const mockPush = jest.fn();
 const mockSearchParams = {
@@ -27,6 +33,7 @@ jest.mock('next/navigation', () => ({
 }));
 
 jest.mock('@/hooks/useSubscription', () => ({
+  clearSubscriptionCache: jest.fn(),
   useSubscription: jest.fn(),
 }));
 
@@ -44,12 +51,48 @@ jest.mock('@/lib/browser/redirect', () => ({
   redirectToUrl: jest.fn(),
 }));
 
+jest.mock('@/lib/revenuecat/nativePurchases', () => ({
+  getNativePremiumOffering: jest.fn(),
+  isNativePurchaseCancelled: jest.fn().mockReturnValue(false),
+  purchaseNativePremiumPlan: jest.fn(),
+  restoreNativePremiumPurchases: jest.fn(),
+}));
+
+jest.mock('@/lib/revenuecat/serverEntitlement', () => ({
+  waitForServerPremiumEntitlement: jest.fn(),
+}));
+
 const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedUseSubscription = useSubscription as unknown as jest.Mock;
+const mockedClearSubscriptionCache = clearSubscriptionCache as jest.Mock;
 const mockedGetBillingPlatform = getBillingPlatform as jest.Mock;
 const mockedIsNativeApp = isNativeApp as jest.Mock;
 const mockedIsNativeIOS = isNativeIOS as jest.Mock;
 const mockedRedirectToUrl = redirectToUrl as jest.Mock;
+const mockedGetNativePremiumOffering = getNativePremiumOffering as jest.Mock;
+const mockedPurchaseNativePremiumPlan = purchaseNativePremiumPlan as jest.Mock;
+const mockedRestoreNativePremiumPurchases = restoreNativePremiumPurchases as jest.Mock;
+const mockedWaitForServerPremiumEntitlement = waitForServerPremiumEntitlement as jest.Mock;
+
+const nativeOffering = {
+  identifier: 'default',
+  monthly: {
+    identifier: '$rc_monthly',
+    product: {
+      identifier: 'golfiq_premium_monthly',
+      priceString: '$6.99',
+      pricePerMonthString: '$6.99',
+    },
+  },
+  annual: {
+    identifier: '$rc_annual',
+    product: {
+      identifier: 'golfiq_premium_annual',
+      priceString: '$49.99',
+      pricePerMonthString: '$4.17',
+    },
+  },
+};
 
 describe('/pricing page', () => {
   beforeEach(() => {
@@ -74,6 +117,10 @@ describe('/pricing page', () => {
     mockedIsNativeApp.mockReturnValue(false);
     mockedIsNativeIOS.mockReturnValue(false);
     mockedRedirectToUrl.mockReset();
+    mockedGetNativePremiumOffering.mockResolvedValue(nativeOffering);
+    mockedPurchaseNativePremiumPlan.mockResolvedValue({ hasPremium: true, customerInfo: {} });
+    mockedRestoreNativePremiumPurchases.mockResolvedValue({ hasPremium: true, customerInfo: {} });
+    mockedWaitForServerPremiumEntitlement.mockResolvedValue(true);
   });
 
   it('shows updated monthly and annual headlines', () => {
@@ -213,16 +260,54 @@ describe('/pricing page', () => {
     expect(container.textContent?.includes('\u2014')).toBe(false);
   });
 
-  it('shows a native-safe placeholder and disables Stripe checkout in ios_iap mode', () => {
+  it('loads localized App Store plans without exposing web checkout in ios_iap mode', async () => {
     mockedGetBillingPlatform.mockReturnValue('ios_iap');
     mockedIsNativeApp.mockReturnValue(true);
     mockedIsNativeIOS.mockReturnValue(true);
 
     render(<PricingPage />);
 
-    expect(screen.getByText(/App Store subscriptions are coming soon/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Subscribe monthly to Premium plan/i })).toBeDisabled();
-    expect(screen.getByText(/Premium billing in the native app is not enabled yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/Native billing is not available yet in this build/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockedGetNativePremiumOffering).toHaveBeenCalledWith('1');
+    });
+    expect(screen.getByRole('button', { name: /Subscribe monthly to Premium plan/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Restore Purchases' })).toBeEnabled();
+    expect(screen.getByText(/billed monthly through the App Store/i)).toBeInTheDocument();
+    expect(screen.getByText('Terms')).toBeInTheDocument();
+    expect(screen.getByText('Privacy Policy')).toBeInTheDocument();
+    expect(mockedRedirectToUrl).not.toHaveBeenCalled();
+  });
+
+  it('purchases a native plan and waits for the server entitlement before redirecting', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+
+    render(<PricingPage />);
+    const button = await screen.findByRole('button', { name: /Subscribe monthly to Premium plan/i });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(mockedPurchaseNativePremiumPlan).toHaveBeenCalledWith('1', 'monthly');
+      expect(mockedWaitForServerPremiumEntitlement).toHaveBeenCalledTimes(1);
+      expect(mockedClearSubscriptionCache).toHaveBeenCalledWith('1');
+      expect(mockPush).toHaveBeenCalledWith('/settings');
+    });
+  });
+
+  it('reports when restore finds no active App Store Premium entitlement', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+    mockedRestoreNativePremiumPurchases.mockResolvedValue({ hasPremium: false, customerInfo: {} });
+
+    render(<PricingPage />);
+    const restoreButton = await screen.findByRole('button', { name: 'Restore Purchases' });
+    await waitFor(() => expect(restoreButton).toBeEnabled());
+    fireEvent.click(restoreButton);
+
+    expect(await screen.findByText(/No active Premium subscription was found/i)).toHaveClass('text-red');
+    expect(mockedWaitForServerPremiumEntitlement).not.toHaveBeenCalled();
   });
 });

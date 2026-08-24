@@ -3,7 +3,10 @@
 import { Capacitor } from '@capacitor/core';
 import {
   LOG_LEVEL,
+  PURCHASES_ERROR_CODE,
   Purchases,
+  type CustomerInfo,
+  type PurchasesError,
   type PurchasesPackage,
 } from '@revenuecat/purchases-capacitor';
 import { isNativeIOS } from '@/lib/platform';
@@ -19,6 +22,11 @@ export type NativePremiumOffering = {
   identifier: string;
   monthly: PurchasesPackage;
   annual: PurchasesPackage;
+};
+
+export type NativePremiumAccessResult = {
+  customerInfo: CustomerInfo;
+  hasPremium: boolean;
 };
 
 let configurationQueue: Promise<void> = Promise.resolve();
@@ -70,6 +78,42 @@ export async function getNativePremiumOffering(
   };
 }
 
+export async function purchaseNativePremiumPlan(
+  appUserId: string,
+  plan: 'monthly' | 'annual',
+): Promise<NativePremiumAccessResult> {
+  const offering = await getNativePremiumOffering(appUserId);
+  const { customerInfo } = await Purchases.purchasePackage({
+    aPackage: offering[plan],
+  });
+
+  return {
+    customerInfo,
+    hasPremium: hasPremiumEntitlement(customerInfo),
+  };
+}
+
+export async function restoreNativePremiumPurchases(
+  appUserId: string,
+): Promise<NativePremiumAccessResult> {
+  await configureNativePurchases(appUserId);
+  const { customerInfo } = await Purchases.restorePurchases();
+
+  return {
+    customerInfo,
+    hasPremium: hasPremiumEntitlement(customerInfo),
+  };
+}
+
+export function isNativePurchaseCancelled(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const purchaseError = error as Partial<PurchasesError>;
+  return (
+    purchaseError.code === PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR
+    || purchaseError.userCancelled === true
+  );
+}
+
 async function configureForUser(appUserId: string): Promise<void> {
   if (!isNativePurchasesAvailable()) {
     throw new Error('App Store purchases are only available in the GolfIQ iOS app.');
@@ -93,4 +137,10 @@ async function configureForUser(appUserId: string): Promise<void> {
   if (currentUserId !== appUserId) {
     await Purchases.logIn({ appUserID: appUserId });
   }
+}
+
+function hasPremiumEntitlement(customerInfo: CustomerInfo): boolean {
+  return Boolean(
+    customerInfo.entitlements.active[REVENUECAT_PREMIUM_ENTITLEMENT_ID],
+  );
 }

@@ -2,14 +2,23 @@
 
 import { useSession } from 'next-auth/react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { PRICING } from '@/lib/subscription';
 import { Check, X } from 'lucide-react';
-import { useSubscription } from '@/hooks/useSubscription';
+import { clearSubscriptionCache, useSubscription } from '@/hooks/useSubscription';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { getBillingPlatform } from '@/lib/platform';
 import { redirectToUrl } from '@/lib/browser/redirect';
+import {
+  getNativePremiumOffering,
+  isNativePurchaseCancelled,
+  purchaseNativePremiumPlan,
+  restoreNativePremiumPurchases,
+  type NativePremiumOffering,
+} from '@/lib/revenuecat/nativePurchases';
+import { waitForServerPremiumEntitlement } from '@/lib/revenuecat/serverEntitlement';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
 
@@ -21,6 +30,9 @@ function PricingContent() {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<PlanTab>('monthly');
+  const [nativeOffering, setNativeOffering] = useState<NativePremiumOffering | null>(null);
+  const [nativePlansLoading, setNativePlansLoading] = useState(false);
+  const [restoringPurchases, setRestoringPurchases] = useState(false);
   const { isPremium, loading: subscriptionLoading, provider } = useSubscription();
   const viewedRef = useRef(false);
   const checkoutCancelTrackedRef = useRef(false);
@@ -72,6 +84,37 @@ function PricingContent() {
     }
   }, [status, router]);
 
+  useEffect(() => {
+    const appUserId = session?.user?.id ? String(session.user.id) : null;
+    if (!usesNativeBilling || status !== 'authenticated' || !appUserId) return;
+
+    let active = true;
+    setNativeOffering(null);
+    setNativePlansLoading(true);
+    void getNativePremiumOffering(appUserId)
+      .then((offering) => {
+        if (!active) return;
+        setNativeOffering(offering);
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error('[revenuecat] Failed to load native offering:', error);
+        setMessage({
+          text: error instanceof Error
+            ? error.message
+            : 'App Store subscription plans are unavailable right now.',
+          type: 'error',
+        });
+      })
+      .finally(() => {
+        if (active) setNativePlansLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id, status, usesNativeBilling]);
+
   // Redirect premium users to settings
   useEffect(() => {
     if (status === 'authenticated' && !subscriptionLoading && isPremium) {
@@ -106,12 +149,8 @@ function PricingContent() {
     }
   }, [billingPlatform, cancelled, pathname, provider, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
-  const handleSubscribe = (plan: 'monthly' | 'annual') => {
+  const handleSubscribe = async (plan: 'monthly' | 'annual') => {
     if (loading !== null) return;
-    if (usesNativeBilling) {
-      setMessage({ text: 'App Store subscriptions coming soon.', type: 'error' });
-      return;
-    }
 
     const interval = plan === 'annual' ? 'year' : 'month';
 
@@ -138,7 +177,149 @@ function PricingContent() {
       },
     );
 
+    if (usesNativeBilling) {
+      const appUserId = session?.user?.id ? String(session.user.id) : null;
+      if (!appUserId || !nativeOffering) {
+        setLoading(null);
+        setMessage({ text: 'App Store subscription plans are unavailable right now.', type: 'error' });
+        return;
+      }
+
+      captureClientEvent(
+        ANALYTICS_EVENTS.checkoutStarted,
+        {
+          plan,
+          source_page: pathname,
+          billing_platform: billingPlatform,
+          subscription_provider: 'apple',
+        },
+        {
+          pathname,
+          user: {
+            id: session?.user?.id,
+            subscription_tier: session?.user?.subscription_tier,
+            subscription_provider: provider,
+            auth_provider: session?.user?.auth_provider,
+          },
+          isLoggedIn: true,
+        },
+      );
+
+      try {
+        const result = await purchaseNativePremiumPlan(appUserId, plan);
+        if (!result.hasPremium) {
+          throw new Error('The App Store purchase did not activate Premium.');
+        }
+
+        setMessage({ text: 'Purchase complete. Confirming Premium access...', type: 'success' });
+        const confirmed = await waitForServerPremiumEntitlement();
+        if (!confirmed) {
+          setMessage({
+            text: 'Your purchase is complete, but Premium access is still syncing. Please check again shortly.',
+            type: 'success',
+          });
+          return;
+        }
+
+        clearSubscriptionCache(appUserId);
+        captureClientEvent(
+          ANALYTICS_EVENTS.checkoutCompleted,
+          {
+            plan,
+            source_page: pathname,
+            billing_platform: billingPlatform,
+            subscription_provider: 'apple',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              subscription_provider: 'apple',
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: true,
+          },
+        );
+        router.push('/settings');
+      } catch (error) {
+        const userCancelled = isNativePurchaseCancelled(error);
+        if (!userCancelled) {
+          console.error('[revenuecat] Native purchase failed:', error);
+        }
+        setMessage({
+          text: userCancelled
+            ? 'Purchase cancelled. No charge was made.'
+            : 'We could not complete the App Store purchase. Please try again.',
+          type: 'error',
+        });
+        captureClientEvent(
+          ANALYTICS_EVENTS.checkoutFailed,
+          {
+            failure_stage: userCancelled ? 'user_cancelled' : 'native_purchase',
+            plan,
+            source_page: pathname,
+            billing_platform: billingPlatform,
+            subscription_provider: 'apple',
+          },
+          {
+            pathname,
+            user: {
+              id: session?.user?.id,
+              subscription_tier: session?.user?.subscription_tier,
+              subscription_provider: provider,
+              auth_provider: session?.user?.auth_provider,
+            },
+            isLoggedIn: true,
+          },
+        );
+      } finally {
+        setLoading(null);
+      }
+      return;
+    }
+
     redirectToUrl(`/api/revenuecat/purchase-link?package=${plan}`);
+  };
+
+  const handleRestorePurchases = async () => {
+    if (restoringPurchases || loading !== null) return;
+    const appUserId = session?.user?.id ? String(session.user.id) : null;
+    if (!appUserId) {
+      setMessage({ text: 'Please sign in before restoring purchases.', type: 'error' });
+      return;
+    }
+
+    setRestoringPurchases(true);
+    setMessage(null);
+    try {
+      const result = await restoreNativePremiumPurchases(appUserId);
+      if (!result.hasPremium) {
+        setMessage({
+          text: 'No active Premium subscription was found for this Apple account.',
+          type: 'error',
+        });
+        return;
+      }
+
+      setMessage({ text: 'Purchase restored. Confirming Premium access...', type: 'success' });
+      const confirmed = await waitForServerPremiumEntitlement();
+      if (!confirmed) {
+        setMessage({
+          text: 'Your purchase was restored, but Premium access is still syncing. Please check again shortly.',
+          type: 'success',
+        });
+        return;
+      }
+
+      clearSubscriptionCache(appUserId);
+      router.push('/settings');
+    } catch (error) {
+      console.error('[revenuecat] Restore purchases failed:', error);
+      setMessage({ text: 'We could not restore App Store purchases. Please try again.', type: 'error' });
+    } finally {
+      setRestoringPurchases(false);
+    }
   };
 
   if (status === 'unauthenticated') {
@@ -159,11 +340,21 @@ function PricingContent() {
       )}
       {usesNativeBilling && (
         <div className="card">
-          <p>
-            App Store subscriptions are coming soon. Premium purchases are not available in this native build yet.
-          </p>
+          <p>Subscriptions are securely billed through your Apple account.</p>
           <p className="secondary-text">
-            Existing premium access on your account still works after you sign in.
+            Already subscribed? Restore your App Store purchase to this GolfIQ account.
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleRestorePurchases}
+            disabled={restoringPurchases || loading !== null || nativePlansLoading}
+          >
+            {restoringPurchases ? 'Restoring...' : 'Restore Purchases'}
+          </button>
+          <p className="secondary-text">
+            Subscriptions renew automatically unless cancelled through your Apple account.{' '}
+            <Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy Policy</Link>
           </p>
         </div>
       )}
@@ -198,7 +389,11 @@ function PricingContent() {
               <h2>Premium Monthly</h2>
               <h4>See what is costing you strokes.</h4>
               <div className="pricing-price">
-                <span className="price-amount">${PRICING.monthly.price.toFixed(2)}</span>
+                <span className="price-amount">
+                  {usesNativeBilling
+                    ? nativeOffering?.monthly.product.priceString ?? '...'
+                    : `$${PRICING.monthly.price.toFixed(2)}`}
+                </span>
                 <span className="price-period">/month</span>
               </div>
             </div>
@@ -215,18 +410,16 @@ function PricingContent() {
                 className="btn-upgrade"
                 aria-label="Subscribe monthly to Premium plan"
                 onClick={() => handleSubscribe('monthly')}
-                disabled={usesNativeBilling || loading !== null || status === 'loading' || subscriptionLoading}
+                disabled={loading !== null || status === 'loading' || subscriptionLoading || (usesNativeBilling && !nativeOffering)}
               >
-                {usesNativeBilling
-                  ? 'App Store Subscriptions Coming Soon'
-                  : loading === 'month'
-                    ? 'Loading...'
-                    : 'See the Full Breakdown'}
+                {loading === 'month'
+                  ? usesNativeBilling ? 'Purchasing...' : 'Loading...'
+                  : usesNativeBilling ? 'Subscribe Monthly' : 'See the Full Breakdown'}
               </button>
               <div>
                 <p className="price-subtext">
                   {usesNativeBilling
-                    ? 'Premium billing in the native app is not enabled yet.'
+                    ? `${nativeOffering?.monthly.product.priceString ?? 'Price'} billed monthly through the App Store. Cancel anytime.`
                     : `$${PRICING.monthly.price.toFixed(2)} CAD billed monthly. Cancel anytime.`}
                 </p>
               </div>
@@ -236,21 +429,31 @@ function PricingContent() {
 
         {activeTab === 'annual' && (
           <div className="pricing-card featured single">
-            <div className="pricing-badge savings">Save {PRICING.annual.savings}</div>
+            <div className="pricing-badge savings">
+              {usesNativeBilling ? 'Best Value' : `Save ${PRICING.annual.savings}`}
+            </div>
             <div className="pricing-card-header">
               <h2>Premium Annual</h2>
               <h4>Track your improvement across the full season.</h4>
               <div className="pricing-price">
-                <span className="price-amount">${PRICING.annual.price.toFixed(2)}</span>
+                <span className="price-amount">
+                  {usesNativeBilling
+                    ? nativeOffering?.annual.product.priceString ?? '...'
+                    : `$${PRICING.annual.price.toFixed(2)}`}
+                </span>
                 <span className="price-period">/year</span>
               </div>
               <p className="price-breakdown">
-                Only <strong>${(PRICING.annual.price / 12).toFixed(2)} per month</strong>
+                {usesNativeBilling
+                  ? nativeOffering?.annual.product.pricePerMonthString
+                    ? <>Only <strong>{nativeOffering.annual.product.pricePerMonthString} per month</strong></>
+                    : 'Annual billing through the App Store'
+                  : <>Only <strong>${(PRICING.annual.price / 12).toFixed(2)} per month</strong></>}
               </p>
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">
-                <li><Check color='green' size='20' className="feature-icon"/> <span>Save <strong>{PRICING.annual.savings}</strong> vs monthly</span></li>
+                <li><Check color='green' size='20' className="feature-icon"/> <span>{usesNativeBilling ? 'One annual payment for 12 months' : <>Save <strong>{PRICING.annual.savings}</strong> vs monthly</>}</span></li>
                 <li><Check color='green' size='20' className="feature-icon"/> Track your improvement across the full season</li>
                 <li><Check color='green' size='20' className="feature-icon"/> See how your game changes as more rounds stack up</li>
                 <li><Check color='green' size='20' className="feature-icon"/> Annual subscription, billed yearly</li>
@@ -260,18 +463,16 @@ function PricingContent() {
                 className="btn-upgrade"
                 aria-label="Subscribe annually to Premium plan"
                 onClick={() => handleSubscribe('annual')}
-                disabled={usesNativeBilling || loading !== null || status === 'loading' || subscriptionLoading}
+                disabled={loading !== null || status === 'loading' || subscriptionLoading || (usesNativeBilling && !nativeOffering)}
               >
-                {usesNativeBilling
-                  ? 'App Store Subscriptions Coming Soon'
-                  : loading === 'year'
-                    ? 'Loading...'
-                    : 'See the Full Breakdown'}
+                {loading === 'year'
+                  ? usesNativeBilling ? 'Purchasing...' : 'Loading...'
+                  : usesNativeBilling ? 'Subscribe Annually' : 'See the Full Breakdown'}
               </button>
               <div>
                 <p className="price-subtext">
                   {usesNativeBilling
-                    ? 'Annual App Store billing will be available in a future native release.'
+                    ? `${nativeOffering?.annual.product.priceString ?? 'Price'} billed yearly through the App Store. Cancel anytime.`
                     : `$${PRICING.annual.price.toFixed(2)} CAD billed yearly. Save ${PRICING.annual.savings} vs monthly.`}
                 </p>
               </div>
@@ -320,21 +521,25 @@ function PricingContent() {
           <div className="card faq-item">
             <h3>Can I cancel anytime?</h3>
             <p>
-              Yes. You can cancel your subscription at any time from your settings page.
+              {usesNativeBilling
+                ? 'Yes. You can cancel anytime through your Apple subscription settings.'
+                : 'Yes. You can cancel your subscription at any time from your settings page.'}
             </p>
           </div>
           <div className="card faq-item">
             <h3>What payment methods do you accept?</h3>
             <p>
               {usesNativeBilling
-                ? 'Native billing is not available yet in this build. App Store subscriptions will be supported later.'
+                ? 'App Store purchases use the payment method associated with your Apple account.'
                 : 'We accept major credit cards through our secure web billing checkout.'}
             </p>
           </div>
           <div className="card faq-item">
             <h3>Can I switch plans?</h3>
             <p>
-              Yes. You can upgrade or downgrade your plan at any time from your settings page.
+              {usesNativeBilling
+                ? 'Yes. Manage plan changes through your Apple subscription settings.'
+                : 'Yes. You can upgrade or downgrade your plan at any time from your settings page.'}
             </p>
           </div>
           <div className="card faq-item">
@@ -348,7 +553,7 @@ function PricingContent() {
             <h3>Is my data safe?</h3>
             <p>
               Yes. We use industry-standard encryption and never store your payment information. {usesNativeBilling
-                ? 'When native subscriptions are enabled, payment handling will follow App Store billing requirements.'
+                ? 'Apple securely handles App Store payments.'
                 : 'All web payments are securely handled through our billing provider.'}
             </p>
           </div>
