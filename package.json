@@ -31,6 +31,7 @@
     "@react-email/heading": "^0.0.16",
     "@react-email/html": "^0.0.12",
     "@react-email/text": "^0.1.6",
+    "@revenuecat/purchases-capacitor": "^13.4.1",
     "@types/jsonwebtoken": "^9.0.10",
     "@uploadthing/react": "^7.3.3",
     "bcryptjs": "^3.0.3",
