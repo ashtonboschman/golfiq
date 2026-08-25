@@ -82,6 +82,7 @@ const nativeOffering = {
       identifier: 'golfiq_premium_monthly',
       priceString: '$6.99',
       pricePerMonthString: '$6.99',
+      currencyCode: 'CAD',
     },
   },
   annual: {
@@ -90,6 +91,7 @@ const nativeOffering = {
       identifier: 'golfiq_premium_annual',
       priceString: '$49.99',
       pricePerMonthString: '$4.17',
+      currencyCode: 'CAD',
     },
   },
 };
@@ -272,7 +274,11 @@ describe('/pricing page', () => {
     });
     expect(screen.getByRole('button', { name: /Subscribe monthly to Premium plan/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Restore Purchases' })).toBeEnabled();
-    expect(screen.getByText(/billed monthly through the App Store/i)).toBeInTheDocument();
+    expect(screen.getByText(/\$6\.99 CAD billed monthly through the App Store/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Subscriptions are securely billed/i)).not.toBeInTheDocument();
+    const restoreButton = screen.getByRole('button', { name: 'Restore Purchases' });
+    const subscribeButton = screen.getByRole('button', { name: /Subscribe monthly to Premium plan/i });
+    expect(subscribeButton.compareDocumentPosition(restoreButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Terms')).toBeInTheDocument();
     expect(screen.getByText('Privacy Policy')).toBeInTheDocument();
     expect(mockedRedirectToUrl).not.toHaveBeenCalled();

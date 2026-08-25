@@ -25,6 +25,7 @@ jest.mock('@revenuecat/purchases-capacitor', () => ({
     configure: jest.fn(),
     getAppUserID: jest.fn(),
     getOfferings: jest.fn(),
+    getProducts: jest.fn(),
     isConfigured: jest.fn(),
     logIn: jest.fn(),
     purchasePackage: jest.fn(),
@@ -42,6 +43,7 @@ const mockedIsPluginAvailable = jest.mocked(Capacitor.isPluginAvailable);
 const mockedConfigure = jest.mocked(Purchases.configure);
 const mockedGetAppUserID = jest.mocked(Purchases.getAppUserID);
 const mockedGetOfferings = jest.mocked(Purchases.getOfferings);
+const mockedGetProducts = jest.mocked(Purchases.getProducts);
 const mockedIsConfigured = jest.mocked(Purchases.isConfigured);
 const mockedLogIn = jest.mocked(Purchases.logIn);
 const mockedPurchasePackage = jest.mocked(Purchases.purchasePackage);
@@ -75,6 +77,7 @@ describe('native RevenueCat purchases bridge', () => {
     mockedIsConfigured.mockResolvedValue({ isConfigured: false });
     mockedConfigure.mockResolvedValue();
     mockedSetLogLevel.mockResolvedValue();
+    mockedGetProducts.mockResolvedValue({ products: [] });
   });
 
   afterAll(() => {
@@ -144,6 +147,35 @@ describe('native RevenueCat purchases bridge', () => {
       identifier: 'default',
       monthly,
       annual,
+    });
+  });
+
+  it('uses freshly fetched App Store products for localized pricing', async () => {
+    const monthly = packageWithProduct('golfiq_premium_monthly');
+    const annual = packageWithProduct('golfiq_premium_annual');
+    const refreshedMonthly = {
+      identifier: 'golfiq_premium_monthly',
+      priceString: '$6.99',
+      currencyCode: 'CAD',
+    } as any;
+    const refreshedAnnual = {
+      identifier: 'golfiq_premium_annual',
+      priceString: '$49.99',
+      currencyCode: 'CAD',
+    } as any;
+    mockedGetOfferings.mockResolvedValue({
+      all: {},
+      current: { identifier: 'default', monthly, annual } as any,
+    });
+    mockedGetProducts.mockResolvedValue({ products: [refreshedMonthly, refreshedAnnual] });
+
+    await expect(getNativePremiumOffering('42')).resolves.toEqual({
+      identifier: 'default',
+      monthly: { ...monthly, product: refreshedMonthly },
+      annual: { ...annual, product: refreshedAnnual },
+    });
+    expect(mockedGetProducts).toHaveBeenCalledWith({
+      productIdentifiers: ['golfiq_premium_monthly', 'golfiq_premium_annual'],
     });
   });
 

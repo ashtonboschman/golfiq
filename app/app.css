@@ -4540,6 +4540,23 @@ input[type='date'].form-input {
   margin: 0;
 }
 
+.native-purchase-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+  padding-top: var(--padding-small);
+  border-top: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.native-purchase-footer p {
+  margin: 0;
+}
+
+.native-purchase-legal {
+  font-size: 0.7rem;
+}
+
 .pricing-card-body {
   display: flex;
   flex-direction: column;

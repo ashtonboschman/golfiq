@@ -19,8 +19,23 @@ import {
   type NativePremiumOffering,
 } from '@/lib/revenuecat/nativePurchases';
 import { waitForServerPremiumEntitlement } from '@/lib/revenuecat/serverEntitlement';
+import type { PurchasesStoreProduct } from '@revenuecat/purchases-capacitor';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
+
+function formatNativePrice(product: PurchasesStoreProduct | undefined): string {
+  if (!product) return '...';
+  return product.currencyCode
+    ? `${product.priceString} ${product.currencyCode}`
+    : product.priceString;
+}
+
+function formatNativeMonthlyEquivalent(product: PurchasesStoreProduct | undefined): string | null {
+  if (!product?.pricePerMonthString) return null;
+  return product.currencyCode
+    ? `${product.pricePerMonthString} ${product.currencyCode}`
+    : product.pricePerMonthString;
+}
 
 function PricingContent() {
   const { data: session, status } = useSession();
@@ -331,31 +346,29 @@ function PricingContent() {
     return null;
   }
 
+  const nativePurchaseFooter = usesNativeBilling ? (
+    <div className="native-purchase-footer">
+      <p className="secondary-text">Already subscribed through Apple?</p>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        onClick={handleRestorePurchases}
+        disabled={restoringPurchases || loading !== null || nativePlansLoading}
+      >
+        {restoringPurchases ? 'Restoring...' : 'Restore Purchases'}
+      </button>
+      <p className="secondary-text native-purchase-legal">
+        Subscriptions renew automatically unless cancelled through your Apple account.{' '}
+        <Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy Policy</Link>
+      </p>
+    </div>
+  ) : null;
+
   return (
     <div className="page-stack">
       {displayMessage && (
         <div className={displayMessage.type === 'success' ? 'text-green' : 'text-red'}>
           {displayMessage.text}
-        </div>
-      )}
-      {usesNativeBilling && (
-        <div className="card">
-          <p>Subscriptions are securely billed through your Apple account.</p>
-          <p className="secondary-text">
-            Already subscribed? Restore your App Store purchase to this GolfIQ account.
-          </p>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleRestorePurchases}
-            disabled={restoringPurchases || loading !== null || nativePlansLoading}
-          >
-            {restoringPurchases ? 'Restoring...' : 'Restore Purchases'}
-          </button>
-          <p className="secondary-text">
-            Subscriptions renew automatically unless cancelled through your Apple account.{' '}
-            <Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy Policy</Link>
-          </p>
         </div>
       )}
       {/* Plan Tabs */}
@@ -391,7 +404,7 @@ function PricingContent() {
               <div className="pricing-price">
                 <span className="price-amount">
                   {usesNativeBilling
-                    ? nativeOffering?.monthly.product.priceString ?? '...'
+                    ? formatNativePrice(nativeOffering?.monthly.product)
                     : `$${PRICING.monthly.price.toFixed(2)}`}
                 </span>
                 <span className="price-period">/month</span>
@@ -419,10 +432,11 @@ function PricingContent() {
               <div>
                 <p className="price-subtext">
                   {usesNativeBilling
-                    ? `${nativeOffering?.monthly.product.priceString ?? 'Price'} billed monthly through the App Store. Cancel anytime.`
+                    ? `${formatNativePrice(nativeOffering?.monthly.product)} billed monthly through the App Store. Cancel anytime.`
                     : `$${PRICING.monthly.price.toFixed(2)} CAD billed monthly. Cancel anytime.`}
                 </p>
               </div>
+              {nativePurchaseFooter}
             </div>
           </div>
         )}
@@ -438,15 +452,15 @@ function PricingContent() {
               <div className="pricing-price">
                 <span className="price-amount">
                   {usesNativeBilling
-                    ? nativeOffering?.annual.product.priceString ?? '...'
+                    ? formatNativePrice(nativeOffering?.annual.product)
                     : `$${PRICING.annual.price.toFixed(2)}`}
                 </span>
                 <span className="price-period">/year</span>
               </div>
               <p className="price-breakdown">
                 {usesNativeBilling
-                  ? nativeOffering?.annual.product.pricePerMonthString
-                    ? <>Only <strong>{nativeOffering.annual.product.pricePerMonthString} per month</strong></>
+                  ? formatNativeMonthlyEquivalent(nativeOffering?.annual.product)
+                    ? <>Only <strong>{formatNativeMonthlyEquivalent(nativeOffering?.annual.product)} per month</strong></>
                     : 'Annual billing through the App Store'
                   : <>Only <strong>${(PRICING.annual.price / 12).toFixed(2)} per month</strong></>}
               </p>
@@ -472,10 +486,11 @@ function PricingContent() {
               <div>
                 <p className="price-subtext">
                   {usesNativeBilling
-                    ? `${nativeOffering?.annual.product.priceString ?? 'Price'} billed yearly through the App Store. Cancel anytime.`
+                    ? `${formatNativePrice(nativeOffering?.annual.product)} billed yearly through the App Store. Cancel anytime.`
                     : `$${PRICING.annual.price.toFixed(2)} CAD billed yearly. Save ${PRICING.annual.savings} vs monthly.`}
                 </p>
               </div>
+              {nativePurchaseFooter}
             </div>
           </div>
         )}

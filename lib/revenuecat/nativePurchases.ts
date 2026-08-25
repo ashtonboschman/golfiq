@@ -55,6 +55,12 @@ export async function getNativePremiumOffering(
   await configureNativePurchases(appUserId);
 
   const offerings = await Purchases.getOfferings();
+  const refreshedProducts = await Purchases.getProducts({
+    productIdentifiers: Object.values(APPLE_PRODUCT_IDS),
+  }).then(({ products }) => products).catch((error) => {
+    console.warn('[revenuecat] Could not refresh App Store product prices:', error);
+    return [];
+  });
   const current = offerings.current;
   if (!current) {
     throw new Error('App Store subscription plans are unavailable right now.');
@@ -73,8 +79,8 @@ export async function getNativePremiumOffering(
 
   return {
     identifier: current.identifier,
-    monthly,
-    annual,
+    monthly: withRefreshedProduct(monthly, refreshedProducts),
+    annual: withRefreshedProduct(annual, refreshedProducts),
   };
 }
 
@@ -143,4 +149,17 @@ function hasPremiumEntitlement(customerInfo: CustomerInfo): boolean {
   return Boolean(
     customerInfo.entitlements.active[REVENUECAT_PREMIUM_ENTITLEMENT_ID],
   );
+}
+
+function withRefreshedProduct(
+  purchasePackage: PurchasesPackage,
+  products: Awaited<ReturnType<typeof Purchases.getProducts>>['products'],
+): PurchasesPackage {
+  const refreshedProduct = products.find(
+    (product) => product.identifier === purchasePackage.product.identifier,
+  );
+
+  return refreshedProduct
+    ? { ...purchasePackage, product: refreshedProduct }
+    : purchasePackage;
 }
