@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 import { prisma } from '@/lib/db';
 import { cancelSubscriptionImmediately, stripe } from '@/lib/stripe';
 import { errorResponse, requireAuth, successResponse } from '@/lib/api-auth';
+import { deleteRevenueCatCustomer } from '@/lib/revenuecat/serverCustomer';
 
 type UserForDeletion = {
   id: bigint;
@@ -28,6 +29,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await cancelActiveStripeSubscriptions(user);
+    await deleteRevenueCatCustomer(String(user.id));
 
     await prisma.user.delete({
       where: { id: user.id },

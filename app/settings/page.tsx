@@ -25,6 +25,7 @@ import { isAdminUserId } from '@/lib/admin';
 
 const FEEDBACK_MIN_LENGTH = 10;
 const FEEDBACK_MAX_LENGTH = 2000;
+const APPLE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
 
 type FeedbackType = 'bug' | 'idea' | 'other';
 type FeedbackOption = {
@@ -216,10 +217,17 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = () => {
+    const deletionMessage = provider === 'apple'
+      ? 'Delete your GolfIQ account permanently? Your App Store subscription is managed separately and will continue billing until you cancel it with Apple. Cancel it in Apple Subscriptions first if you do not want it to renew. You may still delete your account now. This cannot be undone.'
+      : provider === 'revenuecat_web'
+        ? 'Delete your GolfIQ account permanently? This will immediately cancel your GolfIQ web subscription and remove your rounds, insights, friends, and profile. This cannot be undone.'
+        : provider === 'stripe'
+          ? 'Delete your GolfIQ account permanently? This will immediately cancel your web subscription and remove your rounds, insights, friends, and profile. This cannot be undone.'
+          : 'Delete your GolfIQ account permanently? This cannot be undone and will remove your rounds, insights, friends, and profile.';
+
     showConfirm({
       title: 'Delete account?',
-      message:
-        'Delete your account permanently? This cannot be undone and will remove your rounds, insights, friends, profile, and subscription access.',
+      message: deletionMessage,
       cancelText: 'Keep Account',
       confirmText: 'Delete Account',
       variant: 'danger',
@@ -676,6 +684,21 @@ export default function SettingsPage() {
                 <p className="settings-danger-text">
                   This action is permanent and cannot be undone. Your GolfIQ account data will be deleted.
                 </p>
+                {provider === 'apple' && (
+                  <>
+                    <p className="settings-danger-text">
+                      Deleting GolfIQ does not cancel your App Store subscription. Cancel it with Apple first to prevent future renewals.
+                    </p>
+                    <a
+                      className="btn btn-secondary"
+                      href={APPLE_SUBSCRIPTIONS_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Manage App Store Subscription
+                    </a>
+                  </>
+                )}
                 <button
                   className="btn btn-logout"
                   onClick={handleDeleteAccount}

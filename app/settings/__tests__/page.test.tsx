@@ -320,6 +320,50 @@ describe('/settings page', () => {
     }));
   });
 
+  it('warns Apple subscribers that account deletion does not cancel App Store billing', async () => {
+    mockedUseSubscription.mockReturnValue({
+      tier: 'premium',
+      status: 'active',
+      provider: 'apple',
+      endsAt: null,
+      cancelAtPeriodEnd: false,
+      loading: false,
+      isPremium: true,
+    });
+
+    await renderSettingsPage();
+
+    const manageLink = screen.getByRole('link', { name: /manage app store subscription/i });
+    expect(manageLink).toHaveAttribute(
+      'href',
+      'https://apps.apple.com/account/subscriptions',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+    expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringMatching(/continue billing until you cancel it with Apple/i),
+    }));
+  });
+
+  it('explains that RevenueCat web billing is cancelled by account deletion', async () => {
+    mockedUseSubscription.mockReturnValue({
+      tier: 'premium',
+      status: 'active',
+      provider: 'revenuecat_web',
+      endsAt: null,
+      cancelAtPeriodEnd: false,
+      loading: false,
+      isPremium: true,
+    });
+
+    await renderSettingsPage();
+    fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+
+    expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringMatching(/immediately cancel your GolfIQ web subscription/i),
+    }));
+  });
+
   it('shows admin actions for admin user', async () => {
     mockedUseSession.mockReturnValue({
       status: 'authenticated',

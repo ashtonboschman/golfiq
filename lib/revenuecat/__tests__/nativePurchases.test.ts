@@ -8,6 +8,7 @@ import {
   getNativePremiumOffering,
   isNativePurchaseCancelled,
   isNativePurchasesAvailable,
+  logOutNativePurchasesUser,
   purchaseNativePremiumPlan,
   restoreNativePremiumPurchases,
 } from '@/lib/revenuecat/nativePurchases';
@@ -28,6 +29,7 @@ jest.mock('@revenuecat/purchases-capacitor', () => ({
     getProducts: jest.fn(),
     isConfigured: jest.fn(),
     logIn: jest.fn(),
+    logOut: jest.fn(),
     purchasePackage: jest.fn(),
     restorePurchases: jest.fn(),
     setLogLevel: jest.fn(),
@@ -46,6 +48,7 @@ const mockedGetOfferings = jest.mocked(Purchases.getOfferings);
 const mockedGetProducts = jest.mocked(Purchases.getProducts);
 const mockedIsConfigured = jest.mocked(Purchases.isConfigured);
 const mockedLogIn = jest.mocked(Purchases.logIn);
+const mockedLogOut = jest.mocked(Purchases.logOut);
 const mockedPurchasePackage = jest.mocked(Purchases.purchasePackage);
 const mockedRestorePurchases = jest.mocked(Purchases.restorePurchases);
 const mockedSetLogLevel = jest.mocked(Purchases.setLogLevel);
@@ -129,6 +132,25 @@ describe('native RevenueCat purchases bridge', () => {
 
     expect(mockedConfigure).not.toHaveBeenCalled();
     expect(mockedLogIn).not.toHaveBeenCalled();
+  });
+
+  it('logs out an identified native RevenueCat user', async () => {
+    mockedIsConfigured.mockResolvedValue({ isConfigured: true });
+    mockedGetAppUserID.mockResolvedValue({ appUserID: '42' });
+    mockedLogOut.mockResolvedValue({ customerInfo: {} as any });
+
+    await logOutNativePurchasesUser();
+
+    expect(mockedLogOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not log out an anonymous RevenueCat user', async () => {
+    mockedIsConfigured.mockResolvedValue({ isConfigured: true });
+    mockedGetAppUserID.mockResolvedValue({ appUserID: '$RCAnonymousID:device' });
+
+    await logOutNativePurchasesUser();
+
+    expect(mockedLogOut).not.toHaveBeenCalled();
   });
 
   it('returns the expected monthly and annual packages from the current offering', async () => {

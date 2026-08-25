@@ -19,9 +19,20 @@ export async function signOutOfGolfIQ(): Promise<void> {
     // Storage can be unavailable in restricted browsing contexts.
   }
 
+  const nativeIOS = isNativeIOS();
+  if (nativeIOS) {
+    try {
+      const { logOutNativePurchasesUser } = await import('@/lib/revenuecat/nativePurchases');
+      await logOutNativePurchasesUser();
+    } catch (error) {
+      // Authentication logout must still complete if RevenueCat is unavailable.
+      console.warn('[AUTH] Failed to disconnect RevenueCat user during sign out:', error);
+    }
+  }
+
   await signOut({ redirect: false });
 
-  if (!isNativeIOS()) return;
+  if (!nativeIOS) return;
 
   try {
     const { CapacitorCookies } = await import('@capacitor/core');
