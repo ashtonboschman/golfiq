@@ -362,7 +362,7 @@ export default function SettingsPage() {
                     )}
 
                     {tier === 'premium' && (
-                      <div className="subscription-detail-box">
+                      <div className="subscription-detail-box subscription-detail-box-premium">
                         <>
                           <p className="subscription-status">
                             Status <strong>{subscriptionStatus}</strong>

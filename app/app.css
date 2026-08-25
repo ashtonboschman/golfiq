@@ -4939,6 +4939,16 @@ input[type='date'].form-input {
   color: var(--color-secondary-text);
 }
 
+.subscription-detail-box-premium {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.subscription-detail-box-premium > p {
+  margin: 0;
+}
+
 .subscription-detail-box.lifetime {
   background: linear-gradient(135deg, var(--color-gradient-1) 0%, var(--color-gradient-2) 50%, var(--color-gradient-3) 100%);
   color: var(--color-white-text);
