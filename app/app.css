@@ -3400,6 +3400,15 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   line-height: 1.45;
 }
 
+.my-bag-empty-card h2 {
+  margin: 0;
+  color: var(--color-primary-text);
+  font-family: var(--font-space-grotesk), monospace;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
 .my-bag-count-pill {
   display: inline-flex;
   align-items: center;
@@ -3544,10 +3553,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 
 .my-bag-remove-btn {
   min-width: 42px;
-}
-
-.my-bag-empty-card {
-  border-style: dashed;
 }
 
 @media (max-width: 520px) {

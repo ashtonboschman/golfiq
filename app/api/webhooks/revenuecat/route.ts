@@ -257,7 +257,11 @@ function buildEntitlementUpdatePlan(
   }
 
   const eventType = normalizeUpper(event.type);
-  const purchasedAt = toDateFromMilliseconds(event.purchased_at_ms) ?? user.subscriptionStartsAt;
+  const eventPurchasedAt = toDateFromMilliseconds(event.purchased_at_ms);
+  const purchasedAt =
+    eventType === 'INITIAL_PURCHASE'
+      ? eventPurchasedAt ?? user.subscriptionStartsAt
+      : user.subscriptionStartsAt ?? eventPurchasedAt;
   const expiresAt = toDateFromMilliseconds(event.expiration_at_ms) ?? user.subscriptionEndsAt;
   const preservedAppleProductId =
     provider === 'apple' ? productId : null;
