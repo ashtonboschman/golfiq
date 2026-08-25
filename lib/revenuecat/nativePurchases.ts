@@ -10,12 +10,14 @@ import {
   type PurchasesPackage,
 } from '@revenuecat/purchases-capacitor';
 import { isNativeIOS } from '@/lib/platform';
-
-export const REVENUECAT_PREMIUM_ENTITLEMENT_ID = 'premium';
+import {
+  APPLE_PREMIUM_PRODUCT_IDS,
+  REVENUECAT_PREMIUM_ENTITLEMENT_ID,
+} from '@/lib/revenuecat/products';
 
 const APPLE_PRODUCT_IDS = {
-  monthly: 'golfiq_premium_monthly',
-  annual: 'golfiq_premium_annual',
+  monthly: APPLE_PREMIUM_PRODUCT_IDS[0],
+  annual: APPLE_PREMIUM_PRODUCT_IDS[1],
 } as const;
 
 export type NativePremiumOffering = {

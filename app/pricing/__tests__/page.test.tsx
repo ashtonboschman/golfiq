@@ -13,7 +13,10 @@ import {
   purchaseNativePremiumPlan,
   restoreNativePremiumPurchases,
 } from '@/lib/revenuecat/nativePurchases';
-import { waitForServerPremiumEntitlement } from '@/lib/revenuecat/serverEntitlement';
+import {
+  reconcileRevenueCatRestore,
+  waitForServerPremiumEntitlement,
+} from '@/lib/revenuecat/serverEntitlement';
 
 const mockPush = jest.fn();
 const mockSearchParams = {
@@ -59,6 +62,7 @@ jest.mock('@/lib/revenuecat/nativePurchases', () => ({
 }));
 
 jest.mock('@/lib/revenuecat/serverEntitlement', () => ({
+  reconcileRevenueCatRestore: jest.fn(),
   waitForServerPremiumEntitlement: jest.fn(),
 }));
 
@@ -72,6 +76,7 @@ const mockedRedirectToUrl = redirectToUrl as jest.Mock;
 const mockedGetNativePremiumOffering = getNativePremiumOffering as jest.Mock;
 const mockedPurchaseNativePremiumPlan = purchaseNativePremiumPlan as jest.Mock;
 const mockedRestoreNativePremiumPurchases = restoreNativePremiumPurchases as jest.Mock;
+const mockedReconcileRevenueCatRestore = reconcileRevenueCatRestore as jest.Mock;
 const mockedWaitForServerPremiumEntitlement = waitForServerPremiumEntitlement as jest.Mock;
 
 const nativeOffering = {
@@ -122,6 +127,7 @@ describe('/pricing page', () => {
     mockedGetNativePremiumOffering.mockResolvedValue(nativeOffering);
     mockedPurchaseNativePremiumPlan.mockResolvedValue({ hasPremium: true, customerInfo: {} });
     mockedRestoreNativePremiumPurchases.mockResolvedValue({ hasPremium: true, customerInfo: {} });
+    mockedReconcileRevenueCatRestore.mockResolvedValue(true);
     mockedWaitForServerPremiumEntitlement.mockResolvedValue(true);
   });
 
@@ -341,6 +347,43 @@ describe('/pricing page', () => {
     fireEvent.click(restoreButton);
 
     expect(await screen.findByText(/No active Premium subscription was found/i)).toHaveClass('text-red');
+    expect(mockedReconcileRevenueCatRestore).not.toHaveBeenCalled();
     expect(mockedWaitForServerPremiumEntitlement).not.toHaveBeenCalled();
+  });
+
+  it('reconciles an active restored purchase before redirecting', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+
+    render(<PricingPage />);
+    const restoreButton = await screen.findByRole('button', { name: 'Restore Purchases' });
+    await waitFor(() => expect(restoreButton).toBeEnabled());
+    fireEvent.click(restoreButton);
+
+    await waitFor(() => {
+      expect(mockedRestoreNativePremiumPurchases).toHaveBeenCalledWith('1');
+      expect(mockedReconcileRevenueCatRestore).toHaveBeenCalledTimes(1);
+      expect(mockedWaitForServerPremiumEntitlement).not.toHaveBeenCalled();
+      expect(mockedClearSubscriptionCache).toHaveBeenCalledWith('1');
+      expect(mockPush).toHaveBeenCalledWith('/settings');
+    });
+  });
+
+  it('falls back to webhook polling when restore reconciliation is unavailable', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+    mockedReconcileRevenueCatRestore.mockResolvedValue(false);
+    mockedWaitForServerPremiumEntitlement.mockResolvedValue(false);
+
+    render(<PricingPage />);
+    const restoreButton = await screen.findByRole('button', { name: 'Restore Purchases' });
+    await waitFor(() => expect(restoreButton).toBeEnabled());
+    fireEvent.click(restoreButton);
+
+    expect(await screen.findByText(/Premium access is still syncing/i)).toBeInTheDocument();
+    expect(mockedWaitForServerPremiumEntitlement).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

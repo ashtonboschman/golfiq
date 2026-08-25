@@ -1,6 +1,9 @@
 /** @jest-environment jsdom */
 
-import { waitForServerPremiumEntitlement } from '@/lib/revenuecat/serverEntitlement';
+import {
+  reconcileRevenueCatRestore,
+  waitForServerPremiumEntitlement,
+} from '@/lib/revenuecat/serverEntitlement';
 
 describe('RevenueCat server entitlement confirmation', () => {
   beforeEach(() => {
@@ -34,5 +37,27 @@ describe('RevenueCat server entitlement confirmation', () => {
       }) as jest.Mock;
 
     await expect(waitForServerPremiumEntitlement(2, 0)).resolves.toBe(false);
+  });
+
+  it('reconciles a restored purchase through the authenticated server endpoint', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ restored: true }),
+    }) as jest.Mock;
+
+    await expect(reconcileRevenueCatRestore()).resolves.toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith('/api/revenuecat/restore', {
+      method: 'POST',
+      cache: 'no-store',
+    });
+  });
+
+  it('fails restore reconciliation closed on invalid responses', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockRejectedValueOnce(new Error('offline')) as jest.Mock;
+
+    await expect(reconcileRevenueCatRestore()).resolves.toBe(false);
+    await expect(reconcileRevenueCatRestore()).resolves.toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma, SubscriptionProvider, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { isApplePremiumProduct } from '@/lib/revenuecat/products';
 
 type RevenueCatWebhookEnvelope = {
   api_version?: string;
@@ -53,11 +54,6 @@ type EntitlementUpdatePlan =
         appleProductId: string | null;
       };
     };
-
-const APPLE_PREMIUM_PRODUCT_IDS = new Set([
-  'golfiq_premium_monthly',
-  'golfiq_premium_annual',
-]);
 
 const WEB_PREMIUM_PRODUCT_IDS = new Set([
   'golfiq_web_monthly',
@@ -359,7 +355,7 @@ function buildEntitlementUpdatePlan(
 }
 
 function isKnownPremiumProduct(productId: string): boolean {
-  return APPLE_PREMIUM_PRODUCT_IDS.has(productId) || WEB_PREMIUM_PRODUCT_IDS.has(productId);
+  return isApplePremiumProduct(productId) || WEB_PREMIUM_PRODUCT_IDS.has(productId);
 }
 
 function mapProviderFromEvent(
@@ -368,7 +364,7 @@ function mapProviderFromEvent(
 ): SubscriptionProvider | null {
   const store = normalizeUpper(event.store);
 
-  if ((store === 'APP_STORE' || store === 'MAC_APP_STORE') && APPLE_PREMIUM_PRODUCT_IDS.has(productId)) {
+  if ((store === 'APP_STORE' || store === 'MAC_APP_STORE') && isApplePremiumProduct(productId)) {
     return 'apple';
   }
 

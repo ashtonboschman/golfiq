@@ -18,7 +18,10 @@ import {
   restoreNativePremiumPurchases,
   type NativePremiumOffering,
 } from '@/lib/revenuecat/nativePurchases';
-import { waitForServerPremiumEntitlement } from '@/lib/revenuecat/serverEntitlement';
+import {
+  reconcileRevenueCatRestore,
+  waitForServerPremiumEntitlement,
+} from '@/lib/revenuecat/serverEntitlement';
 import type { PurchasesStoreProduct } from '@revenuecat/purchases-capacitor';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
@@ -344,7 +347,8 @@ function PricingContent() {
       }
 
       setMessage({ text: 'Purchase restored. Confirming Premium access...', type: 'success' });
-      const confirmed = await waitForServerPremiumEntitlement();
+      const reconciled = await reconcileRevenueCatRestore();
+      const confirmed = reconciled || await waitForServerPremiumEntitlement();
       if (!confirmed) {
         setMessage({
           text: 'Your purchase was restored, but Premium access is still syncing. Please check again shortly.',
