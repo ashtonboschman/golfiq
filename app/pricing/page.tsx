@@ -23,6 +23,32 @@ import type { PurchasesStoreProduct } from '@revenuecat/purchases-capacitor';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
 
+const PREMIUM_FEATURES = [
+  'Full strokes gained history and breakdown by area',
+  'Complete post-round insights with supporting evidence',
+  'All-time dashboard stats and flexible date filters',
+  'Longer score and stat trends across your rounds',
+  'Score and handicap outlooks after 10 rounds',
+  'Full global rankings and premium themes',
+  'Everything included in Free',
+] as const;
+
+const FREE_FEATURES = [
+  'Unlimited round tracking and storage',
+  'GPS distances and My Bag club recommendations on supported courses',
+  'Handicap and dashboard stats from your last 20 rounds',
+  'Core stat tracking: FIR, GIR, putts, penalties, chips, and greenside bunker shots',
+  'Friends, course search, and leaderboards',
+  'Multi-device sync and round-data exports',
+  'Basic post-round insights',
+] as const;
+
+const FREE_LOCKED_FEATURES = [
+  'Full strokes gained history and breakdown by area',
+  'All-time stats, date filters, and longer trends',
+  'Score and handicap outlooks after 10 rounds',
+] as const;
+
 function formatNativePrice(product: PurchasesStoreProduct | undefined): string {
   if (!product) return '...';
   return product.currencyCode
@@ -396,11 +422,9 @@ function PricingContent() {
       {/* Tab Content */}
       <div className="pricing-tab-content">
         {activeTab === 'monthly' && (
-          <div className="pricing-card featured single">
+          <section className="pricing-card featured single" aria-label="Premium Monthly">
             <div className="pricing-badge">Most Popular</div>
             <div className="pricing-card-header">
-              <h2>Premium Monthly</h2>
-              <h4>See what is costing you strokes.</h4>
               <div className="pricing-price">
                 <span className="price-amount">
                   {usesNativeBilling
@@ -412,12 +436,9 @@ function PricingContent() {
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">
-                <li><Check color='green' size='20' className="feature-icon"/> Full strokes gained breakdown by part of the game</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Post-round breakdowns and game trends across your rounds</li>
-                <li><Check color='green' size='20' className="feature-icon"/> See where your scores and handicap may be heading</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Full-history trends across all your rounds</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Premium themes and flexible filters</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Everything in Free</li>
+                {PREMIUM_FEATURES.map((feature) => (
+                  <li key={feature}><Check color="green" size="20" className="feature-icon" /> {feature}</li>
+                ))}
               </ul>
               <button
                 className="btn-upgrade"
@@ -427,7 +448,7 @@ function PricingContent() {
               >
                 {loading === 'month'
                   ? usesNativeBilling ? 'Purchasing...' : 'Loading...'
-                  : usesNativeBilling ? 'Subscribe Monthly' : 'See the Full Breakdown'}
+                  : 'Subscribe Monthly'}
               </button>
               <div>
                 <p className="price-subtext">
@@ -438,17 +459,15 @@ function PricingContent() {
               </div>
               {nativePurchaseFooter}
             </div>
-          </div>
+          </section>
         )}
 
         {activeTab === 'annual' && (
-          <div className="pricing-card featured single">
+          <section className="pricing-card featured single" aria-label="Premium Annual">
             <div className="pricing-badge savings">
               {usesNativeBilling ? 'Best Value' : `Save ${PRICING.annual.savings}`}
             </div>
             <div className="pricing-card-header">
-              <h2>Premium Annual</h2>
-              <h4>Track your improvement across the full season.</h4>
               <div className="pricing-price">
                 <span className="price-amount">
                   {usesNativeBilling
@@ -467,11 +486,9 @@ function PricingContent() {
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">
-                <li><Check color='green' size='20' className="feature-icon"/> <span>{usesNativeBilling ? 'One annual payment for 12 months' : <>Save <strong>{PRICING.annual.savings}</strong> vs monthly</>}</span></li>
-                <li><Check color='green' size='20' className="feature-icon"/> Track your improvement across the full season</li>
-                <li><Check color='green' size='20' className="feature-icon"/> See how your game changes as more rounds stack up</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Annual subscription, billed yearly</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Built for golfers who want to improve consistently</li>
+                {PREMIUM_FEATURES.map((feature) => (
+                  <li key={feature}><Check color="green" size="20" className="feature-icon" /> {feature}</li>
+                ))}
               </ul>
               <button
                 className="btn-upgrade"
@@ -481,7 +498,7 @@ function PricingContent() {
               >
                 {loading === 'year'
                   ? usesNativeBilling ? 'Purchasing...' : 'Loading...'
-                  : usesNativeBilling ? 'Subscribe Annually' : 'See the Full Breakdown'}
+                  : 'Subscribe Annually'}
               </button>
               <div>
                 <p className="price-subtext">
@@ -492,32 +509,25 @@ function PricingContent() {
               </div>
               {nativePurchaseFooter}
             </div>
-          </div>
+          </section>
         )}
 
         {activeTab === 'free' && (
-          <div className="pricing-card single">
+          <section className="pricing-card single" aria-label="Free Plan">
             <div className="pricing-card-header">
-              <h2 >Free</h2>
               <div className="pricing-price">
                 <span className="price-amount">$0</span>
                 <span className="price-period">/forever</span>
               </div>
-              <p className="price-breakdown">
-                Free forever. Upgrade when you want a clearer breakdown.
-              </p>
             </div>
             <div className="pricing-card-body">
               <ul className="pricing-features">
-                <li><Check color='green' size='20' className="feature-icon"/> Unlimited round tracking & storage</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Handicap & core scoring stats (last 20 rounds)</li>
-                <li><Check color='green' size='20' className="feature-icon"/> FIR%, GIR%, putts & basic performance stats</li>
-                <li><Check color='green' size='20' className="feature-icon"/> 9 hole & 18 hole support</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Course search, scorecards, friends, & leaderboards</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Light & dark themes, multi-device sync</li>
-                <li><Check color='green' size='20' className="feature-icon"/> Basic post-round insights</li>
-                <li><X color='red' size='20' className="feature-icon"/> Full strokes gained breakdown by part of the game</li>
-                <li><X color='red' size='20' className="feature-icon"/> Score direction and extra comparison views</li>
+                {FREE_FEATURES.map((feature) => (
+                  <li key={feature}><Check color="green" size="20" className="feature-icon" /> {feature}</li>
+                ))}
+                {FREE_LOCKED_FEATURES.map((feature) => (
+                  <li key={feature}><X color="red" size="20" className="feature-icon" /> {feature}</li>
+                ))}
               </ul>
               <button
                 className="pricing-button current"
@@ -526,7 +536,7 @@ function PricingContent() {
                 Current Plan
               </button>
             </div>
-          </div>
+          </section>
         )}
       </div>
 
@@ -537,39 +547,45 @@ function PricingContent() {
             <h3>Can I cancel anytime?</h3>
             <p>
               {usesNativeBilling
-                ? 'Yes. You can cancel anytime through your Apple subscription settings.'
-                : 'Yes. You can cancel your subscription at any time from your settings page.'}
+                ? 'Yes. Cancel anytime in your Apple subscription settings. Premium remains active through your current billing period.'
+                : 'Yes. Use the GolfIQ customer-portal link in your billing email. Premium remains active through your current billing period.'}
             </p>
           </div>
           <div className="card faq-item">
-            <h3>What payment methods do you accept?</h3>
+            <h3>How am I billed?</h3>
             <p>
               {usesNativeBilling
-                ? 'App Store purchases use the payment method associated with your Apple account.'
-                : 'We accept major credit cards through our secure web billing checkout.'}
+                ? 'Apple bills the monthly or annual price shown above to your App Store account. Subscriptions renew automatically unless cancelled.'
+                : 'Your selected monthly or annual plan is billed securely through our web billing provider and renews automatically unless cancelled.'}
             </p>
           </div>
           <div className="card faq-item">
             <h3>Can I switch plans?</h3>
             <p>
               {usesNativeBilling
-                ? 'Yes. Manage plan changes through your Apple subscription settings.'
-                : 'Yes. You can upgrade or downgrade your plan at any time from your settings page.'}
+                ? 'Yes. Switch between Monthly and Annual in your Apple subscription settings.'
+                : 'Yes. Use the GolfIQ customer-portal link in your billing email to switch plans.'}
             </p>
           </div>
           <div className="card faq-item">
             <h3>What happens to my data if I cancel?</h3>
             <p>
-              Your data is never deleted. If you cancel Premium, you'll revert to the Free plan
-              and keep all your rounds, but lose access to Premium features.
+              Your rounds stay in GolfIQ. When Premium ends, your account returns to Free and
+              Premium analytics become locked.
             </p>
           </div>
           <div className="card faq-item">
-            <h3>Is my data safe?</h3>
+            <h3>Does Premium work across my devices?</h3>
             <p>
-              Yes. We use industry-standard encryption and never store your payment information. {usesNativeBilling
-                ? 'Apple securely handles App Store payments.'
-                : 'All web payments are securely handled through our billing provider.'}
+              Yes. Sign in to the same GolfIQ account to keep your rounds and Premium access
+              synced across supported devices.
+            </p>
+          </div>
+          <div className="card faq-item">
+            <h3>Can I use GolfIQ without subscribing?</h3>
+            <p>
+              Yes. Free includes unlimited round tracking, core stats, GPS on supported courses,
+              and basic insights. Upgrade only when you want deeper analytics.
             </p>
           </div>
         </div>

@@ -310,9 +310,6 @@ export default function SettingsPage() {
   const isExpired = Boolean(endsAt && endsAt.getTime() <= Date.now());
 
   const handleUpgrade = () => {
-    if (usesNativeBilling) {
-      showMessage('App Store subscriptions coming soon.', 'error');
-    }
     router.push('/pricing');
   };
 

@@ -373,6 +373,30 @@ describe('/settings page', () => {
     expect(screen.getByText(/subscription was started on the web/i)).toBeInTheDocument();
   });
 
+  it('opens native iOS pricing without showing the obsolete coming-soon error', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+    mockedUseSubscription.mockReturnValue({
+      tier: 'free',
+      status: 'active',
+      provider: null,
+      endsAt: null,
+      cancelAtPeriodEnd: false,
+      loading: false,
+      isPremium: false,
+    });
+
+    await renderSettingsPage();
+    fireEvent.click(screen.getByRole('button', { name: /upgrade to premium/i }));
+
+    expect(mockPush).toHaveBeenCalledWith('/pricing');
+    expect(mockShowMessage).not.toHaveBeenCalledWith(
+      'App Store subscriptions coming soon.',
+      'error',
+    );
+  });
+
   it('shows manual premium copy without billing management actions', async () => {
     mockedUseSubscription.mockReturnValue({
       tier: 'premium',

@@ -4500,12 +4500,6 @@ input[type='date'].form-input {
   margin: 0;
 }
 
-.pricing-card-header h4 {
-  font-size: 0.75rem;
-  color: var(--color-secondary-text);
-  margin: 0;
-}
-
 .pricing-price {
   display: flex;
   align-items: baseline;
@@ -4638,6 +4632,7 @@ input[type='date'].form-input {
   font-size: 1rem;
   color: var(--color-secondary-text);
   line-height: 1.6;
+  margin: 0;
 }
 
 .feature-icon {
