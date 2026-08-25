@@ -25,7 +25,9 @@ jest.mock('@/app/providers', () => ({
   }),
 }));
 
-jest.mock('@/components/ManualCourseForm', () => () => <div>Manual Course Form</div>);
+jest.mock('@/components/ManualCourseForm', () => function MockManualCourseForm() {
+  return <div>Manual Course Form</div>;
+});
 jest.mock('@/components/skeleton/PageSkeletons', () => ({
   AdminPanelSkeleton: () => <div>Loading...</div>,
 }));
