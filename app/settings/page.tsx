@@ -218,7 +218,7 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = () => {
     const deletionMessage = provider === 'apple'
-      ? 'Delete your GolfIQ account permanently? Your App Store subscription is managed separately and will continue billing until you cancel it with Apple. Cancel it in Apple Subscriptions first if you do not want it to renew. You may still delete your account now. This cannot be undone.'
+      ? 'Delete your GolfIQ account permanently? Your App Store subscription will not be cancelled automatically and may continue to renew. Manage it with Apple if you want to stop future charges. Your rounds, insights, friends, and profile will be removed. This cannot be undone.'
       : provider === 'revenuecat_web'
         ? 'Delete your GolfIQ account permanently? This will immediately cancel your GolfIQ web subscription and remove your rounds, insights, friends, and profile. This cannot be undone.'
         : provider === 'stripe'
@@ -348,9 +348,9 @@ export default function SettingsPage() {
                     {tier === 'free' && (
                       <div className="subscription-detail-box">
                         <p>
-                          You're currently on the free plan. Upgrade to Premium to unlock
-                          full strokes gained breakdown, trends, deeper analytics history,
-                          premium themes, and more!
+                          Unlock full strokes gained analysis, deeper post-round insights,
+                          all-time stats and trends, score and handicap outlooks, global
+                          rankings, and premium themes.
                         </p>
                         <button
                           className="btn-upgrade"
@@ -401,24 +401,34 @@ export default function SettingsPage() {
                               {managingSubscription ? 'Opening...' : 'Manage Subscription'}
                             </button>
                             <p className="subscription-note">
-                              You can update payment methods, view invoices, and cancel your
-                              subscription from the billing portal.
+                              Use the billing portal to update payment methods, view invoices,
+                              or cancel.
                             </p>
                           </>
                         )}
                         {provider === 'stripe' && usesNativeBilling && (
                           <p className="subscription-note">
-                            This subscription was started on the web. Billing management is currently available on the web.
+                            This subscription was purchased on the web. Visit GolfIQ on the web to manage billing.
                           </p>
                         )}
                         {provider === 'apple' && (
-                          <p className="subscription-note">
-                            Manage subscriptions through the App Store.
-                          </p>
+                          <>
+                            <a
+                              className="btn-manage"
+                              href={APPLE_SUBSCRIPTIONS_URL}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Manage App Store Subscription
+                            </a>
+                            <p className="subscription-note">
+                              Your subscription is billed and managed through the App Store.
+                            </p>
+                          </>
                         )}
                         {provider === 'revenuecat_web' && (
                           <p className="subscription-note">
-                            Your web subscription is managed through the GolfIQ customer portal link included in your billing emails. Use that link to update payment details, cancel, or change plans.
+                            Use the GolfIQ customer portal link in your billing email to update payment details, switch plans, or cancel.
                           </p>
                         )}
                         {provider === 'manual' && (
@@ -682,12 +692,12 @@ export default function SettingsPage() {
               <div className="settings-danger-content">
                 <label className="form-label">Delete Account</label>
                 <p className="settings-danger-text">
-                  This action is permanent and cannot be undone. Your GolfIQ account data will be deleted.
+                  Permanently delete your GolfIQ account, including your rounds, insights, friends, and profile. This cannot be undone.
                 </p>
                 {provider === 'apple' && (
                   <>
                     <p className="settings-danger-text">
-                      Deleting GolfIQ does not cancel your App Store subscription. Cancel it with Apple first to prevent future renewals.
+                      Your App Store subscription is separate and will not be cancelled automatically. Manage it with Apple to stop future renewals.
                     </p>
                     <a
                       className="btn btn-secondary"

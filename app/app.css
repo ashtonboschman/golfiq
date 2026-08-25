@@ -3226,7 +3226,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 }
 
 .settings-theme-description {
-  margin-bottom: 15px;
+  margin: 0;
   font-size: 0.9rem;
   color: var(--color-accent);
 }
@@ -3234,7 +3234,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .settings-theme-container {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--gap-small);
   flex: 1;
 }
 
@@ -3396,17 +3396,23 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .my-bag-empty-card p {
   margin: 0;
   color: var(--color-secondary-text);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   line-height: 1.45;
 }
 
+.my-bag-form-card h2,
 .my-bag-empty-card h2 {
   margin: 0;
   color: var(--color-primary-text);
   font-family: var(--font-space-grotesk), monospace;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 700;
   line-height: 1.15;
+}
+
+.my-bag-form-field {
+  display: grid;
+  gap: var(--gap-small);
 }
 
 .my-bag-count-pill {
@@ -3568,10 +3574,6 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 
   .my-bag-title-row h1 {
     font-size: 1.35rem;
-  }
-
-  .my-bag-header-card > p {
-    font-size: 0.9rem;
   }
 
   .my-bag-club-summary {
@@ -3941,6 +3943,7 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 =========================== */
 .btn {
   display: flex;
+  box-sizing: border-box;
   align-items: center;
   justify-content: center;
   gap: var(--gap);
@@ -4996,6 +4999,8 @@ input[type='date'].form-input {
 }
 
 .btn-manage {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
   padding: var(--padding);
   font-size: 1rem;
@@ -5005,6 +5010,8 @@ input[type='date'].form-input {
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
+  text-align: center;
+  text-decoration: none;
   transition: background-color 0.2s ease, opacity 0.2s ease;
 }
 

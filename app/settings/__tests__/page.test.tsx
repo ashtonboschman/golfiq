@@ -302,7 +302,7 @@ describe('/settings page', () => {
   it('keeps account deletion action visible in settings', async () => {
     await renderSettingsPage();
 
-    expect(screen.getByText(/your golfiq account data will be deleted/i)).toBeInTheDocument();
+    expect(screen.getByText(/including your rounds, insights, friends, and profile/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /delete account/i })).toBeInTheDocument();
   });
 
@@ -333,15 +333,19 @@ describe('/settings page', () => {
 
     await renderSettingsPage();
 
-    const manageLink = screen.getByRole('link', { name: /manage app store subscription/i });
-    expect(manageLink).toHaveAttribute(
-      'href',
-      'https://apps.apple.com/account/subscriptions',
-    );
+    const manageLinks = screen.getAllByRole('link', { name: /manage app store subscription/i });
+    expect(manageLinks).toHaveLength(2);
+    manageLinks.forEach((manageLink) => {
+      expect(manageLink).toHaveAttribute(
+        'href',
+        'https://apps.apple.com/account/subscriptions',
+      );
+    });
+    expect(manageLinks[1]).toHaveClass('btn-secondary');
 
     fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
     expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringMatching(/continue billing until you cancel it with Apple/i),
+      message: expect.stringMatching(/will not be cancelled automatically/i),
     }));
   });
 
@@ -380,7 +384,7 @@ describe('/settings page', () => {
     expect(mockPush).toHaveBeenCalledWith('/admin/gps-mapping');
   });
 
-  it('uses deeper analytics history copy for free plan upsell', async () => {
+  it('uses accurate Premium feature copy for the free plan upsell', async () => {
     mockedUseSubscription.mockReturnValue({
       tier: 'free',
       status: 'active',
@@ -393,7 +397,8 @@ describe('/settings page', () => {
 
     await renderSettingsPage();
 
-    expect(screen.getByText(/deeper analytics history/i)).toBeInTheDocument();
+    expect(screen.getByText(/full strokes gained analysis/i)).toBeInTheDocument();
+    expect(screen.getByText(/score and handicap outlooks/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export excel/i })).toBeInTheDocument();
     expect(screen.queryByText(/unlimited analytics history/i)).not.toBeInTheDocument();
@@ -414,7 +419,7 @@ describe('/settings page', () => {
     await renderSettingsPage();
 
     expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/subscription was started on the web/i)).toBeInTheDocument();
+    expect(screen.getByText(/subscription was purchased on the web/i)).toBeInTheDocument();
   });
 
   it('opens native iOS pricing without showing the obsolete coming-soon error', async () => {
@@ -472,7 +477,7 @@ describe('/settings page', () => {
     await renderSettingsPage();
 
     expect(screen.queryByRole('button', { name: /manage subscription/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/customer portal link included in your billing emails/i)).toBeInTheDocument();
+    expect(screen.getByText(/customer portal link in your billing email/i)).toBeInTheDocument();
   });
 
   it('redirects RevenueCat success returns to the shared subscription success page', async () => {

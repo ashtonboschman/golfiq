@@ -324,31 +324,35 @@ export default function MyBagPage() {
           {showAddForm && (
             <section className="card my-bag-form-card">
               <h2>Add Club</h2>
-              <label className="form-label" htmlFor="my-bag-club-definition">Club</label>
-              <Select<ClubOption, false>
-                inputId="my-bag-club-definition"
-                value={selectedDefinition}
-                onChange={(option) => setSelectedDefinition(option)}
-                options={addOptions}
-                isSearchable={false}
-                styles={selectStyles}
-                placeholder="Choose Club"
-                isDisabled={saving}
-              />
-              <label className="form-label" htmlFor="my-bag-carry-yards">Carry Distance</label>
-              <input
-                id="my-bag-carry-yards"
-                className="form-input"
-                inputMode="numeric"
-                maxLength={3}
-                min={MIN_CARRY_YARDS}
-                max={MAX_CARRY_YARDS}
-                step={1}
-                value={carryDraft}
-                onChange={(event) => setCarryDraft(normalizeCarryDraftInput(event.target.value))}
-                placeholder="Yards"
-                disabled={saving}
-              />
+              <div className="my-bag-form-field">
+                <label className="form-label" htmlFor="my-bag-club-definition">Club</label>
+                <Select<ClubOption, false>
+                  inputId="my-bag-club-definition"
+                  value={selectedDefinition}
+                  onChange={(option) => setSelectedDefinition(option)}
+                  options={addOptions}
+                  isSearchable={false}
+                  styles={selectStyles}
+                  placeholder="Choose Club"
+                  isDisabled={saving}
+                />
+              </div>
+              <div className="my-bag-form-field">
+                <label className="form-label" htmlFor="my-bag-carry-yards">Carry Distance</label>
+                <input
+                  id="my-bag-carry-yards"
+                  className="form-input"
+                  inputMode="numeric"
+                  maxLength={3}
+                  min={MIN_CARRY_YARDS}
+                  max={MAX_CARRY_YARDS}
+                  step={1}
+                  value={carryDraft}
+                  onChange={(event) => setCarryDraft(normalizeCarryDraftInput(event.target.value))}
+                  placeholder="Yards"
+                  disabled={saving}
+                />
+              </div>
               <div className="form-actions">
                 <button type="button" className="btn btn-cancel" onClick={resetAddForm} disabled={saving}>
                   Cancel
