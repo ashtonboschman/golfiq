@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma, SubscriptionProvider, SubscriptionStatus, SubscriptionTier } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { isApplePremiumProduct } from '@/lib/revenuecat/products';
+import { getRevenueCatApplePremiumSubscription } from '@/lib/revenuecat/serverSubscriber';
 
 type RevenueCatWebhookEnvelope = {
   api_version?: string;
@@ -15,6 +16,7 @@ type RevenueCatWebhookEventPayload = {
   original_app_user_id?: string | null;
   aliases?: string[] | null;
   product_id?: string | null;
+  new_product_id?: string | null;
   store?: string | null;
   environment?: string | null;
   expiration_at_ms?: number | string | null;
@@ -24,6 +26,8 @@ type RevenueCatWebhookEventPayload = {
   period_type?: string | null;
   cancel_reason?: string | null;
   event_timestamp_ms?: number | string | null;
+  transferred_from?: string[] | null;
+  transferred_to?: string[] | null;
 };
 
 type SubscriptionSnapshot = {
@@ -63,7 +67,6 @@ const WEB_PREMIUM_PRODUCT_IDS = new Set([
 const ACTIVE_EVENT_TYPES = new Set([
   'INITIAL_PURCHASE',
   'RENEWAL',
-  'PRODUCT_CHANGE',
   'UNCANCELLATION',
   'NON_RENEWING_PURCHASE',
   'SUBSCRIPTION_EXTENDED',
@@ -99,6 +102,10 @@ export async function POST(req: NextRequest) {
   const eventType = normalizeUpper(event.type);
   if (eventType === 'TEST') {
     return NextResponse.json({ received: true, test: true });
+  }
+
+  if (eventType === 'TRANSFER') {
+    return processTransferEvent(event);
   }
 
   const appUserId = resolveAppUserId(event);
@@ -174,6 +181,7 @@ export async function POST(req: NextRequest) {
             providerEventId: event.id,
             appUserId,
             productId: event.product_id ?? null,
+            newProductId: event.new_product_id ?? null,
             store: event.store ?? null,
             environment: event.environment ?? null,
             periodType: event.period_type ?? null,
@@ -266,6 +274,27 @@ function buildEntitlementUpdatePlan(
       ? event.original_transaction_id ?? user.appleOriginalTransactionId ?? null
       : null;
 
+  // RevenueCat sends PRODUCT_CHANGE when a switch is requested, but App Store
+  // crossgrades and downgrades may not take effect until renewal. Keep the
+  // current entitlement snapshot until a later RENEWAL identifies the active
+  // product.
+  if (eventType === 'PRODUCT_CHANGE') {
+    return {
+      kind: 'update',
+      eventType,
+      next: {
+        subscriptionTier: user.subscriptionTier,
+        subscriptionStatus: user.subscriptionStatus,
+        subscriptionProvider: user.subscriptionProvider,
+        subscriptionStartsAt: user.subscriptionStartsAt,
+        subscriptionEndsAt: user.subscriptionEndsAt,
+        subscriptionCancelAtPeriodEnd: user.subscriptionCancelAtPeriodEnd,
+        appleOriginalTransactionId: user.appleOriginalTransactionId,
+        appleProductId: user.appleProductId,
+      },
+    };
+  }
+
   if (ACTIVE_EVENT_TYPES.has(eventType)) {
     return {
       kind: 'update',
@@ -352,6 +381,180 @@ function buildEntitlementUpdatePlan(
   }
 
   return { kind: 'ignore', reason: 'unsupported_event_type' };
+}
+
+async function processTransferEvent(event: RevenueCatWebhookEventPayload) {
+  const sourceIds = uniqueGolfIqUserIds(event.transferred_from);
+  const destinationIds = uniqueGolfIqUserIds(event.transferred_to)
+    .filter((id) => !sourceIds.includes(id));
+  const destinationId = destinationIds[0] ?? null;
+  const appUserId = destinationId?.toString() ?? null;
+  const store = normalizeUpper(event.store);
+  const existingEvent = event.id
+    ? await prisma.revenueCatWebhookEvent.findUnique({
+        where: { eventId: event.id },
+        select: { eventType: true },
+      })
+    : null;
+
+  if (existingEvent?.eventType === 'TRANSFER') {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
+
+  if (!destinationId || sourceIds.length === 0) {
+    const duplicate = await persistIgnoredEvent(event, appUserId, 'invalid_transfer_users');
+    return NextResponse.json({ received: true, ignored: true, duplicate });
+  }
+
+  if (store !== 'APP_STORE' && store !== 'MAC_APP_STORE') {
+    const duplicate = await persistIgnoredEvent(event, appUserId, 'unsupported_transfer_store');
+    return NextResponse.json({ received: true, ignored: true, duplicate });
+  }
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...sourceIds, destinationId] } },
+    select: {
+      id: true,
+      subscriptionTier: true,
+      subscriptionStatus: true,
+      subscriptionProvider: true,
+      subscriptionStartsAt: true,
+      subscriptionEndsAt: true,
+      subscriptionCancelAtPeriodEnd: true,
+      appleOriginalTransactionId: true,
+      appleProductId: true,
+    },
+  });
+  const destination = users.find((user) => user.id === destinationId);
+
+  if (!destination) {
+    const duplicate = await persistIgnoredEvent(event, appUserId, 'transfer_destination_not_found');
+    return NextResponse.json({ received: true, ignored: true, duplicate });
+  }
+
+  try {
+    const subscription = await getRevenueCatApplePremiumSubscription(appUserId!);
+    const transferredAt = toDateFromMilliseconds(event.event_timestamp_ms) ?? new Date();
+
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const webhookEventData = {
+        eventType: 'TRANSFER',
+        appUserId,
+        productId: subscription?.productId ?? null,
+        store: event.store ?? null,
+        environment: event.environment ?? null,
+        processedAt: new Date(),
+        rawEvent: toJsonValue(event),
+      };
+
+      if (existingEvent?.eventType.startsWith('TRANSFER:')) {
+        await tx.revenueCatWebhookEvent.update({
+          where: { eventId: event.id! },
+          data: webhookEventData,
+        });
+      } else {
+        await tx.revenueCatWebhookEvent.create({
+          data: {
+            eventId: event.id!,
+            ...webhookEventData,
+          },
+        });
+      }
+
+      for (const source of users.filter((user) => sourceIds.includes(user.id))) {
+        if (source.subscriptionTier === 'lifetime') continue;
+
+        await tx.user.update({
+          where: { id: source.id },
+          data: {
+            subscriptionTier: 'free',
+            subscriptionStatus: 'cancelled',
+            subscriptionProvider: null,
+            subscriptionEndsAt: transferredAt,
+            subscriptionCancelAtPeriodEnd: false,
+            appleOriginalTransactionId: null,
+            appleProductId: null,
+          },
+        });
+        await tx.subscriptionEvent.create({
+          data: {
+            userId: source.id,
+            eventType: 'revenuecat_transfer_out',
+            oldTier: source.subscriptionTier,
+            newTier: 'free',
+            oldStatus: source.subscriptionStatus,
+            newStatus: 'cancelled',
+            metadata: {
+              providerEventId: event.id,
+              transferredTo: appUserId,
+              environment: event.environment ?? null,
+            },
+          },
+        });
+      }
+
+      if (destination.subscriptionTier !== 'lifetime') {
+        const next = subscription
+          ? {
+              subscriptionTier: SubscriptionTier.premium,
+              subscriptionStatus: SubscriptionStatus.active,
+              subscriptionProvider: SubscriptionProvider.apple,
+              subscriptionStartsAt: subscription.startsAt,
+              subscriptionEndsAt: subscription.endsAt,
+              subscriptionCancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+              appleProductId: subscription.productId,
+            }
+          : {
+              subscriptionTier: SubscriptionTier.free,
+              subscriptionStatus: SubscriptionStatus.cancelled,
+              subscriptionProvider: null,
+              subscriptionEndsAt: transferredAt,
+              subscriptionCancelAtPeriodEnd: false,
+              appleOriginalTransactionId: null,
+              appleProductId: null,
+            };
+
+        await tx.user.update({ where: { id: destination.id }, data: next });
+        await tx.subscriptionEvent.create({
+          data: {
+            userId: destination.id,
+            eventType: 'revenuecat_transfer_in',
+            oldTier: destination.subscriptionTier,
+            newTier: next.subscriptionTier,
+            oldStatus: destination.subscriptionStatus,
+            newStatus: next.subscriptionStatus,
+            metadata: {
+              providerEventId: event.id,
+              transferredFrom: sourceIds.map(String),
+              productId: subscription?.productId ?? null,
+              environment: event.environment ?? null,
+            },
+          },
+        });
+      }
+    });
+  } catch (error) {
+    if (isDuplicateEventError(error)) {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+
+    console.error('[revenuecat webhook] Failed to process transfer', {
+      eventId: event.id,
+      sourceIds: sourceIds.map(String),
+      destinationId: appUserId,
+      error,
+    });
+    return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 });
+  }
+
+  return NextResponse.json({ received: true, processed: true, transfer: true });
+}
+
+function uniqueGolfIqUserIds(values: string[] | null | undefined): bigint[] {
+  const ids = (values ?? [])
+    .map((value) => parseGolfIqUserId(value))
+    .filter((value): value is bigint => value !== null);
+  return [...new Map(ids.map((id) => [id.toString(), id])).values()];
 }
 
 function isKnownPremiumProduct(productId: string): boolean {

@@ -1,10 +1,12 @@
 import { POST } from '@/app/api/webhooks/revenuecat/route';
 import { prisma } from '@/lib/db';
+import { getRevenueCatApplePremiumSubscription } from '@/lib/revenuecat/serverSubscriber';
 
 jest.mock('@/lib/db', () => ({
   prisma: {
     user: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
     },
     subscriptionEvent: {
@@ -12,14 +14,21 @@ jest.mock('@/lib/db', () => ({
     },
     revenueCatWebhookEvent: {
       create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
     $transaction: jest.fn(),
   },
 }));
 
+jest.mock('@/lib/revenuecat/serverSubscriber', () => ({
+  getRevenueCatApplePremiumSubscription: jest.fn(),
+}));
+
 const mockedPrisma = prisma as unknown as {
   user: {
     findUnique: jest.Mock;
+    findMany: jest.Mock;
     update: jest.Mock;
   };
   subscriptionEvent: {
@@ -27,9 +36,14 @@ const mockedPrisma = prisma as unknown as {
   };
   revenueCatWebhookEvent: {
     create: jest.Mock;
+    findUnique: jest.Mock;
+    update: jest.Mock;
   };
   $transaction: jest.Mock;
 };
+const mockedGetRevenueCatApplePremiumSubscription = jest.mocked(
+  getRevenueCatApplePremiumSubscription,
+);
 
 describe('/api/webhooks/revenuecat route contract', () => {
   const originalEnv = process.env;
@@ -54,11 +68,15 @@ describe('/api/webhooks/revenuecat route contract', () => {
       appleOriginalTransactionId: null,
       appleProductId: null,
     });
+    mockedPrisma.user.findMany.mockResolvedValue([]);
+    mockedPrisma.revenueCatWebhookEvent.findUnique.mockResolvedValue(null);
+    mockedGetRevenueCatApplePremiumSubscription.mockResolvedValue(null);
 
     mockedPrisma.$transaction.mockImplementation(async (callback: any) =>
       callback({
         revenueCatWebhookEvent: {
           create: mockedPrisma.revenueCatWebhookEvent.create,
+          update: mockedPrisma.revenueCatWebhookEvent.update,
         },
         user: {
           update: mockedPrisma.user.update,
@@ -210,6 +228,233 @@ describe('/api/webhooks/revenuecat route contract', () => {
         }),
       })
     );
+  });
+
+  it('records a deferred Apple product change without activating the future product early', async () => {
+    const currentStart = new Date('2026-08-25T21:08:24.000Z');
+    const currentEnd = new Date('2026-08-26T21:08:24.000Z');
+    mockedPrisma.user.findUnique.mockResolvedValueOnce({
+      id: BigInt(42),
+      subscriptionTier: 'premium',
+      subscriptionStatus: 'active',
+      subscriptionProvider: 'apple',
+      subscriptionStartsAt: currentStart,
+      subscriptionEndsAt: currentEnd,
+      subscriptionCancelAtPeriodEnd: false,
+      appleOriginalTransactionId: 'orig_tx_123',
+      appleProductId: 'golfiq_premium_monthly',
+    });
+
+    const request = new Request('http://localhost/api/webhooks/revenuecat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer rc_secret_test',
+      },
+      body: JSON.stringify({
+        event: {
+          id: 'evt_product_change_1',
+          type: 'PRODUCT_CHANGE',
+          app_user_id: '42',
+          product_id: 'golfiq_premium_monthly',
+          new_product_id: 'golfiq_premium_annual',
+          store: 'APP_STORE',
+          environment: 'SANDBOX',
+          expiration_at_ms: currentEnd.getTime(),
+          original_transaction_id: 'orig_tx_123',
+        },
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: BigInt(42) },
+      data: {
+        subscriptionTier: 'premium',
+        subscriptionStatus: 'active',
+        subscriptionProvider: 'apple',
+        subscriptionStartsAt: currentStart,
+        subscriptionEndsAt: currentEnd,
+        subscriptionCancelAtPeriodEnd: false,
+        appleOriginalTransactionId: 'orig_tx_123',
+        appleProductId: 'golfiq_premium_monthly',
+      },
+    });
+    expect(mockedPrisma.subscriptionEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            productId: 'golfiq_premium_monthly',
+            newProductId: 'golfiq_premium_annual',
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('revokes the source user and reconciles the destination on an Apple transfer', async () => {
+    const source = {
+      id: BigInt(65),
+      subscriptionTier: 'premium',
+      subscriptionStatus: 'active',
+      subscriptionProvider: 'apple',
+      subscriptionStartsAt: new Date('2026-08-25T21:08:24.000Z'),
+      subscriptionEndsAt: new Date('2026-08-26T21:08:24.000Z'),
+      subscriptionCancelAtPeriodEnd: false,
+      appleOriginalTransactionId: '2000001226842589',
+      appleProductId: 'golfiq_premium_monthly',
+    };
+    const destination = {
+      id: BigInt(66),
+      subscriptionTier: 'free',
+      subscriptionStatus: 'active',
+      subscriptionProvider: null,
+      subscriptionStartsAt: null,
+      subscriptionEndsAt: null,
+      subscriptionCancelAtPeriodEnd: false,
+      appleOriginalTransactionId: null,
+      appleProductId: null,
+    };
+    const transferredSubscription = {
+      productId: 'golfiq_premium_monthly',
+      startsAt: new Date('2026-08-25T21:08:24.000Z'),
+      endsAt: new Date('2026-08-26T21:08:24.000Z'),
+      cancelAtPeriodEnd: false,
+    };
+    mockedPrisma.user.findMany.mockResolvedValueOnce([source, destination]);
+    mockedGetRevenueCatApplePremiumSubscription.mockResolvedValueOnce(
+      transferredSubscription,
+    );
+
+    const request = new Request('http://localhost/api/webhooks/revenuecat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer rc_secret_test',
+      },
+      body: JSON.stringify({
+        event: {
+          id: 'evt_transfer_1',
+          type: 'TRANSFER',
+          transferred_from: ['65'],
+          transferred_to: ['$RCAnonymousID:abc', '66'],
+          store: 'APP_STORE',
+          environment: 'SANDBOX',
+          event_timestamp_ms: Date.parse('2026-08-25T23:26:05.000Z'),
+        },
+      }),
+    });
+
+    const response = await POST(request as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(expect.objectContaining({ processed: true, transfer: true }));
+    expect(mockedGetRevenueCatApplePremiumSubscription).toHaveBeenCalledWith('66');
+    expect(mockedPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: BigInt(65) },
+      data: expect.objectContaining({
+        subscriptionTier: 'free',
+        subscriptionStatus: 'cancelled',
+        subscriptionProvider: null,
+        appleOriginalTransactionId: null,
+        appleProductId: null,
+      }),
+    });
+    expect(mockedPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: BigInt(66) },
+      data: expect.objectContaining({
+        subscriptionTier: 'premium',
+        subscriptionStatus: 'active',
+        subscriptionProvider: 'apple',
+        subscriptionStartsAt: transferredSubscription.startsAt,
+        subscriptionEndsAt: transferredSubscription.endsAt,
+        appleProductId: 'golfiq_premium_monthly',
+      }),
+    });
+    expect(mockedPrisma.subscriptionEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: BigInt(65),
+          eventType: 'revenuecat_transfer_out',
+        }),
+      }),
+    );
+    expect(mockedPrisma.subscriptionEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: BigInt(66),
+          eventType: 'revenuecat_transfer_in',
+        }),
+      }),
+    );
+  });
+
+  it('can safely reprocess a transfer previously stored as an ignored event', async () => {
+    mockedPrisma.revenueCatWebhookEvent.findUnique.mockResolvedValueOnce({
+      eventType: 'TRANSFER:invalid_app_user_id',
+    });
+    mockedPrisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: BigInt(65),
+        subscriptionTier: 'premium',
+        subscriptionStatus: 'active',
+        subscriptionProvider: 'apple',
+        subscriptionStartsAt: new Date('2026-08-25T21:08:24.000Z'),
+        subscriptionEndsAt: new Date('2026-08-26T21:08:24.000Z'),
+        subscriptionCancelAtPeriodEnd: false,
+        appleOriginalTransactionId: '2000001226842589',
+        appleProductId: 'golfiq_premium_monthly',
+      },
+      {
+        id: BigInt(66),
+        subscriptionTier: 'premium',
+        subscriptionStatus: 'active',
+        subscriptionProvider: 'apple',
+        subscriptionStartsAt: new Date('2026-08-25T21:08:24.000Z'),
+        subscriptionEndsAt: new Date('2026-08-26T21:08:24.000Z'),
+        subscriptionCancelAtPeriodEnd: false,
+        appleOriginalTransactionId: '2000001226842589',
+        appleProductId: 'golfiq_premium_monthly',
+      },
+    ]);
+    mockedGetRevenueCatApplePremiumSubscription.mockResolvedValueOnce({
+      productId: 'golfiq_premium_monthly',
+      startsAt: new Date('2026-08-25T21:08:24.000Z'),
+      endsAt: new Date('2026-08-26T21:08:24.000Z'),
+      cancelAtPeriodEnd: false,
+    });
+
+    const request = new Request('http://localhost/api/webhooks/revenuecat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer rc_secret_test',
+      },
+      body: JSON.stringify({
+        event: {
+          id: 'evt_legacy_transfer_1',
+          type: 'TRANSFER',
+          transferred_from: ['65'],
+          transferred_to: ['66'],
+          store: 'APP_STORE',
+          environment: 'SANDBOX',
+        },
+      }),
+    });
+
+    const response = await POST(request as any);
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.revenueCatWebhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: 'evt_legacy_transfer_1' },
+        data: expect.objectContaining({ eventType: 'TRANSFER', appUserId: '66' }),
+      }),
+    );
+    expect(mockedPrisma.revenueCatWebhookEvent.create).not.toHaveBeenCalled();
   });
 
   it('keeps premium active until the end of a cancelled subscription period', async () => {

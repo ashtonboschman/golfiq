@@ -20,15 +20,11 @@ export async function signOutOfGolfIQ(): Promise<void> {
   }
 
   const nativeIOS = isNativeIOS();
-  if (nativeIOS) {
-    try {
-      const { logOutNativePurchasesUser } = await import('@/lib/revenuecat/nativePurchases');
-      await logOutNativePurchasesUser();
-    } catch (error) {
-      // Authentication logout must still complete if RevenueCat is unavailable.
-      console.warn('[AUTH] Failed to disconnect RevenueCat user during sign out:', error);
-    }
-  }
+
+  // Keep RevenueCat identified until the next authenticated GolfIQ user signs
+  // in. Calling Purchases.logOut() creates an anonymous RevenueCat customer and
+  // can transfer the App Store receipt to it. configureNativePurchases() will
+  // switch directly to the next numeric GolfIQ user ID with Purchases.logIn().
 
   await signOut({ redirect: false });
 

@@ -113,18 +113,6 @@ export async function restoreNativePremiumPurchases(
   };
 }
 
-export async function logOutNativePurchasesUser(): Promise<void> {
-  if (!isNativePurchasesAvailable()) return;
-
-  const { isConfigured } = await Purchases.isConfigured();
-  if (!isConfigured) return;
-
-  const { appUserID } = await Purchases.getAppUserID();
-  if (appUserID.startsWith('$RCAnonymousID:')) return;
-
-  await Purchases.logOut();
-}
-
 export function isNativePurchaseCancelled(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const purchaseError = error as Partial<PurchasesError>;
