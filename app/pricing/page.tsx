@@ -23,6 +23,7 @@ import {
   reconcileRevenueCatRestore,
   waitForServerPremiumEntitlement,
 } from '@/lib/revenuecat/serverEntitlement';
+import { reportClientError } from '@/lib/monitoring/client';
 import type { PurchasesStoreProduct } from '@revenuecat/purchases-capacitor';
 
 type PlanTab = 'monthly' | 'annual' | 'free';
@@ -144,6 +145,12 @@ function PricingContent() {
       .catch((error) => {
         if (!active) return;
         console.error('[revenuecat] Failed to load native offering:', error);
+        reportClientError(error, {
+          area: 'purchase',
+          operation: 'load_native_offering',
+          route: pathname,
+          recoverable: true,
+        });
         setMessage({
           text: error instanceof Error
             ? error.message
@@ -158,7 +165,7 @@ function PricingContent() {
     return () => {
       active = false;
     };
-  }, [session?.user?.id, status, usesNativeBilling]);
+  }, [pathname, session?.user?.id, status, usesNativeBilling]);
 
   // Redirect premium users to settings
   useEffect(() => {
@@ -292,6 +299,15 @@ function PricingContent() {
         const receiptAlreadyInUse = isNativeReceiptAlreadyInUse(error);
         if (!userCancelled) {
           console.error('[revenuecat] Native purchase failed:', error);
+          reportClientError(error, {
+            area: 'purchase',
+            operation: receiptAlreadyInUse
+              ? 'receipt_already_in_use'
+              : 'complete_native_purchase',
+            severity: receiptAlreadyInUse ? 'warning' : 'error',
+            route: pathname,
+            recoverable: true,
+          });
         }
         setMessage({
           text: userCancelled
@@ -369,8 +385,18 @@ function PricingContent() {
       router.push('/settings');
     } catch (error) {
       console.error('[revenuecat] Restore purchases failed:', error);
+      const receiptAlreadyInUse = isNativeReceiptAlreadyInUse(error);
+      reportClientError(error, {
+        area: 'restore',
+        operation: receiptAlreadyInUse
+          ? 'receipt_already_in_use'
+          : 'restore_native_purchase',
+        severity: receiptAlreadyInUse ? 'warning' : 'error',
+        route: pathname,
+        recoverable: true,
+      });
       setMessage({
-        text: isNativeReceiptAlreadyInUse(error)
+        text: receiptAlreadyInUse
           ? 'This subscription is linked to another GolfIQ account. Sign in to that account to restore Premium.'
           : 'We could not restore App Store purchases. Please try again.',
         type: 'error',

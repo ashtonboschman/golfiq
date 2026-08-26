@@ -4,8 +4,9 @@ import {
   LiveRoundSessionError,
   saveLiveRoundHoleDraft,
 } from '@/lib/rounds/liveRoundSessionService';
+import { reportServerError } from '@/lib/monitoring/server';
 
-function handleLiveRoundError(error: unknown, context: string) {
+async function handleLiveRoundError(error: unknown, request: NextRequest) {
   if (error instanceof Error && error.message === 'Unauthorized') {
     return errorResponse('Unauthorized', 401);
   }
@@ -14,7 +15,14 @@ function handleLiveRoundError(error: unknown, context: string) {
     return errorResponse(error.message, error.status);
   }
 
-  console.error(`${context} error:`, error);
+  await reportServerError(error, {
+    area: 'save',
+    operation: 'save_live_hole',
+    route: '/api/rounds/live/sessions/[sessionId]/holes',
+    statusCode: 500,
+    recoverable: true,
+    request,
+  });
   return errorResponse('Database error', 500);
 }
 
@@ -36,6 +44,6 @@ export async function POST(
     const result = await saveLiveRoundHoleDraft(userId, sessionId, body);
     return successResponse(result);
   } catch (error) {
-    return handleLiveRoundError(error, 'POST /api/rounds/live/sessions/[sessionId]/holes');
+    return handleLiveRoundError(error, request);
   }
 }

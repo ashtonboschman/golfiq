@@ -4,6 +4,7 @@ import {
   getLiveGpsMappingForCourse,
   LiveGpsMappingError,
 } from '@/lib/gps/liveMapping';
+import { reportServerError } from '@/lib/monitoring/server';
 
 export async function GET(
   request: NextRequest,
@@ -23,7 +24,14 @@ export async function GET(
       return errorResponse(error.message, error.status);
     }
 
-    console.error('GET /api/gps/live/course/[courseId] error:', error);
+    await reportServerError(error, {
+      area: 'gps',
+      operation: 'load_live_course_mapping',
+      route: '/api/gps/live/course/[courseId]',
+      statusCode: 500,
+      recoverable: true,
+      request,
+    });
     return errorResponse('Database error', 500);
   }
 }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
 import { hasPremiumEntitlement } from '@/lib/subscription';
+import { reportServerError } from '@/lib/monitoring/server';
 
 type RevenueCatPackage = 'monthly' | 'annual';
 
@@ -52,7 +53,14 @@ export async function GET(request: NextRequest) {
     const baseUrl = getRevenueCatPurchaseLinkBaseUrl();
 
     if (!baseUrl) {
-      console.error('[revenuecat purchase-link] Base URL is not configured');
+      await reportServerError(new Error('RevenueCat purchase link is not configured'), {
+        area: 'purchase',
+        operation: 'load_purchase_link_configuration',
+        route: '/api/revenuecat/purchase-link',
+        statusCode: 500,
+        recoverable: false,
+        request,
+      });
       return redirectToPricing(request, 'billing_unavailable');
     }
 
@@ -65,7 +73,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(purchaseUrl);
   } catch (error) {
-    console.error('[revenuecat purchase-link] Failed to create purchase redirect', error);
+    await reportServerError(error, {
+      area: 'purchase',
+      operation: 'create_purchase_redirect',
+      route: '/api/revenuecat/purchase-link',
+      statusCode: 500,
+      recoverable: true,
+      request,
+    });
     return redirectToPricing(request, 'billing_unavailable');
   }
 }

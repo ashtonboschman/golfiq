@@ -3,6 +3,7 @@ import { Prisma, SubscriptionProvider, SubscriptionStatus, SubscriptionTier } fr
 import { prisma } from '@/lib/db';
 import { isApplePremiumProduct } from '@/lib/revenuecat/products';
 import { getRevenueCatApplePremiumSubscription } from '@/lib/revenuecat/serverSubscriber';
+import { reportServerError } from '@/lib/monitoring/server';
 
 type RevenueCatWebhookEnvelope = {
   api_version?: string;
@@ -78,7 +79,14 @@ export async function POST(req: NextRequest) {
   const webhookSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    console.error('[revenuecat webhook] REVENUECAT_WEBHOOK_SECRET is not configured');
+    await reportServerError(new Error('RevenueCat webhook secret is not configured'), {
+      area: 'webhook',
+      operation: 'load_revenuecat_webhook_configuration',
+      route: '/api/webhooks/revenuecat',
+      statusCode: 500,
+      recoverable: false,
+      request: req,
+    });
     return NextResponse.json({ message: 'Webhook secret not configured' }, { status: 500 });
   }
 
@@ -105,7 +113,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (eventType === 'TRANSFER') {
-    return processTransferEvent(event);
+    return processTransferEvent(event, req);
   }
 
   const appUserId = resolveAppUserId(event);
@@ -197,10 +205,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true, duplicate: true });
     }
 
-    console.error('[revenuecat webhook] Failed to process event', {
-      eventId: event.id,
-      eventType,
-      error,
+    await reportServerError(error, {
+      area: 'webhook',
+      operation: 'process_revenuecat_event',
+      route: '/api/webhooks/revenuecat',
+      statusCode: 500,
+      recoverable: true,
+      errorCode: eventType,
+      request: req,
     });
     return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 });
   }
@@ -383,7 +395,10 @@ function buildEntitlementUpdatePlan(
   return { kind: 'ignore', reason: 'unsupported_event_type' };
 }
 
-async function processTransferEvent(event: RevenueCatWebhookEventPayload) {
+async function processTransferEvent(
+  event: RevenueCatWebhookEventPayload,
+  request: NextRequest,
+) {
   const sourceIds = uniqueGolfIqUserIds(event.transferred_from);
   const destinationIds = uniqueGolfIqUserIds(event.transferred_to)
     .filter((id) => !sourceIds.includes(id));
@@ -538,11 +553,13 @@ async function processTransferEvent(event: RevenueCatWebhookEventPayload) {
       return NextResponse.json({ received: true, duplicate: true });
     }
 
-    console.error('[revenuecat webhook] Failed to process transfer', {
-      eventId: event.id,
-      sourceIds: sourceIds.map(String),
-      destinationId: appUserId,
-      error,
+    await reportServerError(error, {
+      area: 'webhook',
+      operation: 'process_revenuecat_transfer',
+      route: '/api/webhooks/revenuecat',
+      statusCode: 500,
+      recoverable: true,
+      request,
     });
     return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 });
   }

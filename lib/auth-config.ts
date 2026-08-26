@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { reportServerError } from '@/lib/monitoring/server';
 import { verifyNativeSocialIdToken } from '@/lib/auth/nativeSocial';
 import {
   getAppleNativeProviderCredentials,
@@ -225,7 +226,12 @@ async function ensureOAuthLink(args: {
     return true;
   } catch (error) {
     if (!isUniqueConstraintError(error)) {
-      console.error('[AUTH][OAuth] failed to link provider account:', error);
+      await reportServerError(error, {
+        area: 'authentication',
+        operation: 'link_oauth_account',
+        route: '/api/auth',
+        recoverable: true,
+      });
       return false;
     }
 
@@ -430,7 +436,12 @@ async function resolveOAuthIdentity(args: {
     });
     return authUser;
   } catch (error) {
-    console.error('[AUTH] OAuth sign-in failed:', error);
+    await reportServerError(error, {
+      area: 'authentication',
+      operation: 'complete_oauth_sign_in',
+      route: '/api/auth',
+      recoverable: true,
+    });
     await captureServerEvent({
       event: ANALYTICS_EVENTS.loginFailed,
       distinctId: `oauth_${provider}_exception`,
@@ -578,7 +589,12 @@ const providers: NextAuthOptions['providers'] = [
         }
         return authUser;
       } catch (error) {
-        console.error('[AUTH] Native social token verification failed:', error);
+        await reportServerError(error, {
+          area: 'authentication',
+          operation: 'verify_native_social_token',
+          route: '/api/auth',
+          recoverable: true,
+        });
         await captureServerEvent({
           event: ANALYTICS_EVENTS.loginFailed,
           distinctId: `oauth_${provider}_native_invalid`,

@@ -7,8 +7,9 @@ import {
 import { captureServerEvent } from '@/lib/analytics/server';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { prisma } from '@/lib/db';
+import { reportServerError } from '@/lib/monitoring/server';
 
-function handleLiveRoundError(error: unknown, context: string) {
+async function handleLiveRoundError(error: unknown, request: NextRequest) {
   if (error instanceof Error && error.message === 'Unauthorized') {
     return errorResponse('Unauthorized', 401);
   }
@@ -17,7 +18,14 @@ function handleLiveRoundError(error: unknown, context: string) {
     return errorResponse(error.message, error.status);
   }
 
-  console.error(`${context} error:`, error);
+  await reportServerError(error, {
+    area: 'finalization',
+    operation: 'finalize_live_round',
+    route: '/api/rounds/live/sessions/[sessionId]/finalize',
+    statusCode: 500,
+    recoverable: true,
+    request,
+  });
   return errorResponse('Database error', 500);
 }
 
@@ -76,6 +84,6 @@ export async function POST(
     }
     return successResponse(result);
   } catch (error) {
-    return handleLiveRoundError(error, 'POST /api/rounds/live/sessions/[sessionId]/finalize');
+    return handleLiveRoundError(error, request);
   }
 }

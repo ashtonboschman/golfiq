@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { requireAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/db';
 import { getRevenueCatApplePremiumSubscription } from '@/lib/revenuecat/serverSubscriber';
+import { reportServerError } from '@/lib/monitoring/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,7 +75,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    console.error('[revenuecat restore] Failed to reconcile subscription', error);
+    await reportServerError(error, {
+      area: 'restore',
+      operation: 'reconcile_revenuecat_restore',
+      route: '/api/revenuecat/restore',
+      statusCode: 502,
+      recoverable: true,
+      request,
+    });
     return NextResponse.json(
       { message: 'Unable to verify the restored subscription' },
       { status: 502 },

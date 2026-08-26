@@ -54,6 +54,7 @@ export const ANALYTICS_EVENTS = {
   leaderboardViewed: 'leaderboard_viewed',
   apiRequestFailed: 'api_request_failed',
   appErrorShown: 'app_error_shown',
+  applicationError: 'application_error',
   pwaUpdateToastShown: 'pwa_update_toast_shown',
   pwaInstallPromptShown: 'pwa_install_prompt_shown',
   pwaInstallAccepted: 'pwa_install_accepted',

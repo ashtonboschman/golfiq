@@ -10,6 +10,7 @@ import AuthCacheReset from '@/components/AuthCacheReset';
 import { useEffect } from 'react';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
+import ClientErrorMonitor from '@/components/monitoring/ClientErrorMonitor';
 
 import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider } from 'posthog-js/react';
@@ -86,6 +87,7 @@ export function useMessage() {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
+      <ClientErrorMonitor />
       <AuthCacheReset />
       <ThemeProvider>
         <MessageProvider>

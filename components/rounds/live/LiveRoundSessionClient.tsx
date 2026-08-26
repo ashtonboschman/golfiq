@@ -31,6 +31,7 @@ import { useLiveGpsLocation } from '@/lib/gps/useLiveGpsLocation';
 import { isAdminUserId } from '@/lib/admin';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { reportClientError } from '@/lib/monitoring/client';
 import type { ClubSuggestionClub } from '@/lib/clubs/clubSuggestion';
 import { calculateRoundElapsedSeconds, formatLiveRoundTime } from '@/lib/rounds/roundTimer';
 
@@ -273,6 +274,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       setAutosaveMessage('Saved');
     },
     onError: (err) => {
+      reportClientError(err, {
+        area: 'save',
+        operation: 'autosave_live_hole',
+        route: '/rounds/live/[sessionId]',
+        recoverable: true,
+      });
       setAutosaveStatus('error');
       setAutosaveMessage(err instanceof Error ? err.message : 'Autosave failed');
     },
@@ -304,6 +311,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       setAutosaveMessage('Saved');
     },
     onError: (err) => {
+      reportClientError(err, {
+        area: 'save',
+        operation: 'autosave_live_notes',
+        route: '/rounds/live/[sessionId]',
+        recoverable: true,
+      });
       setHasPendingNotes(true);
       setAutosaveStatus('error');
       setAutosaveMessage(err instanceof Error ? err.message : 'Notes autosave failed');
@@ -335,6 +348,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       setAutosaveMessage('Saved');
     },
     onError: (err) => {
+      reportClientError(err, {
+        area: 'save',
+        operation: 'save_round_context',
+        route: '/rounds/live/[sessionId]',
+        recoverable: true,
+      });
       setAutosaveStatus('error');
       setAutosaveMessage(err instanceof Error ? err.message : 'Round tag save failed');
     },
@@ -648,7 +667,13 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     captureGpsAnalytics(ANALYTICS_EVENTS.gpsMapFailed, {
       map_provider: 'google_maps',
       failure_stage: 'map_load',
-      error_message: message,
+      error_name: 'map_load_error',
+    });
+    reportClientError(message, {
+      area: 'gps',
+      operation: 'load_live_map',
+      route: '/rounds/live/[sessionId]',
+      recoverable: true,
     });
   }, [captureGpsAnalytics]);
 
@@ -1136,6 +1161,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       const data = await readApiResponse<{ roundId: string; session: LiveRoundSession }>(response);
       router.replace(`/rounds/${data.roundId}/stats?from=rounds`);
     } catch (err) {
+      reportClientError(err, {
+        area: 'finalization',
+        operation: 'finalize_live_round',
+        route: '/rounds/live/[sessionId]',
+        recoverable: true,
+      });
       setError(err instanceof Error ? err.message : 'Unable to finish live round');
     } finally {
       setFinalizing(false);
