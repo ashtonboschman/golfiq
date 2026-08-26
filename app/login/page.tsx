@@ -6,7 +6,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMessage } from '../providers';
 import { Eye, EyeOff } from 'lucide-react';
 import { resolveSafeNextPath } from '@/lib/auth/redirect';
-import { startNativeSocialLogin } from '@/lib/auth/nativeSocialLogin';
+import {
+  isNativeSocialLoginCanceled,
+  startNativeSocialLogin,
+} from '@/lib/auth/nativeSocialLogin';
 import { isNativeIOS } from '@/lib/platform';
 
 import Link from 'next/link';
@@ -304,6 +307,10 @@ function LoginContent() {
         setOauthLoadingProvider(null);
       }
     } catch (err) {
+      if (authPlatform === 'native' && isNativeSocialLoginCanceled(err)) {
+        setOauthLoadingProvider(null);
+        return;
+      }
       console.error('OAuth sign-in error:', err);
       showMessage('Unable to sign in with SSO right now. Please try again.', 'error');
       setOauthLoadingProvider(null);

@@ -6,7 +6,10 @@ import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
 import { signIn, useSession } from 'next-auth/react';
 import { isNativeIOS } from '@/lib/platform';
-import { startNativeSocialLogin } from '@/lib/auth/nativeSocialLogin';
+import {
+  isNativeSocialLoginCanceled,
+  startNativeSocialLogin,
+} from '@/lib/auth/nativeSocialLogin';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -42,12 +45,16 @@ jest.mock('@/lib/platform', () => ({
 
 jest.mock('@/lib/auth/nativeSocialLogin', () => ({
   startNativeSocialLogin: jest.fn(),
+  isNativeSocialLoginCanceled: jest.fn(
+    (error: unknown) => (error as { code?: string } | null)?.code === 'SIGN_IN_CANCELED',
+  ),
 }));
 
 const mockedSignIn = signIn as jest.Mock;
 const mockedUseSession = useSession as unknown as jest.Mock;
 const mockedIsNativeIOS = jest.mocked(isNativeIOS);
 const mockedStartNativeSocialLogin = jest.mocked(startNativeSocialLogin);
+const mockedIsNativeSocialLoginCanceled = jest.mocked(isNativeSocialLoginCanceled);
 
 describe('/login page mode + next handling', () => {
   const originalGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED;
@@ -121,6 +128,23 @@ describe('/login page mode + next handling', () => {
       expect(mockPush).toHaveBeenCalledWith('/dashboard');
     });
     expect(screen.getByRole('button', { name: /Apple/i })).toBeInTheDocument();
+  });
+
+  it('silently dismisses a canceled native social sign-in', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
+    mockedStartNativeSocialLogin.mockRejectedValue({ code: 'SIGN_IN_CANCELED' });
+
+    render(<LoginPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Continue with Google/i }));
+
+    await waitFor(() => {
+      expect(mockedIsNativeSocialLoginCanceled).toHaveBeenCalledWith({
+        code: 'SIGN_IN_CANCELED',
+      });
+      expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeEnabled();
+    });
+    expect(mockedSignIn).not.toHaveBeenCalled();
+    expect(mockShowMessage).not.toHaveBeenCalled();
   });
 
   it('renders icons for both social sign-in providers', async () => {

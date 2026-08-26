@@ -15,6 +15,13 @@ export type NativeSocialLoginResult = {
 
 let initializedGoogleClientId: string | null = null;
 
+const NATIVE_SIGN_IN_CANCELED_CODE = 'SIGN_IN_CANCELED';
+
+export function isNativeSocialLoginCanceled(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  return (error as { code?: unknown }).code === NATIVE_SIGN_IN_CANCELED_CODE;
+}
+
 function createNonce(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');

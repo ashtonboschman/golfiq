@@ -2,7 +2,10 @@
 
 import { AppleSignIn, SignInScope } from '@capawesome/capacitor-apple-sign-in';
 import { GoogleSignIn } from '@capawesome/capacitor-google-sign-in';
-import { startNativeSocialLogin } from '@/lib/auth/nativeSocialLogin';
+import {
+  isNativeSocialLoginCanceled,
+  startNativeSocialLogin,
+} from '@/lib/auth/nativeSocialLogin';
 import { isNativeIOS } from '@/lib/platform';
 
 jest.mock('@capawesome/capacitor-apple-sign-in', () => ({
@@ -76,5 +79,11 @@ describe('native social login bridge', () => {
       nonce: result.nonce,
       scopes: [SignInScope.Email, SignInScope.FullName],
     });
+  });
+
+  it('recognizes the shared Apple and Google cancellation code', () => {
+    expect(isNativeSocialLoginCanceled({ code: 'SIGN_IN_CANCELED' })).toBe(true);
+    expect(isNativeSocialLoginCanceled({ code: 'NETWORK_ERROR' })).toBe(false);
+    expect(isNativeSocialLoginCanceled(new Error('Sign in failed'))).toBe(false);
   });
 });
