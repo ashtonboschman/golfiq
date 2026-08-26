@@ -49,6 +49,7 @@ describe('native social login bridge', () => {
 
     await expect(startNativeSocialLogin('google')).resolves.toEqual({
       idToken: 'google-id-token',
+      authorizationCode: null,
       nonce: null,
       firstName: 'Golf',
       lastName: 'Er',
@@ -69,6 +70,7 @@ describe('native social login bridge', () => {
     const result = await startNativeSocialLogin('apple');
 
     expect(result.idToken).toBe('apple-id-token');
+    expect(result.authorizationCode).toBe('apple-code');
     expect(result.nonce).toEqual(expect.any(String));
     expect(mockedAppleSignIn).toHaveBeenCalledWith({
       nonce: result.nonce,

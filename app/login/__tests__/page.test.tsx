@@ -71,6 +71,7 @@ describe('/login page mode + next handling', () => {
     mockedIsNativeIOS.mockReturnValue(false);
     mockedStartNativeSocialLogin.mockResolvedValue({
       idToken: 'native-id-token',
+      authorizationCode: null,
       nonce: null,
       firstName: 'Test',
       lastName: 'Golfer',
@@ -110,6 +111,7 @@ describe('/login page mode + next handling', () => {
       expect(mockedSignIn).toHaveBeenCalledWith('native-social', {
         provider: 'google',
         idToken: 'native-id-token',
+        authorizationCode: '',
         nonce: '',
         firstName: 'Test',
         lastName: 'Golfer',

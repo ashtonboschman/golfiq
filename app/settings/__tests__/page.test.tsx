@@ -1,13 +1,14 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SettingsPage from '@/app/settings/page';
 import { useSession } from 'next-auth/react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
 import { liveRoundTrackingPrefsToProfileFields } from '@/lib/rounds/liveRoundTracking';
+import { signOutOfGolfIQ } from '@/lib/auth/logout';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -36,6 +37,10 @@ jest.mock('@/lib/platform', () => ({
   getBillingPlatform: jest.fn(),
   isNativeApp: jest.fn(),
   isNativeIOS: jest.fn(),
+}));
+
+jest.mock('@/lib/auth/logout', () => ({
+  signOutOfGolfIQ: jest.fn(),
 }));
 
 jest.mock('@/context/ThemeContext', () => ({
@@ -89,6 +94,7 @@ const mockedUseSubscription = useSubscription as unknown as jest.Mock;
 const mockedGetBillingPlatform = getBillingPlatform as jest.Mock;
 const mockedIsNativeApp = isNativeApp as jest.Mock;
 const mockedIsNativeIOS = isNativeIOS as jest.Mock;
+const mockedSignOutOfGolfIQ = signOutOfGolfIQ as jest.Mock;
 
 function createFetchMock() {
   return jest.fn().mockImplementation((input: string) => {
@@ -318,6 +324,40 @@ describe('/settings page', () => {
       variant: 'danger',
       confirmVariant: 'danger',
     }));
+  });
+
+  it('shows manual Apple authorization removal steps for a legacy Apple sign-in', async () => {
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '2', email: 'user@test.ca', auth_provider: 'apple' } },
+    });
+    mockedSignOutOfGolfIQ.mockResolvedValue(undefined);
+    const baseFetch = createFetchMock();
+    (global as any).fetch = jest.fn().mockImplementation((input: string, init?: RequestInit) => {
+      if (input === '/api/users/account' && init?.method === 'DELETE') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            message: 'Your account has been deleted permanently.',
+            manualAppleRevocationRequired: true,
+          }),
+        });
+      }
+      return baseFetch(input);
+    });
+
+    await renderSettingsPage();
+    fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+    const deletionConfirmation = mockShowConfirm.mock.calls[0][0];
+    await act(async () => {
+      await deletionConfirmation.onConfirm();
+    });
+
+    expect(mockShowConfirm).toHaveBeenLastCalledWith(expect.objectContaining({
+      title: 'Remove Sign in with Apple Access',
+      message: expect.stringContaining('Sign-In & Security'),
+    }));
+    expect(mockedSignOutOfGolfIQ).not.toHaveBeenCalled();
   });
 
   it('warns Apple subscribers that account deletion does not cancel App Store billing', async () => {

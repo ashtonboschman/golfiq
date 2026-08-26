@@ -217,13 +217,17 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = () => {
+    const usesAppleSignIn = session?.user?.auth_provider === 'apple';
+    const appleSignInGuidance = usesAppleSignIn
+      ? ' GolfIQ will also revoke its Sign in with Apple authorization when possible.'
+      : '';
     const deletionMessage = provider === 'apple'
-      ? 'Delete your GolfIQ account permanently? Your App Store subscription will not be cancelled automatically and may continue to renew. Manage it with Apple if you want to stop future charges. Your rounds, insights, friends, and profile will be removed. This cannot be undone.'
+      ? `Delete your GolfIQ account permanently? Your App Store subscription will not be cancelled automatically and may continue to renew. Manage it with Apple if you want to stop future charges. Your rounds, insights, friends, and profile will be removed. This cannot be undone.${appleSignInGuidance}`
       : provider === 'revenuecat_web'
-        ? 'Delete your GolfIQ account permanently? This will immediately cancel your GolfIQ web subscription and remove your rounds, insights, friends, and profile. This cannot be undone.'
+        ? `Delete your GolfIQ account permanently? This will immediately cancel your GolfIQ web subscription and remove your rounds, insights, friends, and profile. This cannot be undone.${appleSignInGuidance}`
         : provider === 'stripe'
-          ? 'Delete your GolfIQ account permanently? This will immediately cancel your web subscription and remove your rounds, insights, friends, and profile. This cannot be undone.'
-          : 'Delete your GolfIQ account permanently? This cannot be undone and will remove your rounds, insights, friends, and profile.';
+          ? `Delete your GolfIQ account permanently? This will immediately cancel your web subscription and remove your rounds, insights, friends, and profile. This cannot be undone.${appleSignInGuidance}`
+          : `Delete your GolfIQ account permanently? This cannot be undone and will remove your rounds, insights, friends, and profile.${appleSignInGuidance}`;
 
     showConfirm({
       title: 'Delete account?',
@@ -245,9 +249,28 @@ export default function SettingsPage() {
             throw new Error(data.message || 'Failed to delete account');
           }
 
-          showMessage(data.message || 'Account deleted successfully.', 'success');
-          await signOutOfGolfIQ();
-          router.replace('/');
+          const finishDeletion = async () => {
+            showMessage(data.message || 'Account deleted successfully.', 'success');
+            await signOutOfGolfIQ();
+            router.replace('/');
+          };
+
+          if (data.manualAppleRevocationRequired) {
+            setDeletingAccount(false);
+            showConfirm({
+              title: 'Remove Sign in with Apple Access',
+              message: 'Your GolfIQ account was deleted. This older Apple sign-in did not include a stored revocation credential. In iPhone Settings, open your Apple Account, then Sign-In & Security, Sign in with Apple, and remove GolfIQ.',
+              cancelText: 'Continue',
+              confirmText: 'Continue',
+              variant: 'warning',
+              confirmVariant: 'primary',
+              onConfirm: finishDeletion,
+              onCancel: finishDeletion,
+            });
+            return;
+          }
+
+          await finishDeletion();
         } catch (error: any) {
           console.error('Delete account error:', error);
           showMessage(error.message || 'Failed to delete account', 'error');

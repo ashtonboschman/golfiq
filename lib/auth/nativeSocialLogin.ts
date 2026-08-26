@@ -7,6 +7,7 @@ import type { NativeSocialProvider } from '@/lib/auth/nativeSocial';
 
 export type NativeSocialLoginResult = {
   idToken: string;
+  authorizationCode: string | null;
   nonce: string | null;
   firstName: string | null;
   lastName: string | null;
@@ -45,6 +46,7 @@ export async function startNativeSocialLogin(
     const result = await GoogleSignIn.signIn();
     return {
       idToken: result.idToken,
+      authorizationCode: null,
       nonce: null,
       firstName: result.givenName,
       lastName: result.familyName,
@@ -58,6 +60,7 @@ export async function startNativeSocialLogin(
   });
   return {
     idToken: result.idToken,
+    authorizationCode: result.authorizationCode,
     nonce,
     firstName: result.givenName,
     lastName: result.familyName,

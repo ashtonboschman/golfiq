@@ -4,11 +4,17 @@ import { prisma } from '@/lib/db';
 import { cancelSubscriptionImmediately, stripe } from '@/lib/stripe';
 import { errorResponse, requireAuth, successResponse } from '@/lib/api-auth';
 import { deleteRevenueCatCustomer } from '@/lib/revenuecat/serverCustomer';
+import { revokeAppleRefreshToken } from '@/lib/auth/appleTokenLifecycle';
 
 type UserForDeletion = {
   id: bigint;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+};
+
+type AppleOAuthCredential = {
+  refreshTokenEncrypted: string | null;
+  refreshTokenClientId: string | null;
 };
 
 export async function DELETE(request: NextRequest) {
@@ -21,6 +27,13 @@ export async function DELETE(request: NextRequest) {
         id: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
+        oauthAccounts: {
+          where: { provider: 'apple' },
+          select: {
+            refreshTokenEncrypted: true,
+            refreshTokenClientId: true,
+          },
+        },
       },
     });
 
@@ -29,6 +42,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await cancelActiveStripeSubscriptions(user);
+    const manualAppleRevocationRequired = await revokeAppleAuthorization(user.oauthAccounts);
     await deleteRevenueCatCustomer(String(user.id));
 
     await prisma.user.delete({
@@ -37,6 +51,7 @@ export async function DELETE(request: NextRequest) {
 
     return successResponse({
       message: 'Your account has been deleted permanently.',
+      manualAppleRevocationRequired,
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
@@ -46,6 +61,23 @@ export async function DELETE(request: NextRequest) {
     console.error('Delete account error:', error);
     return errorResponse('Failed to delete account. Please try again.', 500);
   }
+}
+
+async function revokeAppleAuthorization(credentials: AppleOAuthCredential[]): Promise<boolean> {
+  let manualRevocationRequired = false;
+
+  for (const credential of credentials) {
+    if (!credential.refreshTokenEncrypted || !credential.refreshTokenClientId) {
+      manualRevocationRequired = true;
+      continue;
+    }
+    await revokeAppleRefreshToken({
+      encryptedRefreshToken: credential.refreshTokenEncrypted,
+      clientId: credential.refreshTokenClientId,
+    });
+  }
+
+  return manualRevocationRequired;
 }
 
 async function cancelActiveStripeSubscriptions(user: UserForDeletion): Promise<void> {

@@ -9,7 +9,14 @@ import crypto from 'crypto';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyNativeSocialIdToken } from '@/lib/auth/nativeSocial';
-import { getAppleProviderCredentials } from '@/lib/auth/appleClientSecret';
+import {
+  getAppleNativeProviderCredentials,
+  getAppleProviderCredentials,
+} from '@/lib/auth/appleClientSecret';
+import {
+  encryptAppleRefreshToken,
+  exchangeAppleAuthorizationCode,
+} from '@/lib/auth/appleTokenLifecycle';
 import { buildPkceCodeVerifierCookie } from '@/lib/auth/pkceCookie';
 
 type OAuthProviderId = 'google' | 'apple';
@@ -441,6 +448,25 @@ async function resolveOAuthIdentity(args: {
   }
 }
 
+async function storeAppleRefreshToken(args: {
+  providerAccountId: string;
+  refreshToken: string;
+  clientId: string;
+}): Promise<void> {
+  await prisma.oAuthAccount.update({
+    where: {
+      provider_providerAccountId: {
+        provider: 'apple',
+        providerAccountId: args.providerAccountId,
+      },
+    },
+    data: {
+      refreshTokenEncrypted: encryptAppleRefreshToken(args.refreshToken),
+      refreshTokenClientId: args.clientId,
+    },
+  });
+}
+
 const providers: NextAuthOptions['providers'] = [
   CredentialsProvider({
     name: 'Credentials',
@@ -503,6 +529,7 @@ const providers: NextAuthOptions['providers'] = [
     credentials: {
       provider: { label: 'Provider', type: 'text' },
       idToken: { label: 'ID Token', type: 'text' },
+      authorizationCode: { label: 'Authorization Code', type: 'text' },
       nonce: { label: 'Nonce', type: 'text' },
       firstName: { label: 'First Name', type: 'text' },
       lastName: { label: 'Last Name', type: 'text' },
@@ -518,8 +545,23 @@ const providers: NextAuthOptions['providers'] = [
           idToken,
           nonce: credentials.nonce,
         });
+        let appleRefreshToken: string | null = null;
+        let appleClientId: string | null = null;
+        if (provider === 'apple') {
+          const authorizationCode = valueAsString(credentials.authorizationCode);
+          const appleCredentials = getAppleNativeProviderCredentials();
+          if (!authorizationCode || !appleCredentials) {
+            throw new Error('Native Apple token exchange is not configured.');
+          }
+          appleRefreshToken = await exchangeAppleAuthorizationCode({
+            authorizationCode,
+            clientId: appleCredentials.clientId,
+            clientSecret: appleCredentials.clientSecret,
+          });
+          appleClientId = appleCredentials.clientId;
+        }
         const useNativeProfileName = provider === 'apple';
-        return resolveOAuthIdentity({
+        const authUser = await resolveOAuthIdentity({
           provider,
           providerAccountId: identity.providerAccountId,
           email: identity.email,
@@ -527,6 +569,14 @@ const providers: NextAuthOptions['providers'] = [
           firstName: identity.firstName ?? (useNativeProfileName ? valueAsString(credentials.firstName) : null),
           lastName: identity.lastName ?? (useNativeProfileName ? valueAsString(credentials.lastName) : null),
         });
+        if (authUser && appleRefreshToken && appleClientId) {
+          await storeAppleRefreshToken({
+            providerAccountId: identity.providerAccountId,
+            refreshToken: appleRefreshToken,
+            clientId: appleClientId,
+          });
+        }
+        return authUser;
       } catch (error) {
         console.error('[AUTH] Native social token verification failed:', error);
         await captureServerEvent({
@@ -643,6 +693,18 @@ export const authOptions: NextAuthOptions = {
       if (!authUser) return false;
 
       Object.assign(user as unknown as Record<string, unknown>, authUser);
+      if (
+        providerId === 'apple' &&
+        typeof account.refresh_token === 'string' &&
+        account.refresh_token &&
+        appleProviderCredentials
+      ) {
+        await storeAppleRefreshToken({
+          providerAccountId,
+          refreshToken: account.refresh_token,
+          clientId: appleProviderCredentials.clientId,
+        });
+      }
       return true;
     },
     async jwt({ token, user, account }) {

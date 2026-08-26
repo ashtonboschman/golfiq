@@ -280,6 +280,7 @@ function LoginContent() {
         const result = await signIn('native-social', {
           provider,
           idToken: nativeResult.idToken,
+          authorizationCode: nativeResult.authorizationCode ?? '',
           nonce: nativeResult.nonce ?? '',
           firstName: nativeResult.firstName ?? '',
           lastName: nativeResult.lastName ?? '',

@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 type AppleAuthEnvironment = {
   APPLE_CLIENT_ID?: string;
   APPLE_CLIENT_SECRET?: string;
+  APPLE_IOS_CLIENT_ID?: string;
+  APPLE_IOS_CLIENT_SECRET?: string;
   APPLE_TEAM_ID?: string;
   APPLE_KEY_ID?: string;
   APPLE_PRIVATE_KEY?: string;
@@ -68,4 +70,47 @@ export function getAppleProviderCredentials(
     clientId,
     clientSecret: createAppleClientSecret({ clientId, teamId, keyId, privateKey }),
   };
+}
+
+export function getAppleCredentialsForClientId(
+  clientId: string,
+  env: AppleAuthEnvironment = process.env as AppleAuthEnvironment,
+): AppleProviderCredentials | null {
+  const normalizedClientId = optionalValue(clientId);
+  if (!normalizedClientId) return null;
+
+  const webClientId = optionalValue(env.APPLE_CLIENT_ID);
+  const iosClientId = optionalValue(env.APPLE_IOS_CLIENT_ID) ?? 'ca.golfiq.app';
+  const configuredClientSecret = normalizedClientId === webClientId
+    ? optionalValue(env.APPLE_CLIENT_SECRET)
+    : normalizedClientId === iosClientId
+      ? optionalValue(env.APPLE_IOS_CLIENT_SECRET)
+      : null;
+  if (configuredClientSecret) {
+    return { clientId: normalizedClientId, clientSecret: configuredClientSecret };
+  }
+
+  const teamId = optionalValue(env.APPLE_TEAM_ID);
+  const keyId = optionalValue(env.APPLE_KEY_ID);
+  const privateKey = readPrivateKey(env);
+  if (!teamId || !keyId || !privateKey) return null;
+
+  return {
+    clientId: normalizedClientId,
+    clientSecret: createAppleClientSecret({
+      clientId: normalizedClientId,
+      teamId,
+      keyId,
+      privateKey,
+    }),
+  };
+}
+
+export function getAppleNativeProviderCredentials(
+  env: AppleAuthEnvironment = process.env as AppleAuthEnvironment,
+): AppleProviderCredentials | null {
+  return getAppleCredentialsForClientId(
+    optionalValue(env.APPLE_IOS_CLIENT_ID) ?? 'ca.golfiq.app',
+    env,
+  );
 }

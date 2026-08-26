@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/db';
 import { cancelSubscriptionImmediately, stripe } from '@/lib/stripe';
 import { deleteRevenueCatCustomer } from '@/lib/revenuecat/serverCustomer';
+import { revokeAppleRefreshToken } from '@/lib/auth/appleTokenLifecycle';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
@@ -35,6 +36,10 @@ jest.mock('@/lib/revenuecat/serverCustomer', () => ({
   deleteRevenueCatCustomer: jest.fn(),
 }));
 
+jest.mock('@/lib/auth/appleTokenLifecycle', () => ({
+  revokeAppleRefreshToken: jest.fn(),
+}));
+
 const mockedRequireAuth = requireAuth as jest.Mock;
 const mockedPrisma = prisma as unknown as {
   user: {
@@ -50,6 +55,7 @@ const mockedStripe = stripe as unknown as {
 };
 const mockedCancelSubscriptionImmediately = cancelSubscriptionImmediately as jest.Mock;
 const mockedDeleteRevenueCatCustomer = deleteRevenueCatCustomer as jest.Mock;
+const mockedRevokeAppleRefreshToken = revokeAppleRefreshToken as jest.Mock;
 
 function request(): Request {
   return new Request('http://localhost/api/users/account', { method: 'DELETE' });
@@ -63,7 +69,9 @@ describe('/api/users/account DELETE contract', () => {
       id: BigInt(42),
       stripeCustomerId: null,
       stripeSubscriptionId: null,
+      oauthAccounts: [],
     });
+    mockedRevokeAppleRefreshToken.mockResolvedValue(undefined);
     mockedDeleteRevenueCatCustomer.mockResolvedValue(undefined);
     mockedPrisma.user.delete.mockResolvedValue({ id: BigInt(42) });
   });
@@ -86,6 +94,7 @@ describe('/api/users/account DELETE contract', () => {
       id: BigInt(42),
       stripeCustomerId: 'cus_42',
       stripeSubscriptionId: 'sub_saved',
+      oauthAccounts: [],
     });
     mockedStripe.subscriptions.list.mockResolvedValue({
       data: [
@@ -109,6 +118,72 @@ describe('/api/users/account DELETE contract', () => {
     );
   });
 
+  it('revokes a stored Sign in with Apple token before deleting external and local data', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      id: BigInt(42),
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      oauthAccounts: [{
+        refreshTokenEncrypted: 'encrypted-token',
+        refreshTokenClientId: 'ca.golfiq.app',
+      }],
+    });
+
+    const response = await DELETE(request() as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.manualAppleRevocationRequired).toBe(false);
+    expect(mockedRevokeAppleRefreshToken).toHaveBeenCalledWith({
+      encryptedRefreshToken: 'encrypted-token',
+      clientId: 'ca.golfiq.app',
+    });
+    expect(mockedRevokeAppleRefreshToken.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedDeleteRevenueCatCustomer.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('deletes a legacy Apple account and requests manual authorization removal', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      id: BigInt(42),
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      oauthAccounts: [{
+        refreshTokenEncrypted: null,
+        refreshTokenClientId: null,
+      }],
+    });
+
+    const response = await DELETE(request() as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.manualAppleRevocationRequired).toBe(true);
+    expect(mockedRevokeAppleRefreshToken).not.toHaveBeenCalled();
+    expect(mockedPrisma.user.delete).toHaveBeenCalled();
+  });
+
+  it('does not delete account data when Apple authorization revocation fails', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      id: BigInt(42),
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      oauthAccounts: [{
+        refreshTokenEncrypted: 'encrypted-token',
+        refreshTokenClientId: 'ca.golfiq.app',
+      }],
+    });
+    mockedRevokeAppleRefreshToken.mockRejectedValue(new Error('Apple unavailable'));
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await DELETE(request() as any);
+
+    expect(response.status).toBe(500);
+    expect(mockedDeleteRevenueCatCustomer).not.toHaveBeenCalled();
+    expect(mockedPrisma.user.delete).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
   it('does not delete the local account when RevenueCat cleanup fails', async () => {
     mockedDeleteRevenueCatCustomer.mockRejectedValue(new Error('RevenueCat unavailable'));
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -127,6 +202,7 @@ describe('/api/users/account DELETE contract', () => {
       id: BigInt(42),
       stripeCustomerId: null,
       stripeSubscriptionId: 'sub_42',
+      oauthAccounts: [],
     });
     mockedStripe.subscriptions.retrieve.mockResolvedValue({
       id: 'sub_42',
