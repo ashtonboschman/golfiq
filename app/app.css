@@ -376,6 +376,70 @@ h1, h2, h3, h2, h1, .btn {
 }
 
 /* ===========================
+   Route Error Recovery
+=========================== */
+.app-error-boundary {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--app-header-extent) - var(--app-footer-extent) - (2 * var(--padding)));
+  width: 100%;
+}
+
+.app-error-boundary-standalone {
+  min-height: 100vh;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--padding);
+}
+
+.app-error-card {
+  align-items: center;
+  padding: var(--padding-large);
+  text-align: center;
+}
+
+.app-error-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--color-red);
+}
+
+.app-error-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-small);
+}
+
+.app-error-copy h1,
+.app-error-copy p {
+  margin: 0;
+}
+
+.app-error-copy h1 {
+  font-size: 1.25rem;
+}
+
+.app-error-copy p {
+  color: var(--color-secondary-text);
+  line-height: 1.5;
+}
+
+.app-error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  width: 100%;
+}
+
+@media (min-width: 480px) {
+  .app-error-actions {
+    flex-direction: row;
+  }
+}
+
+/* ===========================
    Auth Pages (Login, Register, Forgot Password)
 =========================== */
 .auth-container {

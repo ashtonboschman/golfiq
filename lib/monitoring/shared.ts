@@ -2,6 +2,8 @@ export type MonitoringArea =
   | 'client'
   | 'server'
   | 'webview'
+  | 'rounds'
+  | 'insights'
   | 'authentication'
   | 'purchase'
   | 'restore'
