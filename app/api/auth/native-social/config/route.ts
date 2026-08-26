@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
+import {
+  getAuthProviderConfiguration,
+  getPublicAuthProviderAvailability,
+} from '@/lib/auth/providerConfiguration';
 
 export const dynamic = 'force-dynamic';
 
 export function GET() {
+  const configuration = getAuthProviderConfiguration();
+
   return NextResponse.json(
     {
-      googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+      googleClientId: configuration.native.google?.clientId ?? null,
+      providers: getPublicAuthProviderAvailability(configuration),
     },
     {
       headers: {

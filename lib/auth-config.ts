@@ -11,8 +11,8 @@ import { captureServerEvent } from '@/lib/analytics/server';
 import { verifyNativeSocialIdToken } from '@/lib/auth/nativeSocial';
 import {
   getAppleNativeProviderCredentials,
-  getAppleProviderCredentials,
 } from '@/lib/auth/appleClientSecret';
+import { getAuthProviderConfiguration } from '@/lib/auth/providerConfiguration';
 import {
   encryptAppleRefreshToken,
   exchangeAppleAuthorizationCode,
@@ -598,16 +598,22 @@ const providers: NextAuthOptions['providers'] = [
   }),
 ];
 
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+const authProviderConfiguration = getAuthProviderConfiguration();
+
+for (const issue of authProviderConfiguration.issues) {
+  console.error(`[AUTH][CONFIG] ${issue}`);
+}
+
+if (authProviderConfiguration.web.google) {
   providers.push(
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientId: authProviderConfiguration.web.google.clientId,
+      clientSecret: authProviderConfiguration.web.google.clientSecret,
     }),
   );
 }
 
-const appleProviderCredentials = getAppleProviderCredentials();
+const appleProviderCredentials = authProviderConfiguration.web.apple;
 
 if (appleProviderCredentials) {
   providers.push(

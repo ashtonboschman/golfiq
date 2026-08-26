@@ -16,6 +16,10 @@ const mockPush = jest.fn();
 const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
 let mockQuery = new URLSearchParams('mode=login');
+let mockProviderAvailability = {
+  web: { google: true, apple: false },
+  native: { google: true, apple: true },
+};
 
 jest.mock('next-auth/react', () => ({
   signIn: jest.fn(),
@@ -60,9 +64,6 @@ const mockedStartNativeSocialLogin = jest.mocked(startNativeSocialLogin);
 const mockedIsNativeSocialLoginCanceled = jest.mocked(isNativeSocialLoginCanceled);
 
 describe('/login page mode + next handling', () => {
-  const originalGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED;
-  const originalAppleEnabled = process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED;
-
   beforeEach(() => {
     jest.clearAllMocks();
     mockQuery = new URLSearchParams('mode=login');
@@ -70,14 +71,16 @@ describe('/login page mode + next handling', () => {
       status: 'unauthenticated',
       data: null,
     });
-    (global as any).fetch = jest.fn().mockResolvedValue({
+    mockProviderAvailability = {
+      web: { google: true, apple: false },
+      native: { google: true, apple: true },
+    };
+    (global as any).fetch = jest.fn().mockImplementation(async (input: string) => ({
       ok: true,
-      json: async () => ({
-        user: { theme: 'dark' },
-      }),
-    });
-    process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED = '1';
-    process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED = '0';
+      json: async () => input === '/api/auth/native-social/config'
+        ? { providers: mockProviderAvailability }
+        : { user: { theme: 'dark' } },
+    }));
     mockedIsNativeIOS.mockReturnValue(false);
     mockedStartNativeSocialLogin.mockResolvedValue({
       idToken: 'native-id-token',
@@ -86,11 +89,6 @@ describe('/login page mode + next handling', () => {
       firstName: 'Test',
       lastName: 'Golfer',
     });
-  });
-
-  afterEach(() => {
-    process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED = originalGoogleEnabled;
-    process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED = originalAppleEnabled;
   });
 
   it('respects mode=register by rendering registration fields', async () => {
@@ -167,7 +165,7 @@ describe('/login page mode + next handling', () => {
   });
 
   it('renders icons for both social sign-in providers', async () => {
-    process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED = '1';
+    mockProviderAvailability.web.apple = true;
 
     render(<LoginPage />);
 
@@ -176,6 +174,15 @@ describe('/login page mode + next handling', () => {
 
     expect(googleButton.querySelector('.login-google-icon')).toBeInTheDocument();
     expect(appleButton.querySelector('svg.login-apple-icon')).toBeInTheDocument();
+  });
+
+  it('renders only providers the server reports as usable', async () => {
+    mockProviderAvailability.web = { google: false, apple: true };
+
+    render(<LoginPage />);
+
+    expect(await screen.findByRole('button', { name: /Continue with Apple/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Continue with Google/i })).not.toBeInTheDocument();
   });
 
   it('respects mode=login by defaulting to login fields', () => {

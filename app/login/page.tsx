@@ -14,6 +14,11 @@ import { isNativeIOS } from '@/lib/platform';
 
 import Link from 'next/link';
 
+type AuthProviderAvailability = {
+  google: boolean;
+  apple: boolean;
+};
+
 class HandledAuthError extends Error {
   constructor(message: string) {
     super(message);
@@ -76,9 +81,9 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [authPlatform, setAuthPlatform] = useState<'pending' | 'web' | 'native'>('pending');
-  const isNativeAuthPlatform = authPlatform === 'native';
-  const isGoogleEnabled = isNativeAuthPlatform || process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === '1';
-  const isAppleEnabled = isNativeAuthPlatform || process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED === '1';
+  const [authProviders, setAuthProviders] = useState<AuthProviderAvailability | null>(null);
+  const isGoogleEnabled = authProviders?.google === true;
+  const isAppleEnabled = authProviders?.apple === true;
   const hasOauthEnabled = isGoogleEnabled || isAppleEnabled;
 
   const authTitle = isRegister
@@ -110,6 +115,40 @@ function LoginContent() {
     const detectionTimer = window.setTimeout(() => setAuthPlatform(nextPlatform), 0);
     return () => window.clearTimeout(detectionTimer);
   }, []);
+
+  useEffect(() => {
+    if (authPlatform === 'pending') return;
+
+    const controller = new AbortController();
+    const loadProviderAvailability = async () => {
+      try {
+        const response = await fetch('/api/auth/native-social/config', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Authentication provider configuration is unavailable.');
+
+        const data = await response.json() as {
+          providers?: {
+            web?: Partial<AuthProviderAvailability>;
+            native?: Partial<AuthProviderAvailability>;
+          };
+        };
+        const platformProviders = data.providers?.[authPlatform];
+        setAuthProviders({
+          google: platformProviders?.google === true,
+          apple: platformProviders?.apple === true,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error('[AUTH] Unable to load provider availability:', error);
+        setAuthProviders({ google: false, apple: false });
+      }
+    };
+
+    void loadProviderAvailability();
+    return () => controller.abort();
+  }, [authPlatform]);
 
   // Redirect if already logged in
   useEffect(() => {
