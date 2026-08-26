@@ -339,6 +339,28 @@ describe('/pricing page', () => {
     });
   });
 
+  it('explains when a purchase receipt belongs to another GolfIQ account', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+    const receiptError = { code: '7' };
+    mockedPurchaseNativePremiumPlan.mockRejectedValue(receiptError);
+    mockedIsNativeReceiptAlreadyInUse.mockImplementation(
+      (error: unknown) => error === receiptError,
+    );
+
+    render(<PricingPage />);
+    const subscribeButton = await screen.findByRole('button', {
+      name: /Subscribe monthly to Premium plan/i,
+    });
+    await waitFor(() => expect(subscribeButton).toBeEnabled());
+    fireEvent.click(subscribeButton);
+
+    expect(await screen.findByText(/linked to another GolfIQ account/i)).toHaveClass('text-red');
+    expect(mockedWaitForServerPremiumEntitlement).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
   it('reports when restore finds no active App Store Premium entitlement', async () => {
     mockedGetBillingPlatform.mockReturnValue('ios_iap');
     mockedIsNativeApp.mockReturnValue(true);

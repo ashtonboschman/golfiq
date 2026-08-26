@@ -289,19 +289,26 @@ function PricingContent() {
         router.push('/settings');
       } catch (error) {
         const userCancelled = isNativePurchaseCancelled(error);
+        const receiptAlreadyInUse = isNativeReceiptAlreadyInUse(error);
         if (!userCancelled) {
           console.error('[revenuecat] Native purchase failed:', error);
         }
         setMessage({
           text: userCancelled
             ? 'Purchase cancelled. No charge was made.'
-            : 'We could not complete the App Store purchase. Please try again.',
+            : receiptAlreadyInUse
+              ? 'This subscription is linked to another GolfIQ account. Sign in to that account to manage Premium.'
+              : 'We could not complete the App Store purchase. Please try again.',
           type: 'error',
         });
         captureClientEvent(
           ANALYTICS_EVENTS.checkoutFailed,
           {
-            failure_stage: userCancelled ? 'user_cancelled' : 'native_purchase',
+            failure_stage: userCancelled
+              ? 'user_cancelled'
+              : receiptAlreadyInUse
+                ? 'receipt_already_in_use'
+                : 'native_purchase',
             plan,
             source_page: pathname,
             billing_platform: billingPlatform,
