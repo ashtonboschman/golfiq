@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   GpsMappedHoleDraft,
   GpsMappingEditField,
@@ -167,6 +167,15 @@ function target2Point(hole: GpsMappedHoleDraft): LatLng | null {
     : { lat: hole.target2Lat, lng: hole.target2Lng };
 }
 
+function routePathForHole(mappedHole: GpsMappedHoleDraft) {
+  return [
+    pointForField(mappedHole, 'tee'),
+    pointForField(mappedHole, 'target1'),
+    pointForField(mappedHole, 'target2'),
+    pointForField(mappedHole, 'greenCenter'),
+  ].filter((point): point is LatLng => point != null);
+}
+
 function derivedCameraForHole(hole: GpsMappedHoleDraft, viewportWidth: number, viewportHeight: number) {
   return deriveAnchoredGpsCamera(
     {
@@ -265,27 +274,30 @@ export default function AdminGpsMappingMap({
     onPointChangeRef.current = onPointChange;
   }, [onPointChange]);
 
-  function addListener(listener: google.maps.MapsEventListener) {
+  const addListener = useCallback((listener: google.maps.MapsEventListener) => {
     listenerRefs.current.push(listener);
-  }
+  }, []);
 
-  function updatePointFromMarker(field: GpsMappingEditField, marker: google.maps.Marker) {
+  const updatePointFromMarker = useCallback((
+    field: GpsMappingEditField,
+    marker: google.maps.Marker,
+  ) => {
     const position = marker.getPosition();
     if (!position) return;
     onPointChangeRef.current(field, fromGooglePosition(position));
-  }
+  }, []);
 
-  function removeExtraDistanceLabels(count: number) {
+  const removeExtraDistanceLabels = useCallback((count: number) => {
     distanceLabelRefs.current.slice(count).forEach((marker) => marker.setMap(null));
-    distanceLabelRefs.current = distanceLabelRefs.current.slice(0, count);
-  }
+    distanceLabelRefs.current.splice(count);
+  }, []);
 
-  function removeExtraRoutePolylines(count: number) {
+  const removeExtraRoutePolylines = useCallback((count: number) => {
     routePolylineRefs.current.slice(count).forEach((polyline) => polyline.setMap(null));
-    routePolylineRefs.current = routePolylineRefs.current.slice(0, count);
-  }
+    routePolylineRefs.current.splice(count);
+  }, []);
 
-  function routeLineOptions(): google.maps.PolylineOptions {
+  const routeLineOptions = useCallback((): google.maps.PolylineOptions => {
     return {
       clickable: false,
       geodesic: false,
@@ -295,26 +307,17 @@ export default function AdminGpsMappingMap({
       visible: routeLinesVisibleRef.current,
       zIndex: 34,
     };
-  }
+  }, []);
 
-  function setRoutePolylinesVisible(visible: boolean) {
+  const setRoutePolylinesVisible = useCallback((visible: boolean) => {
     routeLinesVisibleRef.current = visible;
     routePolylineRefs.current.forEach((polyline) => {
       polyline.setVisible(visible);
       polyline.setOptions(routeLineOptions());
     });
-  }
+  }, [routeLineOptions]);
 
-  function routePathForHole(mappedHole: GpsMappedHoleDraft) {
-    return [
-      pointForField(mappedHole, 'tee'),
-      pointForField(mappedHole, 'target1'),
-      pointForField(mappedHole, 'target2'),
-      pointForField(mappedHole, 'greenCenter'),
-    ].filter((point): point is LatLng => point != null);
-  }
-
-  function updateRouteDistanceLabels(path: LatLng[]) {
+  const updateRouteDistanceLabels = useCallback((path: LatLng[]) => {
     const map = mapRef.current;
     if (!map || path.length < 2) {
       removeExtraDistanceLabels(0);
@@ -345,9 +348,9 @@ export default function AdminGpsMappingMap({
         fontWeight: '700',
       });
     });
-  }
+  }, [removeExtraDistanceLabels]);
 
-  function updateRoutePolylines(path: LatLng[]) {
+  const updateRoutePolylines = useCallback((path: LatLng[]) => {
     const map = mapRef.current;
     if (!map || path.length < 2) {
       removeExtraRoutePolylines(0);
@@ -373,15 +376,15 @@ export default function AdminGpsMappingMap({
         toGoogleLatLngLiteral(point),
       ]);
     });
-  }
+  }, [removeExtraRoutePolylines, routeLineOptions]);
 
-  function updateDistanceOverlays(mappedHole = holeRef.current) {
+  const updateDistanceOverlays = useCallback((mappedHole = holeRef.current) => {
     const path = routePathForHole(mappedHole);
     updateRoutePolylines(path);
     updateRouteDistanceLabels(path);
-  }
+  }, [updateRouteDistanceLabels, updateRoutePolylines]);
 
-  function updateCourseBoundsOverlay() {
+  const updateCourseBoundsOverlay = useCallback(() => {
     const map = mapRef.current;
     if (!map || !showCourseBounds || !courseBounds) {
       courseBoundsRectangleRef.current?.setMap(null);
@@ -409,9 +412,9 @@ export default function AdminGpsMappingMap({
 
     courseBoundsRectangleRef.current.setOptions({ bounds });
     courseBoundsRectangleRef.current.setMap(map);
-  }
+  }, [courseBounds, showCourseBounds]);
 
-  function ensureMarker(field: MarkerField, map: google.maps.Map) {
+  const ensureMarker = useCallback((field: MarkerField, map: google.maps.Map) => {
     const existing = markerRefs.current.get(field);
     if (existing) return existing;
 
@@ -428,15 +431,15 @@ export default function AdminGpsMappingMap({
     addListener(marker.addListener('dragend', () => updatePointFromMarker(field, marker)));
     markerRefs.current.set(field, marker);
     return marker;
-  }
+  }, [addListener, updatePointFromMarker]);
 
-  function updateMarkers() {
+  const updateMarkers = useCallback((mappedHole = holeRef.current) => {
     const map = mapRef.current;
     if (!map) return;
-    holeRef.current = hole;
+    holeRef.current = mappedHole;
 
     (Object.keys(FIELD_LABELS) as MarkerField[]).forEach((field) => {
-      const point = pointForField(hole, field);
+      const point = pointForField(mappedHole, field);
       const marker = markerRefs.current.get(field) ?? (point ? ensureMarker(field, map) : null);
       if (!marker) return;
 
@@ -445,10 +448,10 @@ export default function AdminGpsMappingMap({
       marker.setMap(point ? map : null);
     });
 
-    updateDistanceOverlays(hole);
-  }
+    updateDistanceOverlays(mappedHole);
+  }, [ensureMarker, updateDistanceOverlays]);
 
-  function applyDerivedCamera(mappedHole = holeRef.current) {
+  const applyDerivedCamera = useCallback((mappedHole = holeRef.current) => {
     const map = mapRef.current;
     const mapElement = containerRef.current;
     if (!map || !mapElement) return;
@@ -525,12 +528,16 @@ export default function AdminGpsMappingMap({
 
       }, 0);
     }, 0);
-  }
+  }, [setRoutePolylinesVisible, updateDistanceOverlays]);
 
   useEffect(() => {
     if (!apiKey || !containerRef.current || mapRef.current) return;
 
     let disposed = false;
+    const listeners = listenerRefs.current;
+    const markers = markerRefs.current;
+    const routePolylines = routePolylineRefs.current;
+    const distanceLabels = distanceLabelRefs.current;
 
     loadGoogleMaps(apiKey)
       .then(() => {
@@ -587,45 +594,41 @@ export default function AdminGpsMappingMap({
 
     return () => {
       disposed = true;
-      listenerRefs.current.forEach((listener) => listener.remove());
-      listenerRefs.current = [];
-      markerRefs.current.forEach((marker) => marker.setMap(null));
-      markerRefs.current.clear();
-      routePolylineRefs.current.forEach((polyline) => polyline.setMap(null));
-      routePolylineRefs.current = [];
-      distanceLabelRefs.current.forEach((marker) => marker.setMap(null));
-      distanceLabelRefs.current = [];
+      listeners.splice(0).forEach((listener) => listener.remove());
+      markers.forEach((marker) => marker.setMap(null));
+      markers.clear();
+      routePolylines.splice(0).forEach((polyline) => polyline.setMap(null));
+      distanceLabels.splice(0).forEach((marker) => marker.setMap(null));
       courseBoundsRectangleRef.current?.setMap(null);
       courseBoundsRectangleRef.current = null;
       mapRef.current = null;
       setMapReady(false);
     };
-  }, [apiKey, loadAttempt]);
+  }, [apiKey, loadAttempt, addListener, setRoutePolylinesVisible, updateDistanceOverlays]);
 
   useEffect(() => {
     if (!mapReady) return;
     holeRef.current = hole;
-    updateMarkers();
-  }, [hole, mapReady]);
+    updateMarkers(hole);
+  }, [hole, mapReady, updateMarkers]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    holeRef.current = hole;
-    updateMarkers();
-    applyDerivedCamera(hole);
+    const mappedHole = holeRef.current;
+    updateMarkers(mappedHole);
+    applyDerivedCamera(mappedHole);
     window.setTimeout(() => {
-      holeRef.current = hole;
-      updateMarkers();
-      updateDistanceOverlays(hole);
+      updateMarkers(mappedHole);
+      updateDistanceOverlays(mappedHole);
     }, 0);
-  }, [hole.holeNumber, mapReady]);
+  }, [hole.holeNumber, mapReady, applyDerivedCamera, updateDistanceOverlays, updateMarkers]);
 
   useEffect(() => {
     if (!mapReady) return;
     updateCourseBoundsOverlay();
-  }, [courseBounds, showCourseBounds, mapReady]);
+  }, [mapReady, updateCourseBoundsOverlay]);
 
   if (!apiKey) {
     return (
