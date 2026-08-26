@@ -9034,6 +9034,21 @@ input[type='date'].form-input {
 .oauth-provider-content { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
 .login-secondary-link-wrap { text-align: center; margin-top: var(--gap-small); margin-bottom: var(--gap-small); }
 .login-secondary-link { color: var(--color-secondary-text); font-size: 14px; text-decoration: none; }
+.login-signup-disclosure {
+  margin: 0;
+  color: var(--color-secondary-text);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-align: center;
+}
+.login-signup-disclosure a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.login-signup-disclosure a:hover {
+  color: var(--color-accent-hover);
+}
 .empty-state-center { text-align: center; }
 .hole-header-static { cursor: default; }
 .hole-header-clickable { cursor: pointer; }

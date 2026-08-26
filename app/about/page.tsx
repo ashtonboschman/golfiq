@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'About Us | GolfIQ',
+  title: 'About GolfIQ',
   description: 'Learn how GolfIQ helps golfers track rounds, understand scores, and spot performance trends over time.',
   alternates: { canonical: '/about' },
 };

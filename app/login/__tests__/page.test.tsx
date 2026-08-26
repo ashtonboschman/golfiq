@@ -104,6 +104,8 @@ describe('/login page mode + next handling', () => {
     expect(screen.getByRole('button', { name: 'Create Account' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /Sign up with Google/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms');
+    expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
   });
 
   it('uses native social authentication in the iOS shell', async () => {
@@ -194,6 +196,8 @@ describe('/login page mode + next handling', () => {
     expect(screen.queryByPlaceholderText('First Name')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create Free Account' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Terms of Service' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Privacy Policy' })).not.toBeInTheDocument();
   });
 
   it('redirects authenticated users to safe internal next path', async () => {

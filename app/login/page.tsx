@@ -538,6 +538,14 @@ function LoginContent() {
           </div>
         )}
 
+        {isRegister && (
+          <p className="login-signup-disclosure">
+            By creating an account, you agree to the{' '}
+            <Link href="/terms">Terms of Service</Link> and acknowledge the{' '}
+            <Link href="/privacy">Privacy Policy</Link>.
+          </p>
+        )}
+
         {!isRegister && (
           <div className="login-secondary-link-wrap">
             <Link href="/forgot-password" className="login-secondary-link">

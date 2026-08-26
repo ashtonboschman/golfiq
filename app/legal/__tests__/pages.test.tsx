@@ -25,7 +25,9 @@ describe('legal and support pages', () => {
     expect(
       screen.getByRole('heading', { name: /golfiq privacy policy/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/location data/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /location information/i }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText(/posthog/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/account deletion/i)).toBeInTheDocument();
   });
@@ -36,9 +38,16 @@ describe('legal and support pages', () => {
     expect(
       screen.getByRole('heading', { name: /golfiq terms of service/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/subscriptions and billing/i)).toBeInTheDocument();
-    expect(screen.getByText(/RevenueCat and its payment partners/i)).toBeInTheDocument();
-    expect(screen.getByText(/does not guarantee lower scores/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /app store subscriptions/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /web subscriptions/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/RevenueCat, Stripe, and their payment partners/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/do not guarantee lower scores/i)).toBeInTheDocument();
   });
 
   it('renders support page with settings-aware policy links', async () => {
