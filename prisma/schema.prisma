@@ -15,6 +15,7 @@ model User {
   emailVerified                 Boolean                  @default(false) @map("email_verified")
   createdAt                     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                     DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessionsValidAfter           DateTime?                @map("sessions_valid_after") @db.Timestamptz(6)
   subscriptionProvider          SubscriptionProvider?    @map("subscription_provider")
   stripeCustomerId              String?                  @map("stripe_customer_id") @db.VarChar(255)
   stripeSubscriptionId          String?                  @map("stripe_subscription_id") @db.VarChar(255)

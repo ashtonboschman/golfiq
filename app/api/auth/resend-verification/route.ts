@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
 import { sendEmail, generateEmailVerificationEmail, EMAIL_FROM } from '@/lib/email';
 import crypto from 'crypto';
+import { getServerAppUrl } from '@/lib/server/appUrl';
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Send verification email
-    const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${getServerAppUrl()}/verify-email?token=${verificationToken}`;
     const { subject, html, text } = generateEmailVerificationEmail(
       verifyUrl,
       user.profile?.firstName || undefined
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!emailSent) {
-      console.error('Failed to send verification email to:', user.email);
+      console.error('Failed to send verification email.');
       return NextResponse.json(
         { type: 'error', message: 'Failed to send verification email. Please try again later.' },
         { status: 500 }

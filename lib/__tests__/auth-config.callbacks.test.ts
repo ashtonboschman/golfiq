@@ -74,6 +74,42 @@ describe('authOptions callbacks', () => {
     expect(user.subscription_tier).toBe('lifetime');
   });
 
+  it('revokes a JWT issued before sessionsValidAfter', async () => {
+    const jwt = authOptions.callbacks?.jwt;
+    expect(jwt).toBeDefined();
+    jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce({
+      active: true,
+      sessionsValidAfter: new Date(2_000),
+    } as any);
+
+    const token = await jwt!({
+      token: {
+        id: '42',
+        email: 'golfer@example.com',
+        session_issued_at: 1_000,
+      },
+    } as any);
+
+    expect(token.session_revoked).toBe(true);
+    expect(token.id).toBeUndefined();
+    expect(token.email).toBeUndefined();
+  });
+
+  it('returns no session for a revoked JWT', async () => {
+    const sessionCallback = authOptions.callbacks?.session;
+    expect(sessionCallback).toBeDefined();
+
+    const result = await sessionCallback!({
+      session: {
+        user: { name: null, email: null, image: null },
+        expires: new Date(Date.now() + 60_000).toISOString(),
+      },
+      token: { session_revoked: true },
+    } as any);
+
+    expect(result).toBeNull();
+  });
+
   it.each(['google', 'apple'] as const)('links %s sign-in to an existing same-email account', async (provider) => {
     const signIn = authOptions.callbacks?.signIn;
     expect(signIn).toBeDefined();

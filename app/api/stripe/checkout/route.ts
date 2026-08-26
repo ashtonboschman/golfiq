@@ -7,6 +7,7 @@ import { getSubscriptionProvider, hasPremiumEntitlement } from '@/lib/subscripti
 import { createCheckoutSession, createStripeCustomer } from '@/lib/stripe';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { getServerAppUrl } from '@/lib/server/appUrl';
 
 /**
  * POST /api/stripe/checkout
@@ -187,7 +188,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create checkout session
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = getServerAppUrl();
 
     const checkoutSession = await createCheckoutSession({
       customerId: stripeCustomerId,

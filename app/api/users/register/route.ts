@@ -13,6 +13,7 @@ import {
 import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import { getServerAppUrl } from '@/lib/server/appUrl';
 
 const registerSchema = z.object({
   email: z.string().trim().email('Please enter a valid email address').toLowerCase(),
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Send verification email
-    const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${getServerAppUrl()}/verify-email?token=${verificationToken}`;
     const { subject, html, text } = generateEmailVerificationEmail(verifyUrl, user.profile?.firstName || undefined);
 
     const emailSent = await sendEmail({
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!emailSent) {
-      console.error('Failed to send verification email to:', user.email);
+      console.error('Failed to send verification email.');
     }
 
     const internalSignupEmail = generateNewSignupInternalNotificationEmail({
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest) {
       from: EMAIL_FROM.UPDATES,
     });
     if (internalNotificationSent === false) {
-      console.error('Failed to send internal signup notification for:', user.email);
+      console.error('Failed to send internal signup notification.');
     }
 
     await captureServerEvent({

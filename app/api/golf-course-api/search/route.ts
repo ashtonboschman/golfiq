@@ -90,12 +90,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
       console.error('Golf Course API error:', {
         status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-        headers: Object.fromEntries(response.headers.entries()),
+        errorCode: `upstream_${response.status}`,
       });
 
       await safeLogApiUsage({

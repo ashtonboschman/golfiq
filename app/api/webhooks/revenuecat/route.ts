@@ -141,11 +141,7 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     const duplicate = await persistIgnoredEvent(event, appUserId, 'user_not_found');
-    console.warn('[revenuecat webhook] Ignored event for unknown user', {
-      eventId: event.id,
-      eventType,
-      appUserId,
-    });
+    console.warn('[revenuecat webhook] Ignored event for unknown user', { eventType });
     return NextResponse.json({ received: true, ignored: true, duplicate });
   }
 

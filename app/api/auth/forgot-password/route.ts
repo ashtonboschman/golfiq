@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { sendEmail, generatePasswordResetEmail, EMAIL_FROM } from '@/lib/email';
 import crypto from 'crypto';
+import { hashPasswordResetToken } from '@/lib/auth/passwordReset';
+import { getServerAppUrl } from '@/lib/server/appUrl';
+import { reportServerError } from '@/lib/monitoring/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,6 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Generate secure random token
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashPasswordResetToken(token);
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
     // Delete any existing unused tokens for this email
@@ -62,13 +66,13 @@ export async function POST(request: NextRequest) {
     await prisma.passwordResetToken.create({
       data: {
         email: user.email,
-        token,
+        token: tokenHash,
         expiresAt,
       },
     });
 
     // Generate reset URL
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+    const resetUrl = `${getServerAppUrl()}/reset-password?token=${token}`;
 
     // Send email
     const { subject, html, text } = generatePasswordResetEmail(resetUrl);
@@ -81,7 +85,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!emailSent) {
-      console.error('Failed to send password reset email to:', user.email);
+      console.error('Failed to send password reset email.');
       // Still return success to prevent email enumeration
     }
 
@@ -90,7 +94,14 @@ export async function POST(request: NextRequest) {
       message: 'If an account with that email exists, a password reset link has been sent.',
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    await reportServerError(error, {
+      request,
+      area: 'authentication',
+      operation: 'forgot_password',
+      route: '/api/auth/forgot-password',
+      statusCode: 500,
+      recoverable: true,
+    });
     return NextResponse.json(
       { type: 'error', message: 'An error occurred. Please try again.' },
       { status: 500 }

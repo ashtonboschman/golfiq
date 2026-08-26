@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { prisma } from '@/lib/db';
 import { createBillingPortalSession } from '@/lib/stripe';
+import { getServerAppUrl } from '@/lib/server/appUrl';
 
 /**
  * POST /api/stripe/portal
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create billing portal session
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = getServerAppUrl();
 
     const portalSession = await createBillingPortalSession({
       customerId: user.stripeCustomerId,

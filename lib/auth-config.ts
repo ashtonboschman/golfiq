@@ -32,6 +32,53 @@ function valueAsString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length ? value.trim() : null;
 }
 
+async function isJwtSessionRevoked(token: {
+  id?: unknown;
+  iat?: number;
+  session_issued_at?: number;
+}): Promise<boolean> {
+  const userId = valueAsString(token.id);
+  if (!userId) return true;
+
+  let parsedUserId: bigint;
+  try {
+    parsedUserId = BigInt(userId);
+  } catch {
+    return true;
+  }
+
+  try {
+    const userState = await prisma.user.findUnique({
+      where: { id: parsedUserId },
+      select: {
+        active: true,
+        sessionsValidAfter: true,
+      },
+    });
+
+    if (!userState?.active) return true;
+    if (!userState.sessionsValidAfter) return false;
+
+    const issuedAt =
+      typeof token.session_issued_at === 'number'
+        ? token.session_issued_at
+        : typeof token.iat === 'number'
+          ? token.iat * 1_000
+          : null;
+
+    return issuedAt == null || issuedAt < userState.sessionsValidAfter.getTime();
+  } catch (error) {
+    await reportServerError(error, {
+      area: 'authentication',
+      operation: 'validate_session_revocation',
+      route: '/api/auth/session',
+      recoverable: true,
+    });
+    // A transient database or monitoring failure must not revoke a valid session.
+    return false;
+  }
+}
+
 function parseNameParts(name: string | null | undefined): { firstName: string | null; lastName: string | null } {
   const safe = valueAsString(name);
   if (!safe) return { firstName: null, lastName: null };
@@ -741,6 +788,8 @@ export const authOptions: NextAuthOptions = {
         token.timezone = (user as any).timezone ?? null;
         token.subscription_tier = (user as any).subscription_tier ?? 'free';
         token.subscription_status = (user as any).subscription_status ?? 'active';
+        token.session_issued_at = Date.now();
+        token.session_revoked = false;
         const provider = account?.provider;
         token.auth_provider =
           provider === 'credentials'
@@ -750,10 +799,19 @@ export const authOptions: NextAuthOptions = {
             : (provider as string | undefined) ??
               ((user as any).auth_provider as string | undefined) ??
               'unknown';
+      } else if (await isJwtSessionRevoked(token)) {
+        token.session_revoked = true;
+        delete token.id;
+        delete token.email;
+        delete token.name;
       }
       return token;
     },
     async session({ session, token }) {
+      if (token.session_revoked || !token.id) {
+        return null as unknown as typeof session;
+      }
+
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;

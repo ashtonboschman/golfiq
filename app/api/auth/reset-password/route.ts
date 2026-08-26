@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { hashPasswordResetToken } from '@/lib/auth/passwordReset';
+import { reportServerError } from '@/lib/monitoring/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Find the token
     const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { token },
+      where: { token: hashPasswordResetToken(token) },
     });
 
     if (!resetToken) {
@@ -102,24 +104,52 @@ export async function POST(request: NextRequest) {
     // Hash the new password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Update user's password and mark token as used
-    await prisma.$transaction([
-      prisma.user.update({
+    // Claim the token and rotate the password in one transaction so concurrent
+    // reset attempts cannot both succeed. Moving sessionsValidAfter revokes all
+    // JWT sessions that were issued before this reset.
+    const resetAt = new Date();
+    const resetApplied = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: {
+          id: resetToken.id,
+          usedAt: null,
+          expiresAt: { gt: resetAt },
+        },
+        data: { usedAt: resetAt },
+      });
+
+      if (claimed.count !== 1) return false;
+
+      await tx.user.update({
         where: { id: user.id },
-        data: { passwordHash },
-      }),
-      prisma.passwordResetToken.update({
-        where: { id: resetToken.id },
-        data: { usedAt: new Date() },
-      }),
-    ]);
+        data: {
+          passwordHash,
+          sessionsValidAfter: resetAt,
+        },
+      });
+      return true;
+    });
+
+    if (!resetApplied) {
+      return NextResponse.json(
+        { type: 'error', message: 'Invalid or expired reset token.' },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({
       type: 'success',
       message: 'Your password has been reset successfully. You can now log in with your new password.',
     });
   } catch (error) {
-    console.error('Reset password error:', error);
+    await reportServerError(error, {
+      request,
+      area: 'authentication',
+      operation: 'reset_password',
+      route: '/api/auth/reset-password',
+      statusCode: 500,
+      recoverable: true,
+    });
     return NextResponse.json(
       { type: 'error', message: 'An error occurred. Please try again.' },
       { status: 500 }

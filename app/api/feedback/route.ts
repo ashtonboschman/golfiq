@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
         from: EMAIL_FROM.UPDATES,
       });
       if (internalNotificationSent === false) {
-        console.error('Failed to send internal feedback notification for user:', userId.toString());
+        console.error('Failed to send internal feedback notification.');
       }
     }
 

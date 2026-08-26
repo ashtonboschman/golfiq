@@ -3,6 +3,7 @@
  */
 
 import { Resend } from 'resend';
+import { normalizeMonitoringError } from '@/lib/monitoring/shared';
 
 interface SendEmailOptions {
   to: string | string[];
@@ -39,16 +40,11 @@ function getAdminNotificationRecipient(): string | null {
 
 export async function sendEmail({ to, subject, html, text, from }: SendEmailOptions): Promise<boolean> {
   if (process.env.NODE_ENV === 'development') {
-    console.log('\n========== EMAIL ===========');
-    console.log('To:', to);
-    console.log('From:', from || EMAIL_FROM.NOREPLY);
-    console.log('Subject:', subject);
-    console.log('Sending via Resend...');
-    console.log('============================\n');
+    console.log('Sending email via Resend.');
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: from || EMAIL_FROM.NOREPLY,
       to,
       subject,
@@ -57,17 +53,17 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailOpti
     });
 
     if (error) {
-      console.error('Resend error:', error);
+      console.error('Resend request failed:', normalizeMonitoringError(error).message);
       return false;
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('Email sent successfully via Resend! ID:', data?.id);
+      console.log('Email sent successfully via Resend.');
     }
 
     return true;
   } catch (error) {
-    console.error('Failed to send email:', error);
+    console.error('Failed to send email:', normalizeMonitoringError(error).message);
     return false;
   }
 }

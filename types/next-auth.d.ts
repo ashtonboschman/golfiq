@@ -58,5 +58,7 @@ declare module "next-auth/jwt" {
     subscription_status?: string;
     auth_provider?: string;
     profile?: UserProfile | null;
+    session_issued_at?: number;
+    session_revoked?: boolean;
   }
 }
