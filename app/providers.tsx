@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import ClientErrorMonitor from '@/components/monitoring/ClientErrorMonitor';
+import { sanitizeMonitoringPayload } from '@/lib/monitoring/shared';
 
 import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider } from 'posthog-js/react';
@@ -106,6 +107,23 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
       person_profiles: 'identified_only', // or 'always' to create profiles for anonymous users as well
       defaults: '2025-11-30',
+      before_send: (event) => {
+        if (
+          !event
+          || (event.event !== ANALYTICS_EVENTS.applicationError && event.event !== '$exception')
+        ) {
+          return event;
+        }
+
+        const sanitizedEvent = sanitizeMonitoringPayload(event) as typeof event;
+        return {
+          ...sanitizedEvent,
+          properties: {
+            ...sanitizedEvent.properties,
+            $geoip_disable: true,
+          },
+        };
+      },
     });
   }, []);
 

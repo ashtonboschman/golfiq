@@ -12,7 +12,7 @@ The shared monitoring contract covers `client`, `server`, `webview`, `authentica
 
 ## Privacy rules
 
-Monitoring calls must not include request or response bodies, email addresses, names, access tokens, purchase receipts, transaction IDs, course IDs, round IDs, session IDs, or coordinates. Route templates are preferred over concrete URLs. The shared sanitizer also redacts emails, bearer tokens, URL query strings, coordinates, and long numeric identifiers from exception messages and stacks before transmission.
+Monitoring calls must not include request or response bodies, email addresses, names, access tokens, purchase receipts, transaction IDs, course IDs, round IDs, session IDs, or coordinates. Route templates are preferred over concrete URLs. The shared sanitizer also redacts emails, bearer tokens, URL query strings, coordinates, and long numeric identifiers from exception messages and stacks before transmission. PostHog GeoIP enrichment is disabled for monitoring events while remaining unchanged for normal product analytics.
 
 ## One-time PostHog alert setup
 

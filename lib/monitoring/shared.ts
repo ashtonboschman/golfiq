@@ -26,8 +26,34 @@ const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi;
 const URL_QUERY_PATTERN = /(https?:\/\/[^\s?#]+)[?#][^\s]*/gi;
 const NAMED_COORDINATE_PATTERN = /\b(lat(?:itude)?|lng|lon(?:gitude)?)\s*[:=]\s*-?\d{1,3}(?:\.\d+)?/gi;
-const COORDINATE_PAIR_PATTERN = /\b-?\d{1,3}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}\b/g;
+const COORDINATE_PAIR_PATTERN = /(?<![\d.])-?\d{1,3}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}\b/g;
 const LONG_IDENTIFIER_PATTERN = /\b\d{16,}\b/g;
+
+const SENSITIVE_MONITORING_PROPERTY_KEYS = new Set([
+  'access_token',
+  'authorization',
+  'city',
+  'email',
+  'first_name',
+  'last_name',
+  'lat',
+  'latitude',
+  'lng',
+  'lon',
+  'longitude',
+  'phone',
+  'purchase_receipt',
+  'receipt',
+  'refresh_token',
+  'token',
+  'timezone',
+  'user_city',
+  'user_email',
+  'user_first_name',
+  'user_last_name',
+  'user_phone',
+  'user_timezone',
+]);
 
 export function sanitizeMonitoringText(value: string, maxLength = 4_000): string {
   return value
@@ -53,6 +79,18 @@ export function normalizeMonitoringError(error: unknown): Error {
   }
 
   return new Error('Unknown error');
+}
+
+export function sanitizeMonitoringPayload(value: unknown): unknown {
+  if (typeof value === 'string') return sanitizeMonitoringText(value);
+  if (Array.isArray(value)) return value.map(sanitizeMonitoringPayload);
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !SENSITIVE_MONITORING_PROPERTY_KEYS.has(key.toLowerCase()))
+      .map(([key, nestedValue]) => [key, sanitizeMonitoringPayload(nestedValue)]),
+  );
 }
 
 export function buildMonitoringProperties(context: MonitoringContext) {
