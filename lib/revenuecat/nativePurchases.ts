@@ -122,6 +122,12 @@ export function isNativePurchaseCancelled(error: unknown): boolean {
   );
 }
 
+export function isNativeReceiptAlreadyInUse(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const purchaseError = error as Partial<PurchasesError>;
+  return purchaseError.code === PURCHASES_ERROR_CODE.RECEIPT_ALREADY_IN_USE_ERROR;
+}
+
 async function configureForUser(appUserId: string): Promise<void> {
   if (!isNativePurchasesAvailable()) {
     throw new Error('App Store purchases are only available in the GolfIQ iOS app.');

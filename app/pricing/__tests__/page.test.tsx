@@ -10,6 +10,7 @@ import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
 import { redirectToUrl } from '@/lib/browser/redirect';
 import {
   getNativePremiumOffering,
+  isNativeReceiptAlreadyInUse,
   purchaseNativePremiumPlan,
   restoreNativePremiumPurchases,
 } from '@/lib/revenuecat/nativePurchases';
@@ -57,6 +58,7 @@ jest.mock('@/lib/browser/redirect', () => ({
 jest.mock('@/lib/revenuecat/nativePurchases', () => ({
   getNativePremiumOffering: jest.fn(),
   isNativePurchaseCancelled: jest.fn().mockReturnValue(false),
+  isNativeReceiptAlreadyInUse: jest.fn().mockReturnValue(false),
   purchaseNativePremiumPlan: jest.fn(),
   restoreNativePremiumPurchases: jest.fn(),
 }));
@@ -74,6 +76,7 @@ const mockedIsNativeApp = isNativeApp as jest.Mock;
 const mockedIsNativeIOS = isNativeIOS as jest.Mock;
 const mockedRedirectToUrl = redirectToUrl as jest.Mock;
 const mockedGetNativePremiumOffering = getNativePremiumOffering as jest.Mock;
+const mockedIsNativeReceiptAlreadyInUse = isNativeReceiptAlreadyInUse as jest.Mock;
 const mockedPurchaseNativePremiumPlan = purchaseNativePremiumPlan as jest.Mock;
 const mockedRestoreNativePremiumPurchases = restoreNativePremiumPurchases as jest.Mock;
 const mockedReconcileRevenueCatRestore = reconcileRevenueCatRestore as jest.Mock;
@@ -125,6 +128,7 @@ describe('/pricing page', () => {
     mockedIsNativeIOS.mockReturnValue(false);
     mockedRedirectToUrl.mockReset();
     mockedGetNativePremiumOffering.mockResolvedValue(nativeOffering);
+    mockedIsNativeReceiptAlreadyInUse.mockReturnValue(false);
     mockedPurchaseNativePremiumPlan.mockResolvedValue({ hasPremium: true, customerInfo: {} });
     mockedRestoreNativePremiumPurchases.mockResolvedValue({ hasPremium: true, customerInfo: {} });
     mockedReconcileRevenueCatRestore.mockResolvedValue(true);
@@ -349,6 +353,40 @@ describe('/pricing page', () => {
     expect(await screen.findByText(/No active Premium subscription was found/i)).toHaveClass('text-red');
     expect(mockedReconcileRevenueCatRestore).not.toHaveBeenCalled();
     expect(mockedWaitForServerPremiumEntitlement).not.toHaveBeenCalled();
+  });
+
+  it('explains when an active receipt belongs to another GolfIQ account', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+    const receiptError = { code: '7' };
+    mockedRestoreNativePremiumPurchases.mockRejectedValue(receiptError);
+    mockedIsNativeReceiptAlreadyInUse.mockImplementation(
+      (error: unknown) => error === receiptError,
+    );
+
+    render(<PricingPage />);
+    const restoreButton = await screen.findByRole('button', { name: 'Restore Purchases' });
+    await waitFor(() => expect(restoreButton).toBeEnabled());
+    fireEvent.click(restoreButton);
+
+    expect(await screen.findByText(/linked to another GolfIQ account/i)).toHaveClass('text-red');
+    expect(mockedReconcileRevenueCatRestore).not.toHaveBeenCalled();
+  });
+
+  it('keeps the generic restore message for unrelated App Store errors', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+    mockedRestoreNativePremiumPurchases.mockRejectedValue(new Error('network'));
+
+    render(<PricingPage />);
+    const restoreButton = await screen.findByRole('button', { name: 'Restore Purchases' });
+    await waitFor(() => expect(restoreButton).toBeEnabled());
+    fireEvent.click(restoreButton);
+
+    expect(await screen.findByText(/could not restore App Store purchases/i)).toHaveClass('text-red');
+    expect(screen.queryByText(/linked to another GolfIQ account/i)).not.toBeInTheDocument();
   });
 
   it('reconciles an active restored purchase before redirecting', async () => {

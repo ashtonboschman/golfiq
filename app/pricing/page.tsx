@@ -14,6 +14,7 @@ import { redirectToUrl } from '@/lib/browser/redirect';
 import {
   getNativePremiumOffering,
   isNativePurchaseCancelled,
+  isNativeReceiptAlreadyInUse,
   purchaseNativePremiumPlan,
   restoreNativePremiumPurchases,
   type NativePremiumOffering,
@@ -361,7 +362,12 @@ function PricingContent() {
       router.push('/settings');
     } catch (error) {
       console.error('[revenuecat] Restore purchases failed:', error);
-      setMessage({ text: 'We could not restore App Store purchases. Please try again.', type: 'error' });
+      setMessage({
+        text: isNativeReceiptAlreadyInUse(error)
+          ? 'This subscription is linked to another GolfIQ account. Sign in to that account to restore Premium.'
+          : 'We could not restore App Store purchases. Please try again.',
+        type: 'error',
+      });
     } finally {
       setRestoringPurchases(false);
     }

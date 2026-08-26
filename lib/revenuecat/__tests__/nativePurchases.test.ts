@@ -7,6 +7,7 @@ import {
   configureNativePurchases,
   getNativePremiumOffering,
   isNativePurchaseCancelled,
+  isNativeReceiptAlreadyInUse,
   isNativePurchasesAvailable,
   purchaseNativePremiumPlan,
   restoreNativePremiumPurchases,
@@ -20,7 +21,10 @@ jest.mock('@capacitor/core', () => ({
 
 jest.mock('@revenuecat/purchases-capacitor', () => ({
   LOG_LEVEL: { DEBUG: 'DEBUG' },
-  PURCHASES_ERROR_CODE: { PURCHASE_CANCELLED_ERROR: '1' },
+  PURCHASES_ERROR_CODE: {
+    PURCHASE_CANCELLED_ERROR: '1',
+    RECEIPT_ALREADY_IN_USE_ERROR: '7',
+  },
   Purchases: {
     configure: jest.fn(),
     getAppUserID: jest.fn(),
@@ -236,6 +240,13 @@ describe('native RevenueCat purchases bridge', () => {
     })).toBe(true);
     expect(isNativePurchaseCancelled({ userCancelled: true })).toBe(true);
     expect(isNativePurchaseCancelled(new Error('network'))).toBe(false);
+  });
+
+  it('recognizes a receipt owned by another RevenueCat user', () => {
+    expect(isNativeReceiptAlreadyInUse({
+      code: PURCHASES_ERROR_CODE.RECEIPT_ALREADY_IN_USE_ERROR,
+    })).toBe(true);
+    expect(isNativeReceiptAlreadyInUse(new Error('network'))).toBe(false);
   });
 
   it('rejects missing SDK configuration without calling the native plugin', async () => {
