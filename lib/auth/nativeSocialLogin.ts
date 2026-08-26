@@ -16,10 +16,24 @@ export type NativeSocialLoginResult = {
 let initializedGoogleClientId: string | null = null;
 
 const NATIVE_SIGN_IN_CANCELED_CODE = 'SIGN_IN_CANCELED';
+// The Google iOS plugin currently rejects through Capacitor with only its localized message,
+// while Apple preserves the structured cancellation code.
+const NATIVE_SIGN_IN_CANCELED_MESSAGES = new Set([
+  'The user canceled the sign-in flow.',
+  'The user cancelled the sign-in flow.',
+]);
 
 export function isNativeSocialLoginCanceled(error: unknown): boolean {
+  if (typeof error === 'string') {
+    return NATIVE_SIGN_IN_CANCELED_MESSAGES.has(error.trim());
+  }
   if (!error || typeof error !== 'object') return false;
-  return (error as { code?: unknown }).code === NATIVE_SIGN_IN_CANCELED_CODE;
+
+  const nativeError = error as { code?: unknown; message?: unknown };
+  if (nativeError.code === NATIVE_SIGN_IN_CANCELED_CODE) return true;
+
+  return typeof nativeError.message === 'string'
+    && NATIVE_SIGN_IN_CANCELED_MESSAGES.has(nativeError.message.trim());
 }
 
 function createNonce(): string {

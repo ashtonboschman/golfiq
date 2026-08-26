@@ -81,8 +81,10 @@ describe('native social login bridge', () => {
     });
   });
 
-  it('recognizes the shared Apple and Google cancellation code', () => {
+  it('recognizes the cancellation shapes returned by the native Apple and Google plugins', () => {
     expect(isNativeSocialLoginCanceled({ code: 'SIGN_IN_CANCELED' })).toBe(true);
+    expect(isNativeSocialLoginCanceled(new Error('The user canceled the sign-in flow.'))).toBe(true);
+    expect(isNativeSocialLoginCanceled('The user canceled the sign-in flow.')).toBe(true);
     expect(isNativeSocialLoginCanceled({ code: 'NETWORK_ERROR' })).toBe(false);
     expect(isNativeSocialLoginCanceled(new Error('Sign in failed'))).toBe(false);
   });

@@ -45,9 +45,12 @@ jest.mock('@/lib/platform', () => ({
 
 jest.mock('@/lib/auth/nativeSocialLogin', () => ({
   startNativeSocialLogin: jest.fn(),
-  isNativeSocialLoginCanceled: jest.fn(
-    (error: unknown) => (error as { code?: string } | null)?.code === 'SIGN_IN_CANCELED',
-  ),
+  isNativeSocialLoginCanceled: jest.fn((error: unknown) => {
+    if (typeof error === 'string') return error === 'The user canceled the sign-in flow.';
+    const nativeError = error as { code?: string; message?: string } | null;
+    return nativeError?.code === 'SIGN_IN_CANCELED'
+      || nativeError?.message === 'The user canceled the sign-in flow.';
+  }),
 }));
 
 const mockedSignIn = signIn as jest.Mock;
@@ -141,6 +144,22 @@ describe('/login page mode + next handling', () => {
       expect(mockedIsNativeSocialLoginCanceled).toHaveBeenCalledWith({
         code: 'SIGN_IN_CANCELED',
       });
+      expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeEnabled();
+    });
+    expect(mockedSignIn).not.toHaveBeenCalled();
+    expect(mockShowMessage).not.toHaveBeenCalled();
+  });
+
+  it('silently dismisses the message-only cancellation returned by Google on iOS', async () => {
+    mockedIsNativeIOS.mockReturnValue(true);
+    const canceledError = new Error('The user canceled the sign-in flow.');
+    mockedStartNativeSocialLogin.mockRejectedValue(canceledError);
+
+    render(<LoginPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Continue with Google/i }));
+
+    await waitFor(() => {
+      expect(mockedIsNativeSocialLoginCanceled).toHaveBeenCalledWith(canceledError);
       expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeEnabled();
     });
     expect(mockedSignIn).not.toHaveBeenCalled();
