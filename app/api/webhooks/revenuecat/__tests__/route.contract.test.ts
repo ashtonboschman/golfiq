@@ -269,19 +269,7 @@ describe('/api/webhooks/revenuecat route contract', () => {
     const response = await POST(request as any);
 
     expect(response.status).toBe(200);
-    expect(mockedPrisma.user.update).toHaveBeenCalledWith({
-      where: { id: BigInt(42) },
-      data: {
-        subscriptionTier: 'premium',
-        subscriptionStatus: 'active',
-        subscriptionProvider: 'apple',
-        subscriptionStartsAt: currentStart,
-        subscriptionEndsAt: currentEnd,
-        subscriptionCancelAtPeriodEnd: false,
-        appleOriginalTransactionId: 'orig_tx_123',
-        appleProductId: 'golfiq_premium_monthly',
-      },
-    });
+    expect(mockedPrisma.user.update).not.toHaveBeenCalled();
     expect(mockedPrisma.subscriptionEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

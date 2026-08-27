@@ -46,7 +46,7 @@ type SubscriptionSnapshot = {
 type EntitlementUpdatePlan =
   | { kind: 'ignore'; reason: string }
   | {
-      kind: 'update';
+      kind: 'record' | 'update';
       eventType: string;
       next: {
         subscriptionTier: SubscriptionTier;
@@ -167,10 +167,12 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await tx.user.update({
-        where: { id: user.id },
-        data: updatePlan.next,
-      });
+      if (updatePlan.kind === 'update') {
+        await tx.user.update({
+          where: { id: user.id },
+          data: updatePlan.next,
+        });
+      }
 
       await tx.subscriptionEvent.create({
         data: {
@@ -288,7 +290,11 @@ function buildEntitlementUpdatePlan(
   // product.
   if (eventType === 'PRODUCT_CHANGE') {
     return {
-      kind: 'update',
+      // This event announces a scheduled change; it does not establish which
+      // product is active. Recording it without updating the user also avoids
+      // a concurrent PRODUCT_CHANGE request restoring a stale snapshot after
+      // the effective RENEWAL has already activated the new product.
+      kind: 'record',
       eventType,
       next: {
         subscriptionTier: user.subscriptionTier,
