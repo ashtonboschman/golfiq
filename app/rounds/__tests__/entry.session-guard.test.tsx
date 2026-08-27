@@ -59,14 +59,17 @@ jest.mock('react-select-async-paginate', () => ({
       loadOptions,
       onChange,
       placeholder,
+      value,
     }: {
       loadOptions?: (search: string, loaded: unknown[], additional: { page: number }) => Promise<unknown>;
       onChange?: (option: unknown) => void;
       placeholder?: string;
+      value?: { value?: number } | null;
     }) => (
       <button
         type="button"
         data-testid="async-paginate"
+        data-selected-value={value?.value ?? ''}
         aria-label={placeholder || 'Select option'}
         onClick={async () => {
           if (placeholder === 'Select Course') {
@@ -120,6 +123,12 @@ describe('round entry session guard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetCurrentPosition.mockReset();
+    mockGetCurrentPosition.mockImplementation((
+      _onSuccess: PositionCallback,
+      onError?: PositionErrorCallback,
+    ) => {
+      onError?.({ code: 1, message: 'Location unavailable in this test' } as GeolocationPositionError);
+    });
     mockRequestLiveRoundGpsPermission.mockResolvedValue(null);
     mockedIsNativeIOS.mockReturnValue(false);
     localStorage.clear();
@@ -162,14 +171,12 @@ describe('round entry session guard', () => {
       status: 'authenticated',
       data: { user: { id: '42' } },
     });
+    mockGetCurrentPosition.mockImplementationOnce(() => undefined);
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       if (String(input).includes('/api/rounds/live/sessions')) {
         return new Promise<Response>(() => undefined);
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({ type: 'success', profile: null }),
-      } as Response);
+      return new Promise<Response>(() => undefined);
     }) as typeof fetch;
 
     render(<AddRoundPage />);
@@ -241,6 +248,153 @@ describe('round entry session guard', () => {
     ));
     expect(container.querySelector('canvas')).not.toBeInTheDocument();
     expect(container.querySelector('[class*="map"]')).not.toBeInTheDocument();
+  });
+
+  it('automatically selects a nearby course for an empty Live Round form', async () => {
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    mockGetCurrentPosition.mockImplementationOnce((onSuccess: PositionCallback) => {
+      onSuccess({
+        coords: { latitude: 49.8951, longitude: -97.1384 },
+      } as GeolocationPosition);
+    });
+    let resolveCourses!: (response: Response) => void;
+    const coursesResponse = new Promise<Response>((resolve) => {
+      resolveCourses = resolve;
+    });
+    let resolveGpsAvailability!: (response: Response) => void;
+    const gpsAvailabilityResponse = new Promise<Response>((resolve) => {
+      resolveGpsAvailability = resolve;
+    });
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      let body: Record<string, unknown> = { type: 'success', profile: null };
+      if (url.includes('/api/rounds/live/sessions')) body = { sessions: [] };
+      if (url.includes('/api/courses?')) return coursesResponse;
+      if (url.includes('/api/gps/live/course/11')) return gpsAvailabilityResponse;
+      return Promise.resolve({ ok: true, json: async () => body } as Response);
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/courses?search=&limit=1'),
+      expect.any(Object),
+    ));
+    expect(screen.getByRole('status', { name: 'Loading live rounds' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select Course' })).not.toBeInTheDocument();
+
+    resolveCourses({
+      ok: true,
+      json: async () => ({
+        courses: [{
+          id: 11,
+          club_name: 'GolfIQ Club',
+          course_name: 'GolfIQ Course',
+          distance: 1.25,
+          location: { city: 'Winnipeg', state: 'MB' },
+          tees: {
+            male: [{
+              id: 21,
+              tee_name: 'Blue',
+              gender: 'male',
+              total_yards: 6500,
+              number_of_holes: 18,
+              course_rating: 72,
+              slope_rating: 113,
+              par_total: 72,
+            }],
+            female: [],
+          },
+        }],
+      }),
+    } as Response);
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+      '/api/gps/live/course/11',
+      expect.objectContaining({ cache: 'no-store' }),
+    ));
+    expect(screen.getByRole('status', { name: 'Loading live rounds' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select Course' })).not.toBeInTheDocument();
+
+    resolveGpsAvailability({
+      ok: true,
+      json: async () => ({
+        availability: {
+          courseId: '11',
+          available: true,
+          coverage: 'full',
+          expectedHoleNumbers: [1],
+          availableHoleNumbers: [1],
+          unavailableHoleNumbers: [],
+          reason: 'available',
+        },
+      }),
+    } as Response);
+
+    const courseSelect = await screen.findByRole('button', { name: 'Select Course' });
+    const teeSelect = await screen.findByRole('button', { name: 'Select Tee' });
+    expect(courseSelect).toHaveAttribute('data-selected-value', '11');
+    expect(teeSelect).toHaveAttribute('data-selected-value', '21');
+    expect(screen.getByRole('checkbox', { name: 'Live GPS' })).toBeChecked();
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/courses?search=&limit=1&page=1&lat=49.8951&lng=-97.1384',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(localStorage.getItem('golfiq:round:add:draft:v1:42')).toBeNull();
+  });
+
+  it('selects the closest course even when it is more than five kilometres away', async () => {
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: { user: { id: '42' } },
+    });
+    mockGetCurrentPosition.mockImplementationOnce((onSuccess: PositionCallback) => {
+      onSuccess({
+        coords: { latitude: 49.8951, longitude: -97.1384 },
+      } as GeolocationPosition);
+    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes('/api/rounds/live/sessions')
+        ? { sessions: [] }
+        : url.includes('/api/courses?')
+          ? {
+              courses: [{
+                id: 11,
+                club_name: 'Distant Club',
+                course_name: 'Distant Course',
+                distance: 5.01,
+                tees: {
+                  male: [{
+                    id: 21,
+                    tee_name: 'Blue',
+                    gender: 'male',
+                    number_of_holes: 18,
+                    course_rating: 72,
+                    slope_rating: 113,
+                    par_total: 72,
+                  }],
+                  female: [],
+                },
+              }],
+            }
+          : { type: 'success', profile: null };
+      return { ok: true, json: async () => body } as Response;
+    }) as typeof fetch;
+
+    render(<AddRoundPage />);
+
+    const courseSelect = await screen.findByRole('button', { name: 'Select Course' });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/courses?search=&limit=1'),
+      expect.any(Object),
+    ));
+    await waitFor(() => expect(courseSelect).toHaveAttribute('data-selected-value', '11'));
+    expect(await screen.findByRole('button', { name: 'Select Tee' }))
+      .toHaveAttribute('data-selected-value', '21');
   });
 
   it('defaults GPS on after full course coverage is confirmed and allows opt-out', async () => {

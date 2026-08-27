@@ -210,6 +210,22 @@ describe('/api/courses route', () => {
     expect(queryText).toContain('ORDER BY distance ASC NULLS LAST');
   });
 
+  it('preserves a zero-distance result for location-aware course searches', async () => {
+    mockedPrisma.$queryRaw.mockResolvedValue([{ id: BigInt(101), distance: 0 }]);
+    mockedPrisma.course.findUnique.mockResolvedValue({
+      ...courseRow,
+      id: BigInt(101),
+    });
+
+    const response = await GET(new Request(
+      'http://localhost/api/courses?lat=49.8951&lng=-97.1384',
+    ) as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.courses[0].distance).toBe(0);
+  });
+
   it('returns 403 for non-admin manual course creation', async () => {
     mockedRequireAuth.mockResolvedValue(BigInt(7));
 

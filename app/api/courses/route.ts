@@ -332,7 +332,7 @@ export async function GET(request: NextRequest) {
         .filter((c: any) => c !== null)
         .map((course: any, index: any) => ({
           ...course,
-          distance: courses[index]?.distance ? Number(courses[index].distance) : undefined,
+          distance: courses[index]?.distance != null ? Number(courses[index].distance) : undefined,
         }));
 
       return successResponse({

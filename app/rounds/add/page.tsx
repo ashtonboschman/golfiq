@@ -102,6 +102,21 @@ interface CourseOption {
   value: number;
 }
 
+interface CourseSearchResult {
+  id: number;
+  club_name: string;
+  course_name: string;
+  distance?: number | null;
+  tees?: {
+    male?: any[];
+    female?: any[];
+  };
+  location?: {
+    city?: string | null;
+    state?: string | null;
+  } | null;
+}
+
 interface TeeOption {
   label: string;
   value: number;
@@ -167,6 +182,20 @@ function formatSavedTime(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Saved recently';
   return `Saved ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+function courseSearchResultToOption(course: CourseSearchResult): CourseOption {
+  const courseName = course.club_name === course.course_name
+    ? course.course_name
+    : `${course.club_name} - ${course.course_name}`;
+  const city = course.location?.city || '';
+  const state = course.location?.state || '';
+  const location = city && state ? ` (${city}, ${state})` : '';
+
+  return {
+    label: `${courseName}${location}`,
+    value: course.id,
+  };
 }
 
 type AddRoundDraft = {
@@ -240,6 +269,9 @@ function AddRoundContent() {
   const [initialized, setInitialized] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseOption | null>(null);
   const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
+  const [locationLookupComplete, setLocationLookupComplete] = useState(false);
+  const [profileLookupComplete, setProfileLookupComplete] = useState(false);
+  const [nearestCourseSetupComplete, setNearestCourseSetupComplete] = useState(false);
   const [showRoundTagPicker, setShowRoundTagPicker] = useState(false);
   const userProfileRef = useRef<({
     default_tee?: string;
@@ -265,6 +297,7 @@ function AddRoundContent() {
   const [liveGpsEnabled, setLiveGpsEnabled] = useState(false);
   const [liveGpsTestLocationEnabled, setLiveGpsTestLocationEnabled] = useState(false);
   const [liveGpsAvailability, setLiveGpsAvailability] = useState<LiveGpsAvailability | null>(null);
+  const [liveGpsAvailabilityResolvedCourseId, setLiveGpsAvailabilityResolvedCourseId] = useState<string | null>(null);
   const [loadingLiveGpsAvailability, setLoadingLiveGpsAvailability] = useState(false);
   const [gpsCourseRequest, setGpsCourseRequest] = useState<GpsCourseRequestState | null>(null);
   const [loadingGpsCourseRequest, setLoadingGpsCourseRequest] = useState(false);
@@ -277,6 +310,10 @@ function AddRoundContent() {
   const startTrackedRef = useRef(false);
   const restoredDraftRef = useRef(false);
   const draftHydrationAttemptedRef = useRef(false);
+  const nearestCourseSelectionAttemptedRef = useRef(false);
+  const nearestDefaultsPendingRef = useRef<{ courseId: number; teeId: number } | null>(null);
+  const courseSelectionProtectedRef = useRef(false);
+  const autoSelectedCourseRef = useRef(false);
   const unauthDraftWarningShownRef = useRef(false);
   const gpsAvailabilityTrackedKeyRef = useRef<string | null>(null);
   const gpsToggleViewedKeyRef = useRef<string | null>(null);
@@ -425,6 +462,7 @@ function AddRoundContent() {
       }
 
       restoredDraftRef.current = true;
+      courseSelectionProtectedRef.current = true;
       hasInteractedRef.current = true;
       setHasUserEdited(true);
       setRound((prev) => ({ ...prev, ...parsed.round }));
@@ -501,6 +539,7 @@ function AddRoundContent() {
   useEffect(() => {
     if (roundEntryMode !== 'live' || !selectedCourse) {
       setLiveGpsAvailability(null);
+      setLiveGpsAvailabilityResolvedCourseId(null);
       setLoadingLiveGpsAvailability(false);
       setLiveGpsEnabled(false);
       setLiveGpsTestLocationEnabled(false);
@@ -513,6 +552,7 @@ function AddRoundContent() {
 
     const controller = new AbortController();
     setLiveGpsAvailability(null);
+    setLiveGpsAvailabilityResolvedCourseId(null);
     setLoadingLiveGpsAvailability(true);
     setLiveGpsEnabled(false);
     setLiveGpsTestLocationEnabled(false);
@@ -575,6 +615,7 @@ function AddRoundContent() {
         }
       } finally {
         if (!controller.signal.aborted) {
+          setLiveGpsAvailabilityResolvedCourseId(String(selectedCourse.value));
           setLoadingLiveGpsAvailability(false);
         }
       }
@@ -700,6 +741,11 @@ function AddRoundContent() {
 
   const persistDraftAndResumeContext = useCallback(() => {
     if (status !== 'authenticated' || !roundAddDraftKey) return;
+
+    if (autoSelectedCourseRef.current && !hasInteractedRef.current) {
+      clearRoundDraft();
+      return;
+    }
 
     const hasProgress = hasDraftProgress();
     if (!hasProgress) {
@@ -886,7 +932,8 @@ function AddRoundContent() {
     };
   }, [persistDraftAndResumeContext]);
 
-  // One-time, ephemeral location lookup used only to sort nearby course search results.
+  // One-time, ephemeral location lookup used to sort nearby courses and select a
+  // high-confidence nearest course for an otherwise empty Live Round form.
   useEffect(() => {
     if (status !== 'authenticated') return;
 
@@ -898,6 +945,12 @@ function AddRoundContent() {
       })
       .then((fix) => {
         if (active && fix) setUserLocation(fix.position);
+      })
+      .catch((error) => {
+        if (active) console.error('Error fetching current location:', error);
+      })
+      .finally(() => {
+        if (active) setLocationLookupComplete(true);
       });
 
     return () => {
@@ -908,11 +961,12 @@ function AddRoundContent() {
   // Fetch user profile for default tee preference
   useEffect(() => {
     if (status === 'authenticated') {
+      let active = true;
       const fetchUserProfile = async () => {
         try {
           const res = await fetch('/api/users/profile');
           const data = await res.json();
-          if (data.type === 'success' && data.profile) {
+          if (active && data.type === 'success' && data.profile) {
             userProfileRef.current = {
               default_tee: data.profile.default_tee,
               gender: data.profile.gender,
@@ -929,10 +983,15 @@ function AddRoundContent() {
             }
           }
         } catch (err) {
-          console.error('Error fetching user profile:', err);
+          if (active) console.error('Error fetching user profile:', err);
+        } finally {
+          if (active) setProfileLookupComplete(true);
         }
       };
       fetchUserProfile();
+      return () => {
+        active = false;
+      };
     }
   }, [status]);
 
@@ -987,20 +1046,10 @@ function AddRoundContent() {
         `/api/courses?search=${encodeURIComponent(search)}&limit=20&page=${page}${locationParam}`
       );
       const data = await res.json();
-      const coursesArray = data.courses || [];
+      const coursesArray: CourseSearchResult[] = data.courses || [];
 
       return {
-        options: coursesArray.map((course: any) => {
-          const courseName = course.club_name == course.course_name ? course.course_name : course.club_name + ' - ' + course.course_name;
-          const location = course.location;
-          const city = location?.city || '';
-          const state = location?.state || '';
-          const locationString = city && state ? ` (${city}, ${state})` : '';
-          return {
-            label: courseName + locationString,
-            value: course.id,
-          };
-        }),
+        options: coursesArray.map(courseSearchResultToOption),
         hasMore: coursesArray.length === 20,
         additional: { page: page + 1 },
       };
@@ -1070,11 +1119,11 @@ function AddRoundContent() {
 
   const autoSelectTee = useCallback((teesArray: any[]) => {
     const profile = userProfileRef.current;
-    if (!profile || teesArray.length === 0) {
-      return;
+    if (teesArray.length === 0) {
+      return null;
     }
 
-    const { default_tee, gender } = profile;
+    const { default_tee, gender } = profile ?? {};
 
     // If no gender is set, default to 'male' for tee selection
     const effectiveGender = gender || 'male';
@@ -1149,20 +1198,154 @@ function AddRoundContent() {
 
     // Auto-select the matched tee
     if (matchedTee) {
-      setRound((prev) => ({ ...prev, tee_id: String(matchedTee.id) }));
+      setRound((prev) => ({
+        ...prev,
+        tee_id: String(matchedTee.id),
+        par_total: matchedTee.par_total || prev.par_total,
+      }));
       setSelectedTee({
         value: matchedTee.id,
         label: `${matchedTee.tee_name} ${matchedTee.total_yards ?? 0} yd (${matchedTee.course_rating ?? 0}/${matchedTee.slope_rating ?? 0}) ${matchedTee.number_of_holes ?? 0} holes`,
         teeObj: matchedTee,
       });
       updateSegmentOptions(matchedTee);
-
-      // Set par_total from the matched tee
-      if (matchedTee.par_total) {
-        setRound((prev) => ({ ...prev, par_total: matchedTee.par_total }));
-      }
     }
+
+    return matchedTee;
   }, [updateSegmentOptions]);
+
+  useEffect(() => {
+    if (
+      status !== 'authenticated' ||
+      !initialized ||
+      loadingLiveSessions ||
+      nearestCourseSetupComplete
+    ) {
+      return;
+    }
+
+    const isLiveStartSetupVisible = showLiveStartSetup || activeLiveSessions.length === 0;
+    const hasProtectedCourseSelection = Boolean(
+      selectedCourse ||
+      round.course_id ||
+      restoredDraftRef.current ||
+      hasInteractedRef.current ||
+      courseSelectionProtectedRef.current
+    );
+
+    if (
+      roundEntryMode !== 'live' ||
+      !isLiveStartSetupVisible ||
+      (hasProtectedCourseSelection && !nearestDefaultsPendingRef.current)
+    ) {
+      setNearestCourseSetupComplete(true);
+      return;
+    }
+
+    if (nearestDefaultsPendingRef.current) return;
+
+    if (!locationLookupComplete || !profileLookupComplete) return;
+
+    if (!userLocation || nearestCourseSelectionAttemptedRef.current) {
+      setNearestCourseSetupComplete(true);
+      return;
+    }
+
+    nearestCourseSelectionAttemptedRef.current = true;
+    const controller = new AbortController();
+    let queuedCompleteDefaults = false;
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/courses?search=&limit=1&page=1&lat=${userLocation.lat}&lng=${userLocation.lng}`,
+          { signal: controller.signal },
+        );
+        const data = await readApiResponse<{ courses: CourseSearchResult[] }>(response);
+        const nearestCourse = data.courses?.[0];
+
+        if (
+          controller.signal.aborted ||
+          !nearestCourse ||
+          hasInteractedRef.current ||
+          courseSelectionProtectedRef.current
+        ) {
+          return;
+        }
+
+        const option = courseSearchResultToOption(nearestCourse);
+        const courseTees = [
+          ...(nearestCourse.tees?.male ?? []),
+          ...(nearestCourse.tees?.female ?? []),
+        ];
+        const matchedTee = autoSelectTee(courseTees);
+        if (
+          matchedTee &&
+          !controller.signal.aborted &&
+          !hasInteractedRef.current &&
+          !courseSelectionProtectedRef.current
+        ) {
+          autoSelectedCourseRef.current = true;
+          nearestDefaultsPendingRef.current = {
+            courseId: option.value,
+            teeId: matchedTee.id,
+          };
+          queuedCompleteDefaults = true;
+          setSelectedCourse(option);
+          setRound((prev) => ({ ...prev, course_id: String(option.value) }));
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error('Error selecting nearest course:', error);
+        }
+      } finally {
+        if (!controller.signal.aborted && !queuedCompleteDefaults) {
+          setNearestCourseSetupComplete(true);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [
+    activeLiveSessions.length,
+    autoSelectTee,
+    initialized,
+    locationLookupComplete,
+    loadingLiveSessions,
+    nearestCourseSetupComplete,
+    profileLookupComplete,
+    round.course_id,
+    roundEntryMode,
+    selectedCourse,
+    showLiveStartSetup,
+    status,
+    userLocation,
+  ]);
+
+  useEffect(() => {
+    const pending = nearestDefaultsPendingRef.current;
+    if (
+      !pending ||
+      selectedCourse?.value !== pending.courseId ||
+      selectedTee?.value !== pending.teeId ||
+      round.course_id !== String(pending.courseId) ||
+      round.tee_id !== String(pending.teeId) ||
+      loadingLiveGpsAvailability ||
+      liveGpsAvailabilityResolvedCourseId !== String(pending.courseId)
+    ) {
+      return;
+    }
+
+    nearestDefaultsPendingRef.current = null;
+    setNearestCourseSetupComplete(true);
+  }, [
+    liveGpsAvailabilityResolvedCourseId,
+    loadingLiveGpsAvailability,
+    round.course_id,
+    round.tee_id,
+    selectedCourse,
+    selectedTee,
+  ]);
 
   const fetchHoles = useCallback(async (teeId: number, existingRoundHoles: any[] = [], segment?: TeeSegment) => {
     if (!teeId) return [];
@@ -1257,6 +1440,7 @@ function AddRoundContent() {
       const courseName = searchParams?.get('courseName');
 
       if (courseId) {
+        courseSelectionProtectedRef.current = true;
         setRound((prev) => ({ ...prev, course_id: String(courseId) }));
         setSelectedCourse({ label: courseName || '', value: Number(courseId) });
 
@@ -1718,6 +1902,8 @@ function AddRoundContent() {
           });
           await readApiResponse<{ session: LiveRoundSession }>(response);
           setActiveLiveSessions((current) => current.filter((sessionItem) => sessionItem.id !== liveSession.id));
+          nearestCourseSelectionAttemptedRef.current = false;
+          setNearestCourseSetupComplete(false);
           setShowLiveStartSetup(true);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unable to delete live round';
@@ -2004,7 +2190,11 @@ function AddRoundContent() {
         <button
           type="button"
           className="btn btn-accent live-round-start-new-button"
-          onClick={() => setShowLiveStartSetup(true)}
+          onClick={() => {
+            nearestCourseSelectionAttemptedRef.current = false;
+            setNearestCourseSetupComplete(false);
+            setShowLiveStartSetup(true);
+          }}
         >
           Start New Round
         </button>
@@ -2022,7 +2212,13 @@ function AddRoundContent() {
   };
 
   if (status === 'loading') return null;
-  if (status === 'authenticated' && roundEntryMode === 'live' && loadingLiveSessions) {
+  const resolvingLiveRoundDefaults = status === 'authenticated'
+    && roundEntryMode === 'live'
+    && (
+      loadingLiveSessions ||
+      ((showLiveStartSetup || activeLiveSessions.length === 0) && !nearestCourseSetupComplete)
+    );
+  if (resolvingLiveRoundDefaults) {
     return (
       <div className="page-stack">
         <div
@@ -2091,6 +2287,8 @@ function AddRoundContent() {
             if (roundEntryMode === 'live') {
               event.preventDefault();
               if (!showLiveStartAction) {
+                nearestCourseSelectionAttemptedRef.current = false;
+                setNearestCourseSetupComplete(false);
                 setShowLiveStartSetup(true);
                 return;
               }
@@ -2124,6 +2322,8 @@ function AddRoundContent() {
                       value={selectedCourse}
                       loadOptions={loadCourseOptions}
                       onChange={async (option) => {
+                        courseSelectionProtectedRef.current = true;
+                        autoSelectedCourseRef.current = false;
                         markUserEdited();
                         setSelectedCourse(option);
                         setLiveGpsEnabled(false);
