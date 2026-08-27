@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { consumeRateLimit, getClientIp } from '@/lib/security/rateLimit';
+import { consumeDistributedRateLimit } from '@/lib/security/distributedRateLimit';
 
 const GLOBAL_API_WINDOW_MS = Number(process.env.RATE_LIMIT_API_WINDOW_MS ?? 15 * 60 * 1000);
 const GLOBAL_API_MAX = Number(process.env.RATE_LIMIT_API_MAX ?? 300);
@@ -8,6 +9,8 @@ const AUTH_PUBLIC_WINDOW_MS = Number(process.env.RATE_LIMIT_AUTH_PUBLIC_WINDOW_M
 const AUTH_PUBLIC_MAX = Number(process.env.RATE_LIMIT_AUTH_PUBLIC_MAX ?? 8);
 const AUTH_ACCOUNT_WINDOW_MS = Number(process.env.RATE_LIMIT_AUTH_ACCOUNT_WINDOW_MS ?? 15 * 60 * 1000);
 const AUTH_ACCOUNT_MAX = Number(process.env.RATE_LIMIT_AUTH_ACCOUNT_MAX ?? 5);
+const AUTH_CREDENTIALS_WINDOW_MS = Number(process.env.RATE_LIMIT_AUTH_CREDENTIALS_WINDOW_MS ?? 15 * 60 * 1000);
+const AUTH_CREDENTIALS_MAX = Number(process.env.RATE_LIMIT_AUTH_CREDENTIALS_MAX ?? 10);
 const MAX_API_BODY_BYTES = Number(process.env.MAX_API_BODY_BYTES ?? 256 * 1024);
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
@@ -36,7 +39,7 @@ function withRateLimitHeaders(response: NextResponse, params: {
   return response;
 }
 
-type AuthThrottleBucket = 'auth_public' | 'auth_account' | null;
+type AuthThrottleBucket = 'auth_public' | 'auth_account' | 'auth_credentials' | null;
 
 function getAuthThrottleBucket(request: NextRequest): AuthThrottleBucket {
   const { pathname } = request.nextUrl;
@@ -53,6 +56,7 @@ function getAuthThrottleBucket(request: NextRequest): AuthThrottleBucket {
   if (pathname === '/api/auth/reset-password') return 'auth_public';
   if (pathname === '/api/auth/verify-email') return 'auth_public';
   if (pathname === '/api/auth/resend-verification') return 'auth_public';
+  if (pathname === '/api/auth/callback/credentials') return 'auth_credentials';
 
   return null;
 }
@@ -131,7 +135,20 @@ function shouldRequireJsonContentType(pathname: string, method: string): boolean
   return false;
 }
 
-export function proxy(request: NextRequest) {
+function getAuthLimit(bucket: Exclude<AuthThrottleBucket, null>): {
+  limit: number;
+  windowMs: number;
+} {
+  if (bucket === 'auth_public') {
+    return { limit: AUTH_PUBLIC_MAX, windowMs: AUTH_PUBLIC_WINDOW_MS };
+  }
+  if (bucket === 'auth_account') {
+    return { limit: AUTH_ACCOUNT_MAX, windowMs: AUTH_ACCOUNT_WINDOW_MS };
+  }
+  return { limit: AUTH_CREDENTIALS_MAX, windowMs: AUTH_CREDENTIALS_WINDOW_MS };
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (!pathname.startsWith('/api/')) {
     return NextResponse.next();
@@ -167,8 +184,7 @@ export function proxy(request: NextRequest) {
 
   const authBucket = getAuthThrottleBucket(request);
   if (authBucket) {
-    const authLimit = authBucket === 'auth_public' ? AUTH_PUBLIC_MAX : AUTH_ACCOUNT_MAX;
-    const authWindow = authBucket === 'auth_public' ? AUTH_PUBLIC_WINDOW_MS : AUTH_ACCOUNT_WINDOW_MS;
+    const { limit: authLimit, windowMs: authWindow } = getAuthLimit(authBucket);
     const authResult = consumeRateLimit({
       key: `${authBucket}:${clientIdentifier}`,
       limit: authLimit,
@@ -185,6 +201,25 @@ export function proxy(request: NextRequest) {
       );
 
       return withRateLimitHeaders(response, authResult);
+    }
+
+    const distributedResult = await consumeDistributedRateLimit({
+      bucket: authBucket,
+      identifier: clientIdentifier,
+      limit: authLimit,
+      windowMs: authWindow,
+    });
+
+    if (distributedResult && !distributedResult.allowed) {
+      const response = NextResponse.json(
+        {
+          type: 'error',
+          message: 'Too many authentication attempts. Please wait 15 minutes and try again.',
+        },
+        { status: 429 },
+      );
+
+      return withRateLimitHeaders(response, distributedResult);
     }
   }
 

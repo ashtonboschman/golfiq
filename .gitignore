@@ -51,6 +51,7 @@ yarn-error.log*
 !/docs/course-identity-migration.md
 !/docs/security-network-compatibility-audit.md
 !/docs/production-monitoring.md
+!/docs/infrastructure-security.md
 
 .NUL
 .env*

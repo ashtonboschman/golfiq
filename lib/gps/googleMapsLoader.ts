@@ -62,7 +62,8 @@ export function loadGoogleMaps(apiKey: string): Promise<void> {
     script.defer = true;
     script.src =
       `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}` +
-      '&v=weekly&loading=async&callback=__golfiqGoogleMapsLoaded';
+      '&v=weekly&loading=async&auth_referrer_policy=origin' +
+      '&callback=__golfiqGoogleMapsLoaded';
     document.head.appendChild(script);
   }
 

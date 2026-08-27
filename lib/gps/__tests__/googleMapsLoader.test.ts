@@ -111,6 +111,7 @@ describe('loadGoogleMaps', () => {
     expect(scriptUrl.searchParams.get('key')).toBe('test key');
     expect(scriptUrl.searchParams.get('v')).toBe('weekly');
     expect(scriptUrl.searchParams.get('loading')).toBe('async');
+    expect(scriptUrl.searchParams.get('auth_referrer_policy')).toBe('origin');
     expect(scriptUrl.searchParams.get('callback')).toBe('__golfiqGoogleMapsLoaded');
     expect(scriptUrl.searchParams.has('libraries')).toBe(false);
 
