@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import { TriangleAlert, Eye, EyeOff, Check } from 'lucide-react';
 import { AuthCardSkeleton } from '@/components/skeleton/PageSkeletons';
@@ -66,12 +67,16 @@ function ResetPasswordForm() {
       const data = await res.json();
 
       if (data.type === 'success') {
+        // The reset invalidates every previously issued JWT on the server. Clear
+        // this browser's cached NextAuth session before visiting /login so the
+        // login and dashboard guards cannot briefly redirect against each other.
+        await signOut({ redirect: false });
         setSuccess(true);
         showMessage(data.message, 'success');
 
         // Redirect to login after 3 seconds
         setTimeout(() => {
-          router.push('/login');
+          router.replace('/login');
         }, 3000);
       } else {
         showMessage(data.message || 'An error occurred. Please try again.', 'error');
@@ -123,7 +128,7 @@ function ResetPasswordForm() {
             Your password has been successfully reset. You will be redirected to the login page shortly.
           </p>
 
-          <button onClick={() => router.push('/login')} className="btn btn-accent">
+          <button onClick={() => router.replace('/login')} className="btn btn-accent">
             Go to Login
           </button>
         </div>
