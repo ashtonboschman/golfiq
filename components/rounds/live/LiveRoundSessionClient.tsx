@@ -34,6 +34,10 @@ import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { reportClientError } from '@/lib/monitoring/client';
 import type { ClubSuggestionClub } from '@/lib/clubs/clubSuggestion';
 import { calculateRoundElapsedSeconds, formatLiveRoundTime } from '@/lib/rounds/roundTimer';
+import {
+  markInsightsNudgePending,
+  markRoundInsightsRefreshPending,
+} from '@/lib/insights/insightsNudge';
 
 type LiveRoundSessionClientProps = {
   sessionId: string;
@@ -1159,6 +1163,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
         method: 'POST',
       });
       const data = await readApiResponse<{ roundId: string; session: LiveRoundSession }>(response);
+      markInsightsNudgePending();
+      markRoundInsightsRefreshPending(data.roundId);
       router.replace(`/rounds/${data.roundId}/stats?from=rounds`);
     } catch (err) {
       reportClientError(err, {

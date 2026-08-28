@@ -14,7 +14,7 @@ interface FriendsContextType {
   unreadAcceptedNotificationsCount: number;
   loading: boolean;
   handleAction: (id: number, action: string, extra?: any) => Promise<void>;
-  fetchAll: () => Promise<void>;
+  fetchAll: (options?: { background?: boolean }) => Promise<void>;
   markAcceptedNotificationsRead: () => Promise<void>;
 }
 
@@ -42,7 +42,7 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
   const hasLoadedForUserRef = useRef<string | null>(null);
   const inFlightRef = useRef<Promise<void> | null>(null);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (options?: { background?: boolean }) => {
     if (status !== 'authenticated' || !session?.user?.id) {
       setFriends([]);
       setIncomingRequests([]);
@@ -57,8 +57,10 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
     }
 
     const run = (async () => {
-      setLoading(true);
-      clearMessage();
+      if (!options?.background) {
+        setLoading(true);
+        clearMessage();
+      }
 
       try {
         const [friendsRes, incomingRes, outgoingRes, notificationsRes] = await Promise.all([
@@ -120,7 +122,9 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
         }
       } catch (err: any) {
         console.error(err);
-        showMessage(err.message || 'Failed to fetch friends', 'error');
+        if (!options?.background) {
+          showMessage(err.message || 'Failed to fetch friends', 'error');
+        }
       } finally {
         setLoading(false);
       }
@@ -159,6 +163,23 @@ export function FriendsProvider({ children }: { children: ReactNode }) {
 
     hasLoadedForUserRef.current = userId;
     fetchAll().catch(() => undefined);
+  }, [status, userId, fetchAll]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !userId) return;
+
+    const refreshFriendActivity = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAll({ background: true }).catch(() => undefined);
+      }
+    };
+
+    window.addEventListener('focus', refreshFriendActivity);
+    document.addEventListener('visibilitychange', refreshFriendActivity);
+    return () => {
+      window.removeEventListener('focus', refreshFriendActivity);
+      document.removeEventListener('visibilitychange', refreshFriendActivity);
+    };
   }, [status, userId, fetchAll]);
 
   const markAcceptedNotificationsRead = useCallback(async () => {

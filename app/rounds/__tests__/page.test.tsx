@@ -51,6 +51,14 @@ function apiResponse(data: unknown): Response {
   } as Response;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 function liveSessionPayload(overrides: Record<string, unknown> = {}) {
   return {
     id: '500',
@@ -117,6 +125,58 @@ describe('/rounds page', () => {
         disconnect = jest.fn();
       },
     });
+  });
+
+  it('keeps the initial skeleton visible until active and completed rounds finish loading', async () => {
+    const completedRoundsRequest = deferred<Response>();
+    const activeSessionsRequest = deferred<Response>();
+
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/rounds/live/sessions') {
+        return activeSessionsRequest.promise;
+      }
+
+      if (url.startsWith('/api/rounds?')) {
+        return completedRoundsRequest.promise;
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    }) as typeof fetch;
+
+    render(<RoundsPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading Rounds');
+
+    await act(async () => {
+      completedRoundsRequest.resolve(apiResponse({
+        rounds: [{
+          id: '700',
+          date: '2026-07-12T00:00:00.000Z',
+          score: 80,
+          course: { club_name: 'Completed Club', course_name: 'South' },
+          location: { city: 'Winnipeg', state: 'MB' },
+          tee: { id: '14', tee_name: 'Blue', number_of_holes: 18, par_total: 72 },
+        }],
+      }));
+      await completedRoundsRequest.promise;
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('Loading Rounds');
+      expect(screen.queryByText('Completed Completed Club South')).not.toBeInTheDocument();
+    });
+
+    await act(async () => {
+      activeSessionsRequest.resolve(apiResponse({
+        sessions: [liveSessionPayload()],
+      }));
+      await activeSessionsRequest.promise;
+    });
+
+    expect(await screen.findByText('In Progress')).toBeInTheDocument();
+    expect(screen.getByText('Completed Completed Club South')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('shows active live rounds above completed rounds and resumes them', async () => {

@@ -96,9 +96,11 @@ export default function RoundStatsPage() {
 
   const [stats, setStats] = useState<RoundStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [insightsReadyRoundId, setInsightsReadyRoundId] = useState<string | null>(null);
   const { isPremium, loading: subscriptionLoading } = useSubscription();
 
   const roundId = params?.id as string;
+  const insightsInitialLoading = insightsReadyRoundId !== roundId;
 
   useEffect(() => {
     const scrollToTop = () => {
@@ -228,7 +230,7 @@ export default function RoundStatsPage() {
   };
 
   if (status === 'loading' || loading) {
-    return <RoundStatsPageSkeleton showStrokesGained={!subscriptionLoading && isPremium} />;
+    return <RoundStatsPageSkeleton />;
   }
 
   if (!stats) {
@@ -383,7 +385,14 @@ export default function RoundStatsPage() {
   const totalGirLabel = stats.greens_in_regulation != null ? `${stats.greens_in_regulation}` : '-';
 
   return (
-    <div className="page-stack">
+    <>
+      {insightsInitialLoading && (
+        <RoundStatsPageSkeleton />
+      )}
+      <div
+        className={`page-stack round-stats-content${insightsInitialLoading ? ' round-stats-content--loading' : ''}`}
+        aria-hidden={insightsInitialLoading}
+      >
       <div className='card'>
         <div className="stats-header">
           <div className='stats-header-container'>
@@ -542,6 +551,7 @@ export default function RoundStatsPage() {
           roundId={roundId}
           isPremium={isPremium}
           isPremiumLoading={subscriptionLoading}
+          onInitialLoadComplete={() => setInsightsReadyRoundId(roundId)}
         />
 
         {/* Strokes Gained Summary Card */}
@@ -789,6 +799,7 @@ export default function RoundStatsPage() {
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -481,6 +481,10 @@ h1, h2, h3, h2, h1, .btn {
   padding-bottom: var(--app-footer-height);
 }
 
+.page-stack.round-stats-content--loading {
+  display: none;
+}
+
 /* ===========================
    Page Titles / Headings
 =========================== */

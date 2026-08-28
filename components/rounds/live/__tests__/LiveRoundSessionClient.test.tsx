@@ -14,6 +14,10 @@ import {
   requestLiveRoundNavigation,
 } from '@/lib/rounds/liveRoundNavigation';
 import type { LiveRoundSession } from '@/components/rounds/live/types';
+import {
+  consumeRoundInsightsRefreshPending,
+  hasInsightsNudgePending,
+} from '@/lib/insights/insightsNudge';
 
 const mockLiveGpsMapMount = jest.fn();
 
@@ -371,6 +375,29 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(reviewTotals).toHaveTextContent('Total5');
     expect(reviewTotals).toHaveTextContent('To Par+1');
     expect(screen.getByText('Missing')).toBeInTheDocument();
+  });
+
+  it('marks the Insights footer nudge after finishing a live round', async () => {
+    const session = makeSession();
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (!init?.method) return Promise.resolve(apiResponse({ session }));
+      if (init.method === 'POST' && url.endsWith('/finalize')) {
+        return Promise.resolve(apiResponse({ roundId: '700', session }));
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Round' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish Round' }));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith('/rounds/700/stats?from=rounds');
+    });
+    expect(hasInsightsNudgePending()).toBe(true);
+    expect(consumeRoundInsightsRefreshPending('700')).toBe(true);
   });
 
   it('replaces to rounds when header back is confirmed', async () => {

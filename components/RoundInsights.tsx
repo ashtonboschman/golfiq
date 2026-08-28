@@ -21,6 +21,7 @@ interface RoundInsightsProps {
   isPremium: boolean;
   isPremiumLoading?: boolean;
   initialInsightsPayload?: unknown;
+  onInitialLoadComplete?: () => void;
 }
 
 type RoundInsightsResponse = {
@@ -365,6 +366,7 @@ export default function RoundInsights({
   isPremium,
   isPremiumLoading = false,
   initialInsightsPayload,
+  onInitialLoadComplete,
 }: RoundInsightsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -383,9 +385,13 @@ export default function RoundInsights({
   const initialInsights = initialCachedInsights ?? normalizedInitialInsights;
   const [insights, setInsights] = useState<RoundInsightsResponse | null>(initialInsights);
   const [loading, setLoading] = useState(!initialInsights);
+  const [resolvedCacheKey, setResolvedCacheKey] = useState<string | null>(
+    initialInsights ? cacheKey : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
   const fetchedCacheKeyRef = useRef<string | null>(null);
+  const initialLoadReportedCacheKeyRef = useRef<string | null>(null);
   const {
     containerRef: confidenceTooltipRef,
     tooltipRef: confidenceContentRef,
@@ -419,6 +425,7 @@ export default function RoundInsights({
     writeRoundInsightsCache(cacheKey, normalizedInitialInsights);
     setInsights(normalizedInitialInsights);
     setLoading(false);
+    setResolvedCacheKey(cacheKey);
     setError(null);
   }, [cacheKey, normalizedInitialInsights]);
 
@@ -432,6 +439,7 @@ export default function RoundInsights({
         const cached = shouldBypassCache ? null : readRoundInsightsCache(cacheKey);
         if (cached) {
           setInsights(cached);
+          setResolvedCacheKey(cacheKey);
           setError(null);
           if (!forceRefresh) {
             return;
@@ -446,6 +454,7 @@ export default function RoundInsights({
         console.error('Error fetching insights:', err);
         setError(err.message);
       } finally {
+        setResolvedCacheKey(cacheKey);
         setLoading(false);
       }
     },
@@ -460,6 +469,17 @@ export default function RoundInsights({
     const hasCached = Boolean((shouldBypassCache ? null : readRoundInsightsCache(cacheKey)) ?? normalizedInitialInsights);
     fetchInsights({ showLoading: !hasCached, forceRefresh: true });
   }, [cacheKey, fetchInsights, isPremiumLoading, normalizedInitialInsights, shouldBypassCache]);
+
+  useEffect(() => {
+    if (
+      isPremiumLoading
+      || loading
+      || resolvedCacheKey !== cacheKey
+      || initialLoadReportedCacheKeyRef.current === cacheKey
+    ) return;
+    initialLoadReportedCacheKeyRef.current = cacheKey;
+    onInitialLoadComplete?.();
+  }, [cacheKey, isPremiumLoading, loading, onInitialLoadComplete, resolvedCacheKey]);
 
   useEffect(() => {
     if (!showConfidenceInfo) return;

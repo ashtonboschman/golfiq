@@ -512,11 +512,7 @@ export function RoundFormSkeleton() {
   );
 }
 
-export function RoundStatsPageSkeleton({
-  showStrokesGained = true,
-}: {
-  showStrokesGained?: boolean;
-} = {}) {
+export function RoundStatsPageSkeleton() {
   return (
     <div className="page-stack skeleton-stack" aria-busy="true">
       <SkeletonCard>
@@ -563,28 +559,26 @@ export function RoundStatsPageSkeleton({
 
         <RoundInsightsSkeleton />
 
-        {showStrokesGained && (
-          <div className="stats-score-summary">
-            <div className="stats-summary-header">
-              <h3 className="stats-summary-title">Strokes Gained</h3>
-              <span className="info-tooltip-container" aria-hidden="true">
-                <span className="info-tooltip-icon">
-                  <Info />
-                </span>
+        <div className="stats-score-summary">
+          <div className="stats-summary-header">
+            <h3 className="stats-summary-title">Strokes Gained</h3>
+            <span className="info-tooltip-container" aria-hidden="true">
+              <span className="info-tooltip-icon">
+                <Info />
               </span>
-            </div>
-            <div className="stats-score-grid">
-              {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Untracked'].map((label, index) => (
-                <div key={`round-sg-summary-${index}`}>
-                  <SkeletonBlock width="44%" height={29} center />
-                  <div className="stats-score-label u-mt-6">
-                    {label}
-                  </div>
-                </div>
-              ))}
-            </div>
+            </span>
           </div>
-        )}
+          <div className="stats-score-grid">
+            {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Untracked'].map((label, index) => (
+              <div key={`round-sg-summary-${index}`}>
+                <SkeletonBlock width="44%" height={29} center />
+                <div className="stats-score-label u-mt-6">
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="form">
           <button className="btn btn-add" disabled>

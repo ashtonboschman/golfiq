@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RoundStatsPage from '@/app/rounds/[id]/stats/page';
 import { useSession } from 'next-auth/react';
@@ -14,8 +14,16 @@ const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
 const mockShowConfirm = jest.fn();
 const mockRoundStatsPageSkeleton = jest.fn(
-  (_props: { showStrokesGained?: boolean }) => <div data-testid="round-stats-skeleton" />,
+  (_props: Record<string, never>) => <div data-testid="round-stats-skeleton" />,
 );
+let mockInsightsAutoReady = true;
+const mockRoundInsights = jest.fn(({ onInitialLoadComplete }: { onInitialLoadComplete?: () => void }) => {
+  React.useEffect(() => {
+    if (mockInsightsAutoReady) onInitialLoadComplete?.();
+  }, [onInitialLoadComplete]);
+
+  return <div data-testid="round-insights">Round Insights</div>;
+});
 
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
@@ -55,7 +63,7 @@ jest.mock('next/link', () => ({
 
 jest.mock('@/components/RoundInsights', () => ({
   __esModule: true,
-  default: () => <div data-testid="round-insights">Round Insights</div>,
+  default: (props: { onInitialLoadComplete?: () => void }) => mockRoundInsights(props),
 }));
 
 jest.mock('@/components/skeleton/PageSkeletons', () => ({
@@ -110,6 +118,7 @@ const statsPayload = {
 describe('/rounds/[id]/stats page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockInsightsAutoReady = true;
     Object.defineProperty(window, 'scrollTo', {
       configurable: true,
       value: mockScrollTo,
@@ -121,6 +130,30 @@ describe('/rounds/[id]/stats page', () => {
     (global as any).fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ stats: statsPayload }),
+    });
+  });
+
+  it('keeps the full-page skeleton visible until round insights finish their initial load', async () => {
+    mockedUseSubscription.mockReturnValue({
+      isPremium: true,
+      loading: false,
+    });
+    mockInsightsAutoReady = false;
+
+    render(<RoundStatsPage />);
+
+    await waitFor(() => expect(mockRoundInsights).toHaveBeenCalled());
+    expect(screen.getByTestId('round-stats-skeleton')).toBeInTheDocument();
+    expect(screen.getByText('Pebble Beach').closest('.page-stack')).toHaveClass('round-stats-content--loading');
+    expect(screen.getByText('Pebble Beach').closest('.page-stack')).toHaveAttribute('aria-hidden', 'true');
+
+    const latestProps = mockRoundInsights.mock.calls.at(-1)?.[0];
+    act(() => latestProps?.onInitialLoadComplete?.());
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('round-stats-skeleton')).not.toBeInTheDocument();
+      expect(screen.getByText('Pebble Beach').closest('.page-stack')).not.toHaveClass('round-stats-content--loading');
+      expect(screen.getByText('Pebble Beach').closest('.page-stack')).toHaveAttribute('aria-hidden', 'false');
     });
   });
 
@@ -218,6 +251,7 @@ describe('/rounds/[id]/stats page', () => {
     render(<RoundStatsPage />);
 
     await screen.findByText('Pebble Beach');
+    await waitFor(() => expect(screen.queryByTestId('round-stats-skeleton')).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Delete Round' }));
 
     expect(mockShowConfirm).toHaveBeenCalledWith(expect.objectContaining({
@@ -229,7 +263,7 @@ describe('/rounds/[id]/stats page', () => {
     }));
   });
 
-  it('hides strokes gained placeholder while subscription is still loading', async () => {
+  it('keeps one stable skeleton while subscription status is still loading', async () => {
     mockedUseSubscription.mockReturnValue({
       isPremium: false,
       loading: true,
@@ -238,9 +272,7 @@ describe('/rounds/[id]/stats page', () => {
     render(<RoundStatsPage />);
 
     expect(mockRoundStatsPageSkeleton).toHaveBeenCalled();
-    expect(mockRoundStatsPageSkeleton.mock.calls[0]?.[0]).toMatchObject({
-      showStrokesGained: false,
-    });
+    expect(mockRoundStatsPageSkeleton.mock.calls.every((call) => Object.keys(call[0] ?? {}).length === 0)).toBe(true);
     await screen.findByText('Pebble Beach');
   });
 

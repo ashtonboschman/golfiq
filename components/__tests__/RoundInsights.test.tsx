@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import RoundInsights from '@/components/RoundInsights';
 import { useSession } from 'next-auth/react';
@@ -232,6 +232,31 @@ describe('RoundInsights confidence pill UI', () => {
     expect(screen.queryByRole('heading', { name: 'Unlock Your Full Round Breakdown' })).not.toBeInTheDocument();
     expect(screen.queryByText('See the stats behind each insight and how it shaped your round.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'See Premium Plans' })).not.toBeInTheDocument();
+  });
+
+  it('reports when its initial insights request is complete', async () => {
+    const onInitialLoadComplete = jest.fn();
+
+    const { rerender } = render(
+      <RoundInsights
+        roundId="round-initial-load-complete"
+        isPremium={true}
+        onInitialLoadComplete={onInitialLoadComplete}
+      />,
+    );
+
+    await waitFor(() => expect(onInitialLoadComplete).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(payload('LOW').messages[0])).toBeInTheDocument();
+
+    rerender(
+      <RoundInsights
+        roundId="round-next-initial-load-complete"
+        isPremium={true}
+        onInitialLoadComplete={onInitialLoadComplete}
+      />,
+    );
+
+    await waitFor(() => expect(onInitialLoadComplete).toHaveBeenCalledTimes(2));
   });
 
   it('keeps free users on basic messages when a composed identity is present', async () => {

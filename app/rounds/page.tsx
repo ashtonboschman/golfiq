@@ -87,12 +87,14 @@ export default function RoundsPage() {
 
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedInitialRounds, setHasLoadedInitialRounds] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [activeLiveSessions, setActiveLiveSessions] = useState<LiveRoundSession[]>([]);
   const [loadingLiveSessions, setLoadingLiveSessions] = useState(false);
+  const [hasLoadedInitialLiveSessions, setHasLoadedInitialLiveSessions] = useState(false);
   const [liveSessionsError, setLiveSessionsError] = useState<string | null>(null);
   const [discardingLiveSessionId, setDiscardingLiveSessionId] = useState<string | null>(null);
 
@@ -184,6 +186,7 @@ export default function RoundsPage() {
       showMessage(err.message || 'Error fetching rounds', 'error');
     } finally {
       setLoading(false);
+      setHasLoadedInitialRounds(true);
     }
   }, [router, clearMessage, showMessage, userId]);
 
@@ -203,6 +206,7 @@ export default function RoundsPage() {
       showMessage(message, 'error');
     } finally {
       setLoadingLiveSessions(false);
+      setHasLoadedInitialLiveSessions(true);
     }
   }, [showMessage, status]);
 
@@ -210,6 +214,8 @@ export default function RoundsPage() {
   useEffect(() => {
     if (status === 'authenticated' && userId) {
       setRounds([]);
+      setHasLoadedInitialRounds(false);
+      setHasLoadedInitialLiveSessions(false);
       setPage(1);
       setHasMore(true);
       fetchRounds(1, '', true);
@@ -417,7 +423,8 @@ export default function RoundsPage() {
     return null;
   }
 
-  const showInitialListSkeleton = status === 'loading' || (loading && rounds.length === 0);
+  const showInitialListSkeleton = status === 'loading'
+    || (status === 'authenticated' && (!hasLoadedInitialRounds || !hasLoadedInitialLiveSessions));
 
   return (
     <div className="page-stack">
@@ -429,8 +436,10 @@ export default function RoundsPage() {
         <Plus/> Add Round
       </button>
 
-      {liveSessionsError && <div className="live-round-alert is-error">{liveSessionsError}</div>}
-      {loadingLiveSessions && activeLiveSessions.length === 0 ? null : renderActiveLiveSessions()}
+      {!showInitialListSkeleton && liveSessionsError && (
+        <div className="live-round-alert is-error">{liveSessionsError}</div>
+      )}
+      {!showInitialListSkeleton && renderActiveLiveSessions()}
 
       <input
         type="text"
