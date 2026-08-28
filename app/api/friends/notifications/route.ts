@@ -1,14 +1,19 @@
 import { errorResponse, requireAuth, successResponse } from '@/lib/api-auth';
 import { prisma } from '@/lib/db';
+import { getBlockedUserIdsForUser } from '@/lib/socialSafety';
 
 export async function GET(request: Request) {
   try {
     const userId = await requireAuth(request as any);
+    const blockedUserIds = await getBlockedUserIdsForUser(userId);
 
     const notifications = await prisma.friendNotification.findMany({
       where: {
         userId,
         type: 'friend_request_accepted',
+        ...(blockedUserIds.length > 0 && {
+          actorUserId: { notIn: blockedUserIds },
+        }),
       },
       orderBy: {
         createdAt: 'desc',
@@ -60,12 +65,16 @@ export async function POST(request: Request) {
   try {
     const userId = await requireAuth(request as any);
     const readAt = new Date();
+    const blockedUserIds = await getBlockedUserIdsForUser(userId);
 
     const result = await prisma.friendNotification.updateMany({
       where: {
         userId,
         type: 'friend_request_accepted',
         readAt: null,
+        ...(blockedUserIds.length > 0 && {
+          actorUserId: { notIn: blockedUserIds },
+        }),
       },
       data: {
         readAt,

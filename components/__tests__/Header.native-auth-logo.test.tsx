@@ -92,4 +92,42 @@ describe('Header native auth branding', () => {
 
     expect(mockPush).toHaveBeenCalledWith('/');
   });
+
+  it('supports keyboard navigation and focus return for the user menu', async () => {
+    mockPathname = '/dashboard';
+    mockedIsNativeIOS.mockReturnValue(false);
+    mockedUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: {
+        user: {
+          id: '1',
+          name: 'Test Golfer',
+          email: 'golfer@example.com',
+        },
+        expires: '2099-01-01T00:00:00.000Z',
+      },
+      update: jest.fn(),
+    });
+
+    render(<Header />);
+
+    const menuButton = screen.getByRole('button', { name: 'Open user menu' });
+    fireEvent.click(menuButton);
+
+    const menu = screen.getByRole('menu', { name: 'User menu' });
+    const items = screen.getAllByRole('menuitem');
+    expect(menu).toBeVisible();
+    expect(menuButton).toHaveAttribute('aria-expanded', 'true');
+    expect(items[0]).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: 'ArrowDown' });
+    expect(items[1]).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'End' });
+    expect(items.at(-1)).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(menuButton).toHaveFocus();
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+  });
 });

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { isPremiumUser } from '@/lib/subscription';
+import { getBlockedUserIdsForUser } from '@/lib/socialSafety';
 
 type SortKey = 'handicap' | 'average_score' | 'best_score';
 type SortOrder = 'asc' | 'desc';
@@ -37,11 +38,16 @@ export async function GET(request: NextRequest) {
     const whereClause: {
       totalRounds: { gt: number };
       handicap?: { not: null };
-      userId?: { in: bigint[] };
+      userId?: { in?: bigint[]; notIn?: bigint[] };
     } = {
       totalRounds: { gt: 0 },
       handicap: { not: null },
     };
+
+    const blockedUserIds = await getBlockedUserIdsForUser(userId);
+    if (blockedUserIds.length > 0) {
+      whereClause.userId = { notIn: blockedUserIds };
+    }
 
     if (scope === 'friends') {
       const friendships = await prisma.friend.findMany({
@@ -52,7 +58,10 @@ export async function GET(request: NextRequest) {
         f.userId === userId ? f.friendId : f.userId
       );
 
-      whereClause.userId = { in: [...friendIds, userId] };
+      whereClause.userId = {
+        ...whereClause.userId,
+        in: [...friendIds, userId],
+      };
     }
 
     // ============================================================

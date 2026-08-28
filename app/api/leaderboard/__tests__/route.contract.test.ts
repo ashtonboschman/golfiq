@@ -2,6 +2,7 @@ import { GET } from '@/app/api/leaderboard/route';
 import { requireAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/db';
 import { isPremiumUser } from '@/lib/subscription';
+import { getBlockedUserIdsForUser } from '@/lib/socialSafety';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
@@ -31,8 +32,13 @@ jest.mock('@/lib/subscription', () => ({
   isPremiumUser: jest.fn(),
 }));
 
+jest.mock('@/lib/socialSafety', () => ({
+  getBlockedUserIdsForUser: jest.fn(),
+}));
+
 const mockedRequireAuth = requireAuth as jest.Mock;
 const mockedIsPremiumUser = isPremiumUser as jest.Mock;
+const mockedGetBlockedUserIdsForUser = getBlockedUserIdsForUser as jest.Mock;
 const mockedPrisma = prisma as unknown as {
   user: { findUnique: jest.Mock };
   userLeaderboardStats: {
@@ -47,6 +53,7 @@ describe('/api/leaderboard route contract', () => {
     jest.clearAllMocks();
     mockedRequireAuth.mockResolvedValue(BigInt(1));
     mockedIsPremiumUser.mockReturnValue(false);
+    mockedGetBlockedUserIdsForUser.mockResolvedValue([]);
     mockedPrisma.user.findUnique.mockResolvedValue({
       subscriptionTier: 'free',
       profile: {
@@ -68,6 +75,23 @@ describe('/api/leaderboard route contract', () => {
     expect(response.status).toBe(200);
     expect(mockedPrisma.userLeaderboardStats.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ take: 50 }),
+    );
+  });
+
+  it('excludes users blocked in either direction from leaderboard queries', async () => {
+    mockedGetBlockedUserIdsForUser.mockResolvedValue([BigInt(2), BigInt(3)]);
+
+    const response = await GET(
+      new Request('http://localhost/api/leaderboard?scope=global') as any,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.userLeaderboardStats.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: { notIn: [BigInt(2), BigInt(3)] },
+        }),
+      }),
     );
   });
 

@@ -9,6 +9,7 @@ import {
   buildDashboardRoundFocus,
   createUnavailableDashboardRoundFocusDto,
 } from '@/lib/insights/dashboardRoundFocus/buildDashboardRoundFocus';
+import { getBlockStateBetweenUsers } from '@/lib/socialSafety';
 
 const MISS_DIRECTION_KEYS = ['miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
 type MissDirectionKey = (typeof MISS_DIRECTION_KEYS)[number];
@@ -105,6 +106,11 @@ export async function GET(request: NextRequest) {
 
     // Check permissions if viewing someone else's dashboard
     if (requestedUserId !== currentUserId) {
+      const blockState = await getBlockStateBetweenUsers(currentUserId, requestedUserId);
+      if (blockState.eitherBlocked) {
+        return errorResponse('Dashboard is unavailable', 403);
+      }
+
       if (visibility === 'private') {
         return errorResponse('Dashboard is private', 403);
       } else if (visibility === 'friends') {

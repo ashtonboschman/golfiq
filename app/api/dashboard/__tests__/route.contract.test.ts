@@ -8,6 +8,7 @@ import {
   buildDashboardRoundFocus,
   createUnavailableDashboardRoundFocusDto,
 } from '@/lib/insights/dashboardRoundFocus/buildDashboardRoundFocus';
+import { getBlockStateBetweenUsers } from '@/lib/socialSafety';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
@@ -45,6 +46,10 @@ jest.mock('@/lib/insights/dashboardRoundFocus/buildDashboardRoundFocus', () => (
   createUnavailableDashboardRoundFocusDto: jest.fn(),
 }));
 
+jest.mock('@/lib/socialSafety', () => ({
+  getBlockStateBetweenUsers: jest.fn(),
+}));
+
 type MockPrisma = {
   userProfile: { findUnique: jest.Mock };
   friend: { findFirst: jest.Mock };
@@ -61,6 +66,7 @@ const mockedNormalizeRoundsByMode = normalizeRoundsByMode as jest.Mock;
 const mockedCalculateHandicap = calculateHandicap as jest.Mock;
 const mockedBuildDashboardRoundFocus = buildDashboardRoundFocus as jest.Mock;
 const mockedCreateUnavailableDashboardRoundFocusDto = createUnavailableDashboardRoundFocusDto as jest.Mock;
+const mockedGetBlockStateBetweenUsers = getBlockStateBetweenUsers as jest.Mock;
 
 const projectedRoundFocus = {
   version: 'dashboard_round_focus_v2',
@@ -154,6 +160,11 @@ describe('/api/dashboard route contract', () => {
       ...projectedRoundFocus,
       trendReason: 'pipeline_error',
       latestRoundUnavailableReason: 'pipeline_error',
+    });
+    mockedGetBlockStateBetweenUsers.mockResolvedValue({
+      eitherBlocked: false,
+      blockedByA: false,
+      blockedByB: false,
     });
   });
 
@@ -263,6 +274,24 @@ describe('/api/dashboard route contract', () => {
     );
 
     expect(response.status).toBe(403);
+    expect(mockedBuildDashboardRoundFocus).not.toHaveBeenCalled();
+  });
+
+  it('rejects direct Dashboard access when either user has blocked the other', async () => {
+    mockedGetBlockStateBetweenUsers.mockResolvedValueOnce({
+      eitherBlocked: true,
+      blockedByA: false,
+      blockedByB: true,
+    });
+
+    const response = await GET(
+      new Request('http://localhost/api/dashboard?statsMode=combined&user_id=2') as any,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.message).toBe('Dashboard is unavailable');
+    expect(mockedPrisma.friend.findFirst).not.toHaveBeenCalled();
     expect(mockedBuildDashboardRoundFocus).not.toHaveBeenCalled();
   });
 

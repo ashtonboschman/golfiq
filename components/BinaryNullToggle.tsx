@@ -18,16 +18,20 @@ export default function BinaryNullToggle({ value, onChange, disabled = false }: 
         className={value === 0 ? 'active-false' : ''}
         onClick={() => handleClick(0)}
         disabled={disabled}
+        aria-label="No"
+        aria-pressed={value === 0}
       >
-        <X/>
+        <X aria-hidden="true" />
       </button>
       <button
         type="button"
         className={value === 1 ? 'active-true' : ''}
         onClick={() => handleClick(1)}
         disabled={disabled}
+        aria-label="Yes"
+        aria-pressed={value === 1}
       >
-        <Check/>
+        <Check aria-hidden="true" />
       </button>
     </div>
   );

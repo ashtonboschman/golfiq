@@ -36,6 +36,25 @@ export async function getBlockStateBetweenUsers(
   };
 }
 
+export async function getBlockedUserIdsForUser(userId: bigint): Promise<bigint[]> {
+  const blocks = await prisma.userBlock.findMany({
+    where: {
+      OR: [
+        { blockerId: userId },
+        { blockedUserId: userId },
+      ],
+    },
+    select: {
+      blockerId: true,
+      blockedUserId: true,
+    },
+  });
+
+  return blocks.map((block) =>
+    block.blockerId === userId ? block.blockedUserId : block.blockerId,
+  );
+}
+
 export async function clearSocialGraphBetweenUsers(
   userIdA: bigint,
   userIdB: bigint,
@@ -54,6 +73,14 @@ export async function clearSocialGraphBetweenUsers(
         OR: [
           { requesterId: userIdA, recipientId: userIdB },
           { requesterId: userIdB, recipientId: userIdA },
+        ],
+      },
+    }),
+    prisma.friendNotification.deleteMany({
+      where: {
+        OR: [
+          { userId: userIdA, actorUserId: userIdB },
+          { userId: userIdB, actorUserId: userIdA },
         ],
       },
     }),

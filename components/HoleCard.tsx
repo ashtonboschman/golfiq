@@ -251,6 +251,7 @@ const HoleCard = memo(({
               key={`${prefix}-${button.result}`}
               type="button"
               aria-label={button.label}
+              aria-pressed={selected === button.result}
               className={`directional-result-btn ${button.className} ${selected === button.result ? 'active' : ''} ${selected === button.result ? (button.result === 'hit' ? 'active-hit' : 'active-miss') : ''}`}
               onClick={() => handleDirectionalResultChange(args.area, button.result)}
               disabled={args.disabled}

@@ -161,7 +161,7 @@ export default function Footer() {
 
   return (
     <footer className="footer-menu">
-      <div className="footer-menu-inner">
+      <nav className="footer-menu-inner" aria-label="Primary navigation">
         {buttons.map(({ path, icon, label }) => (
           <button
             key={path}
@@ -174,6 +174,7 @@ export default function Footer() {
               navigateWithWarning(path);
             }}
             disabled={!isInteractive}
+            aria-current={isButtonActive(path) ? 'page' : undefined}
           >
             <span className="icon footer-icon">
               {icon}
@@ -187,7 +188,7 @@ export default function Footer() {
             <span className="label">{label}</span>
           </button>
         ))}
-      </div>
+      </nav>
     </footer>
   );
 }

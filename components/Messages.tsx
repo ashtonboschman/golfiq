@@ -1,12 +1,36 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useId, useRef } from 'react';
 import { useMessage } from '@/app/providers';
 import { CircleAlert, CircleHelp, SquareCheck, TriangleAlert } from 'lucide-react';
+import { useModalAccessibility } from '@/lib/ui/useModalAccessibility';
 
 export default function Messages({ duration = 2000, mode = 'toast' }: { duration?: number; mode?: 'toast' | 'modal' }) {
   const { message, type, clearMessage, confirmDialog, clearConfirm } = useMessage();
   const lastMessageRef = useRef('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const initialFocusRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const messageId = useId();
+  const isErrorModal = Boolean(message && mode === 'modal' && type === 'error');
+
+  const dismissDialog = useCallback(() => {
+    if (confirmDialog) {
+      confirmDialog.onCancel?.();
+      clearConfirm();
+      return;
+    }
+
+    clearMessage();
+    lastMessageRef.current = '';
+  }, [clearConfirm, clearMessage, confirmDialog]);
+
+  useModalAccessibility({
+    isOpen: Boolean(confirmDialog) || isErrorModal,
+    dialogRef,
+    initialFocusRef,
+    onDismiss: dismissDialog,
+  });
 
   useEffect(() => {
     if (!message) return;
@@ -37,13 +61,22 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
       <>
         <div
           className="modal-backdrop"
+          aria-hidden="true"
           onClick={() => {
             confirmDialog.onCancel?.();
             clearConfirm();
           }}
         />
 
-        <div className="modal-container">
+        <div
+          ref={dialogRef}
+          className="modal-container"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={messageId}
+          tabIndex={-1}
+        >
           <div className="modal-content">
             <div className={`modal-icon ${modalVariant}`}>
               {modalVariant === 'neutral' ? (
@@ -54,10 +87,11 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
                 <CircleAlert size={34} />
               )}
             </div>
-            <h3 className="modal-title">{confirmDialog.title || 'Are you sure?'}</h3>
-            <p className="modal-message">{confirmDialog.message}</p>
+            <h3 id={titleId} className="modal-title">{confirmDialog.title || 'Are you sure?'}</h3>
+            <p id={messageId} className="modal-message">{confirmDialog.message}</p>
             <div className="modal-buttons">
               <button
+                ref={initialFocusRef}
                 onClick={() => {
                   confirmDialog.onCancel?.();
                   clearConfirm();
@@ -92,16 +126,25 @@ export default function Messages({ duration = 2000, mode = 'toast' }: { duration
     if (isError) {
       return (
         <>
-          <div className="modal-backdrop" onClick={clearMessage} />
+          <div className="modal-backdrop" aria-hidden="true" onClick={clearMessage} />
 
-          <div className="modal-container">
+          <div
+            ref={dialogRef}
+            className="modal-container"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={messageId}
+            tabIndex={-1}
+          >
             <div className="modal-content">
               <div className="modal-icon error">
                 <TriangleAlert size={50}/>
               </div>
-              <h3 className="modal-title">Error</h3>
-              <p className="modal-message">{message}</p>
+              <h3 id={titleId} className="modal-title">Error</h3>
+              <p id={messageId} className="modal-message">{message}</p>
               <button
+                ref={initialFocusRef}
                 onClick={() => {
                   clearMessage();
                   lastMessageRef.current = '';

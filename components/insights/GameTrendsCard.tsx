@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { BarChart3, CircleAlert, CircleCheck, Info, Sparkles } from 'lucide-react';
 import type { GameProfileConclusionDto, GameTrendsMode, GameTrendsV2Dto } from '@/lib/insights/gameTrends/types';
 import { useAdaptiveTooltipPlacement } from '@/lib/ui/useAdaptiveTooltipPlacement';
@@ -73,6 +73,7 @@ function GameTrendsSkeleton() {
 
 export default function GameTrendsCard({ trends, mode, loading, error, onRetry }: Props) {
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
+  const confidenceTooltipId = useId();
   const {
     containerRef: confidenceTooltipRef,
     tooltipRef: confidenceContentRef,
@@ -125,6 +126,7 @@ export default function GameTrendsCard({ trends, mode, loading, error, onRetry }
                 className={`insights-confidence-pill is-${confidence === 'strong' ? 'high' : confidence === 'moderate' ? 'medium' : 'low'}`}
                 aria-label={`Game Trends confidence: ${label}`}
                 aria-expanded={showConfidenceInfo}
+                aria-describedby={showConfidenceInfo ? confidenceTooltipId : undefined}
                 onClick={() => setShowConfidenceInfo((current) => {
                   const next = !current;
                   if (next) resetConfidenceTooltipPlacement();
@@ -136,8 +138,9 @@ export default function GameTrendsCard({ trends, mode, loading, error, onRetry }
               {showConfidenceInfo && (
                 <div
                   ref={confidenceContentRef}
+                  id={confidenceTooltipId}
                   className={`info-tooltip-content ${confidenceTooltipPosition} ${confidenceTooltipVertical} ${confidenceTooltipIsPositioned ? 'ready' : 'measuring'} insights-confidence-popover`}
-                  role="status"
+                  role="tooltip"
                 >
                   <h4>Game Trends Confidence</h4>
                   <p>Building means an early read. Moderate means useful evidence is forming. Strong means every available conclusion has strong support.</p>

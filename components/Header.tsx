@@ -43,6 +43,8 @@ export default function Header() {
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const avatarButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const isNativeClient = useSyncExternalStore(
     subscribeToNativePlatform,
     isNativeIOS,
@@ -125,6 +127,44 @@ export default function Header() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+
+    const handleMenuKeyDown = (event: KeyboardEvent) => {
+      const menuItems = Array.from(
+        menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+      );
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setDropdownOpen(false);
+        avatarButtonRef.current?.focus();
+        return;
+      }
+
+      if (menuItems.length === 0) return;
+
+      const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        menuItems[(currentIndex + 1 + menuItems.length) % menuItems.length].focus();
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        menuItems[(currentIndex - 1 + menuItems.length) % menuItems.length].focus();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        menuItems[0].focus();
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        menuItems[menuItems.length - 1].focus();
+      }
+    };
+
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    document.addEventListener('keydown', handleMenuKeyDown);
+    return () => document.removeEventListener('keydown', handleMenuKeyDown);
+  }, [dropdownOpen]);
 
   const handleLogout = async () => {
     // Re-check sessionStorage at click time for most up-to-date value
@@ -315,16 +355,26 @@ export default function Header() {
 
         {shouldShowAvatarSlot && (
           <div className="avatar-container" ref={dropdownRef}>
-            <img
-              src={avatarUrl || '/avatars/default.png'}
-              alt="User Avatar"
-              onClick={() => setDropdownOpen(!dropdownOpen)}
+            <button
+              ref={avatarButtonRef}
+              type="button"
               className="right-button"
-              title="User Menu"
-            />
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              aria-label={dropdownOpen ? 'Close user menu' : 'Open user menu'}
+              aria-haspopup="menu"
+              aria-expanded={dropdownOpen}
+              aria-controls="user-menu"
+            >
+              <img
+                src={avatarUrl || '/avatars/default.png'}
+                alt=""
+                className="header-avatar-image"
+              />
+            </button>
             {user && dropdownOpen && (
-              <div className="card avatar-dropdown">
+              <div ref={menuRef} id="user-menu" className="card avatar-dropdown" role="menu" aria-label="User menu">
                 <button
+                  role="menuitem"
                   className="btn btn-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -335,6 +385,7 @@ export default function Header() {
                   Profile
                 </button>
                 <button
+                  role="menuitem"
                   className="btn btn-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -345,6 +396,7 @@ export default function Header() {
                   My Bag
                 </button>
                 <button
+                  role="menuitem"
                   className="btn btn-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -355,6 +407,7 @@ export default function Header() {
                   Settings
                 </button>
                 <button
+                  role="menuitem"
                   className="btn btn-logout"
                   onClick={(e) => {
                     e.stopPropagation();

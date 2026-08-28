@@ -3,10 +3,11 @@
 import { Check, Rocket } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useId, useRef } from 'react';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import type { ReactNode } from 'react';
+import { useModalAccessibility } from '@/lib/ui/useModalAccessibility';
 
 const MODAL_EVENT_DEDUPE_MS = 5000;
 const modalViewedCache = new Map<string, number>();
@@ -67,73 +68,16 @@ export default function UpgradeModal({
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const upgradeInitiatedRef = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const initialFocusRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const messageId = useId();
 
   const getDedupeKey = useCallback(
     (suffix: string) =>
       `${session?.user?.id ?? 'anon'}:${pathname}:${ctaLocation}:${milestoneRound ?? 'none'}:${suffix}`,
     [ctaLocation, milestoneRound, pathname, session?.user?.id],
   );
-
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        if (analyticsMode === 'upgrade' && !upgradeInitiatedRef.current) {
-          const dedupeKey = getDedupeKey('dismiss_escape');
-          const now = Date.now();
-          const lastSeen = modalDismissedCache.get(dedupeKey);
-          if (!lastSeen || now - lastSeen > MODAL_EVENT_DEDUPE_MS) {
-            modalDismissedCache.set(dedupeKey, now);
-            captureClientEvent(
-              ANALYTICS_EVENTS.checkoutFailed,
-              {
-                failure_stage: 'milestone_modal_dismissed',
-                dismiss_source: 'escape',
-                cta_location: ctaLocation,
-                paywall_context: paywallContext,
-                ...(milestoneRound != null ? { milestone_round: milestoneRound, rounds_lifetime: milestoneRound } : {}),
-                source_page: pathname,
-              },
-              {
-                pathname,
-                user: {
-                  id: session?.user?.id,
-                  subscription_tier: session?.user?.subscription_tier,
-                  auth_provider: session?.user?.auth_provider,
-                },
-                isLoggedIn: status === 'authenticated',
-              },
-            );
-          }
-        }
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll when modal is open
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [
-    analyticsMode,
-    ctaLocation,
-    getDedupeKey,
-    isOpen,
-    milestoneRound,
-    onClose,
-    pathname,
-    paywallContext,
-    session?.user?.auth_provider,
-    session?.user?.id,
-    session?.user?.subscription_tier,
-    status,
-  ]);
 
   useEffect(() => {
     if (!isOpen || analyticsMode !== 'upgrade') {
@@ -180,7 +124,7 @@ export default function UpgradeModal({
     status,
   ]);
 
-  const handleDismiss = (source: 'button' | 'backdrop') => {
+  const handleDismiss = useCallback((source: 'button' | 'backdrop' | 'escape') => {
     if (analyticsMode === 'upgrade' && !upgradeInitiatedRef.current) {
       const dedupeKey = getDedupeKey(`dismiss_${source}`);
       const now = Date.now();
@@ -211,7 +155,26 @@ export default function UpgradeModal({
     }
 
     onClose();
-  };
+  }, [
+    analyticsMode,
+    ctaLocation,
+    getDedupeKey,
+    milestoneRound,
+    onClose,
+    pathname,
+    paywallContext,
+    session?.user?.auth_provider,
+    session?.user?.id,
+    session?.user?.subscription_tier,
+    status,
+  ]);
+
+  useModalAccessibility({
+    isOpen,
+    dialogRef,
+    initialFocusRef,
+    onDismiss: showCloseButton ? () => handleDismiss('escape') : undefined,
+  });
 
   if (!isOpen) return null;
 
@@ -251,23 +214,32 @@ export default function UpgradeModal({
       {/* Backdrop */}
       <div
         className="upgrade-modal-backdrop"
+        aria-hidden="true"
         onClick={showCloseButton ? () => handleDismiss('backdrop') : undefined}
       />
 
       {/* Modal */}
-      <div className="upgrade-modal">
+      <div
+        ref={dialogRef}
+        className="upgrade-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={messageId}
+        tabIndex={-1}
+      >
         <div className="upgrade-modal-content">
           {/* Icon */}
           <div className="upgrade-modal-icon">{icon ?? <Rocket color='var(--color-accent)' size={50}/>}</div>
 
           {/* Title */}
           <div className="upgrade-modal-title-row">
-            <h2 className="upgrade-modal-title">{title}</h2>
+            <h2 id={titleId} className="upgrade-modal-title">{title}</h2>
             {titleBadge ? <span className="upgrade-modal-title-badge">{titleBadge}</span> : null}
           </div>
 
           {/* Message */}
-          <p className="upgrade-modal-message">{message}</p>
+          <p id={messageId} className="upgrade-modal-message">{message}</p>
 
           {/* Features List */}
           {features.length > 0 && (
@@ -284,6 +256,7 @@ export default function UpgradeModal({
           {/* Buttons */}
           <div className="card">
             <button
+              ref={initialFocusRef}
               className="btn btn-upgrade"
               onClick={handlePrimary}
             >

@@ -1525,6 +1525,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                   type="button"
                   className="dashboard-summary-stat is-primary is-toggleable"
                   onClick={() => setShowToPar((p) => !p)}
+                  aria-label={`Show scoring summary as ${showToPar ? 'total scores' : 'scores to par'}`}
+                  aria-pressed={showToPar}
                 >
                   <span className="toggle-icon dashboard-summary-stat-toggle">
                     {showToPar ? <ToggleRight /> : <ToggleLeft />}
@@ -1539,6 +1541,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                   type="button"
                   className="dashboard-summary-stat is-secondary is-toggleable"
                   onClick={() => setShowToPar((p) => !p)}
+                  aria-label={`Show scoring summary as ${showToPar ? 'total scores' : 'scores to par'}`}
+                  aria-pressed={showToPar}
                 >
                   <span className="toggle-icon dashboard-summary-stat-toggle">
                     {showToPar ? <ToggleRight /> : <ToggleLeft />}
@@ -1551,6 +1555,8 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
                   type="button"
                   className="dashboard-summary-stat is-secondary is-toggleable"
                   onClick={() => setShowToPar((p) => !p)}
+                  aria-label={`Show scoring summary as ${showToPar ? 'total scores' : 'scores to par'}`}
+                  aria-pressed={showToPar}
                 >
                   <span className="toggle-icon dashboard-summary-stat-toggle">
                     {showToPar ? <ToggleRight /> : <ToggleLeft />}

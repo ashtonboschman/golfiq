@@ -1,6 +1,10 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 export default function OfflinePage() {
+  const router = useRouter();
+
   return (
     <section className="card offline-fallback-card">
       <h2>You are offline</h2>
@@ -10,7 +14,7 @@ export default function OfflinePage() {
         <button className="btn btn-accent" type="button" onClick={() => window.location.reload()}>
           Retry
         </button>
-        <button className="btn btn-cancel" type="button" onClick={() => (window.location.href = '/dashboard')}>
+        <button className="btn btn-cancel" type="button" onClick={() => router.push('/dashboard')}>
           Go to Dashboard
         </button>
       </div>

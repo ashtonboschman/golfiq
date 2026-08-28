@@ -1,6 +1,7 @@
 import { GET, POST } from '@/app/api/friends/notifications/route';
 import { requireAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/db';
+import { getBlockedUserIdsForUser } from '@/lib/socialSafety';
 
 jest.mock('@/lib/api-auth', () => {
   const actual = jest.requireActual('@/lib/api-auth');
@@ -19,7 +20,12 @@ jest.mock('@/lib/db', () => ({
   },
 }));
 
+jest.mock('@/lib/socialSafety', () => ({
+  getBlockedUserIdsForUser: jest.fn(),
+}));
+
 const mockedRequireAuth = requireAuth as jest.Mock;
+const mockedGetBlockedUserIdsForUser = getBlockedUserIdsForUser as jest.Mock;
 const mockedPrisma = prisma as unknown as {
   friendNotification: {
     findMany: jest.Mock;
@@ -31,6 +37,7 @@ describe('/api/friends/notifications route contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedRequireAuth.mockResolvedValue(BigInt(7));
+    mockedGetBlockedUserIdsForUser.mockResolvedValue([]);
     mockedPrisma.friendNotification.findMany.mockResolvedValue([
       {
         id: BigInt(1),
@@ -95,5 +102,22 @@ describe('/api/friends/notifications route contract', () => {
         readAt: expect.any(Date),
       },
     });
+  });
+
+  it('excludes notifications from users blocked in either direction', async () => {
+    mockedGetBlockedUserIdsForUser.mockResolvedValue([BigInt(3)]);
+
+    const response = await GET(new Request('http://localhost/api/friends/notifications') as any);
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.friendNotification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: BigInt(7),
+          type: 'friend_request_accepted',
+          actorUserId: { notIn: [BigInt(3)] },
+        },
+      }),
+    );
   });
 });
