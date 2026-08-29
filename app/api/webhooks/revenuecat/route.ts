@@ -4,6 +4,8 @@ import { prisma } from '@/lib/db';
 import { isApplePremiumProduct } from '@/lib/revenuecat/products';
 import { getRevenueCatApplePremiumSubscription } from '@/lib/revenuecat/serverSubscriber';
 import { reportServerError } from '@/lib/monitoring/server';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 
 type RevenueCatWebhookEnvelope = {
   api_version?: string;
@@ -214,6 +216,34 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 });
   }
+
+  await captureServerEvent({
+    event: ANALYTICS_EVENTS.subscriptionLifecycle,
+    distinctId: user.id.toString(),
+    properties: {
+      lifecycle_event: eventType.toLowerCase(),
+      billing_platform:
+        updatePlan.next.subscriptionProvider === 'apple'
+          ? 'ios_iap'
+          : 'revenuecat_web',
+      billing_provider: 'revenuecat',
+      subscription_provider: updatePlan.next.subscriptionProvider,
+      product_id: event.product_id ?? null,
+      new_product_id: event.new_product_id ?? null,
+      store: event.store ?? null,
+      provider_environment: event.environment ?? null,
+      previous_plan_tier: user.subscriptionTier,
+      plan_tier: updatePlan.next.subscriptionTier,
+      previous_subscription_status: user.subscriptionStatus,
+      subscription_status: updatePlan.next.subscriptionStatus,
+      cancel_at_period_end: updatePlan.next.subscriptionCancelAtPeriodEnd,
+    },
+    context: {
+      sourcePage: '/api/webhooks/revenuecat',
+      isLoggedIn: true,
+      planTier: updatePlan.next.subscriptionTier,
+    },
+  });
 
   return NextResponse.json({ received: true, processed: true });
 }
@@ -550,6 +580,52 @@ async function processTransferEvent(
         });
       }
     });
+
+    const transferredSourceUsers = users.filter(
+      (user) => sourceIds.includes(user.id) && user.subscriptionTier !== 'lifetime',
+    );
+
+    await Promise.all([
+      ...transferredSourceUsers.map((source) =>
+        captureServerEvent({
+          event: ANALYTICS_EVENTS.subscriptionLifecycle,
+          distinctId: source.id.toString(),
+          properties: {
+            lifecycle_event: 'transfer_out',
+            billing_platform: 'ios_iap',
+            billing_provider: 'revenuecat',
+            subscription_provider: null,
+            provider_environment: event.environment ?? null,
+            plan_tier: 'free',
+            subscription_status: 'cancelled',
+          },
+          context: {
+            sourcePage: '/api/webhooks/revenuecat',
+            isLoggedIn: true,
+            planTier: 'free',
+          },
+        }),
+      ),
+      captureServerEvent({
+        event: ANALYTICS_EVENTS.subscriptionLifecycle,
+        distinctId: destination.id.toString(),
+        properties: {
+          lifecycle_event: 'transfer_in',
+          billing_platform: 'ios_iap',
+          billing_provider: 'revenuecat',
+          subscription_provider: subscription ? 'apple' : null,
+          product_id: subscription?.productId ?? null,
+          provider_environment: event.environment ?? null,
+          plan_tier: subscription ? 'premium' : 'free',
+          subscription_status: subscription ? 'active' : 'cancelled',
+        },
+        context: {
+          sourcePage: '/api/webhooks/revenuecat',
+          isLoggedIn: true,
+          planTier: subscription ? 'premium' : 'free',
+        },
+      }),
+    ]);
   } catch (error) {
     if (isDuplicateEventError(error)) {
       return NextResponse.json({ received: true, duplicate: true });

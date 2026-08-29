@@ -4,12 +4,15 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import PricingPage from '@/app/pricing/page';
+import { captureClientEvent } from '@/lib/analytics/client';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { useSession } from 'next-auth/react';
 import { clearSubscriptionCache, useSubscription } from '@/hooks/useSubscription';
 import { getBillingPlatform, isNativeApp, isNativeIOS } from '@/lib/platform';
 import { redirectToUrl } from '@/lib/browser/redirect';
 import {
   getNativePremiumOffering,
+  isNativePurchaseCancelled,
   isNativeReceiptAlreadyInUse,
   purchaseNativePremiumPlan,
   restoreNativePremiumPurchases,
@@ -75,7 +78,9 @@ const mockedGetBillingPlatform = getBillingPlatform as jest.Mock;
 const mockedIsNativeApp = isNativeApp as jest.Mock;
 const mockedIsNativeIOS = isNativeIOS as jest.Mock;
 const mockedRedirectToUrl = redirectToUrl as jest.Mock;
+const mockedCaptureClientEvent = captureClientEvent as jest.Mock;
 const mockedGetNativePremiumOffering = getNativePremiumOffering as jest.Mock;
+const mockedIsNativePurchaseCancelled = isNativePurchaseCancelled as jest.Mock;
 const mockedIsNativeReceiptAlreadyInUse = isNativeReceiptAlreadyInUse as jest.Mock;
 const mockedPurchaseNativePremiumPlan = purchaseNativePremiumPlan as jest.Mock;
 const mockedRestoreNativePremiumPurchases = restoreNativePremiumPurchases as jest.Mock;
@@ -128,6 +133,7 @@ describe('/pricing page', () => {
     mockedIsNativeIOS.mockReturnValue(false);
     mockedRedirectToUrl.mockReset();
     mockedGetNativePremiumOffering.mockResolvedValue(nativeOffering);
+    mockedIsNativePurchaseCancelled.mockReturnValue(false);
     mockedIsNativeReceiptAlreadyInUse.mockReturnValue(false);
     mockedPurchaseNativePremiumPlan.mockResolvedValue({ hasPremium: true, customerInfo: {} });
     mockedRestoreNativePremiumPurchases.mockResolvedValue({ hasPremium: true, customerInfo: {} });
@@ -267,6 +273,16 @@ describe('/pricing page', () => {
 
     const message = screen.getByText('Checkout cancelled. No charges were made.');
     expect(message).toHaveClass('text-red');
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.checkoutCancelled,
+      expect.objectContaining({ cancel_source: 'web_checkout_return' }),
+      expect.any(Object),
+    );
+    expect(mockedCaptureClientEvent).not.toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.checkoutFailed,
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it('routes web checkout through the RevenueCat purchase-link endpoint', async () => {
@@ -337,6 +353,41 @@ describe('/pricing page', () => {
       expect(mockedClearSubscriptionCache).toHaveBeenCalledWith('1');
       expect(mockPush).toHaveBeenCalledWith('/settings');
     });
+  });
+
+  it('tracks a cancelled native purchase separately from checkout failures', async () => {
+    mockedGetBillingPlatform.mockReturnValue('ios_iap');
+    mockedIsNativeApp.mockReturnValue(true);
+    mockedIsNativeIOS.mockReturnValue(true);
+    const cancellationError = { code: '1' };
+    mockedPurchaseNativePremiumPlan.mockRejectedValue(cancellationError);
+    mockedIsNativePurchaseCancelled.mockImplementation(
+      (error: unknown) => error === cancellationError,
+    );
+
+    render(<PricingPage />);
+    const button = await screen.findByRole('button', {
+      name: /Subscribe monthly to Premium plan/i,
+    });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    expect(await screen.findByText('Purchase cancelled. No charge was made.')).toHaveClass(
+      'text-red',
+    );
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.checkoutCancelled,
+      expect.objectContaining({
+        cancel_source: 'native_purchase_sheet',
+        plan: 'monthly',
+      }),
+      expect.any(Object),
+    );
+    expect(mockedCaptureClientEvent).not.toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.checkoutFailed,
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it('explains when a purchase receipt belongs to another GolfIQ account', async () => {

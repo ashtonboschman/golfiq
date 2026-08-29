@@ -132,9 +132,8 @@ export default function UpgradeModal({
       if (!lastSeen || now - lastSeen > MODAL_EVENT_DEDUPE_MS) {
         modalDismissedCache.set(dedupeKey, now);
         captureClientEvent(
-          ANALYTICS_EVENTS.checkoutFailed,
+          ANALYTICS_EVENTS.paywallDismissed,
           {
-            failure_stage: 'milestone_modal_dismissed',
             dismiss_source: source,
             cta_location: ctaLocation,
             paywall_context: paywallContext,

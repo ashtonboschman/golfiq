@@ -233,7 +233,6 @@ function trackPasswordLoginFailed(args: {
 }): void {
   const { email, errorCode } = args;
   const normalizedEmail = normalizeEmail(email);
-  const emailDomain = normalizedEmail?.split('@')[1] ?? null;
 
   void captureServerEvent({
     event: ANALYTICS_EVENTS.loginFailed,
@@ -241,7 +240,6 @@ function trackPasswordLoginFailed(args: {
     properties: {
       login_method: 'password',
       error_code: errorCode,
-      ...(emailDomain ? { attempted_email_domain: emailDomain } : {}),
     },
     context: {
       sourcePage: '/login',
@@ -360,7 +358,7 @@ async function resolveOAuthIdentity(args: {
     if (!args.emailVerified) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.loginFailed,
-        distinctId: `oauth_${provider}_${normalizedEmail}`,
+        distinctId: `oauth_${provider}_email_unverified`,
         properties: {
           login_method: provider,
           error_code: 'email_not_verified_by_provider',

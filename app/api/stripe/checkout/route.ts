@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     if (!priceId || typeof priceId !== 'string') {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
-        distinctId: session.user.id ?? session.user.email,
+        distinctId: session.user.id ?? 'authenticated_unknown',
         properties: {
           billing_platform: getBillingPlatform(),
           billing_provider: 'stripe',
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     if (!interval || !['month', 'year'].includes(interval)) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
-        distinctId: session.user.id ?? session.user.email,
+        distinctId: session.user.id ?? 'authenticated_unknown',
         properties: {
           billing_platform: getBillingPlatform(),
           billing_provider: 'stripe',
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
-        distinctId: session.user.id ?? session.user.email,
+        distinctId: session.user.id ?? 'authenticated_unknown',
         properties: {
           billing_platform: getBillingPlatform(),
           billing_provider: 'stripe',
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     if (!allowedPriceIds.includes(priceId)) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
-        distinctId: session.user.id ?? session.user.email,
+        distinctId: session.user.id ?? 'authenticated_unknown',
         properties: {
           billing_platform: getBillingPlatform(),
           billing_provider: 'stripe',
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
         billing_platform: getBillingPlatform(),
         billing_provider: 'stripe',
         failure_stage: 'exception',
-        error_code: error?.message ?? 'checkout_exception',
+        error_code: 'checkout_exception',
       },
       context: { request: req, sourcePage: '/api/stripe/checkout', isLoggedIn: false },
     });

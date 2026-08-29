@@ -229,6 +229,18 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
     },
   });
 
+  await captureStripeLifecycle({
+    userId,
+    lifecycleEvent: 'subscription_created',
+    planTier: 'premium',
+    subscriptionStatus: status,
+    properties: {
+      previous_plan_tier: user.subscriptionTier,
+      previous_subscription_status: user.subscriptionStatus,
+      cancel_at_period_end: isCancellationScheduled(subscription),
+    },
+  });
+
   console.log('Subscription created.');
 }
 
@@ -281,6 +293,20 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     },
   });
 
+  await captureStripeLifecycle({
+    userId: user.id.toString(),
+    lifecycleEvent: cancellationScheduled
+      ? 'cancellation_scheduled'
+      : 'subscription_updated',
+    planTier: tier,
+    subscriptionStatus: status,
+    properties: {
+      previous_plan_tier: user.subscriptionTier,
+      previous_subscription_status: user.subscriptionStatus,
+      cancel_at_period_end: cancellationScheduled,
+    },
+  });
+
   console.log('Subscription updated.');
 }
 
@@ -319,6 +345,17 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       metadata: {
         subscriptionId: subscription.id,
       },
+    },
+  });
+
+  await captureStripeLifecycle({
+    userId: user.id.toString(),
+    lifecycleEvent: 'subscription_deleted',
+    planTier: 'free',
+    subscriptionStatus: 'cancelled',
+    properties: {
+      previous_plan_tier: user.subscriptionTier,
+      previous_subscription_status: user.subscriptionStatus,
     },
   });
 
@@ -376,6 +413,18 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
     },
   });
 
+  await captureStripeLifecycle({
+    userId: user.id.toString(),
+    lifecycleEvent: 'payment_succeeded',
+    planTier: user.subscriptionTier,
+    subscriptionStatus: 'active',
+    properties: {
+      previous_subscription_status: user.subscriptionStatus,
+      amount: invoice.amount_paid,
+      currency: invoice.currency,
+    },
+  });
+
   console.log('Payment succeeded.');
 }
 
@@ -424,28 +473,52 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     },
   });
 
-  await captureServerEvent({
-    event: ANALYTICS_EVENTS.checkoutFailed,
-    distinctId: user.id.toString(),
+  await captureStripeLifecycle({
+    userId: user.id.toString(),
+    lifecycleEvent: 'billing_issue',
+    planTier: user.subscriptionTier,
+    subscriptionStatus: 'past_due',
     properties: {
-      billing_platform: 'web_stripe',
-      billing_provider: 'stripe',
-      subscription_provider: 'stripe',
-      failure_stage: 'payment',
-      error_code: 'invoice_payment_failed',
-      invoice_id: invoice.id,
-      subscription_id: subscriptionId,
-      amount_due: invoice.amount_due,
+      previous_subscription_status: user.subscriptionStatus,
+      amount: invoice.amount_due,
       currency: invoice.currency,
-    },
-    context: {
-      sourcePage: '/api/webhooks/stripe',
-      isLoggedIn: true,
-      planTier: user.subscriptionTier,
     },
   });
 
   console.log('Payment failed.');
+}
+
+async function captureStripeLifecycle({
+  userId,
+  lifecycleEvent,
+  planTier,
+  subscriptionStatus,
+  properties = {},
+}: {
+  userId: string;
+  lifecycleEvent: string;
+  planTier: string;
+  subscriptionStatus: string;
+  properties?: Record<string, unknown>;
+}) {
+  await captureServerEvent({
+    event: ANALYTICS_EVENTS.subscriptionLifecycle,
+    distinctId: userId,
+    properties: {
+      lifecycle_event: lifecycleEvent,
+      billing_platform: 'web_stripe',
+      billing_provider: 'stripe',
+      subscription_provider: 'stripe',
+      plan_tier: planTier,
+      subscription_status: subscriptionStatus,
+      ...properties,
+    },
+    context: {
+      sourcePage: '/api/webhooks/stripe',
+      isLoggedIn: true,
+      planTier,
+    },
+  });
 }
 
 // ============================================

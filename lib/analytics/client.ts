@@ -60,16 +60,12 @@ function buildCommonProps(
   return {
     source_page: sourcePage,
     ...(context.user?.id ? { user_id: String(context.user.id) } : {}),
-    ...(context.user?.email ? { user_email: String(context.user.email) } : {}),
-    ...(context.user?.first_name ? { user_first_name: String(context.user.first_name) } : {}),
-    ...(context.user?.last_name ? { user_last_name: String(context.user.last_name) } : {}),
     ...(context.user?.subscription_status
       ? { subscription_status: String(context.user.subscription_status) }
       : {}),
     ...(context.user?.subscription_provider
       ? { subscription_provider: String(context.user.subscription_provider) }
       : {}),
-    ...(context.user?.city ? { user_city: String(context.user.city) } : {}),
     ...(context.user?.timezone ? { user_timezone: String(context.user.timezone) } : {}),
     plan_tier: planTier,
     auth_provider: authProvider,

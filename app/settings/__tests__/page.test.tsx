@@ -177,6 +177,7 @@ describe('/settings page', () => {
     await renderSettingsPage();
 
     expect(screen.getByText('Current Plan')).toBeInTheDocument();
+    expect(document.querySelector('.subscription-status')).toHaveTextContent('Status Active');
     expect(screen.getByText('Theme')).toBeInTheDocument();
     expect(screen.getByTestId('theme-select')).toBeInTheDocument();
     expect(screen.getByText('Live Round Tracking')).toBeInTheDocument();

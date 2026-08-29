@@ -1,4 +1,6 @@
 import { POST } from '@/app/api/webhooks/revenuecat/route';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { captureServerEvent } from '@/lib/analytics/server';
 import { prisma } from '@/lib/db';
 import { getRevenueCatApplePremiumSubscription } from '@/lib/revenuecat/serverSubscriber';
 
@@ -25,6 +27,10 @@ jest.mock('@/lib/revenuecat/serverSubscriber', () => ({
   getRevenueCatApplePremiumSubscription: jest.fn(),
 }));
 
+jest.mock('@/lib/analytics/server', () => ({
+  captureServerEvent: jest.fn(),
+}));
+
 const mockedPrisma = prisma as unknown as {
   user: {
     findUnique: jest.Mock;
@@ -44,6 +50,7 @@ const mockedPrisma = prisma as unknown as {
 const mockedGetRevenueCatApplePremiumSubscription = jest.mocked(
   getRevenueCatApplePremiumSubscription,
 );
+const mockedCaptureServerEvent = jest.mocked(captureServerEvent);
 
 describe('/api/webhooks/revenuecat route contract', () => {
   const originalEnv = process.env;
@@ -174,6 +181,21 @@ describe('/api/webhooks/revenuecat route contract', () => {
           appleOriginalTransactionId: 'orig_tx_123',
         }),
       })
+    );
+    expect(mockedCaptureServerEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: ANALYTICS_EVENTS.subscriptionLifecycle,
+        distinctId: '42',
+        properties: expect.objectContaining({
+          lifecycle_event: 'initial_purchase',
+          billing_platform: 'ios_iap',
+          billing_provider: 'revenuecat',
+          subscription_provider: 'apple',
+          product_id: 'golfiq_premium_monthly',
+          plan_tier: 'premium',
+          subscription_status: 'active',
+        }),
+      }),
     );
   });
 

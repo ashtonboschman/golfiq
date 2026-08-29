@@ -179,9 +179,9 @@ function PricingContent() {
       if (!checkoutCancelTrackedRef.current) {
         checkoutCancelTrackedRef.current = true;
         captureClientEvent(
-          ANALYTICS_EVENTS.checkoutFailed,
+          ANALYTICS_EVENTS.checkoutCancelled,
           {
-            failure_stage: 'user_cancelled',
+            cancel_source: 'web_checkout_return',
             source_page: pathname,
             billing_platform: billingPlatform,
             subscription_provider: provider,
@@ -318,13 +318,17 @@ function PricingContent() {
           type: 'error',
         });
         captureClientEvent(
-          ANALYTICS_EVENTS.checkoutFailed,
+          userCancelled
+            ? ANALYTICS_EVENTS.checkoutCancelled
+            : ANALYTICS_EVENTS.checkoutFailed,
           {
-            failure_stage: userCancelled
-              ? 'user_cancelled'
-              : receiptAlreadyInUse
-                ? 'receipt_already_in_use'
-                : 'native_purchase',
+            ...(userCancelled
+              ? { cancel_source: 'native_purchase_sheet' }
+              : {
+                  failure_stage: receiptAlreadyInUse
+                    ? 'receipt_already_in_use'
+                    : 'native_purchase',
+                }),
             plan,
             source_page: pathname,
             billing_platform: billingPlatform,

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     if (!sessionId) {
       await captureServerEvent({
         event: ANALYTICS_EVENTS.checkoutFailed,
-        distinctId: session.user.id ?? session.user.email,
+        distinctId: session.user.id ?? 'authenticated_unknown',
         properties: {
           billing_platform: getBillingPlatform(),
           billing_provider: 'stripe',
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
         billing_platform: getBillingPlatform(),
         billing_provider: 'stripe',
         failure_stage: 'exception',
-        error_code: error?.message ?? 'verify_session_exception',
+        error_code: 'verify_session_exception',
       },
       context: { request: req, sourcePage: '/api/stripe/verify-session', isLoggedIn: false },
     });

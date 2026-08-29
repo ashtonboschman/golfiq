@@ -22,6 +22,7 @@ import { selectStyles } from '@/lib/selectStyles';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
 import { getBillingPlatform } from '@/lib/platform';
 import { isAdminUserId } from '@/lib/admin';
+import { getStatusDisplayName } from '@/lib/subscription';
 
 const FEEDBACK_MIN_LENGTH = 10;
 const FEEDBACK_MAX_LENGTH = 2000;
@@ -388,7 +389,7 @@ export default function SettingsPage() {
                       <div className="subscription-detail-box subscription-detail-box-premium">
                         <>
                           <p className="subscription-status">
-                            Status <strong>{subscriptionStatus}</strong>
+                            Status <strong>{getStatusDisplayName(subscriptionStatus)}</strong>
                           </p>
                           {endsAt && (
                             <>
