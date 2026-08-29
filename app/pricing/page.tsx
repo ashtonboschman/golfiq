@@ -125,12 +125,6 @@ function PricingContent() {
   }, [billingPlatform, pathname, provider, session?.user?.auth_provider, session?.user?.id, session?.user?.subscription_tier, status]);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login?redirect=/pricing');
-    }
-  }, [status, router]);
-
-  useEffect(() => {
     const appUserId = session?.user?.id ? String(session.user.id) : null;
     if (!usesNativeBilling || status !== 'authenticated' || !appUserId) return;
 
@@ -206,7 +200,6 @@ function PricingContent() {
 
     const interval = plan === 'annual' ? 'year' : 'month';
 
-    setLoading(interval);
     setMessage(null);
     checkoutCancelTrackedRef.current = false;
     captureClientEvent(
@@ -228,6 +221,13 @@ function PricingContent() {
         isLoggedIn: status === 'authenticated',
       },
     );
+
+    if (status !== 'authenticated') {
+      router.push('/login?redirect=/pricing');
+      return;
+    }
+
+    setLoading(interval);
 
     if (usesNativeBilling) {
       const appUserId = session?.user?.id ? String(session.user.id) : null;
@@ -410,12 +410,8 @@ function PricingContent() {
     }
   };
 
-  if (status === 'unauthenticated') {
-    return null;
-  }
-
   // Don't show pricing page to premium users
-  if (isPremium) {
+  if (status === 'authenticated' && isPremium) {
     return null;
   }
 
@@ -439,6 +435,7 @@ function PricingContent() {
 
   return (
     <div className="page-stack">
+      <h1 className="u-visually-hidden">GolfIQ Pricing</h1>
       {displayMessage && (
         <div className={displayMessage.type === 'success' ? 'text-green' : 'text-red'}>
           {displayMessage.text}
@@ -576,12 +573,25 @@ function PricingContent() {
                   <li key={feature}><X color="red" size="20" className="feature-icon" /> {feature}</li>
                 ))}
               </ul>
-              <button
-                className="pricing-button current"
-                disabled
-              >
-                Current Plan
-              </button>
+              {status === 'authenticated' ? (
+                <button
+                  className="pricing-button current"
+                  disabled
+                >
+                  Current Plan
+                </button>
+              ) : status === 'unauthenticated' ? (
+                <button
+                  className="pricing-button"
+                  onClick={() => router.push('/onboarding?source=pricing')}
+                >
+                  Get Started Free
+                </button>
+              ) : (
+                <button className="pricing-button current" disabled>
+                  Loading...
+                </button>
+              )}
             </div>
           </section>
         )}

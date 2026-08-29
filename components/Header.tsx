@@ -204,6 +204,7 @@ export default function Header() {
     (user && pathname !== '/dashboard' && pathname !== '/post-signup') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
+    pathname === '/pricing' ||
     pathname === '/about' ||
     pathname === '/privacy' ||
     pathname === '/terms' ||
@@ -219,7 +220,7 @@ export default function Header() {
     }
 
     // On legal/info pages, return to settings when opened from settings
-    if (pathname === '/about' || pathname === '/privacy' || pathname === '/terms' || pathname === '/contact') {
+    if (pathname === '/pricing' || pathname === '/about' || pathname === '/privacy' || pathname === '/terms' || pathname === '/contact') {
       const from = searchParams.get('from');
       if (from === 'settings') {
         router.push('/settings');

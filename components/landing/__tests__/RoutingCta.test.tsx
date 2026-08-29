@@ -41,6 +41,7 @@ describe('landing CTAs', () => {
     render(<LandingHeader />);
 
     expect(screen.getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: 'Pricing' })).toHaveAttribute('href', '/pricing');
   });
 
   it('routes high-intent landing CTA in Insights section to onboarding', () => {

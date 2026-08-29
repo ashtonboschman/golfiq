@@ -13,6 +13,7 @@ const PUBLIC_ROUTES = new Set([
   '/register',
   '/forgot-password',
   '/reset-password',
+  '/pricing',
   '/about',
   '/privacy',
   '/terms',

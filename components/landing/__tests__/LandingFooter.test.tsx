@@ -16,5 +16,6 @@ describe('LandingFooter', () => {
 
     const contactLink = screen.getByRole('link', { name: 'Contact' });
     expect(contactLink).toHaveAttribute('href', '/contact');
+    expect(screen.getByRole('link', { name: 'Pricing' })).toHaveAttribute('href', '/pricing');
   });
 });

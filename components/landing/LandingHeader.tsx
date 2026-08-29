@@ -45,6 +45,9 @@ export default function LandingHeader() {
           >
             Round Insights
           </a>
+          <Link href="/pricing" className="landing-nav-link">
+            Pricing
+          </Link>
         </nav>
 
         <div className="landing-header-actions">

@@ -111,6 +111,7 @@ export default function RootLayout({
           '/register': true,
           '/forgot-password': true,
           '/reset-password': true,
+          '/pricing': true,
           '/about': true,
           '/privacy': true,
           '/terms': true,

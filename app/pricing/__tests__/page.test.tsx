@@ -141,6 +141,37 @@ describe('/pricing page', () => {
     mockedWaitForServerPremiumEntitlement.mockResolvedValue(true);
   });
 
+  it('keeps pricing visible to guests and requires sign-in before checkout', () => {
+    mockedUseSession.mockReturnValue({
+      status: 'unauthenticated',
+      data: null,
+    });
+
+    render(<PricingPage />);
+
+    expect(screen.getByRole('heading', { name: 'GolfIQ Pricing' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Premium Monthly' })).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Subscribe monthly to Premium plan/i }));
+
+    expect(mockPush).toHaveBeenCalledWith('/login?redirect=/pricing');
+    expect(mockedRedirectToUrl).not.toHaveBeenCalled();
+  });
+
+  it('offers guests a free-account path from the Free plan', () => {
+    mockedUseSession.mockReturnValue({
+      status: 'unauthenticated',
+      data: null,
+    });
+
+    render(<PricingPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Free' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Get Started Free' }));
+
+    expect(mockPush).toHaveBeenCalledWith('/onboarding?source=pricing');
+  });
+
   it('identifies each plan without repeating visible card titles or taglines', () => {
     render(<PricingPage />);
 

@@ -49,6 +49,7 @@ export default function Footer() {
     '/register',
     '/forgot-password',
     '/reset-password',
+    '/pricing',
     '/about',
     '/privacy',
     '/terms',
