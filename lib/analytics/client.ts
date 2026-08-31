@@ -15,18 +15,15 @@ type ClientAnalyticsContext = {
   pathname?: string;
   user?: {
     id?: string | null;
-    email?: string | null;
-    first_name?: string | null;
-    last_name?: string | null;
     subscription_tier?: string | null;
     subscription_status?: string | null;
     subscription_provider?: string | null;
     auth_provider?: string | null;
-    city?: string | null;
-    timezone?: string | null;
   } | null;
   isLoggedIn?: boolean;
 };
+
+type AnalyticsPerson = NonNullable<ClientAnalyticsContext['user']>;
 
 function detectAppSurface(): AppSurface {
   if (typeof window === 'undefined') return 'web';
@@ -45,7 +42,7 @@ function normalizeSourcePage(rawSource: string | undefined, rawPathname: string 
   return 'unknown';
 }
 
-function buildCommonProps(
+export function buildClientAnalyticsCommonProps(
   context: ClientAnalyticsContext = {},
 ): CommonAnalyticsProps {
   const sourcePage = normalizeSourcePage(context.sourcePage, context.pathname);
@@ -59,14 +56,12 @@ function buildCommonProps(
 
   return {
     source_page: sourcePage,
-    ...(context.user?.id ? { user_id: String(context.user.id) } : {}),
     ...(context.user?.subscription_status
       ? { subscription_status: String(context.user.subscription_status) }
       : {}),
     ...(context.user?.subscription_provider
       ? { subscription_provider: String(context.user.subscription_provider) }
       : {}),
-    ...(context.user?.timezone ? { user_timezone: String(context.user.timezone) } : {}),
     plan_tier: planTier,
     auth_provider: authProvider,
     is_logged_in: isLoggedIn,
@@ -88,50 +83,34 @@ export function captureClientEvent(
   if (process.env.NODE_ENV === 'test') return;
 
   try {
-    const common = buildCommonProps(context);
+    const common = buildClientAnalyticsCommonProps(context);
     posthog.capture(event, { ...common, ...properties });
   } catch {
     // Best-effort only; analytics must never break UI flows.
   }
 }
 
+export function buildAnalyticsPersonProperties(
+  user: AnalyticsPerson,
+): Record<string, string> {
+  return {
+    plan_tier: normalizePlanTier(user.subscription_tier),
+    ...(user.subscription_status ? { subscription_status: user.subscription_status } : {}),
+    ...(user.subscription_provider
+      ? { subscription_provider: user.subscription_provider }
+      : {}),
+    auth_provider: normalizeAuthProvider(user.auth_provider),
+  };
+}
+
 export function identifyClientUser(
-  user: {
-    id?: string | null;
-    email?: string | null;
-    first_name?: string | null;
-    last_name?: string | null;
-    subscription_tier?: string | null;
-    subscription_status?: string | null;
-    subscription_provider?: string | null;
-    auth_provider?: string | null;
-    city?: string | null;
-    timezone?: string | null;
-    email_verified?: boolean | null;
-  } | null | undefined,
-  additionalPersonProps: Record<string, unknown> = {},
+  user: AnalyticsPerson | null | undefined,
 ): void {
   if (!user?.id) return;
   if (process.env.NODE_ENV === 'test') return;
 
   try {
-    posthog.identify(user.id, {
-      ...(user.email ? { email: user.email } : {}),
-      ...(user.first_name ? { first_name: user.first_name } : {}),
-      ...(user.last_name ? { last_name: user.last_name } : {}),
-      plan_tier: normalizePlanTier(user.subscription_tier),
-      ...(user.subscription_status ? { subscription_status: user.subscription_status } : {}),
-      ...(user.subscription_provider
-        ? { subscription_provider: user.subscription_provider }
-        : {}),
-      auth_provider: normalizeAuthProvider(user.auth_provider),
-      ...(user.city ? { city: user.city } : {}),
-      ...(user.timezone ? { timezone: user.timezone } : {}),
-      ...(user.email_verified != null
-        ? { email_verified: Boolean(user.email_verified) }
-        : {}),
-      ...additionalPersonProps,
-    });
+    posthog.identify(user.id, buildAnalyticsPersonProperties(user));
   } catch {
     // Best-effort only.
   }
@@ -144,7 +123,7 @@ export function registerClientContext(
   if (process.env.NODE_ENV === 'test') return;
 
   try {
-    const common = buildCommonProps(context);
+    const common = buildClientAnalyticsCommonProps(context);
     posthog.register(common);
   } catch {
     // Best-effort only.

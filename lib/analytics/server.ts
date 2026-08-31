@@ -101,6 +101,7 @@ export async function captureServerEvent({
         properties: {
           ...common,
           ...properties,
+          $geoip_disable: true,
         },
       }),
     });
@@ -108,4 +109,3 @@ export async function captureServerEvent({
     // Best-effort only; analytics must never block request flows.
   }
 }
-

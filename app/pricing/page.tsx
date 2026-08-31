@@ -357,13 +357,42 @@ function PricingContent() {
   const handleRestorePurchases = async () => {
     if (restoringPurchases || loading !== null) return;
     const appUserId = session?.user?.id ? String(session.user.id) : null;
+    const restoreEventProperties = {
+      source_page: pathname,
+      billing_platform: billingPlatform,
+      subscription_provider: 'apple',
+    };
+    const restoreEventContext = {
+      pathname,
+      user: {
+        id: session?.user?.id,
+        subscription_tier: session?.user?.subscription_tier,
+        subscription_provider: 'apple',
+        auth_provider: session?.user?.auth_provider,
+      },
+      isLoggedIn: status === 'authenticated',
+    };
+
     if (!appUserId) {
       setMessage({ text: 'Please sign in before restoring purchases.', type: 'error' });
+      captureClientEvent(
+        ANALYTICS_EVENTS.subscriptionRestoreFailed,
+        {
+          ...restoreEventProperties,
+          failure_stage: 'not_authenticated',
+        },
+        restoreEventContext,
+      );
       return;
     }
 
     setRestoringPurchases(true);
     setMessage(null);
+    captureClientEvent(
+      ANALYTICS_EVENTS.subscriptionRestoreStarted,
+      restoreEventProperties,
+      restoreEventContext,
+    );
     try {
       const result = await restoreNativePremiumPurchases(appUserId);
       if (!result.hasPremium) {
@@ -371,6 +400,14 @@ function PricingContent() {
           text: 'No active Premium subscription was found for this Apple account.',
           type: 'error',
         });
+        captureClientEvent(
+          ANALYTICS_EVENTS.subscriptionRestoreFailed,
+          {
+            ...restoreEventProperties,
+            failure_stage: 'no_active_entitlement',
+          },
+          restoreEventContext,
+        );
         return;
       }
 
@@ -382,10 +419,26 @@ function PricingContent() {
           text: 'Your purchase was restored, but Premium access is still syncing. Please check again shortly.',
           type: 'success',
         });
+        captureClientEvent(
+          ANALYTICS_EVENTS.subscriptionRestorePending,
+          {
+            ...restoreEventProperties,
+            confirmation_method: 'webhook_polling',
+          },
+          restoreEventContext,
+        );
         return;
       }
 
       clearSubscriptionCache(appUserId);
+      captureClientEvent(
+        ANALYTICS_EVENTS.subscriptionRestoreCompleted,
+        {
+          ...restoreEventProperties,
+          confirmation_method: reconciled ? 'direct_sync' : 'webhook_polling',
+        },
+        restoreEventContext,
+      );
       router.push('/settings');
     } catch (error) {
       console.error('[revenuecat] Restore purchases failed:', error);
@@ -405,6 +458,16 @@ function PricingContent() {
           : 'We could not restore App Store purchases. Please try again.',
         type: 'error',
       });
+      captureClientEvent(
+        ANALYTICS_EVENTS.subscriptionRestoreFailed,
+        {
+          ...restoreEventProperties,
+          failure_stage: receiptAlreadyInUse
+            ? 'receipt_already_in_use'
+            : 'native_restore',
+        },
+        restoreEventContext,
+      );
     } finally {
       setRestoringPurchases(false);
     }

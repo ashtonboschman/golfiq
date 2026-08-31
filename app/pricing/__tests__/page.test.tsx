@@ -457,6 +457,16 @@ describe('/pricing page', () => {
     expect(await screen.findByText(/No active Premium subscription was found/i)).toHaveClass('text-red');
     expect(mockedReconcileRevenueCatRestore).not.toHaveBeenCalled();
     expect(mockedWaitForServerPremiumEntitlement).not.toHaveBeenCalled();
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.subscriptionRestoreStarted,
+      expect.objectContaining({ subscription_provider: 'apple' }),
+      expect.any(Object),
+    );
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.subscriptionRestoreFailed,
+      expect.objectContaining({ failure_stage: 'no_active_entitlement' }),
+      expect.any(Object),
+    );
   });
 
   it('explains when an active receipt belongs to another GolfIQ account', async () => {
@@ -476,6 +486,11 @@ describe('/pricing page', () => {
 
     expect(await screen.findByText(/linked to another GolfIQ account/i)).toHaveClass('text-red');
     expect(mockedReconcileRevenueCatRestore).not.toHaveBeenCalled();
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.subscriptionRestoreFailed,
+      expect.objectContaining({ failure_stage: 'receipt_already_in_use' }),
+      expect.any(Object),
+    );
   });
 
   it('keeps the generic restore message for unrelated App Store errors', async () => {
@@ -508,6 +523,11 @@ describe('/pricing page', () => {
       expect(mockedReconcileRevenueCatRestore).toHaveBeenCalledTimes(1);
       expect(mockedWaitForServerPremiumEntitlement).not.toHaveBeenCalled();
       expect(mockedClearSubscriptionCache).toHaveBeenCalledWith('1');
+      expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+        ANALYTICS_EVENTS.subscriptionRestoreCompleted,
+        expect.objectContaining({ confirmation_method: 'direct_sync' }),
+        expect.any(Object),
+      );
       expect(mockPush).toHaveBeenCalledWith('/settings');
     });
   });
@@ -526,6 +546,11 @@ describe('/pricing page', () => {
 
     expect(await screen.findByText(/Premium access is still syncing/i)).toBeInTheDocument();
     expect(mockedWaitForServerPremiumEntitlement).toHaveBeenCalledTimes(1);
+    expect(mockedCaptureClientEvent).toHaveBeenCalledWith(
+      ANALYTICS_EVENTS.subscriptionRestorePending,
+      expect.objectContaining({ confirmation_method: 'webhook_polling' }),
+      expect.any(Object),
+    );
     expect(mockPush).not.toHaveBeenCalled();
   });
 });

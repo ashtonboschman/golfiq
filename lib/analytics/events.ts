@@ -50,6 +50,10 @@ export const ANALYTICS_EVENTS = {
   checkoutCancelled: 'checkout_cancelled',
   checkoutFailed: 'checkout_failed',
   paywallDismissed: 'paywall_dismissed',
+  subscriptionRestoreStarted: 'subscription_restore_started',
+  subscriptionRestoreCompleted: 'subscription_restore_completed',
+  subscriptionRestorePending: 'subscription_restore_pending',
+  subscriptionRestoreFailed: 'subscription_restore_failed',
   subscriptionLifecycle: 'subscription_lifecycle',
   friendRequestSent: 'friend_request_sent',
   friendRequestAccepted: 'friend_request_accepted',
@@ -92,10 +96,8 @@ export type AnalyticsEnvironment =
 
 export type CommonAnalyticsProps = {
   source_page: string;
-  user_id?: string;
   subscription_status?: string;
   subscription_provider?: string;
-  user_timezone?: string;
   plan_tier: PlanTier;
   auth_provider: AuthProvider;
   is_logged_in: boolean;

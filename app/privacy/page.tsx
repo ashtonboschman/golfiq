@@ -71,7 +71,7 @@ export default function PrivacyPage() {
             <li>Device type, operating system, browser, app version, and app surface.</li>
             <li>IP address, request metadata, security records, and diagnostic information.</li>
             <li>Feature interactions, navigation, purchase-flow events, and reliability events.</li>
-            <li>When you are signed in, analytics may be associated with your GolfIQ user ID and account context such as name, email, city, timezone, authentication provider, and subscription state.</li>
+            <li>When you are signed in, analytics may be associated with your pseudonymous GolfIQ user ID and limited account context such as authentication provider and subscription state.</li>
           </ul>
 
           <h3 className="legal-subheading">Uploads and Communications</h3>
