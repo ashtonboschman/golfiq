@@ -6,16 +6,20 @@ import LandingHeader from '@/components/landing/LandingHeader';
 import Hero from '@/components/landing/Hero';
 import Features from '@/components/landing/Features';
 import InsightsCTA from '@/components/landing/InsightsCTA';
+import PricingPreview from '@/components/landing/PricingPreview';
 import LandingFooter from '@/components/landing/LandingFooter';
 import NativeRootEntryGate from '@/components/NativeRootEntryGate';
+import { PRICING } from '@/lib/subscription';
 
 export const metadata: Metadata = {
-  title: 'GolfIQ | Track Rounds. Unlock Insights. Score Lower.',
+  title: 'GolfIQ | Golf GPS, Round Tracking & Insights',
   description:
-    'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
+    'Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.',
   keywords: [
     'golf app',
     'golf round tracker',
+    'golf GPS app',
+    'golf club recommendations',
     'strokes gained app',
     'golf handicap tracker',
     'golf stats app',
@@ -30,9 +34,9 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: 'GolfIQ | Track Rounds. Unlock Insights. Score Lower.',
+    title: 'GolfIQ | Golf GPS, Round Tracking & Insights',
     description:
-      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
+      'Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.',
     url: 'https://www.golfiq.ca/',
     siteName: 'GolfIQ',
     images: [
@@ -47,9 +51,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'GolfIQ | Track Rounds. Unlock Insights. Score Lower.',
+    title: 'GolfIQ | Golf GPS, Round Tracking & Insights',
     description:
-      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
+      'Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.',
     images: ['/twitter/golfiq-twitter-graphic.png'],
   },
 };
@@ -92,15 +96,33 @@ export default async function LandingPage() {
     '@type': 'SoftwareApplication',
     name: 'GolfIQ',
     applicationCategory: 'SportsApplication',
-    operatingSystem: 'Web',
+    operatingSystem: 'Web, iOS',
     url: 'https://www.golfiq.ca',
     description:
-      'Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.',
-    offers: {
-      '@type': 'Offer',
-      price: '0',
-      priceCurrency: 'USD',
-    },
+      'Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.',
+    offers: [
+      {
+        '@type': 'Offer',
+        name: 'GolfIQ Free',
+        price: '0',
+        priceCurrency: 'CAD',
+        url: 'https://www.golfiq.ca/pricing',
+      },
+      {
+        '@type': 'Offer',
+        name: 'GolfIQ Premium Monthly',
+        price: PRICING.monthly.price.toFixed(2),
+        priceCurrency: PRICING.monthly.currency,
+        url: 'https://www.golfiq.ca/pricing',
+      },
+      {
+        '@type': 'Offer',
+        name: 'GolfIQ Premium Annual',
+        price: PRICING.annual.price.toFixed(2),
+        priceCurrency: PRICING.annual.currency,
+        url: 'https://www.golfiq.ca/pricing',
+      },
+    ],
   };
 
   return (
@@ -123,6 +145,7 @@ export default async function LandingPage() {
           <Hero />
           <Features />
           <InsightsCTA />
+          <PricingPreview />
         </main>
         <LandingFooter />
       </div>

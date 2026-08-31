@@ -1,23 +1,34 @@
-'use client';
-
-import Link from 'next/link';
 import ScreenshotCarousel from './ScreenshotCarousel';
+import LandingTrackedLink from './LandingTrackedLink';
 
 export default function Hero() {
   return (
     <section className="landing-hero">
       <div className="landing-hero-content">
         <h1 className="landing-hero-title">
-          Track your rounds. <span className="accent-text">Understand</span> what shaped them.
+          Track Your Round. <span className="accent-text">Understand</span> What Shaped Your Score.
         </h1>
 
         <p className="landing-hero-subtitle">
-          Your scorecard tells you what you shot. GolfIQ helps explain why.
+          Log rounds quickly, use live GPS and club suggestions on supported courses, then see the stats and insights behind your score.
         </p>
         <div className="landing-hero-actions">
-          <Link href="/onboarding?source=landing" className="btn btn-accent btn-large">
-            Get Started
-          </Link>
+          <LandingTrackedLink
+            href="/onboarding?source=landing"
+            className="btn btn-accent btn-large"
+            ctaName="start_free"
+            ctaLocation="hero"
+          >
+            Start Free
+          </LandingTrackedLink>
+          <LandingTrackedLink
+            href="/pricing"
+            className="btn btn-secondary btn-large"
+            ctaName="view_pricing"
+            ctaLocation="hero"
+          >
+            View Pricing
+          </LandingTrackedLink>
         </div>
 
         <div className="landing-hero-image">

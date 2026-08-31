@@ -11,9 +11,12 @@ export default function LandingFooter() {
           </div>
           <div className="landing-footer-links">
             <div className="landing-footer-section">
-              <h4 className="landing-footer-heading">Product</h4>
+              <h2 className="landing-footer-heading">Product</h2>
               <Link href="/#features" className="landing-footer-link">
                 Features
+              </Link>
+              <Link href="/#insights" className="landing-footer-link">
+                Insights
               </Link>
               <Link href="/pricing" className="landing-footer-link">
                 Pricing
@@ -24,7 +27,7 @@ export default function LandingFooter() {
             </div>
 
             <div className="landing-footer-section">
-              <h4 className="landing-footer-heading">Company</h4>
+              <h2 className="landing-footer-heading">Company</h2>
               <Link href="/about" className="landing-footer-link">
                 About
               </Link>
@@ -34,7 +37,7 @@ export default function LandingFooter() {
             </div>
 
             <div className="landing-footer-section">
-              <h4 className="landing-footer-heading">Legal</h4>
+              <h2 className="landing-footer-heading">Legal</h2>
               <Link href="/privacy" className="landing-footer-link">
                 Privacy Policy
               </Link>

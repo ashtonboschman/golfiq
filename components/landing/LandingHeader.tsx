@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import Image from 'next/image';
+import LandingTrackedLink from './LandingTrackedLink';
 
 export default function LandingHeader() {
   const scrollToSection = (id: string) => {
@@ -14,7 +14,12 @@ export default function LandingHeader() {
   return (
     <header className="landing-header">
       <div className="landing-header-inner">
-        <div className="landing-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+        <button
+          type="button"
+          className="landing-logo"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+        >
           <Image
             src="/logos/wordmark/golfiq-wordmark.png"
             alt="GolfIQ"
@@ -22,7 +27,7 @@ export default function LandingHeader() {
             height={40}
             priority
           />
-        </div>
+        </button>
 
         <nav className="landing-nav">
           <a
@@ -43,17 +48,27 @@ export default function LandingHeader() {
             }}
             className="landing-nav-link"
           >
-            Round Insights
+            Insights
           </a>
-          <Link href="/pricing" className="landing-nav-link">
+          <LandingTrackedLink
+            href="/pricing"
+            className="landing-nav-link"
+            ctaName="pricing"
+            ctaLocation="header_nav"
+          >
             Pricing
-          </Link>
+          </LandingTrackedLink>
         </nav>
 
         <div className="landing-header-actions">
-          <Link href="/login" className="btn btn-accent">
+          <LandingTrackedLink
+            href="/login"
+            className="btn btn-accent"
+            ctaName="login"
+            ctaLocation="header"
+          >
             Login
-          </Link>
+          </LandingTrackedLink>
         </div>
       </div>
     </header>

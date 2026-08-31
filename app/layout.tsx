@@ -20,9 +20,9 @@ export const metadata: Metadata = {
   category: "sports",
   creator: "GolfIQ",
   publisher: "GolfIQ",
-  title: "GolfIQ | Track Rounds. Unlock Insights. Score Lower.",
+  title: "GolfIQ | Golf GPS, Round Tracking & Insights",
   description:
-    "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
+    "Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.",
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
   },
@@ -55,9 +55,9 @@ export const metadata: Metadata = {
   },
 
   openGraph: {
-    title: "GolfIQ | Track Rounds. Unlock Insights. Score Lower.",
+    title: "GolfIQ | Golf GPS, Round Tracking & Insights",
     description:
-      "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
+      "Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.",
     url: "https://www.golfiq.ca",
     siteName: "GolfIQ",
     images: [
@@ -73,9 +73,9 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "GolfIQ | Track Rounds. Unlock Insights. Score Lower.",
+    title: "GolfIQ | Golf GPS, Round Tracking & Insights",
     description:
-      "Track golf rounds, analyze strokes gained, and improve faster with GolfIQ insights built from real performance data.",
+      "Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.",
     images: ["/twitter/golfiq-twitter-graphic.png"],
   },
 };

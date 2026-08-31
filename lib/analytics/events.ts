@@ -7,6 +7,8 @@ export const ANALYTICS_EVENTS = {
   onboardingSignupStarted: 'onboarding_signup_started',
   onboardingLoginStarted: 'onboarding_login_started',
   onboardingSkipped: 'onboarding_skipped',
+  landingCtaClicked: 'landing_cta_clicked',
+  landingCarouselNavigated: 'landing_carousel_navigated',
   postSignupTransitionViewed: 'post_signup_transition_viewed',
   postSignupLogRoundClicked: 'post_signup_log_round_clicked',
   postSignupDashboardClicked: 'post_signup_dashboard_clicked',
