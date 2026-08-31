@@ -32,6 +32,12 @@ describe('iOS native capabilities', () => {
     expect(infoPlist).toMatch(/<key>CFBundleName<\/key>\s*<string>GolfIQ<\/string>/);
   });
 
+  it('declares that the app does not use non-exempt encryption', () => {
+    expect(infoPlist).toMatch(
+      /<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/,
+    );
+  });
+
   it('links the native background geolocation package with a portable path', () => {
     expect(swiftPackage).toContain('.product(name: "CapgoBackgroundGeolocation"');
     expect(swiftPackage).toContain('../../../node_modules/@capgo/background-geolocation');
