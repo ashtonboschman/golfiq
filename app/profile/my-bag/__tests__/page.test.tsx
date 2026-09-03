@@ -156,7 +156,7 @@ describe('/profile/my-bag page', () => {
     expect(await screen.findByText('Bag unavailable.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
-    expect(await screen.findByText('No Clubs Yet')).toBeInTheDocument();
+    expect(await screen.findByText('Quick Setup')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -178,7 +178,7 @@ describe('/profile/my-bag page', () => {
     global.fetch = fetchMock as typeof fetch;
 
     render(<MyBagPage />);
-    await screen.findByText('No Clubs Yet');
+    await screen.findByText('Quick Setup');
     fireEvent.click(screen.getByRole('button', { name: 'Add Club' }));
 
     const clubSelect = screen.getByLabelText('Club');
@@ -260,7 +260,7 @@ describe('/profile/my-bag page', () => {
       await confirmation.onConfirm();
     });
 
-    expect(await screen.findByText('No Clubs Yet')).toBeInTheDocument();
+    expect(await screen.findByText('Quick Setup')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/api/my-bag/clubs/1', { method: 'DELETE' });
     expect(mockShowMessage).toHaveBeenCalledWith('Club removed.', 'success');
   });
@@ -286,5 +286,58 @@ describe('/profile/my-bag page', () => {
     const count = await screen.findByText('13 of 13 clubs');
     expect(count).toHaveClass('is-complete');
     expect(screen.queryByRole('button', { name: 'Add Club' })).not.toBeInTheDocument();
+  });
+
+  it('previews and applies a preset while preserving manual Add Club', async () => {
+    let getCount = 0;
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/my-bag') {
+        getCount += 1;
+        return Promise.resolve(response(getCount === 1
+          ? bagResponse()
+          : bagResponse({ clubs: [userClub('1', 235)] })));
+      }
+      if (url === '/api/my-bag/preset' && init?.method === 'POST') {
+        return Promise.resolve(response({ clubCount: 13, maxClubs: 13 }));
+      }
+      throw new Error(`Unexpected request: ${init?.method ?? 'GET'} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<MyBagPage />);
+
+    expect(await screen.findByRole('button', { name: 'Add Club' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Medium 7I/ }));
+    expect(screen.getByText('Your Starting Bag')).toBeInTheDocument();
+    expect(screen.getByText('7I', { selector: '.my-bag-preset-club strong' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Use This Bag' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Quick Setup')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('235 yd')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/my-bag/preset', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ sevenIronCarry: 150 }),
+    }));
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      'My Bag is ready. You can edit any carry distance.',
+      'success',
+    );
+  });
+
+  it('builds a preview from a custom 7-Iron carry', async () => {
+    global.fetch = jest.fn().mockResolvedValue(response(bagResponse())) as typeof fetch;
+    render(<MyBagPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Custom/ }));
+    const carryInput = screen.getByLabelText('7-Iron Carry');
+    expect(carryInput).toHaveAttribute('min', '60');
+    expect(carryInput).toHaveAttribute('max', '250');
+    expect(screen.queryByText('Your Starting Bag')).not.toBeInTheDocument();
+
+    fireEvent.change(carryInput, { target: { value: '145' } });
+    expect(screen.getByText('Your Starting Bag')).toBeInTheDocument();
+    expect(screen.getByText('145 yd', { selector: '.my-bag-preset-club span' })).toBeInTheDocument();
   });
 });

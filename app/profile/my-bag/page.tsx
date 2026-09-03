@@ -14,6 +14,14 @@ import {
 } from '@/lib/clubs/catalogue';
 import { selectStyles } from '@/lib/selectStyles';
 import { SkeletonBlock } from '@/components/skeleton/Skeleton';
+import { formatYards } from '@/lib/gps/distance';
+import {
+  buildMyBagPreset,
+  MAX_PRESET_SEVEN_IRON_YARDS,
+  MIN_PRESET_SEVEN_IRON_YARDS,
+  MY_BAG_PROFILES,
+  type MyBagProfileKey,
+} from '@/lib/clubs/presets';
 
 type ClubDefinitionDto = {
   id: string;
@@ -97,6 +105,8 @@ export default function MyBagPage() {
   const [carryDraft, setCarryDraft] = useState('');
   const [editingClubId, setEditingClubId] = useState<string | null>(null);
   const [editCarryDraft, setEditCarryDraft] = useState('');
+  const [selectedProfile, setSelectedProfile] = useState<MyBagProfileKey | null>(null);
+  const [customSevenIronCarry, setCustomSevenIronCarry] = useState('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -155,6 +165,22 @@ export default function MyBagPage() {
       }))
       .filter((group) => group.options.length > 0);
   }, [catalogue, selectedDefinitionIds]);
+
+  const presetSevenIronCarry = useMemo(() => {
+    if (selectedProfile === 'custom') {
+      const parsed = Number(customSevenIronCarry);
+      return Number.isInteger(parsed)
+        && parsed >= MIN_PRESET_SEVEN_IRON_YARDS
+        && parsed <= MAX_PRESET_SEVEN_IRON_YARDS
+        ? parsed
+        : null;
+    }
+    return MY_BAG_PROFILES.find((profile) => profile.key === selectedProfile)?.sevenIronCarry ?? null;
+  }, [customSevenIronCarry, selectedProfile]);
+  const presetClubs = useMemo(
+    () => presetSevenIronCarry === null ? [] : buildMyBagPreset(presetSevenIronCarry),
+    [presetSevenIronCarry],
+  );
 
   const resetAddForm = () => {
     setSelectedDefinition(null);
@@ -281,6 +307,36 @@ export default function MyBagPage() {
     });
   };
 
+  const handleApplyPreset = async () => {
+    if (presetSevenIronCarry === null) {
+      showMessage(
+        `Enter a whole-number 7-Iron carry from ${MIN_PRESET_SEVEN_IRON_YARDS} to ${MAX_PRESET_SEVEN_IRON_YARDS} yards.`,
+        'error',
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch('/api/my-bag/preset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sevenIronCarry: presetSevenIronCarry }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Failed to set up My Bag.');
+
+      await refreshBag();
+      setSelectedProfile(null);
+      setCustomSevenIronCarry('');
+      showMessage('My Bag is ready. You can edit any carry distance.', 'success');
+    } catch (err: any) {
+      showMessage(err.message || 'Failed to set up My Bag.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (status === 'unauthenticated') return null;
 
   const sortedClubs = sortClubs(clubs);
@@ -365,9 +421,88 @@ export default function MyBagPage() {
           )}
 
           {sortedClubs.length === 0 ? (
-            <section className="card my-bag-empty-card">
-              <h2>No Clubs Yet</h2>
-              <p>Add your clubs to get personalized suggestions during Live GPS.</p>
+            <section className="card my-bag-empty-card my-bag-quick-setup">
+              <div>
+                <h2>Quick Setup</h2>
+                <p>Choose a starting profile based on your 7-Iron carry.</p>
+              </div>
+
+              <div className="my-bag-profile-options" role="group" aria-label="Carry profile">
+                {MY_BAG_PROFILES.map((profile) => (
+                  <button
+                    key={profile.key}
+                    type="button"
+                    className={`my-bag-profile-option${selectedProfile === profile.key ? ' is-selected' : ''}`}
+                    aria-pressed={selectedProfile === profile.key}
+                    onClick={() => {
+                      setSelectedProfile(profile.key);
+                      setCustomSevenIronCarry('');
+                    }}
+                    disabled={saving}
+                  >
+                    <strong>{profile.label}</strong>
+                    <span>7I · {formatYards(profile.sevenIronCarry)}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`my-bag-profile-option${selectedProfile === 'custom' ? ' is-selected' : ''}`}
+                  aria-pressed={selectedProfile === 'custom'}
+                  onClick={() => setSelectedProfile('custom')}
+                  disabled={saving}
+                >
+                  <strong>Custom</strong>
+                  <span>Enter your 7I</span>
+                </button>
+              </div>
+
+              {selectedProfile === 'custom' && (
+                <div className="my-bag-form-field">
+                  <label className="form-label my-bag-preset-carry-label" htmlFor="my-bag-preset-seven-iron">
+                    7-Iron Carry
+                  </label>
+                  <div className="my-bag-preset-carry-field">
+                    <input
+                      id="my-bag-preset-seven-iron"
+                      className="form-input"
+                      inputMode="numeric"
+                      min={MIN_PRESET_SEVEN_IRON_YARDS}
+                      max={MAX_PRESET_SEVEN_IRON_YARDS}
+                      maxLength={3}
+                      value={customSevenIronCarry}
+                      onChange={(event) => setCustomSevenIronCarry(event.target.value.replace(/\D/g, '').slice(0, 3))}
+                      placeholder="e.g. 145"
+                      disabled={saving}
+                    />
+                    <span>yd</span>
+                  </div>
+                </div>
+              )}
+
+              {presetClubs.length > 0 && (
+                <div className="my-bag-preset-preview">
+                  <div className="my-bag-preset-preview-heading">
+                    <strong>Your Starting Bag</strong>
+                    <span>Estimated carry</span>
+                  </div>
+                  <div className="my-bag-preset-clubs">
+                    {presetClubs.map((club) => (
+                      <div key={club.definitionKey} className="my-bag-preset-club">
+                        <strong>{club.shortLabel}</strong>
+                        <span>{formatYards(club.carryYards)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-accent"
+                    onClick={handleApplyPreset}
+                    disabled={saving}
+                  >
+                    {saving ? 'Setting Up...' : 'Use This Bag'}
+                  </button>
+                </div>
+              )}
             </section>
           ) : (
             <section className="my-bag-list" aria-label="Configured clubs">
@@ -398,7 +533,7 @@ export default function MyBagPage() {
                           <span>yd</span>
                         </div>
                       ) : (
-                        <strong className="my-bag-carry-value">{club.carryYards} yd</strong>
+                        <strong className="my-bag-carry-value">{formatYards(club.carryYards)}</strong>
                       )}
                       {!isEditing && (
                         <button

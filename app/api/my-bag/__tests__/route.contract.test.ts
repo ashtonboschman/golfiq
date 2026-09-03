@@ -1,5 +1,6 @@
 import { GET } from '@/app/api/my-bag/route';
 import { POST } from '@/app/api/my-bag/clubs/route';
+import { POST as POST_PRESET } from '@/app/api/my-bag/preset/route';
 import {
   DELETE,
   PATCH,
@@ -55,10 +56,12 @@ const mockedPrisma = prisma as unknown as MockPrisma;
 const tx = {
   clubDefinition: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
   userClub: {
     count: jest.fn(),
     create: jest.fn(),
+    createMany: jest.fn(),
     findUnique: jest.fn(),
   },
   $queryRaw: jest.fn(),
@@ -124,6 +127,11 @@ describe('/api/my-bag route contract', () => {
     tx.userClub.findUnique.mockResolvedValue(null);
     tx.userClub.count.mockResolvedValue(0);
     tx.userClub.create.mockResolvedValue(driverClub);
+    tx.userClub.createMany.mockResolvedValue({ count: 13 });
+    tx.clubDefinition.findMany.mockResolvedValue([
+      'DRIVER', 'WOOD_3', 'WOOD_5', 'HYBRID_4', 'IRON_5', 'IRON_6', 'IRON_7',
+      'IRON_8', 'IRON_9', 'PITCHING_WEDGE', 'GAP_WEDGE', 'SAND_WEDGE', 'LOB_WEDGE',
+    ].map((key, index) => ({ id: BigInt(1000 + index), key })));
   });
 
   it('returns sorted user clubs and the catalogue for the owner', async () => {
@@ -187,6 +195,31 @@ describe('/api/my-bag route contract', () => {
     }) as any);
     expect(limit.status).toBe(409);
     expect(tx.userClub.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a complete preset atomically for an empty bag', async () => {
+    const response = await POST_PRESET(jsonRequest('http://localhost/api/my-bag/preset', {
+      sevenIronCarry: 150,
+    }) as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.clubCount).toBe(13);
+    expect(tx.userClub.createMany).toHaveBeenCalledTimes(1);
+    const data = tx.userClub.createMany.mock.calls[0][0].data;
+    expect(data).toHaveLength(13);
+    expect(data.find((club: { clubDefinitionId: bigint }) => club.clubDefinitionId === BigInt(1006)))
+      .toEqual(expect.objectContaining({ carryYards: 150, userId: BigInt(1) }));
+  });
+
+  it('rejects preset setup when the bag is not empty', async () => {
+    tx.userClub.count.mockResolvedValueOnce(1);
+    const response = await POST_PRESET(jsonRequest('http://localhost/api/my-bag/preset', {
+      sevenIronCarry: 150,
+    }) as any);
+
+    expect(response.status).toBe(409);
+    expect(tx.userClub.createMany).not.toHaveBeenCalled();
   });
 
   it('validates carry yards on create and update', async () => {

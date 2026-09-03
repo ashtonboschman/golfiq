@@ -3505,6 +3505,146 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   gap: var(--gap);
 }
 
+.my-bag-quick-setup > div:first-child {
+  display: grid;
+  gap: var(--gap-small);
+}
+
+.my-bag-quick-setup p {
+  margin: 0;
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.my-bag-profile-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  background: transparent;
+}
+
+.my-bag-profile-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: var(--padding);
+  color: var(--color-primary-text);
+  background: var(--color-secondary-surface);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.my-bag-profile-option span {
+  flex: 0 0 auto;
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+}
+
+.my-bag-profile-option strong,
+.my-bag-preset-preview-heading strong,
+.my-bag-preset-club strong {
+  font-family: var(--font-space-grotesk), system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.my-bag-profile-option.is-selected {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-secondary-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.my-bag-profile-option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.my-bag-preset-carry-field {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-small);
+}
+
+.my-bag-preset-carry-label {
+  font-family: var(--font-space-grotesk), system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.my-bag-preset-carry-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.my-bag-preset-carry-field span {
+  flex: 0 0 auto;
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+}
+
+.my-bag-preset-preview {
+  display: grid;
+  gap: var(--gap);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--padding);
+}
+
+.my-bag-preset-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.my-bag-preset-preview-heading span {
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+}
+
+.my-bag-preset-preview-heading strong {
+  color: var(--color-primary-text);
+}
+
+.my-bag-preset-clubs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap-small);
+}
+
+.my-bag-preset-club {
+  display: grid;
+  place-items: center;
+  gap: calc(var(--gap-small) / 2);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: var(--padding-small);
+  background: var(--color-secondary-surface);
+  text-align: center;
+}
+
+.my-bag-preset-club strong {
+  color: var(--color-primary-text);
+}
+
+.my-bag-preset-club span {
+  color: var(--color-secondary-text);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .my-bag-preset-clubs {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
 .my-bag-title-row {
   display: flex;
   align-items: center;
@@ -9117,17 +9257,17 @@ input[type='date'].form-input {
 
 /* Disable all react-select hover/focus highlights on touch devices */
 @media (hover: none) {
-  [class*="-option"] {
+  [class^="css-"][class$="-option"] {
     background-color: var(--color-secondary-surface) !important;
   }
-  [class*="-option"][aria-selected="true"] {
+  [class^="css-"][class$="-option"][aria-selected="true"] {
     background-color: var(--color-primary-surface) !important;
   }
-  [class*="-control"] {
+  [class^="css-"][class$="-control"] {
     border-color: var(--color-border) !important;
     box-shadow: none !important;
   }
-  [class*="-indicatorContainer"] {
+  [class^="css-"][class$="-indicatorContainer"] {
     color: var(--color-secondary-text) !important;
   }
 }

@@ -6,6 +6,12 @@ import {
   MY_BAG_MAX_CLUBS,
   sortUserClubsByCarry,
 } from '@/lib/clubs/catalogue';
+import {
+  buildMyBagPreset,
+  isValidPresetSevenIronCarry,
+  MAX_PRESET_SEVEN_IRON_YARDS,
+  MIN_PRESET_SEVEN_IRON_YARDS,
+} from '@/lib/clubs/presets';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -225,6 +231,55 @@ export async function addUserClub(userId: bigint, input: unknown) {
     }
     throw error;
   }
+}
+
+export async function applyMyBagPreset(userId: bigint, input: unknown) {
+  if (!input || typeof input !== 'object') {
+    throw myBagError('Invalid request body.', 400, 'invalid_body');
+  }
+
+  const sevenIronCarry = (input as Record<string, unknown>).sevenIronCarry;
+  if (typeof sevenIronCarry !== 'number' || !isValidPresetSevenIronCarry(sevenIronCarry)) {
+    throw myBagError(
+      `7-Iron carry must be a whole number from ${MIN_PRESET_SEVEN_IRON_YARDS} to ${MAX_PRESET_SEVEN_IRON_YARDS} yards.`,
+      400,
+      'invalid_preset_carry',
+    );
+  }
+
+  const preset = buildMyBagPreset(sevenIronCarry);
+  await prisma.$transaction(async (tx) => {
+    await lockUserBag(tx, userId);
+    if (await tx.userClub.count({ where: { userId } }) > 0) {
+      throw myBagError('Quick Setup is only available for an empty bag.', 409, 'bag_not_empty');
+    }
+
+    const definitions = await tx.clubDefinition.findMany({
+      where: {
+        key: { in: preset.map((club) => club.definitionKey) },
+        isActive: true,
+      },
+      select: { id: true, key: true },
+    });
+    if (definitions.length !== MY_BAG_MAX_CLUBS) {
+      throw myBagError('The preset club catalogue is incomplete.', 409, 'preset_unavailable');
+    }
+
+    const definitionIds = new Map(definitions.map((definition) => [definition.key, definition.id]));
+    await tx.userClub.createMany({
+      data: preset.map((club) => ({
+        userId,
+        clubDefinitionId: definitionIds.get(club.definitionKey)!,
+        carryYards: club.carryYards,
+      })),
+    });
+  });
+
+  return {
+    clubCount: MY_BAG_MAX_CLUBS,
+    maxClubs: MY_BAG_MAX_CLUBS,
+    message: 'My Bag is ready.',
+  };
 }
 
 export async function updateUserClub(userId: bigint, userClubIdParam: string, input: unknown) {
