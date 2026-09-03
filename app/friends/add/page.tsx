@@ -123,7 +123,7 @@ export default function AddFriendsPage() {
 
       {results.map((user) => (
         <FriendCard
-          key={user.id}
+          key={user.user_id ?? user.id}
           friend={user}
           onAction={(id, action) => {
             if (action === 'send') return handleAddClick(id);
