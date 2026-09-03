@@ -1,5 +1,6 @@
 import { ChevronRight, MapPin } from 'lucide-react';
 import Link from 'next/link';
+import { formatCourseLocation } from '@/lib/courses/formatCourseLocation';
 
 interface Location {
   address?: string | null;
@@ -32,9 +33,7 @@ interface CourseCardProps {
 
 export default function CourseCard({ course, locations = [], tees = [] }: CourseCardProps) {
   const location = locations.length > 0 ? locations[0] : (course.location || {});
-  const locationString = [location.address, location.city, location.state, location.country]
-    .filter((part): part is string => Boolean(part?.trim()))
-    .join(', ') || '-';
+  const locationString = formatCourseLocation(location);
 
   const holes =
     tees.length > 0 && tees[0].number_of_holes

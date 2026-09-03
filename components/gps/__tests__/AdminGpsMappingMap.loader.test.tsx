@@ -92,8 +92,14 @@ describe('AdminGpsMappingMap loader integration', () => {
       formatYardNumber(distanceYards(tee, { lat: hole.greenFrontLat!, lng: hole.greenFrontLng! })),
     ];
     const expectedDifferences = [
-      String(Number(expectedDistances[0]) - Number(expectedDistances[1])),
-      String(Number(expectedDistances[1]) - Number(expectedDistances[2])),
+      formatYardNumber(distanceYards(
+        { lat: hole.greenBackLat!, lng: hole.greenBackLng! },
+        { lat: hole.greenCenterLat!, lng: hole.greenCenterLng! },
+      )),
+      formatYardNumber(distanceYards(
+        { lat: hole.greenCenterLat!, lng: hole.greenCenterLng! },
+        { lat: hole.greenFrontLat!, lng: hole.greenFrontLng! },
+      )),
     ];
     const differenceOverlay = screen.getByLabelText('Green distance differences');
 
@@ -112,6 +118,30 @@ describe('AdminGpsMappingMap loader integration', () => {
     expect(within(backToMidRow!).getByText(expectedDifferences[0])).toBeInTheDocument();
     expect(within(midToFrontRow!).getByText(expectedDifferences[1])).toBeInTheDocument();
     expect(screen.getByText('Map Diagnostics').closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('keeps green edge distances independent of tee and target coordinates', () => {
+    mockedLoadGoogleMaps.mockImplementation(() => new Promise<void>(() => {}));
+
+    const { rerender } = render(<AdminGpsMappingMap {...mapProps()} />);
+    const initialText = screen.getByLabelText('Green distance differences').textContent;
+
+    rerender(
+      <AdminGpsMappingMap
+        {...mapProps()}
+        hole={{
+          ...hole,
+          teeLat: 50.5,
+          teeLng: -100,
+          target1Lat: 51,
+          target1Lng: -101,
+          target2Lat: 52,
+          target2Lng: -102,
+        }}
+      />,
+    );
+
+    expect(screen.getByLabelText('Green distance differences')).toHaveTextContent(initialText!);
   });
 
   it('renders supplied UI inside the map frame', () => {

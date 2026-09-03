@@ -130,14 +130,6 @@ function formatMapDistanceLabel(from: LatLng, to: LatLng) {
   return formatYardNumber(distanceYards(from, to));
 }
 
-function roundedYardDifference(
-  minuend: number | null,
-  subtrahend: number | null,
-): number | null {
-  if (minuend == null || subtrahend == null) return null;
-  return Math.round(minuend) - Math.round(subtrahend);
-}
-
 function pointForField(hole: GpsMappedHoleDraft, field: GpsMappingEditField): LatLng | null {
   switch (field) {
     case 'tee':
@@ -253,10 +245,16 @@ export default function AdminGpsMappingMap({
       back: tee && back ? distanceYards(tee, back) : null,
     };
   }, [hole]);
-  const greenDistanceDifferences = useMemo(() => ({
-    backToMiddle: roundedYardDifference(greenDistances.back, greenDistances.middle),
-    middleToFront: roundedYardDifference(greenDistances.middle, greenDistances.front),
-  }), [greenDistances]);
+  const greenDistanceDifferences = useMemo(() => {
+    const front = pointForField(hole, 'greenFront');
+    const middle = pointForField(hole, 'greenCenter');
+    const back = pointForField(hole, 'greenBack');
+
+    return {
+      backToMiddle: back && middle ? distanceYards(back, middle) : null,
+      middleToFront: middle && front ? distanceYards(middle, front) : null,
+    };
+  }, [hole]);
 
   useEffect(() => {
     holeRef.current = hole;

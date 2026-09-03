@@ -12,6 +12,7 @@ import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/l
 import type { LiveGpsAvailability } from '@/lib/gps/liveMappingTypes';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
+import { formatCourseLocation } from '@/lib/courses/formatCourseLocation';
 
 async function readApiResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -46,10 +47,10 @@ interface Course {
   course_name: string;
   club_name?: string;
   location: {
-    address: string;
-    city: string;
-    state: string;
-    country: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    country: string | null;
   };
   tees: {
     male?: Tee[];
@@ -409,7 +410,7 @@ export default function CourseDetailsPage() {
           ) : (
             <>
               <strong><MapPin size='14'/></strong>{' '}
-              {`${course?.location.address ?? ''}, ${course?.location.city ?? ''}, ${course?.location.state ?? ''}, ${course?.location.country ?? ''}`}
+              {formatCourseLocation(course?.location)}
             </>
           )}
         </div>

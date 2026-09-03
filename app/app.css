@@ -5,7 +5,7 @@
   --color-secondary-surface: #1E242F;
   --color-primary-text: #EDEFF2;
   --color-secondary-text: #9AA3B2;
-  --color-accent-text: #EDEFF2;
+  --color-accent-text: #FFFFFF;
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
   --color-accent-highlight: #36ad64;
@@ -83,7 +83,7 @@
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
   --color-accent-highlight: #36AD64;
-  --color-accent-text: #EDEFF2;
+  --color-accent-text: #FFFFFF;
   --color-border: #2A313D;
 }
 
@@ -96,7 +96,7 @@
   --color-accent: #2D6CFF;
   --color-accent-hover: #1F56D8;
   --color-accent-highlight: #36AD64;
-  --color-accent-text: #EDEFF2;
+  --color-accent-text: #FFFFFF;
   --color-border: #C7CED8;
 }
 
@@ -109,7 +109,7 @@
   --color-accent: #FF6B00;
   --color-accent-hover: #D95A00;
   --color-accent-highlight: #FFB347;
-  --color-accent-text: #EDEFF2;
+  --color-accent-text: #FFFFFF;
   --color-border: #EBCDB4;
 }
 
@@ -122,7 +122,7 @@
   --color-accent: #7F5AFF;
   --color-accent-hover: #6746D6;
   --color-accent-highlight: #c1b0f7;
-  --color-accent-text: #EDEFF2;
+  --color-accent-text: #FFFFFF;
   --color-border: #3A3C4E;
 }
 
@@ -135,7 +135,7 @@
   --color-accent: #4CAF50;
   --color-accent-hover: #3E8E41;
   --color-accent-highlight: #877660;
-  --color-accent-text: #EDEFF2;
+  --color-accent-text: #FFFFFF;
   --color-border: #D2D7CC;
 }
 
@@ -161,7 +161,7 @@
   --color-accent: #0078B0;
   --color-accent-hover: #006A9C;
   --color-accent-highlight: #4DB6E2;
-  --color-accent-text: #F7FBFC;
+  --color-accent-text: #FFFFFF;
   --color-border: #B7D4DC;
   --color-footer-icon: #073B4C;
 }
@@ -201,7 +201,7 @@
   --color-accent: #A44780;
   --color-accent-hover: #8D396C;
   --color-accent-highlight: #E3A6C8;
-  --color-accent-text: #EDEFF2;
+  --color-accent-text: #FFFFFF;
   --color-border: #E1D7DE;
 }
 
@@ -4697,7 +4697,7 @@ input[type='date'].form-input {
   cursor: pointer;
   transition: background-color 0.2s ease, opacity 0.2s ease;
   background-color: var(--color-accent);
-  color: var(--color-white-text);
+  color: var(--color-accent-text);
 }
 
 .pricing-button:hover:not(:disabled) {
@@ -5024,6 +5024,12 @@ input[type='date'].form-input {
   padding: var(--padding);
 }
 
+.subscription-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
 .subscription-info-row {
   display: flex;
   justify-content: space-between;
@@ -5044,41 +5050,36 @@ input[type='date'].form-input {
 }
 
 .subscription-detail-box {
-  background: var(--color-secondary-surface);
-  border-radius: var(--border-radius);
-  padding: var(--padding);
-  margin-top: var(--gap);
-  color: var(--color-secondary-text);
-}
-
-.subscription-detail-box-premium {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+  background: var(--color-secondary-surface);
+  border-radius: var(--border-radius);
+  padding: var(--padding);
+  color: var(--color-secondary-text);
 }
 
-.subscription-detail-box-premium > p {
+.subscription-detail-box > p {
   margin: 0;
 }
 
 .subscription-detail-box.lifetime {
   background: linear-gradient(135deg, var(--color-gradient-1) 0%, var(--color-gradient-2) 50%, var(--color-gradient-3) 100%);
-  color: var(--color-white-text);
-  display: flex;
-  flex-direction: column;
+  color: var(--color-white);
   align-items: center;
+  text-align: center;
 }
 
 .subscription-detail-box.lifetime .lifetime-note {
-  color: var(--color-white-text);
+  color: var(--color-white);
   font-size: 1.1rem;
-  margin: var(--gap);
+  margin: 0;
 }
 
 .lifetime-subscription-note {
   font-size: 0.9rem;
-  color: var(---color-white-text);
-  margin: var(--gap);
+  color: var(--color-white);
+  margin: 0;
 }
 
 .subscription-status {

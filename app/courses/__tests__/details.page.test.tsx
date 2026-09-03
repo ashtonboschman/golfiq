@@ -146,6 +146,42 @@ describe('/courses/[id] page GPS status', () => {
     );
   });
 
+  it('omits a null-like address and its separator from the course location', async () => {
+    const payload = coursePayload();
+    global.fetch = jest.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/courses/42') {
+        return Promise.resolve(apiResponse({
+          course: {
+            ...payload.course,
+            location: { ...payload.course.location, address: 'null' },
+          },
+        }));
+      }
+      if (url === '/api/gps/live/course/42') {
+        return Promise.resolve(apiResponse({
+          availability: {
+            courseId: '42',
+            available: true,
+            coverage: 'full',
+            expectedHoleNumbers: [1],
+            availableHoleNumbers: [1],
+            unavailableHoleNumbers: [],
+            reason: 'available',
+          },
+        }));
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }) as typeof fetch;
+
+    const { container } = render(<CourseDetailsPage />);
+
+    await screen.findByText('North');
+    expect(container.querySelector('.course-location')).toHaveTextContent('Winnipeg, MB, Canada');
+    expect(container.querySelector('.course-location')).not.toHaveTextContent('null');
+    expect(container.querySelector('.course-location')).not.toHaveTextContent(/^\s*,/);
+  });
+
   it('lets the user request GPS mapping when the course is not mapped', async () => {
     global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
