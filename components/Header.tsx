@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAvatar } from '@/context/AvatarContext';
 import { ChevronLeft } from 'lucide-react';
+import { requestHeaderBackNavigation } from '@/lib/ui/headerBackNavigation';
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { useMessage } from '@/app/providers';
 import { clearLiveRoundRecoveryState } from '@/lib/rounds/liveRoundResume';
@@ -212,6 +213,10 @@ export default function Header() {
     isViewingOthersDashboard;
 
   const handleBackClick = () => {
+    if (requestHeaderBackNavigation()) {
+      return;
+    }
+
     // Re-check sessionStorage at click time for most up-to-date value
     const hasUnsavedChanges = pathname === '/profile' && typeof window !== 'undefined' && sessionStorage.getItem('profile-has-changes') === 'true';
 

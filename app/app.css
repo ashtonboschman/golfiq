@@ -1380,6 +1380,14 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   font-weight: 800;
 }
 
+.course-gps-preview-button {
+  width: 100%;
+}
+
+.course-gps-preview-hole-picker {
+  padding-bottom: var(--padding);
+}
+
 .tee-select-card select {
   width: 100%;
   max-width: 100%;
@@ -1438,13 +1446,31 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
   align-items: center;
 }
 
-.course-scorecard-meta div {
+.course-scorecard-meta > div {
   font-weight: 500;
   display: flex;
   flex: 1;
   gap: var(--gap);
   align-items: center;
+  min-width: 0;
   white-space: nowrap;
+}
+
+.course-scorecard-meta > div .skeleton {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 480px) {
+  .course-scorecard-meta {
+    justify-content: space-between;
+    gap: var(--gap-small);
+  }
+
+  .course-scorecard-meta > div {
+    flex: 0 1 auto;
+    gap: calc(var(--gap-small) / 2);
+  }
 }
 
 .course-scorecard-right {

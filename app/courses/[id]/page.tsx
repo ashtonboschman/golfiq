@@ -6,13 +6,15 @@ import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
-import { Landmark, MapPin, MapPinned, Plus } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Landmark, MapPin, MapPinned, Plus } from 'lucide-react';
 import { SkeletonBlock, SkeletonCircle } from '@/components/skeleton/Skeleton';
+import LiveGpsHoleMap from '@/components/gps/LiveGpsHoleMap';
 import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
-import type { LiveGpsAvailability } from '@/lib/gps/liveMappingTypes';
+import type { LiveGpsMapping } from '@/lib/gps/liveMappingTypes';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { formatCourseLocation } from '@/lib/courses/formatCourseLocation';
+import { HEADER_BACK_NAVIGATION_EVENT } from '@/lib/ui/headerBackNavigation';
 
 async function readApiResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -75,8 +77,11 @@ export default function CourseDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTeeId, setSelectedTeeId] = useState('');
   const [teesGrouped, setTeesGrouped] = useState<Record<string, Tee[]>>({});
-  const [liveGpsAvailability, setLiveGpsAvailability] = useState<LiveGpsAvailability | null>(null);
+  const [liveGpsMapping, setLiveGpsMapping] = useState<LiveGpsMapping | null>(null);
   const [loadingLiveGpsAvailability, setLoadingLiveGpsAvailability] = useState(false);
+  const [showGpsPreview, setShowGpsPreview] = useState(false);
+  const [previewHoleNumber, setPreviewHoleNumber] = useState<number | null>(null);
+  const [showGpsHolePicker, setShowGpsHolePicker] = useState(false);
   const [gpsCourseRequest, setGpsCourseRequest] = useState<GpsCourseRequestState | null>(null);
   const [loadingGpsCourseRequest, setLoadingGpsCourseRequest] = useState(false);
   const [requestingGpsCourse, setRequestingGpsCourse] = useState(false);
@@ -147,6 +152,7 @@ export default function CourseDetailsPage() {
         }
 
         const courseObj = data.course;
+        setLoadingLiveGpsAvailability(true);
         setCourse(courseObj);
 
         const tees = [...(courseObj.tees.male || []), ...(courseObj.tees.female || [])];
@@ -181,7 +187,10 @@ export default function CourseDetailsPage() {
 
   useEffect(() => {
     if (status !== 'authenticated' || !course) {
-      setLiveGpsAvailability(null);
+      setLiveGpsMapping(null);
+      setShowGpsPreview(false);
+      setPreviewHoleNumber(null);
+      setShowGpsHolePicker(false);
       setGpsCourseRequest(null);
       setGpsCourseRequestError(null);
       setLoadingLiveGpsAvailability(false);
@@ -191,7 +200,10 @@ export default function CourseDetailsPage() {
     }
 
     const controller = new AbortController();
-    setLiveGpsAvailability(null);
+    setLiveGpsMapping(null);
+    setShowGpsPreview(false);
+    setPreviewHoleNumber(null);
+    setShowGpsHolePicker(false);
     setGpsCourseRequest(null);
     setGpsCourseRequestError(null);
     setLoadingLiveGpsAvailability(true);
@@ -204,10 +216,10 @@ export default function CourseDetailsPage() {
           cache: 'no-store',
           signal: controller.signal,
         });
-        const data = await readApiResponse<{ availability: LiveGpsAvailability }>(response);
+        const data = await readApiResponse<LiveGpsMapping>(response);
         if (controller.signal.aborted) return;
 
-        setLiveGpsAvailability(data.availability);
+        setLiveGpsMapping(data);
         const hasFullCoverage = data.availability.available && data.availability.coverage === 'full';
         trackGpsEvent(ANALYTICS_EVENTS.gpsAvailable, {
           available: data.availability.available,
@@ -240,7 +252,7 @@ export default function CourseDetailsPage() {
           }
         }
       } catch {
-        if (!controller.signal.aborted) setLiveGpsAvailability(null);
+        if (!controller.signal.aborted) setLiveGpsMapping(null);
       } finally {
         if (!controller.signal.aborted) setLoadingLiveGpsAvailability(false);
       }
@@ -248,6 +260,28 @@ export default function CourseDetailsPage() {
 
     return () => controller.abort();
   }, [course, status, trackGpsEvent]);
+
+  useEffect(() => {
+    if (!showGpsPreview) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowGpsPreview(false);
+    };
+    const handleHeaderBack = (event: Event) => {
+      event.preventDefault();
+      setShowGpsPreview(false);
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener(HEADER_BACK_NAVIGATION_EVENT, handleHeaderBack);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener(HEADER_BACK_NAVIGATION_EVENT, handleHeaderBack);
+    };
+  }, [showGpsPreview]);
 
   const allTees = useMemo(
     () => [...(course?.tees.male || []), ...(course?.tees.female || [])],
@@ -269,7 +303,11 @@ export default function CourseDetailsPage() {
     }));
   }, [teesGrouped]);
 
-  const showDataSkeleton = status === 'loading' || loading;
+  const showDataSkeleton = status === 'loading' || loading || loadingLiveGpsAvailability;
+  const previewHoles = useMemo(
+    () => [...(liveGpsMapping?.holes ?? [])].sort((a, b) => a.holeNumber - b.holeNumber),
+    [liveGpsMapping?.holes],
+  );
 
   const computeTotals = (list: Hole[]) =>
     list.reduce(
@@ -366,8 +404,30 @@ export default function CourseDetailsPage() {
   };
 
   const hasFullGpsCoverage = Boolean(
-    liveGpsAvailability?.available && liveGpsAvailability.coverage === 'full',
+    liveGpsMapping?.availability.available
+      && liveGpsMapping.availability.coverage === 'full'
+      && previewHoles.length > 0,
   );
+  const activePreviewHoleIndex = Math.max(
+    0,
+    previewHoles.findIndex((hole) => hole.holeNumber === previewHoleNumber),
+  );
+  const activePreviewHole = previewHoles[activePreviewHoleIndex] ?? null;
+  const activeScorecardHole = selectedTee?.holes?.find(
+    (hole) => hole.hole_number === activePreviewHole?.holeNumber,
+  );
+
+  const openGpsPreview = () => {
+    if (!previewHoles.length) return;
+    setPreviewHoleNumber(previewHoles[0].holeNumber);
+    setShowGpsHolePicker(false);
+    setShowGpsPreview(true);
+  };
+
+  const selectPreviewHole = (holeNumber: number) => {
+    setPreviewHoleNumber(holeNumber);
+    setShowGpsHolePicker(false);
+  };
 
   return (
     <div className="page-stack">
@@ -432,6 +492,7 @@ export default function CourseDetailsPage() {
             </div>
             <SkeletonBlock width={94} height={36} rounded="pill" />
           </div>
+          <SkeletonBlock className="skeleton-btn" height={40} />
         </section>
       ) : course && (
         <section className="card course-gps-status-card" aria-label="Live GPS status">
@@ -478,11 +539,113 @@ export default function CourseDetailsPage() {
             )}
           </div>
 
+          {hasFullGpsCoverage && (
+            <button
+              type="button"
+              className="btn btn-secondary course-gps-preview-button"
+              onClick={openGpsPreview}
+            >
+              Preview Course
+            </button>
+          )}
+
           {gpsCourseRequestError && (
             <span className="live-gps-request-error" role="alert">
               {gpsCourseRequestError}
             </span>
           )}
+        </section>
+      )}
+
+      {showGpsPreview && activePreviewHole && (
+        <section
+          className="live-round-gps-fullscreen course-gps-preview"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`GPS preview for hole ${activePreviewHole.holeNumber}`}
+        >
+          <div className="live-round-gps-map-layer">
+            <LiveGpsHoleMap
+              apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+              hole={activePreviewHole}
+              courseHoles={previewHoles}
+              par={activeScorecardHole?.par ?? null}
+              routeKey={`course-${course?.id}-hole-${activePreviewHole.holeNumber}`}
+            />
+          </div>
+
+          <div className="live-round-gps-hud course-gps-preview-hud">
+            <div className="live-round-gps-hole-menu">
+              <button
+                type="button"
+                className={`live-round-gps-hole-card${showGpsHolePicker ? ' is-open' : ''}`}
+                onClick={() => setShowGpsHolePicker((current) => !current)}
+                aria-expanded={showGpsHolePicker}
+                aria-controls="course-gps-preview-hole-picker"
+              >
+                <strong>
+                  Hole {activePreviewHole.holeNumber}
+                  <ChevronDown size={18} aria-hidden="true" />
+                </strong>
+                <small className="live-round-gps-hole-meta">
+                  {activeScorecardHole
+                    ? `Par ${activeScorecardHole.par} · ${activeScorecardHole.yardage} yd${activeScorecardHole.handicap == null ? '' : ` · HCP ${activeScorecardHole.handicap}`}`
+                    : 'Mapped hole'}
+                </small>
+              </button>
+
+              {showGpsHolePicker && (
+                <div
+                  id="course-gps-preview-hole-picker"
+                  className="live-round-gps-hole-picker course-gps-preview-hole-picker"
+                  role="dialog"
+                  aria-label="Choose Hole"
+                >
+                  <div className="live-round-gps-hole-picker-grid">
+                    {previewHoles.map((hole) => {
+                      const isActive = hole.holeNumber === activePreviewHole.holeNumber;
+                      return (
+                        <button
+                          key={hole.holeNumber}
+                          type="button"
+                          className={`live-round-gps-hole-picker-option${isActive ? ' is-active' : ''}`}
+                          onClick={() => selectPreviewHole(hole.holeNumber)}
+                          aria-current={isActive ? 'true' : undefined}
+                        >
+                          {hole.holeNumber}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="live-round-gps-controls"
+            role="group"
+            aria-label="Hole navigation"
+          >
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => selectPreviewHole(previewHoles[activePreviewHoleIndex - 1].holeNumber)}
+              disabled={activePreviewHoleIndex === 0}
+            >
+              <ChevronLeft size={18} aria-hidden="true" />
+              Previous Hole
+            </button>
+            <button
+              type="button"
+              className="btn btn-accent"
+              onClick={() => selectPreviewHole(previewHoles[activePreviewHoleIndex + 1].holeNumber)}
+              disabled={activePreviewHoleIndex === previewHoles.length - 1}
+            >
+              Next Hole
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          </div>
         </section>
       )}
 

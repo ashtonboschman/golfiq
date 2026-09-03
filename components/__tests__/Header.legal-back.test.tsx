@@ -5,6 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import Header from '@/components/Header';
 import { useSession } from 'next-auth/react';
+import { HEADER_BACK_NAVIGATION_EVENT } from '@/lib/ui/headerBackNavigation';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -71,5 +72,15 @@ describe('Header legal page back routing', () => {
 
     expect(mockPush).toHaveBeenCalledWith('/');
   });
-});
 
+  it('lets the active page consume header back navigation', () => {
+    const consumeBack = (event: Event) => event.preventDefault();
+    window.addEventListener(HEADER_BACK_NAVIGATION_EVENT, consumeBack);
+    render(<Header />);
+
+    fireEvent.click(screen.getByTitle('Go Back'));
+
+    expect(mockPush).not.toHaveBeenCalled();
+    window.removeEventListener(HEADER_BACK_NAVIGATION_EVENT, consumeBack);
+  });
+});
