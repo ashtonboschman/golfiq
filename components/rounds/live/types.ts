@@ -4,7 +4,7 @@ export type LiveRoundActiveStep = 'GPS' | 'SCORE';
 export type LiveRoundSessionStatus = 'ACTIVE' | 'COMPLETED' | 'DISCARDED';
 export type { LiveGpsAvailability } from '@/lib/gps/liveMappingTypes';
 export type MissDirection = 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long';
-export type DirectionalResult = 'untracked' | 'hit' | MissDirection;
+export type DirectionalResult = 'untracked' | 'miss' | 'hit' | MissDirection;
 
 export type LiveRoundTrackingPrefs = {
   fir: boolean;

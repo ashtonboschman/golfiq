@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from 'lucide-react';
 import type {
   DirectionalResult,
   LiveRoundHoleDraft,
@@ -27,6 +27,7 @@ function resolveDirectionalResult(
 ): DirectionalResult {
   if (hit === 1) return 'hit';
   if (hit === 0 && direction != null) return direction;
+  if (hit === 0) return 'miss';
   return 'untracked';
 }
 
@@ -67,6 +68,26 @@ export default function LiveHoleScoreEntry({
   onChange,
 }: LiveHoleScoreEntryProps) {
   const par = draft.hole?.par ?? null;
+  const directionPickerKey = `${draft.id}:${draft.display_hole_number}`;
+  const [openDirectionPickerKey, setOpenDirectionPickerKey] = useState<string | null>(null);
+  const firDirectionPickerOpen = openDirectionPickerKey === `fir:${directionPickerKey}`;
+  const girDirectionPickerOpen = openDirectionPickerKey === `gir:${directionPickerKey}`;
+  const firResultRef = useRef<HTMLDivElement | null>(null);
+  const girResultRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!firDirectionPickerOpen && !girDirectionPickerOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!firResultRef.current?.contains(target) && !girResultRef.current?.contains(target)) {
+        setOpenDirectionPickerKey(null);
+      }
+    };
+
+    document.addEventListener('click', closeOnOutsideClick);
+    return () => document.removeEventListener('click', closeOnOutsideClick);
+  }, [firDirectionPickerOpen, girDirectionPickerOpen]);
 
   const updateDraft = (patch: Partial<LiveRoundHoleDraft>) => {
     onChange({ ...draft, ...patch });
@@ -93,30 +114,73 @@ export default function LiveHoleScoreEntry({
     const currentResult = area === 'fir'
       ? resolveDirectionalResult(draft.fir_hit, draft.fir_direction)
       : resolveDirectionalResult(draft.gir_hit, draft.gir_direction);
-    const next = currentResult === result ? 'untracked' : result;
+    const next = currentResult === result && result !== 'hit' && result !== 'miss'
+      ? 'miss'
+      : currentResult === result
+        ? 'untracked'
+        : result;
 
     if (area === 'fir') {
       if (next === 'untracked') {
         updateDraft({ fir_hit: null, fir_direction: null });
+        setOpenDirectionPickerKey(null);
         return;
       }
       if (next === 'hit') {
         updateDraft({ fir_hit: 1, fir_direction: null });
+        setOpenDirectionPickerKey(null);
+        return;
+      }
+      if (next === 'miss') {
+        updateDraft({ fir_hit: 0, fir_direction: null });
+        setOpenDirectionPickerKey(null);
         return;
       }
       updateDraft({ fir_hit: 0, fir_direction: next });
+      setOpenDirectionPickerKey(null);
       return;
     }
 
     if (next === 'untracked') {
       updateDraft({ gir_hit: null, gir_direction: null });
+      setOpenDirectionPickerKey(null);
       return;
     }
     if (next === 'hit') {
       updateDraft({ gir_hit: 1, gir_direction: null });
+      setOpenDirectionPickerKey(null);
+      return;
+    }
+    if (next === 'miss') {
+      updateDraft({ gir_hit: 0, gir_direction: null });
+      setOpenDirectionPickerKey(null);
       return;
     }
     updateDraft({ gir_hit: 0, gir_direction: next });
+    setOpenDirectionPickerKey(null);
+  };
+
+  const handleMissClick = (area: 'fir' | 'gir') => {
+    const hit = area === 'fir' ? draft.fir_hit : draft.gir_hit;
+    const pickerKey = `${area}:${directionPickerKey}`;
+
+    if (hit !== 0) {
+      updateDraft(area === 'fir'
+        ? { fir_hit: 0, fir_direction: null }
+        : { gir_hit: 0, gir_direction: null });
+      setOpenDirectionPickerKey(pickerKey);
+      return;
+    }
+
+    if (openDirectionPickerKey !== pickerKey) {
+      setOpenDirectionPickerKey(pickerKey);
+      return;
+    }
+
+    updateDraft(area === 'fir'
+      ? { fir_hit: null, fir_direction: null }
+      : { gir_hit: null, gir_direction: null });
+    setOpenDirectionPickerKey(null);
   };
 
   const renderDirectionalResultControl = (args: {
@@ -127,37 +191,59 @@ export default function LiveHoleScoreEntry({
     const selected = resolveDirectionalResult(args.hit, args.direction);
     const prefix = args.area === 'fir' ? 'FIR' : 'GIR';
 
-    const buttons: Array<{
-      result: DirectionalResult;
+    const directionButtons: Array<{
+      result: MissDirection;
       label: string;
-      className: string;
       icon: ReactNode;
     }> = [
-      { result: 'miss_long', label: 'Long', className: 'pos-up', icon: <ChevronUp size={DIRECTION_ICON_SIZE} /> },
-      { result: 'miss_left', label: 'Left', className: 'pos-left', icon: <ChevronLeft size={DIRECTION_ICON_SIZE} /> },
-      { result: 'hit', label: 'Hit', className: 'pos-center', icon: <Check size={DIRECTION_ICON_SIZE} /> },
-      { result: 'miss_right', label: 'Right', className: 'pos-right', icon: <ChevronRight size={DIRECTION_ICON_SIZE} /> },
-      { result: 'miss_short', label: 'Short', className: 'pos-down', icon: <ChevronDown size={DIRECTION_ICON_SIZE} /> },
+      { result: 'miss_left', label: 'Left', icon: <ChevronLeft size={DIRECTION_ICON_SIZE} /> },
+      { result: 'miss_long', label: 'Long', icon: <ChevronUp size={DIRECTION_ICON_SIZE} /> },
+      { result: 'miss_short', label: 'Short', icon: <ChevronDown size={DIRECTION_ICON_SIZE} /> },
+      { result: 'miss_right', label: 'Right', icon: <ChevronRight size={DIRECTION_ICON_SIZE} /> },
     ];
+    const selectedDirection = directionButtons.find((button) => button.result === args.direction);
+    const directionPickerOpen = args.area === 'fir' ? firDirectionPickerOpen : girDirectionPickerOpen;
 
     return (
-      <div className="directional-result">
-        <div className="directional-result-grid" role="group" aria-label={`${prefix} result`}>
-          {buttons.map((button) => (
+      <div
+        ref={args.area === 'fir' ? firResultRef : girResultRef}
+        className="directional-result"
+      >
+        <div className="directional-result-primary-grid" role="group" aria-label={`${prefix} result`}>
+          <button
+            type="button"
+            aria-label={selectedDirection ? `Miss ${selectedDirection.label}` : 'Miss'}
+            aria-pressed={args.hit === 0}
+            className={`directional-result-btn${args.hit === 0 ? ' active active-miss' : ''}`}
+            onClick={() => handleMissClick(args.area)}
+          >
+            {selectedDirection ? selectedDirection.icon : <X size={DIRECTION_ICON_SIZE} />}
+          </button>
+          <button
+            type="button"
+            aria-label="Hit"
+            aria-pressed={selected === 'hit'}
+            className={`directional-result-btn${selected === 'hit' ? ' active active-hit' : ''}`}
+            onClick={() => handleDirectionalResultChange(args.area, 'hit')}
+          >
+            <Check size={DIRECTION_ICON_SIZE} />
+          </button>
+        </div>
+        {directionPickerOpen && args.hit === 0 && (
+          <div className="directional-result-picker" role="group" aria-label={`${prefix} miss direction`}>
+            {directionButtons.map((button) => (
             <button
               key={`${prefix}-${button.result}`}
               type="button"
               aria-label={button.label}
               aria-pressed={selected === button.result}
-              className={`directional-result-btn ${button.className} ${selected === button.result ? 'active' : ''} ${selected === button.result ? (button.result === 'hit' ? 'active-hit' : 'active-miss') : ''}`}
+              className={`directional-result-btn${selected === button.result ? ' active active-miss' : ''}`}
               onClick={() => handleDirectionalResultChange(args.area, button.result)}
             >
               {button.icon}
             </button>
-          ))}
-        </div>
-        {args.hit === 0 && args.direction == null && (
-          <span className="directional-result-miss-note">{prefix} miss logged (no direction)</span>
+            ))}
+          </div>
         )}
       </div>
     );

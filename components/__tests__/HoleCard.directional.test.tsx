@@ -44,7 +44,7 @@ describe('HoleCard directional one-tap capture', () => {
     expect(onChange).toHaveBeenCalledWith(1, 'fir_direction', null);
   });
 
-  it('selecting directional buttons sets miss + correct direction in one tap', () => {
+  it('offers an optional direction after recording a GIR miss', () => {
     const onChange = jest.fn();
     const cases: Array<{ label: string; expected: 'miss_left' | 'miss_right' | 'miss_long' | 'miss_short' }> = [
       { label: 'Left', expected: 'miss_left' },
@@ -57,7 +57,11 @@ describe('HoleCard directional one-tap capture', () => {
       onChange.mockClear();
       const { unmount } = render(<HoleCard {...baseProps({ onChange, gir_hit: null, gir_direction: null })} />);
       const girGroup = screen.getByRole('group', { name: 'GIR result' });
-      fireEvent.click(within(girGroup).getByRole('button', { name: testCase.label }));
+      fireEvent.click(within(girGroup).getByRole('button', { name: 'Miss' }));
+      fireEvent.click(
+        within(screen.getByRole('group', { name: 'GIR miss direction' }))
+          .getByRole('button', { name: testCase.label }),
+      );
       fireEvent.click(screen.getByRole('button', { name: 'Next Hole' }));
 
       expect(onChange).toHaveBeenCalledWith(1, 'gir_hit', 0);
@@ -78,7 +82,25 @@ describe('HoleCard directional one-tap capture', () => {
     expect(onChange).toHaveBeenCalledWith(1, 'gir_direction', null);
   });
 
-  it('tapping selected direction again clears hit/miss and direction', () => {
+  it.each(['FIR', 'GIR'] as const)('records an explicit %s miss without a direction', (area) => {
+    const onChange = jest.fn();
+    render(<HoleCard {...baseProps({ onChange })} />);
+
+    fireEvent.click(within(screen.getByRole('group', { name: `${area} result` })).getByRole('button', { name: 'Miss' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next Hole' }));
+
+    expect(onChange).toHaveBeenCalledWith(1, area === 'FIR' ? 'fir_hit' : 'gir_hit', 0);
+    expect(onChange).toHaveBeenCalledWith(1, area === 'FIR' ? 'fir_direction' : 'gir_direction', null);
+  });
+
+  it('preloads an explicit non-directional miss as the selected Miss button', () => {
+    render(<HoleCard {...baseProps({ gir_hit: 0, gir_direction: null })} />);
+
+    expect(within(screen.getByRole('group', { name: 'GIR result' })).getByRole('button', { name: 'Miss' }))
+      .toHaveClass('active', 'active-miss');
+  });
+
+  it('deselecting a FIR direction keeps a non-directional miss', () => {
     const onChange = jest.fn();
     render(
       <HoleCard
@@ -91,10 +113,11 @@ describe('HoleCard directional one-tap capture', () => {
     );
 
     const firGroup = screen.getByRole('group', { name: 'FIR result' });
-    fireEvent.click(within(firGroup).getByRole('button', { name: 'Right' }));
+    fireEvent.click(within(firGroup).getByRole('button', { name: 'Miss Right' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'FIR miss direction' })).getByRole('button', { name: 'Right' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next Hole' }));
 
-    expect(onChange).toHaveBeenCalledWith(1, 'fir_hit', null);
+    expect(onChange).toHaveBeenCalledWith(1, 'fir_hit', 0);
     expect(onChange).toHaveBeenCalledWith(1, 'fir_direction', null);
   });
 
@@ -118,16 +141,29 @@ describe('HoleCard directional one-tap capture', () => {
       />,
     );
 
-    expect(within(screen.getByRole('group', { name: 'FIR result' })).getByRole('button', { name: 'Right' })).toHaveClass('active');
-    expect(within(screen.getByRole('group', { name: 'GIR result' })).getByRole('button', { name: 'Short' })).toHaveClass('active');
+    const firMiss = within(screen.getByRole('group', { name: 'FIR result' })).getByRole('button', { name: 'Miss Right' });
+    expect(firMiss).toHaveClass('active', 'active-miss');
+    fireEvent.click(firMiss);
+    expect(
+      within(screen.getByRole('group', { name: 'FIR miss direction' })).getByRole('button', { name: 'Right' }),
+    ).toHaveClass('active', 'active-miss');
+
+    const girMiss = within(screen.getByRole('group', { name: 'GIR result' })).getByRole('button', { name: 'Miss Short' });
+    expect(girMiss).toHaveClass('active', 'active-miss');
+
+    fireEvent.click(girMiss);
+    expect(
+      within(screen.getByRole('group', { name: 'GIR miss direction' })).getByRole('button', { name: 'Short' }),
+    ).toHaveClass('active', 'active-miss');
   });
 
-  it('miss can still be logged with one tap', () => {
+  it('offers an optional direction after recording an FIR miss', () => {
     const onChange = jest.fn();
     render(<HoleCard {...baseProps({ onChange, fir_hit: null, fir_direction: null })} />);
 
     const firGroup = screen.getByRole('group', { name: 'FIR result' });
-    fireEvent.click(within(firGroup).getByRole('button', { name: 'Left' }));
+    fireEvent.click(within(firGroup).getByRole('button', { name: 'Miss' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'FIR miss direction' })).getByRole('button', { name: 'Left' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next Hole' }));
 
     expect(onChange).toHaveBeenCalledWith(1, 'fir_hit', 0);

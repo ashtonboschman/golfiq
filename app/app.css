@@ -8106,10 +8106,17 @@ input[type='date'].form-input {
   gap: 6px;
 }
 
-.directional-result-grid {
+.directional-result-primary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(42px, auto));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 48px;
+  gap: 6px;
+}
+
+.directional-result-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: 48px;
   gap: 6px;
 }
 
@@ -8125,7 +8132,7 @@ input[type='date'].form-input {
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  min-height: 42px;
+  min-height: 48px;
   width: 100%;
   height: 100%;
   padding: 0;
@@ -8133,32 +8140,6 @@ input[type='date'].form-input {
 
 .directional-result-btn svg {
   display: block;
-}
-
-.directional-result-btn.pos-up {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.directional-result-btn.pos-left {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.directional-result-btn.pos-center {
-  grid-column: 2;
-  grid-row: 2;
-  font-weight: 700;
-}
-
-.directional-result-btn.pos-right {
-  grid-column: 3;
-  grid-row: 2;
-}
-
-.directional-result-btn.pos-down {
-  grid-column: 2;
-  grid-row: 3;
 }
 
 .directional-result-btn.active {
@@ -8177,11 +8158,6 @@ input[type='date'].form-input {
   background: var(--color-red);
   border-color: var(--color-red);
   color: var(--color-white-text);
-}
-
-.directional-result-miss-note {
-  font-size: 0.75rem;
-  color: var(--color-secondary-text);
 }
 
 .directional-result-na {
@@ -8263,13 +8239,14 @@ input[type='date'].form-input {
     gap: 4px;
   }
 
-  .directional-result-grid {
-    grid-template-rows: repeat(3, minmax(38px, auto));
+  .directional-result-primary-grid,
+  .directional-result-picker {
+    grid-template-rows: 42px;
     gap: 4px;
   }
 
   .directional-result-btn {
-    min-height: 38px;
+    min-height: 42px;
     border-radius: 9px;
   }
 

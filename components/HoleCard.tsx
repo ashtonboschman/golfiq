@@ -1,5 +1,5 @@
-import { memo, useState, type ReactNode } from 'react';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from 'lucide-react';
 import {
   DEFAULT_LIVE_ROUND_TRACKING_PREFS,
   normalizeLiveRoundTrackingPrefs,
@@ -7,7 +7,7 @@ import {
 } from '@/lib/rounds/liveRoundTracking';
 
 type MissDirection = 'miss_left' | 'miss_right' | 'miss_short' | 'miss_long';
-type DirectionalResult = 'untracked' | 'hit' | MissDirection;
+type DirectionalResult = 'untracked' | 'miss' | 'hit' | MissDirection;
 const ACCORDION_ICON_SIZE = 24;
 
 interface HoleCardProps {
@@ -60,6 +60,23 @@ const HoleCard = memo(({
   const [localPenalties, setLocalPenalties] = useState<number | null>(penalties);
   const [localChips, setLocalChips] = useState<number | null>(chips);
   const [localGreensideBunkerShots, setLocalGreensideBunkerShots] = useState<number | null>(greenside_bunker_shots);
+  const [openDirectionPicker, setOpenDirectionPicker] = useState<'fir' | 'gir' | null>(null);
+  const firResultRef = useRef<HTMLDivElement | null>(null);
+  const girResultRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!openDirectionPicker) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!firResultRef.current?.contains(target) && !girResultRef.current?.contains(target)) {
+        setOpenDirectionPicker(null);
+      }
+    };
+
+    document.addEventListener('click', closeOnOutsideClick);
+    return () => document.removeEventListener('click', closeOnOutsideClick);
+  }, [openDirectionPicker]);
 
   const syncLocalStateFromProps = () => {
     setLocalScore(score ?? par);
@@ -79,6 +96,7 @@ const HoleCard = memo(({
   ): DirectionalResult => {
     if (hit === 1) return 'hit';
     if (hit === 0 && direction != null) return direction;
+    if (hit === 0) return 'miss';
     return 'untracked';
   };
 
@@ -89,36 +107,88 @@ const HoleCard = memo(({
     const currentResult = area === 'fir'
       ? resolveDirectionalResult(localFirHit, localFirDirection)
       : resolveDirectionalResult(localGirHit, localGirDirection);
-    const next = currentResult === result ? 'untracked' : result;
+    const next = currentResult === result && result !== 'hit' && result !== 'miss'
+      ? 'miss'
+      : currentResult === result
+        ? 'untracked'
+        : result;
 
     if (area === 'fir') {
       if (next === 'untracked') {
         setLocalFirHit(null);
         setLocalFirDirection(null);
+        setOpenDirectionPicker(null);
         return;
       }
       if (next === 'hit') {
         setLocalFirHit(1);
         setLocalFirDirection(null);
+        setOpenDirectionPicker(null);
+        return;
+      }
+      if (next === 'miss') {
+        setLocalFirHit(0);
+        setLocalFirDirection(null);
+        setOpenDirectionPicker(null);
         return;
       }
       setLocalFirHit(0);
       setLocalFirDirection(next);
+      setOpenDirectionPicker(null);
       return;
     }
 
     if (next === 'untracked') {
       setLocalGirHit(null);
       setLocalGirDirection(null);
+      setOpenDirectionPicker(null);
       return;
     }
     if (next === 'hit') {
       setLocalGirHit(1);
       setLocalGirDirection(null);
+      setOpenDirectionPicker(null);
+      return;
+    }
+    if (next === 'miss') {
+      setLocalGirHit(0);
+      setLocalGirDirection(null);
+      setOpenDirectionPicker(null);
       return;
     }
     setLocalGirHit(0);
     setLocalGirDirection(next);
+    setOpenDirectionPicker(null);
+  };
+
+  const handleMissClick = (area: 'fir' | 'gir') => {
+    const hit = area === 'fir' ? localFirHit : localGirHit;
+
+    if (hit !== 0) {
+      if (area === 'fir') {
+        setLocalFirHit(0);
+        setLocalFirDirection(null);
+      } else {
+        setLocalGirHit(0);
+        setLocalGirDirection(null);
+      }
+      setOpenDirectionPicker(area);
+      return;
+    }
+
+    if (openDirectionPicker !== area) {
+      setOpenDirectionPicker(area);
+      return;
+    }
+
+    if (area === 'fir') {
+      setLocalFirHit(null);
+      setLocalFirDirection(null);
+    } else {
+      setLocalGirHit(null);
+      setLocalGirDirection(null);
+    }
+    setOpenDirectionPicker(null);
   };
 
   // Commit all local changes to parent
@@ -230,38 +300,62 @@ const HoleCard = memo(({
     const selected = resolveDirectionalResult(args.hit, args.direction);
     const prefix = args.area === 'fir' ? 'FIR' : 'GIR';
 
-    const buttons: Array<{
-      result: DirectionalResult;
+    const directionButtons: Array<{
+      result: MissDirection;
       label: string;
-      className: string;
       icon: ReactNode;
     }> = [
-      { result: 'miss_long', label: 'Long', className: 'pos-up', icon: <ChevronUp size={ACCORDION_ICON_SIZE} /> },
-      { result: 'miss_left', label: 'Left', className: 'pos-left', icon: <ChevronLeft size={ACCORDION_ICON_SIZE} /> },
-      { result: 'hit', label: 'Hit', className: 'pos-center', icon: <Check size={ACCORDION_ICON_SIZE} /> },
-      { result: 'miss_right', label: 'Right', className: 'pos-right', icon: <ChevronRight size={ACCORDION_ICON_SIZE} /> },
-      { result: 'miss_short', label: 'Short', className: 'pos-down', icon: <ChevronDown size={ACCORDION_ICON_SIZE} /> },
+      { result: 'miss_left', label: 'Left', icon: <ChevronLeft size={ACCORDION_ICON_SIZE} /> },
+      { result: 'miss_long', label: 'Long', icon: <ChevronUp size={ACCORDION_ICON_SIZE} /> },
+      { result: 'miss_short', label: 'Short', icon: <ChevronDown size={ACCORDION_ICON_SIZE} /> },
+      { result: 'miss_right', label: 'Right', icon: <ChevronRight size={ACCORDION_ICON_SIZE} /> },
     ];
+    const selectedDirection = directionButtons.find((button) => button.result === args.direction);
+    const directionPickerOpen = openDirectionPicker === args.area;
 
     return (
-      <div className="directional-result">
-        <div className="directional-result-grid" role="group" aria-label={`${prefix} result`}>
-          {buttons.map((button) => (
+      <div
+        ref={args.area === 'fir' ? firResultRef : girResultRef}
+        className="directional-result"
+      >
+        <div className="directional-result-primary-grid" role="group" aria-label={`${prefix} result`}>
+          <button
+            type="button"
+            aria-label={selectedDirection ? `Miss ${selectedDirection.label}` : 'Miss'}
+            aria-pressed={args.hit === 0}
+            className={`directional-result-btn${args.hit === 0 ? ' active active-miss' : ''}`}
+            onClick={() => handleMissClick(args.area)}
+            disabled={args.disabled}
+          >
+            {selectedDirection ? selectedDirection.icon : <X size={ACCORDION_ICON_SIZE} />}
+          </button>
+          <button
+            type="button"
+            aria-label="Hit"
+            aria-pressed={selected === 'hit'}
+            className={`directional-result-btn${selected === 'hit' ? ' active active-hit' : ''}`}
+            onClick={() => handleDirectionalResultChange(args.area, 'hit')}
+            disabled={args.disabled}
+          >
+            <Check size={ACCORDION_ICON_SIZE} />
+          </button>
+        </div>
+        {directionPickerOpen && args.hit === 0 && (
+          <div className="directional-result-picker" role="group" aria-label={`${prefix} miss direction`}>
+            {directionButtons.map((button) => (
             <button
               key={`${prefix}-${button.result}`}
               type="button"
               aria-label={button.label}
               aria-pressed={selected === button.result}
-              className={`directional-result-btn ${button.className} ${selected === button.result ? 'active' : ''} ${selected === button.result ? (button.result === 'hit' ? 'active-hit' : 'active-miss') : ''}`}
+              className={`directional-result-btn${selected === button.result ? ' active active-miss' : ''}`}
               onClick={() => handleDirectionalResultChange(args.area, button.result)}
               disabled={args.disabled}
             >
               {button.icon}
             </button>
-          ))}
-        </div>
-        {args.hit === 0 && args.direction == null && (
-          <span className="directional-result-miss-note">{prefix} miss logged (no direction)</span>
+            ))}
+          </div>
         )}
       </div>
     );
