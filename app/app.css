@@ -1047,6 +1047,22 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+
+  /* Keep essential loading feedback visible while other motion stays reduced. */
+  .app-boot-loader > .app-boot-ring {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  body .skeleton {
+    animation-duration: 2.6s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  body .skeleton::after {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 
 /* ===========================
@@ -1915,6 +1931,9 @@ html:not([class*="theme-"]) .header .logo-theme-dark {
 .app-boot-logo {
   position: relative;
   z-index: 1;
+  display: block;
+  width: 70px;
+  height: 70px;
   border-radius: 10px;
 }
 
@@ -11082,6 +11101,10 @@ input[type='date'].form-input {
 
 .live-round-gps-hud.gps-admin-map-hud {
   right: calc(var(--gap) + var(--gps-admin-distance-overlays-width) + var(--gap-small));
+}
+
+.gps-admin-map-hud > .live-round-gps-hole-menu {
+  width: max-content;
 }
 
 .live-round-gps-hole-card.gps-admin-map-hole-card {

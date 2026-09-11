@@ -4,6 +4,7 @@ import {
   composeGameProfileFallbackCopy,
   composeProfileConclusionCopy,
   composeRecentFormCopy,
+  composeScoringOutlookExplanation,
   composeScoringOutlookPresentation,
   composeStabilityCopy,
   projectGameTrendsForViewer,
@@ -174,6 +175,18 @@ describe('Game Trends V2 resolver', () => {
       };
 
       expect(composeScoringOutlookPresentation(trends)).toEqual({ status, label, tone });
+      const explanation = composeScoringOutlookExplanation(trends);
+      expect(explanation).toContain(`${label}:`);
+      expect(explanation).toContain({
+        better_than_established: 'Scores are better than usual,',
+        near_established: 'Scores are close to your usual level,',
+        worse_than_established: 'Scores are still higher than usual,',
+      }[recentFormState]);
+      expect(explanation).toContain({
+        improving: 'with recent results improving.',
+        steady: 'with recent results holding steady.',
+        worsening: 'with recent results worsening.',
+      }[momentumState]);
     },
   );
 
@@ -194,6 +207,8 @@ describe('Game Trends V2 resolver', () => {
       label: 'Still Building',
       tone: 'none',
     });
+    expect(composeScoringOutlookExplanation(trends)).toContain('Still Building: At least 10 eligible rounds');
+    expect(composeScoringOutlookExplanation(trends)).toContain('At least 10 eligible rounds in this view');
   });
 
   it('uses the native 9-hole threshold for canonical momentum', () => {

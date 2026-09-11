@@ -13,6 +13,7 @@ export default function AppBootVisual() {
         height={70}
         className="app-boot-logo"
         priority
+        unoptimized
       />
     </div>
   );

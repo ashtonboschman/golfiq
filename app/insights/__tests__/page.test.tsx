@@ -792,6 +792,29 @@ describe('/insights page', () => {
     expect(outlook?.querySelector('[data-outlook-status="worsening"]')).toBeNull();
   });
 
+  it.each([true, false])('explains Recovering in the tooltip when premium is %s', async (isPremium) => {
+    const insights = makeInsights(isPremium);
+    insights.game_trends.recentForm.state = 'worse_than_established';
+    insights.game_trends.recentForm.evidence.momentum = {
+      state: 'improving',
+      recentCount: 5,
+      comparisonCount: 5,
+      recentAverageScore: 96,
+      comparisonAverageScore: 98,
+      deltaVsPrevious: -2,
+    };
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ insights }),
+    });
+
+    const { container } = render(<InsightsPage />);
+    await screen.findByText('Recovering');
+    const tooltip = container.querySelector('.trajectory-card [data-testid="info-tooltip"]');
+    expect(tooltip).toHaveTextContent('Recovering: Scores are still higher than usual, with recent results improving.');
+    expect(tooltip).toHaveTextContent('with recent results improving.');
+  });
+
   it('uses clear high-level tooltip copy across Overall Insights', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -800,13 +823,13 @@ describe('/insights page', () => {
 
     const { container } = render(<InsightsPage />);
     await screen.findByText(
-      'Combines how your recent scoring compares with your usual level and how your latest five rounds compare with the five before them. Score Range balances recent and usual scoring, and widens when recent rounds are less consistent. Handicap Range uses your recent handicap history.',
+      'Still Building: At least 10 eligible rounds in this view are needed to establish a direction. Projected score and handicap ranges based on recent scoring, consistency, and handicap history.',
     );
     expect(screen.getByText(
       'Shows how your recent scores compare with your usual scoring across the non-overlapping rounds before your recent window. Lower is better.',
     )).toBeInTheDocument();
     expect(screen.getByText(
-      'Combines how your recent scoring compares with your usual level and how your latest five rounds compare with the five before them. Score Range balances recent and usual scoring, and widens when recent rounds are less consistent. Handicap Range uses your recent handicap history.',
+      'Still Building: At least 10 eligible rounds in this view are needed to establish a direction. Projected score and handicap ranges based on recent scoring, consistency, and handicap history.',
     )).toBeInTheDocument();
     expect(screen.getByText(
       'Shows how much your score relative to par changes from round to round across your last five rounds. Less variation means more consistent scoring.',

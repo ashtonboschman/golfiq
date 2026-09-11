@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import AdminGpsMappingMap from '@/components/gps/AdminGpsMappingMap';
@@ -245,6 +245,17 @@ export default function AdminGpsMappingCourseClient({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    if (!statusMessage && !errorMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setStatusMessage(null);
+      setErrorMessage(null);
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [statusMessage, errorMessage]);
+
   const activeScorecardHole = scorecardHoles.find((hole) => hole.holeNumber === activeHoleNumber) ?? null;
   const activeHoleIndex = scorecardHoles.findIndex((hole) => hole.holeNumber === activeHoleNumber);
   const previousHole = activeHoleIndex > 0 ? scorecardHoles[activeHoleIndex - 1] : null;
@@ -475,7 +486,7 @@ export default function AdminGpsMappingCourseClient({
       <main className="gps-admin-main">
         <section className="gps-admin-editor-card">
           {(statusMessage || errorMessage) && (
-            <div className={`gps-admin-message ${errorMessage ? 'error' : 'success'}`} role="status">
+            <div className={`message-toast ${errorMessage ? 'error' : 'success'}`} role="status">
               {errorMessage ?? statusMessage}
             </div>
           )}

@@ -24,4 +24,12 @@ describe('global skeleton loading animation', () => {
     expect(css).toContain('@keyframes skeleton-base-shimmer');
     expect(css).toContain('@keyframes skeleton-shimmer');
   });
+
+  it('keeps loading feedback animated when reduced motion is enabled', () => {
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.app-boot-loader > \.app-boot-ring\s*\{[\s\S]*?animation-iteration-count:\s*infinite\s*!important/,
+    );
+    expect(css).toMatch(/body \.skeleton\s*\{[\s\S]*?animation-iteration-count:\s*infinite\s*!important/);
+    expect(css).toMatch(/body \.skeleton::after\s*\{[\s\S]*?animation-iteration-count:\s*infinite\s*!important/);
+  });
 });

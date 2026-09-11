@@ -155,6 +155,28 @@ export function composeScoringOutlookPresentation(
   return { status: 'worsening', label: 'Worsening', tone: 'down' };
 }
 
+export function composeScoringOutlookExplanation(trends: GameTrendsV2Dto): string {
+  const { status, label } = composeScoringOutlookPresentation(trends);
+  if (status === 'building') {
+    return 'Still Building: At least 10 eligible rounds in this view are needed to establish a direction.';
+  }
+
+  const level = scoringLevel(trends);
+  const levelCopy = level === 'better'
+    ? 'Scores are better than usual'
+    : level === 'near'
+      ? 'Scores are close to your usual level'
+      : 'Scores are still higher than usual';
+  const momentum = trends.recentForm.evidence.momentum;
+  const changeCopy = momentum.state === 'improving'
+    ? 'improving'
+    : momentum.state === 'worsening'
+      ? 'worsening'
+      : 'holding steady';
+
+  return `${label}: ${levelCopy}, with recent results ${changeCopy}.`;
+}
+
 export function composeRecentFormCopy(trends: GameTrendsV2Dto): GameTrendCopy {
   const { state, evidence } = trends.recentForm;
   if (state === 'unavailable') return { conclusion: 'Add your first round to start building Game Trends.', supporting: null };

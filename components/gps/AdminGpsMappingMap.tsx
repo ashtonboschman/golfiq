@@ -30,8 +30,8 @@ type CourseBounds = {
 };
 
 const DEFAULT_ZOOM = 17;
-const MIN_MAP_ZOOM = 16;
-const MAX_MAP_ZOOM = 19;
+const MIN_INITIAL_CAMERA_ZOOM = 16;
+const MAX_INITIAL_CAMERA_ZOOM = 19;
 const ROUTE_LINE_STROKE_WEIGHT = 3;
 const ROUTE_LINE_STROKE_OPACITY = 0.92;
 const ROUTE_LINE_COLOR = '#f8fafc';
@@ -181,8 +181,8 @@ function derivedCameraForHole(hole: GpsMappedHoleDraft, viewportWidth: number, v
     {
       viewportWidth,
       viewportHeight,
-      minZoom: MIN_MAP_ZOOM,
-      maxZoom: MAX_MAP_ZOOM,
+      minZoom: MIN_INITIAL_CAMERA_ZOOM,
+      maxZoom: MAX_INITIAL_CAMERA_ZOOM,
     },
   );
 }
@@ -549,8 +549,6 @@ export default function AdminGpsMappingMap({
           clickableIcons: false,
           disableDoubleClickZoom: true,
           isFractionalZoomEnabled: true,
-          minZoom: MIN_MAP_ZOOM,
-          maxZoom: MAX_MAP_ZOOM,
           heading: 0,
           tilt: 0,
           renderingType: google.maps.RenderingType.VECTOR,

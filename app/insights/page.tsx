@@ -14,7 +14,7 @@ import { formatHandicap, formatNumber } from '@/lib/formatters';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import type { GameTrendsV2Dto } from '@/lib/insights/gameTrends/types';
-import { composeScoringOutlookPresentation } from '@/lib/insights/gameTrends/presentation';
+import { composeScoringOutlookExplanation, composeScoringOutlookPresentation } from '@/lib/insights/gameTrends/presentation';
 
 const insightsViewedKeys = new Set<string>();
 const gameTrendViewedKeys = new Set<string>();
@@ -1321,7 +1321,10 @@ export default function InsightsPage() {
     <div className="card dashboard-stat-card trajectory-card">
       <div className="trajectory-header">
         <h3>Scoring Direction</h3>
-        <InfoTooltip text="Combines how your recent scoring compares with your usual level and how your latest five rounds compare with the five before them. Score Range balances recent and usual scoring, and widens when recent rounds are less consistent. Handicap Range uses your recent handicap history." />
+        <InfoTooltip text={[
+          insights.game_trends ? composeScoringOutlookExplanation(insights.game_trends) : '',
+          'Projected score and handicap ranges based on recent scoring, consistency, and handicap history.',
+        ].filter(Boolean).join(' ')} />
       </div>
       {scoringOutlook && (
         <>
@@ -1868,5 +1871,3 @@ export default function InsightsPage() {
     </div>
   );
 }
-
-

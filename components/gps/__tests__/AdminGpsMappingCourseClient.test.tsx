@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AdminGpsMappingCourseClient from '@/components/gps/AdminGpsMappingCourseClient';
 import type {
@@ -275,7 +275,40 @@ describe('AdminGpsMappingCourseClient compact layout', () => {
     expect(actionMocks.saveDraft.mock.invocationCallOrder[0]).toBeLessThan(
       actionMocks.markHoleReady.mock.invocationCallOrder[0],
     );
-    expect(await screen.findByText('Hole 1 saved and marked ready.')).toBeInTheDocument();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(screen.getByText('4/4 Ready')).toHaveClass('gps-admin-status-pill', 'is-ready');
+    expect(screen.getByRole('status')).toHaveClass('message-toast', 'success');
+    expect(screen.getByRole('status')).toHaveTextContent('Hole 1 saved and marked ready.');
+  });
+
+  it.each(['success', 'error'])('automatically dismisses %s toasts', async (type) => {
+    jest.useFakeTimers();
+    try {
+      const actionMocks = actions();
+      if (type === 'error') {
+        actionMocks.saveDraft.mockRejectedValueOnce(new Error('Unable to save hole.'));
+      }
+
+      render(
+        <AdminGpsMappingCourseClient
+          course={course}
+          mappedCourse={mappedCourse('READY')}
+          scorecardHoles={scorecardHoles}
+          googleMapsKey="test-key"
+          actions={actionMocks}
+        />,
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Save & Mark Ready' }));
+      });
+
+      expect(screen.getByRole('status')).toHaveClass('message-toast', type);
+      act(() => jest.advanceTimersByTime(2000));
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('does not sync the back nine when the admin cancels the warning', () => {
