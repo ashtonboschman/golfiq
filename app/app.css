@@ -8120,6 +8120,10 @@ input[type='date'].form-input {
   gap: 6px;
 }
 
+.directional-result-picker .directional-result-btn {
+  font-size: 0.95rem;
+}
+
 .directional-result-btn {
   border: 1px solid var(--color-border);
   background: var(--color-secondary-surface);

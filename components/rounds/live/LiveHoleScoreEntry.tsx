@@ -232,16 +232,16 @@ export default function LiveHoleScoreEntry({
         {directionPickerOpen && args.hit === 0 && (
           <div className="directional-result-picker" role="group" aria-label={`${prefix} miss direction`}>
             {directionButtons.map((button) => (
-            <button
-              key={`${prefix}-${button.result}`}
-              type="button"
-              aria-label={button.label}
-              aria-pressed={selected === button.result}
-              className={`directional-result-btn${selected === button.result ? ' active active-miss' : ''}`}
-              onClick={() => handleDirectionalResultChange(args.area, button.result)}
-            >
-              {button.icon}
-            </button>
+              <button
+                key={`${prefix}-${button.result}`}
+                type="button"
+                aria-label={button.label}
+                aria-pressed={selected === button.result}
+                className={`directional-result-btn${selected === button.result ? ' active active-miss' : ''}`}
+                onClick={() => handleDirectionalResultChange(args.area, button.result)}
+              >
+                {button.label}
+              </button>
             ))}
           </div>
         )}
