@@ -11753,15 +11753,30 @@ input[type='date'].form-input {
 
 .live-round-gps-fullscreen {
   --live-round-gps-green-card-width: 82px;
+  --live-round-gps-top-control-size: 48px;
+  --live-round-gps-dock-bottom: calc(28px + var(--safe-area-bottom));
+  --live-round-gps-dock-width: min(
+    calc(100% - max(var(--padding), var(--safe-area-left)) - max(var(--padding), var(--safe-area-right))),
+    420px
+  );
+  --live-round-score-sheet-top: max(calc(var(--safe-area-top) + var(--padding-large)), 24%);
   position: fixed;
-  z-index: 90;
-  top: var(--app-header-extent);
-  bottom: var(--app-footer-extent);
+  z-index: 1200;
+  top: 0;
   left: 50%;
   width: min(100%, 640px);
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: #101815;
   transform: translateX(-50%);
+}
+
+.live-round-gps-fullscreen:not(.course-gps-preview) {
+  --live-round-gps-dock-width: min(
+    clamp(280px, 75%, 420px),
+    calc(100% - max(var(--padding), var(--safe-area-left)) - max(var(--padding), var(--safe-area-right)))
+  );
 }
 
 .live-round-gps-fullscreen.is-hidden {
@@ -11837,9 +11852,9 @@ input[type='date'].form-input {
 .live-round-gps-hud {
   position: absolute;
   z-index: 3;
-  top: var(--gap);
+  top: calc(var(--safe-area-top) + var(--gap) + var(--live-round-gps-top-control-size) + var(--gap));
   right: calc(var(--app-shell-safe-right) + var(--live-round-gps-green-card-width) + var(--gap));
-  left: var(--app-shell-safe-left);
+  left: max(var(--padding), var(--safe-area-left));
   display: grid;
   gap: var(--gap);
   pointer-events: none;
@@ -11873,7 +11888,7 @@ input[type='date'].form-input {
 
 .live-round-gps-hole-card:disabled {
   cursor: progress;
-  opacity: 0.76;
+  opacity: 1;
 }
 
 .live-round-gps-hole-card.is-open {
@@ -12018,7 +12033,7 @@ input[type='date'].form-input {
 .live-round-gps-hole-picker-option:disabled,
 .live-round-gps-hole-picker-review:disabled {
   cursor: progress;
-  opacity: 0.6;
+  opacity: 1;
 }
 
 .live-round-gps-hole-meta {
@@ -12042,21 +12057,301 @@ input[type='date'].form-input {
   backdrop-filter: blur(8px);
 }
 
+.live-round-gps-back {
+  position: absolute;
+  z-index: 10;
+  top: calc(var(--safe-area-top) + var(--gap));
+  left: max(var(--padding), var(--safe-area-left));
+  display: grid;
+  place-items: center;
+  width: var(--live-round-gps-top-control-size);
+  height: var(--live-round-gps-top-control-size);
+  min-width: var(--live-round-gps-top-control-size);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  padding: 0;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.live-round-gps-back svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+.live-round-gps-back:focus-visible,
+.gps-hole-dock-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .live-round-gps-controls {
   position: absolute;
   z-index: 4;
-  right: var(--app-shell-safe-right);
-  bottom: 28px;
-  left: var(--app-shell-safe-left);
+  right: auto;
+  bottom: var(--live-round-gps-dock-bottom);
+  left: 50%;
+  width: var(--live-round-gps-dock-width);
+  max-width: none;
+  margin: 0;
+  transform: translateX(-50%);
+}
+
+.gps-hole-dock {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  gap: var(--gap-small);
+  width: 100%;
+  max-width: 420px;
+  min-height: 60px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: calc(var(--border-radius) + 8px);
+  padding: var(--padding-small);
+  box-sizing: border-box;
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.gps-hole-dock-slot {
+  width: 56px;
+  min-width: 56px;
+}
+
+.gps-hole-dock-button,
+.gps-hole-dock-center-static {
+  min-width: 0;
+  border: 0;
+  border-radius: calc(var(--border-radius) + 3px);
+  color: #f8fafc;
+  background: transparent;
+  font: inherit;
+}
+
+.gps-hole-dock-button {
+  cursor: pointer;
+}
+
+.gps-hole-dock-button:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.gps-hole-dock-side {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 100%;
+  min-height: 50px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.gps-hole-dock-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 50px;
+  padding: var(--padding-small) var(--padding);
+  text-align: center;
+}
+
+.gps-hole-dock-center strong {
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.gps-hole-dock-center span {
+  color: rgba(248, 250, 252, 0.76);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.live-round-score-sheet-dismiss {
+  position: absolute;
+  z-index: 7;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--live-round-score-sheet-top);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: opacity;
+}
+
+.live-round-score-sheet-dismiss.is-opening,
+.live-round-score-sheet-dismiss.is-open,
+.live-round-score-sheet-dismiss.is-dragging {
+  opacity: 1;
+}
+
+.live-round-score-sheet {
+  position: absolute;
+  z-index: 8;
+  top: var(--live-round-score-sheet-top);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-bottom: 0;
+  border-radius: calc(var(--border-radius) + 14px) calc(var(--border-radius) + 14px) 0 0;
+  padding-top: var(--padding-small);
+  box-sizing: border-box;
+  color: var(--color-primary-text);
+  background: var(--color-primary-surface);
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.38);
+  transform: translate3d(0, 100%, 0);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+.live-round-score-sheet.is-opening,
+.live-round-score-sheet.is-open {
+  transform: translate3d(0, var(--score-sheet-drag-offset, 0), 0);
+}
+
+.live-round-score-sheet.is-dragging {
+  transform: translate3d(0, var(--score-sheet-drag-offset, 0), 0);
+  transition: none;
+}
+
+.live-round-score-sheet.is-mounting,
+.live-round-score-sheet.is-closing {
+  transform: translate3d(0, 100%, 0);
+}
+
+.live-round-score-sheet-handle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.live-round-score-sheet-handle:active {
+  cursor: grabbing;
+}
+
+.live-round-score-sheet-handle span {
+  width: 42px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--color-border);
+}
+
+.live-round-score-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--padding-small) max(var(--padding), var(--safe-area-right)) var(--padding) max(var(--padding), var(--safe-area-left));
+}
+
+.live-round-score-sheet-dock {
+  flex: 0 0 auto;
+  width: var(--live-round-gps-dock-width);
+  max-width: none;
+  margin-right: auto;
+  margin-left: auto;
+  margin-bottom: var(--live-round-gps-dock-bottom);
+}
+
+.gps-hole-dock.live-round-gps-controls {
+  width: var(--live-round-gps-dock-width);
+}
+
+.gps-hole-dock.live-round-score-sheet-dock {
+  box-sizing: border-box;
+}
+
+.live-round-gps-fullscreen.has-score-sheet .live-round-gps-hud {
+  pointer-events: none;
+}
+
+.live-round-gps-fullscreen.has-score-sheet .live-round-gps-hud > * {
+  pointer-events: none;
+}
+
+.live-round-gps-fullscreen.has-score-sheet .live-round-gps-controls {
+  pointer-events: none;
+}
+
+body.live-round-gps-immersive-active .app-layout > .header,
+body.live-round-gps-immersive-active .app-layout > .footer-menu {
+  display: none;
+}
+
+.live-round-review-immersive {
+  position: fixed;
+  z-index: 1200;
+  top: 0;
+  left: 50%;
+  box-sizing: border-box;
+  width: min(100%, 640px);
+  height: 100vh;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(var(--safe-area-top) + var(--padding)) max(var(--padding), var(--safe-area-right)) calc(var(--safe-area-bottom) + var(--padding)) max(var(--padding), var(--safe-area-left));
+  background: var(--color-primary-bg);
+  transform: translateX(-50%);
+}
+
+.live-round-review-immersive-surface {
+  min-height: 100%;
+}
+
+.live-round-review-immersive-header {
+  display: grid;
+  grid-template-columns: var(--live-round-gps-top-control-size, 48px) minmax(0, 1fr) var(--live-round-gps-top-control-size, 48px);
+  align-items: center;
   gap: var(--gap);
 }
 
-.live-round-gps-controls .btn {
-  width: 100%;
-  min-width: 0;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+.live-round-review-immersive-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.live-round-review-immersive-back {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+}
+
+.live-round-review-immersive-back:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.live-round-review-course-header h2 {
+  margin: 0;
+  padding-right: calc(24px + var(--gap));
+  font-size: 1.65rem;
+  line-height: 1.15;
 }
 
 @media (max-width: 640px) {

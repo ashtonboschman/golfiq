@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent, type TransitionEvent as ReactTransitionEvent } from 'react';
 import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock3, Flag, LoaderCircle, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import LiveGpsHoleMap from '@/components/gps/LiveGpsHoleMap';
+import GpsHoleDock from '@/components/gps/GpsHoleDock';
 import LiveHoleScoreEntry from '@/components/rounds/live/LiveHoleScoreEntry';
 import {
   sessionTrackingPrefs,
@@ -50,6 +51,7 @@ type ApiResponse<T> = T & {
 
 type AutosaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 type LiveRoundViewMode = 'score' | 'review';
+type ScoreSheetVisualState = 'closed' | 'mounting' | 'opening' | 'open' | 'dragging' | 'closing';
 type TaggedRoundContext = Exclude<RoundContext, 'real'>;
 type LiveBagClubPayload = {
   clubDefinitionId?: unknown;
@@ -66,6 +68,8 @@ const roundTagOptions: Array<{ value: TaggedRoundContext; label: string }> = [
   { value: 'scramble', label: 'Scramble Round' },
 ];
 const subscribeToStaticGpsTestRequest = () => () => {};
+const SCORE_SHEET_TRANSITION_MS = 300;
+const SCORE_SHEET_TRANSITION_FALLBACK_MS = SCORE_SHEET_TRANSITION_MS + 120;
 
 function readGpsTestLocationRequest() {
   if (typeof window === 'undefined') return false;
@@ -252,6 +256,50 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const gpsMapFailedRef = useRef(false);
   const gpsLocationAllowedRef = useRef(false);
   const gpsLocationDeniedRef = useRef(false);
+  const scoreSheetDragStartRef = useRef<number | null>(null);
+  const scoreSheetOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scoreSheetCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scoreSheetCloseResolveRef = useRef<(() => void) | null>(null);
+  const scoreSheetMountFrameRef = useRef<number | null>(null);
+  const scoreSheetOpenFrameRef = useRef<number | null>(null);
+  const scoreSheetOpenPersistenceRef = useRef<Promise<boolean> | null>(null);
+  const scoreSheetCloseIntentRef = useRef(false);
+  const componentMountedRef = useRef(true);
+  const scoreSheetVisualStateRef = useRef<ScoreSheetVisualState>('closed');
+  const [scoreSheetVisualState, setScoreSheetVisualState] = useState<ScoreSheetVisualState>('closed');
+  const [scoreSheetDragOffset, setScoreSheetDragOffset] = useState(0);
+  const [gpsPresentationDraftId, setGpsPresentationDraftId] = useState<string | null>(null);
+
+  const updateScoreSheetVisualState = useCallback((nextState: ScoreSheetVisualState) => {
+    scoreSheetVisualStateRef.current = nextState;
+    setScoreSheetVisualState(nextState);
+  }, []);
+
+  const clearScoreSheetOpenFrames = useCallback(() => {
+    if (scoreSheetMountFrameRef.current !== null) {
+      cancelAnimationFrame(scoreSheetMountFrameRef.current);
+      scoreSheetMountFrameRef.current = null;
+    }
+    if (scoreSheetOpenFrameRef.current !== null) {
+      cancelAnimationFrame(scoreSheetOpenFrameRef.current);
+      scoreSheetOpenFrameRef.current = null;
+    }
+  }, []);
+
+  const beginScoreSheetOpening = useCallback(() => {
+    clearScoreSheetOpenFrames();
+    setScoreSheetDragOffset(0);
+    updateScoreSheetVisualState('mounting');
+    scoreSheetMountFrameRef.current = requestAnimationFrame(() => {
+      scoreSheetMountFrameRef.current = null;
+      scoreSheetOpenFrameRef.current = requestAnimationFrame(() => {
+        scoreSheetOpenFrameRef.current = null;
+        if (scoreSheetVisualStateRef.current === 'mounting') {
+          updateScoreSheetVisualState('opening');
+        }
+      });
+    });
+  }, [clearScoreSheetOpenFrames, updateScoreSheetVisualState]);
 
   const draftSaveQueue = useMemo(() => createLatestAutosaveQueue({
     save: async (draft: LiveRoundHoleDraft) => {
@@ -504,14 +552,108 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     return () => controller.abort();
   }, [session?.course_id, session?.gpsEnabled]);
 
-  useEffect(() => () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
+  useEffect(() => {
+    componentMountedRef.current = true;
+    return () => {
+      componentMountedRef.current = false;
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      if (notesTimerRef.current) {
+        clearTimeout(notesTimerRef.current);
+      }
+      if (scoreSheetOpenTimerRef.current) {
+        clearTimeout(scoreSheetOpenTimerRef.current);
+      }
+      if (scoreSheetCloseTimerRef.current) {
+        clearTimeout(scoreSheetCloseTimerRef.current);
+      }
+      scoreSheetCloseResolveRef.current?.();
+      scoreSheetCloseResolveRef.current = null;
+      clearScoreSheetOpenFrames();
+    };
+  }, [clearScoreSheetOpenFrames]);
+
+  useEffect(() => {
+    if (!session?.gpsEnabled) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [session?.gpsEnabled]);
+
+  useEffect(() => {
+    if (!session?.gpsEnabled) return;
+
+    const immersiveClass = 'live-round-gps-immersive-active';
+    const shellElements = Array.from(document.querySelectorAll<HTMLElement>(
+      '.app-layout > .header, .app-layout > .footer-menu',
+    ));
+    const previousShellState = shellElements.map((element) => ({
+      element,
+      hidden: element.hidden,
+      ariaHidden: element.getAttribute('aria-hidden'),
+    }));
+
+    document.body.classList.add(immersiveClass);
+    shellElements.forEach((element) => {
+      element.hidden = true;
+      element.setAttribute('aria-hidden', 'true');
+    });
+
+    return () => {
+      document.body.classList.remove(immersiveClass);
+      previousShellState.forEach(({ element, hidden, ariaHidden }) => {
+        element.hidden = hidden;
+        if (ariaHidden === null) {
+          element.removeAttribute('aria-hidden');
+        } else {
+          element.setAttribute('aria-hidden', ariaHidden);
+        }
+      });
+    };
+  }, [session?.gpsEnabled]);
+
+  const gpsScoreSheetDesired = Boolean(
+    session?.gpsEnabled && viewMode === 'score' && session.active_step === 'SCORE',
+  );
+
+  useEffect(() => {
+    if (
+      gpsScoreSheetDesired
+      && scoreSheetVisualStateRef.current === 'closed'
+      && !scoreSheetCloseIntentRef.current
+    ) {
+      beginScoreSheetOpening();
     }
-    if (notesTimerRef.current) {
-      clearTimeout(notesTimerRef.current);
+  }, [beginScoreSheetOpening, gpsScoreSheetDesired]);
+
+  useEffect(() => {
+    if (scoreSheetVisualState !== 'opening') return;
+
+    const reduceMotion = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      updateScoreSheetVisualState('open');
+      return;
     }
-  }, []);
+
+    scoreSheetOpenTimerRef.current = setTimeout(() => {
+      scoreSheetOpenTimerRef.current = null;
+      if (scoreSheetVisualStateRef.current === 'opening') {
+        updateScoreSheetVisualState('open');
+      }
+    }, SCORE_SHEET_TRANSITION_FALLBACK_MS);
+
+    return () => {
+      if (scoreSheetOpenTimerRef.current) {
+        clearTimeout(scoreSheetOpenTimerRef.current);
+        scoreSheetOpenTimerRef.current = null;
+      }
+    };
+  }, [scoreSheetVisualState, updateScoreSheetVisualState]);
 
   const sortedDrafts = useMemo(
     () => sortHoleDrafts(session?.hole_drafts || []),
@@ -531,15 +673,19 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     )) || sortedDrafts[0] || null;
   }, [session, sortedDrafts]);
 
+  const gpsPresentationDraft = useMemo(() => (
+    sortedDrafts.find((draft) => draft.id === gpsPresentationDraftId) || activeDraft
+  ), [activeDraft, gpsPresentationDraftId, sortedDrafts]);
+
   const activeIndex = useMemo(() => {
     if (!activeDraft) return -1;
     return playOrderDrafts.findIndex((draft) => draft.id === activeDraft.id);
   }, [activeDraft, playOrderDrafts]);
 
   const activeMappedHole = useMemo(() => {
-    if (!activeDraft || !gpsMapping) return null;
-    return selectLiveGpsMappedHoleForDraft(gpsMapping.holes, activeDraft);
-  }, [activeDraft, gpsMapping]);
+    if (!gpsPresentationDraft || !gpsMapping) return null;
+    return selectLiveGpsMappedHoleForDraft(gpsMapping.holes, gpsPresentationDraft);
+  }, [gpsMapping, gpsPresentationDraft]);
 
   const captureGpsAnalytics = useCallback((
     event: (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS],
@@ -954,14 +1100,14 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     targetDraft: LiveRoundHoleDraft,
     options: { activeStep?: 'GPS' | 'SCORE'; fromReview?: boolean } = {},
   ) => {
-    if (!session || navigationPendingRef.current) return;
+    if (!session || navigationPendingRef.current) return false;
 
     navigationPendingRef.current = true;
     setNavigationPending(true);
 
     try {
       const saved = await flushAll();
-      if (!saved) return;
+      if (!saved) return false;
 
       setError(null);
       setAutosaveStatus('saving');
@@ -990,10 +1136,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
       setAutosaveStatus('saved');
       setAutosaveMessage('Saved');
       setViewMode('score');
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to move holes');
       setAutosaveStatus('error');
       setAutosaveMessage(err instanceof Error ? err.message : 'Unable to move holes');
+      return false;
     } finally {
       navigationPendingRef.current = false;
       setNavigationPending(false);
@@ -1017,6 +1165,194 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     setShowGpsHolePicker(false);
     void handleReview();
   };
+
+  const finishScoreSheetCloseTransition = useCallback(() => {
+    if (scoreSheetCloseTimerRef.current) {
+      clearTimeout(scoreSheetCloseTimerRef.current);
+      scoreSheetCloseTimerRef.current = null;
+    }
+    const resolve = scoreSheetCloseResolveRef.current;
+    scoreSheetCloseResolveRef.current = null;
+    resolve?.();
+  }, []);
+
+  const waitForScoreSheetTransition = useCallback(() => new Promise<void>((resolve) => {
+    const reduceMotion = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      resolve();
+      return;
+    }
+
+    scoreSheetCloseResolveRef.current = resolve;
+    scoreSheetCloseTimerRef.current = setTimeout(() => {
+      finishScoreSheetCloseTransition();
+    }, SCORE_SHEET_TRANSITION_FALLBACK_MS);
+  }), [finishScoreSheetCloseTransition]);
+
+  const closeGpsScoreSheet = async (
+    afterClose: () => boolean | Promise<boolean>,
+    options: { deferActionUntilClosed?: boolean; presentationDraftId?: string } = {},
+  ) => {
+    if (scoreSheetVisualStateRef.current === 'closing') return;
+
+    scoreSheetCloseIntentRef.current = true;
+    clearScoreSheetOpenFrames();
+    if (scoreSheetOpenTimerRef.current) {
+      clearTimeout(scoreSheetOpenTimerRef.current);
+      scoreSheetOpenTimerRef.current = null;
+    }
+    if (options.presentationDraftId) {
+      setGpsPresentationDraftId(options.presentationDraftId);
+    }
+
+    const runAction = async () => {
+      try {
+        return await afterClose();
+      } catch {
+        return false;
+      }
+    };
+    const transitionFinished = waitForScoreSheetTransition();
+    const actionResult = options.deferActionUntilClosed ? null : runAction();
+    updateScoreSheetVisualState('closing');
+    await transitionFinished;
+    if (!componentMountedRef.current) return;
+
+    updateScoreSheetVisualState('closed');
+    setScoreSheetDragOffset(0);
+
+    const completed = await (actionResult ?? runAction());
+    if (!componentMountedRef.current) return;
+
+    setGpsPresentationDraftId(null);
+    scoreSheetCloseIntentRef.current = false;
+    if (!completed) beginScoreSheetOpening();
+  };
+
+  const handleScoreSheetTransitionEnd = (event: ReactTransitionEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== 'transform') return;
+
+    if (scoreSheetVisualStateRef.current === 'opening') {
+      updateScoreSheetVisualState('open');
+      return;
+    }
+    if (scoreSheetVisualStateRef.current === 'closing') {
+      finishScoreSheetCloseTransition();
+    }
+  };
+
+  const handleGpsScoreToggle = () => {
+    if (!session || !activeDraft || navigationPendingRef.current) return;
+    setShowGpsHolePicker(false);
+
+    const openingScore = session.active_step === 'GPS';
+    if (openingScore) {
+      captureGpsAnalytics(ANALYTICS_EVENTS.gpsLogScoreTapped);
+      beginScoreSheetOpening();
+      const openingRequest = moveToDraft(activeDraft, { activeStep: 'SCORE' });
+      scoreSheetOpenPersistenceRef.current = openingRequest;
+      void (async () => {
+        const completed = await openingRequest;
+        if (scoreSheetOpenPersistenceRef.current === openingRequest) {
+          scoreSheetOpenPersistenceRef.current = null;
+        }
+        if (
+          !completed
+          && componentMountedRef.current
+          && scoreSheetVisualStateRef.current !== 'closed'
+          && scoreSheetVisualStateRef.current !== 'closing'
+        ) {
+          await closeGpsScoreSheet(() => true);
+        }
+      })();
+      return;
+    }
+    void closeGpsScoreSheet(() => moveToDraft(activeDraft, { activeStep: 'GPS' }));
+  };
+
+  const handleGpsPreviousHole = () => {
+    if (activeIndex <= 0) return;
+    setShowGpsHolePicker(false);
+    setReturnToReviewAvailable(false);
+    const targetDraft = playOrderDrafts[activeIndex - 1];
+    const navigate = () => moveToDraft(targetDraft, { activeStep: 'GPS' });
+    if (gpsScoreSheetDesired) {
+      void closeGpsScoreSheet(navigate, { presentationDraftId: targetDraft.id });
+      return;
+    }
+    void navigate();
+  };
+
+  const handleGpsNextHole = () => {
+    if (activeIndex < 0 || activeIndex >= playOrderDrafts.length - 1) return;
+    setShowGpsHolePicker(false);
+    setReturnToReviewAvailable(false);
+    const targetDraft = playOrderDrafts[activeIndex + 1];
+    const navigate = () => moveToDraft(targetDraft, { activeStep: 'GPS' });
+    if (gpsScoreSheetDesired) {
+      void closeGpsScoreSheet(navigate, { presentationDraftId: targetDraft.id });
+      return;
+    }
+    void navigate();
+  };
+
+  const dismissGpsScoreSheet = () => {
+    if (
+      !session
+      || !activeDraft
+      || scoreSheetVisualStateRef.current === 'closed'
+      || scoreSheetVisualStateRef.current === 'closing'
+    ) return;
+
+    const openingRequest = scoreSheetOpenPersistenceRef.current;
+    if (openingRequest) {
+      void closeGpsScoreSheet(async () => {
+        const opened = await openingRequest;
+        if (!opened) return true;
+        return moveToDraft(activeDraft, { activeStep: 'GPS' });
+      });
+      return;
+    }
+    void closeGpsScoreSheet(() => moveToDraft(activeDraft, { activeStep: 'GPS' }));
+  };
+
+  const handleScoreSheetPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (scoreSheetVisualStateRef.current !== 'open') return;
+    scoreSheetDragStartRef.current = event.clientY;
+    updateScoreSheetVisualState('dragging');
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleScoreSheetPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (scoreSheetDragStartRef.current === null) return;
+    setScoreSheetDragOffset(Math.max(0, event.clientY - scoreSheetDragStartRef.current));
+  };
+
+  const handleScoreSheetPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (scoreSheetDragStartRef.current === null) return;
+    const dragDistance = Math.max(0, event.clientY - scoreSheetDragStartRef.current);
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    scoreSheetDragStartRef.current = null;
+    if (dragDistance >= 72) {
+      dismissGpsScoreSheet();
+      return;
+    }
+    updateScoreSheetVisualState('open');
+    setScoreSheetDragOffset(0);
+  };
+
+  useEffect(() => {
+    if (!gpsScoreSheetDesired) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismissGpsScoreSheet();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  });
 
   const handlePrevious = () => {
     if (!session) return;
@@ -1047,6 +1383,13 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     }
     setReturnToReviewAvailable(false);
     void moveToDraft(playOrderDrafts[target.draftIndex], { activeStep: target.activeStep });
+  };
+
+  const handleImmersiveBack = () => {
+    confirmLeaveLiveRound(() => {
+      markLiveRoundExitRedirect(session?.id ?? sessionId);
+      router.replace('/rounds');
+    });
   };
 
   const handleSegmentChange = (nextSegment: TeeSegment) => {
@@ -1111,22 +1454,31 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   };
 
   const handleReview = async () => {
-    if (navigationPendingRef.current) return;
+    if (navigationPendingRef.current) return false;
     navigationPendingRef.current = true;
     setNavigationPending(true);
     setShowGpsHolePicker(false);
     try {
       const saved = await flushAll();
-      if (!saved) return;
+      if (!saved) return false;
       setError(null);
       setReviewReturnDraftId(activeDraft?.id ?? null);
       setReturnToReviewAvailable(false);
       scrollLiveRoundToTop();
       setViewMode('review');
+      return true;
     } finally {
       navigationPendingRef.current = false;
       setNavigationPending(false);
     }
+  };
+
+  const handleGpsReview = () => {
+    if (gpsScoreSheetDesired) {
+      void closeGpsScoreSheet(handleReview, { deferActionUntilClosed: true });
+      return;
+    }
+    void handleReview();
   };
 
   const handleBackToScore = () => {
@@ -1134,7 +1486,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
     const targetDraft = sortedDrafts.find((draft) => draft.id === reviewReturnDraftId);
     setReviewReturnDraftId(null);
     if (targetDraft) {
-      void moveToDraft(targetDraft);
+      void moveToDraft(targetDraft, session?.gpsEnabled ? { activeStep: 'GPS' } : undefined);
       return;
     }
     scrollLiveRoundToTop();
@@ -1269,24 +1621,29 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   const teeName = session.tee?.tee_name || 'Selected Tee';
   const ratingSlopeLabel = formatRatingSlope(session);
   const isLast = activeIndex === playOrderDrafts.length - 1;
+  const gpsPresentationIndex = gpsPresentationDraft
+    ? playOrderDrafts.findIndex((draft) => draft.id === gpsPresentationDraft.id)
+    : activeIndex;
+  const gpsPresentationIsLast = gpsPresentationIndex === playOrderDrafts.length - 1;
   const previousStep = getPreviousLiveRoundStep({
     gpsEnabled: session.gpsEnabled,
     activeStep: session.active_step,
     activeIndex,
     draftCount: playOrderDrafts.length,
   });
-  const nextStep = getNextLiveRoundStep({
-    gpsEnabled: session.gpsEnabled,
-    activeStep: session.active_step,
-    activeIndex,
-    draftCount: playOrderDrafts.length,
-  });
-  const showGpsStep = session.gpsEnabled && session.active_step === 'GPS' && viewMode === 'score';
+  const showGpsExperience = session.gpsEnabled && viewMode === 'score';
+  const showImmersiveGpsReview = session.gpsEnabled && viewMode === 'review';
+  const renderGpsScoreSheet = showGpsExperience && scoreSheetVisualState !== 'closed';
+  const scoreSheetInteractionPending = navigationPending || scoreSheetVisualState === 'closing';
   const canFinish = missingScoreDrafts.length === 0;
   const showSaveSpinner = autosaveStatus === 'pending' || autosaveStatus === 'saving';
   const activeHoleContextLabel = holeContextLabel(activeDraft);
   const physicalHoleNote = session.tee_segment === 'double9' && activeDraft.pass === 2
     ? `Physical Hole ${activeDraft.hole_number}, Pass 2`
+    : null;
+  const gpsHoleContextLabel = holeContextLabel(gpsPresentationDraft || activeDraft);
+  const gpsPhysicalHoleNote = session.tee_segment === 'double9' && gpsPresentationDraft?.pass === 2
+    ? `Physical Hole ${gpsPresentationDraft.hole_number}, Pass 2`
     : null;
   const availableTeeSegments = session.available_tee_segments ?? [];
   const liveRoundTypeSwitcher = availableTeeSegments.length > 1 ? (
@@ -1310,8 +1667,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
 
   const persistentGpsLayer = session.gpsEnabled ? (
       <div
-        className={`live-round-gps-fullscreen${showGpsStep ? '' : ' is-hidden'}`}
-        aria-hidden={!showGpsStep}
+        className={`live-round-gps-fullscreen${showGpsExperience ? '' : ' is-hidden'}${renderGpsScoreSheet ? ' has-score-sheet' : ''}`}
+        aria-hidden={!showGpsExperience}
       >
         <div className="live-round-gps-map-layer">
           {gpsMappingLoading ? (
@@ -1323,8 +1680,8 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
               apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
               hole={activeMappedHole}
               courseHoles={gpsMapping?.holes ?? null}
-              par={activeDraft.hole?.par ?? null}
-              routeKey={activeDraft.id}
+              par={gpsPresentationDraft?.hole?.par ?? null}
+              routeKey={gpsPresentationDraft?.id ?? activeDraft.id}
               userPosition={liveLocation.position}
               userAccuracyMeters={liveLocation.accuracyMeters}
               userLocationStatus={liveLocation.status}
@@ -1340,6 +1697,15 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
           )}
         </div>
 
+        <button
+          type="button"
+          className="live-round-gps-back"
+          onClick={handleImmersiveBack}
+          aria-label="Leave Live Round"
+        >
+          <ChevronLeft size={24} aria-hidden="true" />
+        </button>
+
         <div className="live-round-gps-hud">
           <div className="live-round-gps-hole-menu">
             <button
@@ -1351,12 +1717,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
               disabled={navigationPending}
             >
               <strong>
-                Hole {activeDraft.display_hole_number}
+                Hole {gpsPresentationDraft?.display_hole_number ?? activeDraft.display_hole_number}
                 <ChevronDown size={18} aria-hidden="true" />
               </strong>
-              <small className="live-round-gps-hole-meta">{activeHoleContextLabel}</small>
-              {physicalHoleNote && (
-                <small className="live-round-gps-physical-hole-note">{physicalHoleNote}</small>
+              <small className="live-round-gps-hole-meta">{gpsHoleContextLabel}</small>
+              {gpsPhysicalHoleNote && (
+                <small className="live-round-gps-physical-hole-note">{gpsPhysicalHoleNote}</small>
               )}
             </button>
 
@@ -1369,7 +1735,7 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
               >
                 <div className="live-round-gps-hole-picker-grid">
                   {sortedDrafts.map((draft) => {
-                    const isActive = draft.id === activeDraft.id;
+                    const isActive = draft.id === (gpsPresentationDraft?.id ?? activeDraft.id);
                     return (
                       <button
                         key={draft.id}
@@ -1406,39 +1772,110 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
           {error && <div className="live-round-alert is-error">{error}</div>}
         </div>
 
-        <div className="live-round-gps-controls">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handlePrevious}
-            disabled={!previousStep || navigationPending}
-          >
-            <ChevronLeft size={18} />
-            Previous Hole
-          </button>
-          <button
-            type="button"
-            className="btn btn-accent"
-            onClick={handleNext}
-            disabled={navigationPending || !nextStep}
-          >
-            Log Score
-            <ChevronRight size={18} />
-          </button>
-        </div>
+        <GpsHoleDock
+          className="live-round-gps-controls"
+          holeNumber={gpsPresentationDraft?.display_hole_number ?? activeDraft.display_hole_number}
+          centerAction="Log Score"
+          onCenter={handleGpsScoreToggle}
+          onPrevious={gpsPresentationIndex > 0 ? handleGpsPreviousHole : undefined}
+          onNext={!gpsPresentationIsLast ? handleGpsNextHole : undefined}
+          onReview={gpsPresentationIsLast ? handleGpsReview : undefined}
+          disabled={navigationPending || renderGpsScoreSheet}
+          hiddenFromAccessibility={renderGpsScoreSheet}
+        />
+
+        {renderGpsScoreSheet ? (
+          <>
+            <button
+              type="button"
+              className={`live-round-score-sheet-dismiss is-${scoreSheetVisualState}`}
+              onClick={dismissGpsScoreSheet}
+              aria-label="Dismiss Score Sheet"
+            />
+            <section
+              className={`live-round-score-sheet is-${scoreSheetVisualState}`}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Score entry for hole ${activeDraft.display_hole_number}`}
+              style={{ '--score-sheet-drag-offset': `${scoreSheetDragOffset}px` } as CSSProperties}
+              onTransitionEnd={handleScoreSheetTransitionEnd}
+            >
+              <div
+                className="live-round-score-sheet-handle"
+                onPointerDown={handleScoreSheetPointerDown}
+                onPointerMove={handleScoreSheetPointerMove}
+                onPointerUp={handleScoreSheetPointerEnd}
+                onPointerCancel={handleScoreSheetPointerEnd}
+                aria-hidden="true"
+              >
+                <span />
+              </div>
+              <div className="live-round-score-sheet-body">
+                {error ? <div className="live-round-alert is-error">{error}</div> : null}
+                {autosaveStatus === 'error' ? (
+                  <div className="live-round-alert is-error">
+                    <AlertTriangle size={18} />
+                    <span>Save failed - {autosaveMessage}</span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary live-round-inline-action"
+                      onClick={retrySave}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                <LiveHoleScoreEntry
+                  draft={activeDraft}
+                  trackingPrefs={trackingPrefs}
+                  onChange={handleDraftChange}
+                />
+              </div>
+              <GpsHoleDock
+                className="live-round-score-sheet-dock"
+                holeNumber={activeDraft.display_hole_number}
+                centerAction="Hole GPS"
+                onCenter={handleGpsScoreToggle}
+                onPrevious={activeIndex > 0 ? handleGpsPreviousHole : undefined}
+                onNext={!isLast ? handleGpsNextHole : undefined}
+                onReview={isLast ? handleGpsReview : undefined}
+                disabled={scoreSheetInteractionPending}
+              />
+            </section>
+          </>
+        ) : null}
       </div>
   ) : null;
 
   return (
     <>
       {persistentGpsLayer}
-      {!showGpsStep && (
-        <div className="page-stack live-round-page">
-          <section className="card live-round-session-card">
+      {!showGpsExperience && (
+        <div className={showImmersiveGpsReview ? 'live-round-review-immersive' : 'page-stack live-round-page'}>
+          <section className={`card live-round-session-card${showImmersiveGpsReview ? ' live-round-review-immersive-surface' : ''}`}>
+        {showImmersiveGpsReview && (
+          <div className="live-round-review-immersive-header">
+            <button
+              type="button"
+              className="live-round-gps-back live-round-review-immersive-back"
+              onClick={handleBackToScore}
+              disabled={finalizing || navigationPending}
+              aria-label="Back to GPS"
+            >
+              <ChevronLeft size={24} aria-hidden="true" />
+            </button>
+            <h1>Review Round</h1>
+            <span aria-hidden="true" />
+          </div>
+        )}
         {viewMode === 'review' && (
-          <div className="live-round-topbar">
+          <div className={`live-round-topbar${showImmersiveGpsReview ? ' live-round-review-course-header' : ''}`}>
             <div>
-              <h1>{courseLabel(session)}</h1>
+              {showImmersiveGpsReview ? (
+                <h2>{courseLabel(session)}</h2>
+              ) : (
+                <h1>{courseLabel(session)}</h1>
+              )}
               <div className="live-round-header-meta">
                 <span className="live-round-header-date">
                   <CalendarDays size={14} aria-hidden="true" />

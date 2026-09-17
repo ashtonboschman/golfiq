@@ -715,6 +715,7 @@ export default function GoogleGpsHoleMap({
       }
 
       distanceLabelRefs.current[index].setPosition(toGoogleLatLngLiteral(labelPosition));
+      distanceLabelRefs.current[index].setMap(map);
       distanceLabelRefs.current[index].setLabel({
         text: formatMapDistanceLabel(previous, point, index === 0 ? activeTargetYards : undefined),
         color: '#f8fafc',
@@ -884,6 +885,7 @@ export default function GoogleGpsHoleMap({
           if (camera) {
             onCameraChangeRef.current(camera);
           }
+          updateMeasurementOverlay(targetPathRef.current);
           notifyCameraDifference(map);
         });
 
@@ -1202,7 +1204,7 @@ export default function GoogleGpsHoleMap({
     // The overlay helper mutates the single owned polyline and label refs. Depending on its
     // render-local identity would update overlays after every render instead of route changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, measurementOrigin, targetPath]);
+  }, [activeHoleIndex, mapReady, measurementOrigin, targetPath]);
 
   if (!apiKey) {
     return (

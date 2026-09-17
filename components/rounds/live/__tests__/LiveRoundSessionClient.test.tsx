@@ -130,6 +130,12 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function finishTransformTransition(element: Element) {
+  const event = new Event('transitionend', { bubbles: true });
+  Object.defineProperty(event, 'propertyName', { value: 'transform' });
+  fireEvent(element, event);
+}
+
 function makeSession(overrides: Partial<LiveRoundSession> = {}): LiveRoundSession {
   return {
     id: '500',
@@ -275,6 +281,36 @@ function makeEighteenHoleSession(overrides: Partial<LiveRoundSession> = {}): Liv
   };
 }
 
+function makeNineHoleSession(overrides: Partial<LiveRoundSession> = {}): LiveRoundSession {
+  const eighteenHoleSession = makeEighteenHoleSession();
+  return {
+    ...eighteenHoleSession,
+    tee_segment: 'front9',
+    tee: {
+      ...eighteenHoleSession.tee!,
+      course_rating: 36,
+    },
+    hole_drafts: eighteenHoleSession.hole_drafts.slice(0, 9),
+    ...overrides,
+  };
+}
+
+function renderWithGlobalShell() {
+  return render(
+    <div className="app-layout">
+      <header className="header" data-testid="global-header">
+        <button type="button" aria-label="Profile avatar">Profile</button>
+      </header>
+      <main className="page-container">
+        <LiveRoundSessionClient sessionId="500" />
+      </main>
+      <footer className="footer-menu" data-testid="global-footer">
+        <button type="button">Dashboard</button>
+      </footer>
+    </div>,
+  );
+}
+
 describe('LiveRoundSessionClient autosave navigation', () => {
   const push = jest.fn();
   const replace = jest.fn();
@@ -285,10 +321,15 @@ describe('LiveRoundSessionClient autosave navigation', () => {
       configurable: true,
       value: jest.fn(),
     });
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: jest.fn(),
+    });
   });
 
   beforeEach(() => {
     jest.clearAllMocks();
+    document.body.classList.remove('live-round-gps-immersive-active');
     window.sessionStorage.clear();
     window.history.replaceState({}, '', '/');
     mockedUseRouter.mockReturnValue({ push, replace });
@@ -375,6 +416,192 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(reviewTotals).toHaveTextContent('Total5');
     expect(reviewTotals).toHaveTextContent('To Par+1');
     expect(screen.getByText('Missing')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['18-hole', makeEighteenHoleSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      active_hole_number: 18,
+    }), Array.from({ length: 18 }, (_, index) => index + 1)],
+    ['9-hole', makeNineHoleSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      active_hole_number: 9,
+    }), Array.from({ length: 9 }, (_, index) => index + 1)],
+  ])('opens immersive review from the final flag for a GPS %s round', async (_label, session, holeNumbers) => {
+    global.fetch = jest.fn((url: string) => Promise.resolve(
+      apiResponse(url === '/api/gps/live/course/11' ? liveGpsMapping(holeNumbers) : { session }),
+    )) as typeof fetch;
+
+    renderWithGlobalShell();
+
+    await screen.findByTestId('live-gps-map');
+    expect(document.body).toHaveClass('live-round-gps-immersive-active');
+    expect(screen.getByTestId('global-header')).toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-footer')).toHaveAttribute('hidden');
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
+
+    expect(await screen.findByRole('heading', { name: 'Review Round', level: 1 })).toBeInTheDocument();
+    expect(document.querySelector('.live-round-review-immersive')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to GPS' })).toBeInTheDocument();
+    expect(document.body).toHaveClass('live-round-gps-immersive-active');
+    expect(screen.getByTestId('global-header')).toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-footer')).toHaveAttribute('hidden');
+    expect(screen.queryByRole('button', { name: 'Profile avatar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dashboard' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'GolfIQ Club - North', level: 2 })).toBeInTheDocument();
+  });
+
+  it('returns from GPS review to the same active GPS hole without finalizing', async () => {
+    const session = makeNineHoleSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      active_hole_number: 9,
+    });
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') {
+        return Promise.resolve(apiResponse(liveGpsMapping(Array.from({ length: 9 }, (_, index) => index + 1))));
+      }
+      if (!init?.method) return Promise.resolve(apiResponse({ session }));
+      if (init.method === 'PATCH') return Promise.resolve(apiResponse({ session }));
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    renderWithGlobalShell();
+
+    await screen.findByTestId('live-gps-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Back to GPS' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('live-gps-map').closest('.live-round-gps-fullscreen')).not.toHaveClass('is-hidden');
+    });
+    const navigationRequest = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+    expect(JSON.parse(String(navigationRequest?.[1]?.body))).toEqual(expect.objectContaining({
+      active_hole_number: 9,
+      active_step: 'GPS',
+    }));
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+    expect(document.body).toHaveClass('live-round-gps-immersive-active');
+    expect(screen.getByTestId('global-header')).toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-footer')).toHaveAttribute('hidden');
+  });
+
+  it('uses the existing finalization endpoint from immersive GPS review', async () => {
+    const session = makeSession({ gpsEnabled: true, active_step: 'GPS' });
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping([1])));
+      if (!init?.method) return Promise.resolve(apiResponse({ session }));
+      if (init.method === 'POST' && url.endsWith('/finalize')) {
+        return Promise.resolve(apiResponse({ roundId: '701', session }));
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish Round' }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/rounds/701/stats?from=rounds'));
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/rounds/live/sessions/500/finalize',
+      { method: 'POST' },
+    );
+  });
+
+  it('preserves missing-score treatment and totals in immersive GPS review', async () => {
+    const session = makeTwoHoleSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      active_hole_number: 2,
+    });
+    session.hole_drafts[0].score = 5;
+    global.fetch = jest.fn((url: string) => Promise.resolve(
+      apiResponse(url === '/api/gps/live/course/11' ? liveGpsMapping() : { session }),
+    )) as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
+
+    await screen.findByRole('heading', { name: 'Review Round', level: 1 });
+    const reviewTotals = document.querySelector('.live-round-review-grid');
+    expect(reviewTotals).toHaveTextContent('Total5');
+    expect(reviewTotals).toHaveTextContent('To Par+1');
+    expect(screen.getByText('Missing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Finish Round' })).toBeDisabled();
+  });
+
+  it.each([
+    ['18-hole', makeEighteenHoleSession({ active_hole_number: 18 })],
+    ['9-hole', makeNineHoleSession({ active_hole_number: 9 })],
+  ])('preserves the existing non-GPS %s review shell', async (_label, session) => {
+    const fetchMock = jest.fn((url: string) => Promise.resolve(
+      apiResponse(url === '/api/gps/live/course/11' ? liveGpsMapping() : { session }),
+    ));
+    global.fetch = fetchMock as typeof fetch;
+
+    renderWithGlobalShell();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Round' }));
+
+    expect(await screen.findByRole('heading', { name: 'GolfIQ Club - North', level: 1 })).toBeInTheDocument();
+    expect(document.querySelector('.page-stack.live-round-page')).toBeInTheDocument();
+    expect(document.querySelector('.live-round-review-immersive')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Review Round' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back To Score' })).toBeInTheDocument();
+    expect(document.body).not.toHaveClass('live-round-gps-immersive-active');
+    expect(screen.getByTestId('global-header')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-footer')).not.toHaveAttribute('hidden');
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/gps/live/course/11', expect.anything());
+  });
+
+  it.each([
+    ['GPS', true],
+    ['non-GPS', false],
+  ])('uses persisted mode for immersive review after resuming a paused %s session', async (_label, gpsEnabled) => {
+    const pausedSession = makeSession({
+      gpsEnabled,
+      active_step: gpsEnabled ? 'GPS' : 'SCORE',
+      timer_started_at: null,
+      elapsed_seconds: 900,
+    });
+    const resumedSession = {
+      ...pausedSession,
+      timer_started_at: new Date().toISOString(),
+    };
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping([1])));
+      if (!init?.method) return Promise.resolve(apiResponse({ session: pausedSession }));
+      if (init.method === 'PATCH') return Promise.resolve(apiResponse({ session: resumedSession }));
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Round' }));
+
+    if (gpsEnabled) {
+      expect(await screen.findByRole('heading', { name: 'Review Round', level: 1 })).toBeInTheDocument();
+      expect(document.querySelector('.live-round-review-immersive')).toBeInTheDocument();
+    } else {
+      expect(await screen.findByRole('heading', { name: 'GolfIQ Club - North', level: 1 })).toBeInTheDocument();
+      expect(document.querySelector('.live-round-review-immersive')).not.toBeInTheDocument();
+    }
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/rounds/live/sessions/500',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ timer_action: 'resume' }),
+      }),
+    );
   });
 
   it('marks the Insights footer nudge after finishing a live round', async () => {
@@ -560,6 +787,97 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     }));
   });
 
+  it('starts the score sheet opening before the SCORE step request completes', async () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    const requestFrame = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    const gpsSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'GPS' });
+    const scoreSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'SCORE' });
+    const scoreStepRequest = deferred<Response>();
+    global.fetch = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (!init?.method) return Promise.resolve(apiResponse({ session: gpsSession }));
+      if (init.method === 'PATCH') return scoreStepRequest.promise;
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }) as typeof fetch;
+
+    const view = render(<LiveRoundSessionClient sessionId="500" />);
+
+    try {
+      await screen.findByTestId('live-gps-map');
+      fireEvent.click(screen.getByRole('button', { name: 'Log Score' }));
+
+      const sheet = screen.getByRole('dialog', { name: 'Score entry for hole 1' });
+      expect(sheet).toHaveClass('is-mounting');
+      expect(document.querySelector('.live-round-gps-controls')).toHaveAttribute('aria-hidden', 'true');
+
+      act(() => animationFrames.shift()?.(0));
+      expect(sheet).toHaveClass('is-mounting');
+
+      act(() => animationFrames.shift()?.(16));
+      expect(sheet).toHaveClass('is-opening');
+
+      finishTransformTransition(sheet);
+      expect(sheet).toHaveClass('is-open');
+
+      await act(async () => {
+        scoreStepRequest.resolve(apiResponse({ session: scoreSession }));
+        await scoreStepRequest.promise;
+      });
+      expect(sheet).toHaveClass('is-open');
+    } finally {
+      view.unmount();
+      requestFrame.mockRestore();
+    }
+  });
+
+  it('dismisses on the first map tap while the SCORE step request is pending', async () => {
+    const gpsSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'GPS' });
+    const scoreSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'SCORE' });
+    const scoreStepRequest = deferred<Response>();
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (!init?.method) return Promise.resolve(apiResponse({ session: gpsSession }));
+      if (init.method === 'PATCH') {
+        const body = JSON.parse(String(init.body));
+        return body.active_step === 'SCORE'
+          ? scoreStepRequest.promise
+          : Promise.resolve(apiResponse({ session: gpsSession }));
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Log Score' }));
+    const sheet = screen.getByRole('dialog', { name: 'Score entry for hole 1' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss Score Sheet' }));
+    expect(sheet).toHaveClass('is-closing');
+    finishTransformTransition(sheet);
+    await waitFor(() => expect(screen.queryByRole('dialog', {
+      name: 'Score entry for hole 1',
+    })).not.toBeInTheDocument());
+
+    await act(async () => {
+      scoreStepRequest.resolve(apiResponse({ session: scoreSession }));
+      await scoreStepRequest.promise;
+    });
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(2);
+    });
+    const patchBodies = fetchMock.mock.calls
+      .filter(([, init]) => init?.method === 'PATCH')
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(patchBodies.map((body) => body.active_step)).toEqual(['SCORE', 'GPS']);
+    expect(screen.queryByRole('dialog', { name: /Score entry/ })).not.toBeInTheDocument();
+  });
+
   it('loads My Bag once for live GPS club suggestions', async () => {
     const initialSession = makeSession({ gpsEnabled: true, active_step: 'GPS' });
     const movedSession = makeSession({ gpsEnabled: true, active_step: 'SCORE' });
@@ -606,14 +924,15 @@ describe('LiveRoundSessionClient autosave navigation', () => {
       active_step: 'GPS',
       active_hole_number: 2,
     });
+    const nextNavigation = deferred<Response>();
     const fetchMock = jest.fn((url: string, init?: RequestInit) => {
       if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
       if (!init?.method) return Promise.resolve(apiResponse({ session: initialSession }));
       if (init.method === 'PATCH') {
         const body = JSON.parse(String(init.body));
-        return Promise.resolve(apiResponse({
-          session: body.active_hole_number === 2 ? nextGpsSession : scoreSession,
-        }));
+        return body.active_hole_number === 2
+          ? nextNavigation.promise
+          : Promise.resolve(apiResponse({ session: scoreSession }));
       }
       throw new Error(`Unexpected request: ${init.method} ${url}`);
     });
@@ -635,16 +954,29 @@ describe('LiveRoundSessionClient autosave navigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Log Score/ }));
 
-    await screen.findByRole('button', { name: /Next Hole/ });
-    expect(firstMap.closest('.live-round-gps-fullscreen')).toHaveClass('is-hidden');
+    await screen.findByRole('dialog', { name: /Score entry for hole 1/i });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Next Hole/ })).toBeEnabled());
+    expect(firstMap.closest('.live-round-gps-fullscreen')).toHaveClass('has-score-sheet');
     expect(firstMap).toHaveAttribute('data-user-lat', '49.9');
     expect(mockClearWatch).not.toHaveBeenCalled();
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: /Next Hole/ }));
 
-    await waitFor(() => {
-      expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-route-key', '1002');
+    const closingSheet = screen.getByRole('dialog', { name: /Score entry for hole 1/i });
+    expect(closingSheet).toHaveClass('is-closing');
+    expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-route-key', '1002');
+    expect(document.querySelector('.live-round-gps-controls')).toBeInTheDocument();
+    finishTransformTransition(closingSheet);
+
+    await waitFor(() => expect(screen.queryByRole('dialog', {
+      name: /Score entry for hole 1/i,
+    })).not.toBeInTheDocument());
+    expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-route-key', '1002');
+
+    await act(async () => {
+      nextNavigation.resolve(apiResponse({ session: nextGpsSession }));
+      await nextNavigation.promise;
     });
     expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-physical-hole', '2');
     expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-user-lat', '49.9');
@@ -714,6 +1046,201 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(screen.getByRole('button', { name: '10' })).toHaveAttribute('aria-current', 'true');
   });
 
+  it('uses the actual starting hole and final played hole for dock actions', async () => {
+    const startingSession = makeEighteenHoleSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      start_hole_number: 10,
+      active_hole_number: 10,
+    });
+    global.fetch = jest.fn((url: string) => Promise.resolve(
+      apiResponse(url === '/api/gps/live/course/11'
+        ? liveGpsMapping(Array.from({ length: 18 }, (_, index) => index + 1))
+        : { session: startingSession }),
+    )) as typeof fetch;
+
+    const { unmount } = render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    expect(screen.queryByRole('button', { name: 'Previous Hole' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next Hole' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Review Round' })).not.toBeInTheDocument();
+
+    unmount();
+
+    const finalSession = makeEighteenHoleSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      start_hole_number: 10,
+      active_hole_number: 9,
+    });
+    global.fetch = jest.fn((url: string) => Promise.resolve(
+      apiResponse(url === '/api/gps/live/course/11'
+        ? liveGpsMapping(Array.from({ length: 18 }, (_, index) => index + 1))
+        : { session: finalSession }),
+    )) as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    expect(screen.getByRole('button', { name: 'Previous Hole' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Next Hole' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review Round' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
+    expect(await screen.findByRole('combobox', { name: /Round Type/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Review Round', level: 1 })).toBeInTheDocument();
+    expect(document.querySelector('.live-round-review-immersive')).toBeInTheDocument();
+  });
+
+  it('toggles the same-hole score sheet and dismisses it through the exposed map', async () => {
+    const gpsSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'GPS' });
+    const scoreSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'SCORE' });
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (!init?.method) return Promise.resolve(apiResponse({ session: gpsSession }));
+      if (init.method === 'PATCH') {
+        const body = JSON.parse(String(init.body));
+        return Promise.resolve(apiResponse({ session: body.active_step === 'SCORE' ? scoreSession : gpsSession }));
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Log Score' }));
+    expect(await screen.findByRole('dialog', { name: 'Score entry for hole 1' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Hole GPS' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Dismiss Score Sheet' })).toBeEnabled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss Score Sheet' }));
+    const closingSheet = screen.getByRole('dialog', { name: 'Score entry for hole 1' });
+    expect(closingSheet).toHaveClass('is-closing');
+    const gpsDock = document.querySelector('.live-round-gps-controls');
+    expect(gpsDock).toBeInTheDocument();
+    expect(gpsDock).toHaveAttribute('aria-hidden', 'true');
+    finishTransformTransition(closingSheet);
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Score entry for hole 1' })).not.toBeInTheDocument();
+    });
+    expect(gpsDock).not.toHaveAttribute('aria-hidden');
+    expect(screen.getByRole('button', { name: 'Log Score' })).toBeInTheDocument();
+    expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
+  });
+
+  it('dismisses the score sheet with a downward drag without changing holes', async () => {
+    const gpsSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'GPS' });
+    const scoreSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'SCORE' });
+    global.fetch = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (!init?.method) return Promise.resolve(apiResponse({ session: gpsSession }));
+      if (init.method === 'PATCH') {
+        const body = JSON.parse(String(init.body));
+        return Promise.resolve(apiResponse({ session: body.active_step === 'SCORE' ? scoreSession : gpsSession }));
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }) as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Log Score' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Score entry for hole 1' });
+    await waitFor(() => expect(sheet).toHaveClass('is-open'));
+    const handle = sheet.querySelector('.live-round-score-sheet-handle');
+    expect(handle).not.toBeNull();
+
+    const pointerEvent = (type: string, clientY: number) => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, {
+        clientY: { value: clientY },
+        pointerId: { value: 1 },
+      });
+      return event;
+    };
+    fireEvent(handle!, pointerEvent('pointerdown', 100));
+    fireEvent(handle!, pointerEvent('pointermove', 190));
+    fireEvent(handle!, pointerEvent('pointerup', 190));
+
+    expect(sheet).toHaveClass('is-closing');
+    expect(sheet).toHaveStyle({ '--score-sheet-drag-offset': '90px' });
+    finishTransformTransition(sheet);
+
+    await waitFor(() => expect(screen.queryByRole('dialog', {
+      name: 'Score entry for hole 1',
+    })).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Log Score' })).toBeInTheDocument();
+  });
+
+  it('restores the sheet when closing cannot persist the GPS step', async () => {
+    const gpsSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'GPS' });
+    const scoreSession = makeTwoHoleSession({ gpsEnabled: true, active_step: 'SCORE' });
+    let patchCount = 0;
+    global.fetch = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (!init?.method) return Promise.resolve(apiResponse({ session: gpsSession }));
+      if (init.method === 'PATCH') {
+        patchCount += 1;
+        return patchCount === 1
+          ? Promise.resolve(apiResponse({ session: scoreSession }))
+          : Promise.resolve(errorResponse('Unable to move holes'));
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    }) as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByTestId('live-gps-map');
+    fireEvent.click(screen.getByRole('button', { name: 'Log Score' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Score entry for hole 1' });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Hole GPS' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Hole GPS' }));
+    expect(sheet).toHaveClass('is-closing');
+    finishTransformTransition(sheet);
+
+    await waitFor(() => expect(screen.getByRole('dialog', {
+      name: 'Score entry for hole 1',
+    })).toHaveClass('is-mounting'));
+    expect(screen.getAllByText(/Unable to move holes/).length).toBeGreaterThan(0);
+  });
+
+  it('moves left from scoring to the previous hole GPS', async () => {
+    const scoreSession = makeTwoHoleSession({
+      gpsEnabled: true,
+      active_step: 'SCORE',
+      active_hole_number: 2,
+    });
+    const previousGpsSession = makeTwoHoleSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      active_hole_number: 1,
+    });
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping()));
+      if (!init?.method) return Promise.resolve(apiResponse({ session: scoreSession }));
+      if (init.method === 'PATCH') return Promise.resolve(apiResponse({ session: previousGpsSession }));
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<LiveRoundSessionClient sessionId="500" />);
+
+    await screen.findByRole('dialog', { name: 'Score entry for hole 2' });
+    fireEvent.click(screen.getByRole('button', { name: 'Previous Hole' }));
+
+    const closingSheet = screen.getByRole('dialog', { name: /Score entry/ });
+    expect(closingSheet).toHaveClass('is-closing');
+    expect(screen.getByTestId('live-gps-map')).toHaveAttribute('data-route-key', '1001');
+    finishTransformTransition(closingSheet);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Score entry/ })).not.toBeInTheDocument());
+    const patchRequest = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+    expect(JSON.parse(String(patchRequest?.[1]?.body))).toEqual(expect.objectContaining({
+      active_hole_number: 1,
+      active_step: 'GPS',
+    }));
+  });
+
   it('opens review from the GPS hole picker flag action', async () => {
     const session = makeSession({ gpsEnabled: true, active_step: 'GPS' });
     global.fetch = jest.fn((url: string) => Promise.resolve(
@@ -724,7 +1251,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
 
     await screen.findByTestId('live-gps-map');
     fireEvent.click(screen.getByRole('button', { name: /Hole 1/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Review/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
 
     expect(await screen.findByRole('combobox', { name: /Round Type/i })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /Choose Hole/ })).not.toBeInTheDocument();
@@ -752,7 +1279,9 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: /Log Score/ }));
-    fireEvent.click(await screen.findByRole('button', { name: /Review Round/ }));
+    await screen.findByRole('dialog', { name: /Score entry for hole 1/i });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Review Round' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
 
     await screen.findByRole('combobox', { name: /Round Type/i });
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
@@ -760,10 +1289,12 @@ describe('LiveRoundSessionClient autosave navigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Hole 1/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Hole GPS/ }));
+    expect(screen.getByRole('dialog', { name: /Score entry for hole 1/i })).toHaveClass('is-closing');
 
     await waitFor(() => {
-      expect(screen.getByTestId('live-gps-map').closest('.live-round-gps-fullscreen')).not.toHaveClass('is-hidden');
+      expect(screen.queryByRole('dialog', { name: /Score entry for hole 1/i })).not.toBeInTheDocument();
     });
+    expect(screen.getByTestId('live-gps-map').closest('.live-round-gps-fullscreen')).not.toHaveClass('is-hidden');
     expect(mockLiveGpsMapMount).toHaveBeenCalledTimes(1);
   });
 
@@ -1063,7 +1594,9 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     expect(mockWatchPosition).toHaveBeenCalledTimes(1);
     fireEvent.click(nextHoleButton);
 
-    await screen.findByTestId('live-gps-map');
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true);
+    });
     const patchRequest = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
     const patchBody = JSON.parse(patchRequest?.[1]?.body as string);
     expect(patchBody).toEqual(expect.objectContaining({

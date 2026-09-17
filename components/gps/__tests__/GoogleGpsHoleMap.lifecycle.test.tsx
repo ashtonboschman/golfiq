@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import GoogleGpsHoleMap from '@/components/gps/GoogleGpsHoleMap';
 import { loadGoogleMaps } from '@/lib/gps/googleMapsLoader';
@@ -18,6 +18,7 @@ const mockPolylineSetMap = jest.fn();
 const mockPolylineSetOptions = jest.fn();
 const mockPolylineSetPath = jest.fn();
 const mockMarkerSetLabel = jest.fn();
+const mockMapListenerHandlers = new Map<string, Array<() => void>>();
 
 const listener = () => ({ remove: jest.fn() });
 const latLng = (point: { lat: number; lng: number }) => ({
@@ -36,7 +37,12 @@ function installGoogleMapsMock() {
       this.zoom = options.zoom;
     }
 
-    addListener() { return listener(); }
+    addListener(eventName: string, handler: () => void) {
+      const handlers = mockMapListenerHandlers.get(eventName) ?? [];
+      handlers.push(handler);
+      mockMapListenerHandlers.set(eventName, handlers);
+      return listener();
+    }
     getCenter() { return this.center; }
     getHeading() { return 0; }
     getRenderingType() { return 'RASTER'; }
@@ -141,6 +147,7 @@ function mapProps(activeHoleIndex: string, nextConfig = config) {
 describe('GoogleGpsHoleMap lifecycle', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockMapListenerHandlers.clear();
     mockedLoadGoogleMaps.mockResolvedValue();
     installGoogleMapsMock();
     jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
@@ -182,6 +189,45 @@ describe('GoogleGpsHoleMap lifecycle', () => {
     expect(mockMapConstructor).toHaveBeenCalledTimes(1);
     expect(mockPolylineConstructor).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText('Google satellite map for physical hole 2')).toBeInTheDocument();
+  });
+
+  it('reapplies the next-hole route after the camera settles', async () => {
+    const { rerender } = render(<GoogleGpsHoleMap {...mapProps('draft-1')} />);
+
+    await waitFor(() => expect(mockPolylineSetPath).toHaveBeenLastCalledWith([
+      config.tee,
+      config.defaultTarget,
+      config.greenCenter,
+    ]));
+
+    const nextConfig = {
+      ...config,
+      holeNumber: 2,
+      tee: { lat: 49.91, lng: -97.11 },
+      defaultTarget: { lat: 49.911, lng: -97.111 },
+      greenCenter: { lat: 49.912, lng: -97.112 },
+      mapCenter: { lat: 49.911, lng: -97.111 },
+    };
+    rerender(<GoogleGpsHoleMap {...mapProps('draft-2', nextConfig)} />);
+
+    await waitFor(() => expect(mockPolylineSetPath).toHaveBeenLastCalledWith([
+      nextConfig.tee,
+      nextConfig.defaultTarget,
+      nextConfig.greenCenter,
+    ]));
+
+    mockPolylineSetMap.mockClear();
+    mockPolylineSetPath.mockClear();
+    act(() => {
+      mockMapListenerHandlers.get('idle')?.forEach((handler) => handler());
+    });
+
+    expect(mockPolylineSetMap).toHaveBeenCalledWith(expect.anything());
+    expect(mockPolylineSetPath).toHaveBeenLastCalledWith([
+      nextConfig.tee,
+      nextConfig.defaultTarget,
+      nextConfig.greenCenter,
+    ]);
   });
 
   it.each([

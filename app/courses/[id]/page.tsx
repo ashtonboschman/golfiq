@@ -6,15 +6,17 @@ import { useSession } from 'next-auth/react';
 import { useMessage } from '@/app/providers';
 import Select from 'react-select';
 import { selectStyles } from '@/lib/selectStyles';
-import { ChevronDown, ChevronLeft, ChevronRight, Landmark, MapPin, MapPinned, Plus } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Landmark, MapPin, MapPinned, Plus } from 'lucide-react';
 import { SkeletonBlock, SkeletonCircle } from '@/components/skeleton/Skeleton';
 import LiveGpsHoleMap from '@/components/gps/LiveGpsHoleMap';
+import GpsHoleDock from '@/components/gps/GpsHoleDock';
 import { clearLiveRoundRecoveryState, decideAddRoundEntry } from '@/lib/rounds/liveRoundResume';
 import type { LiveGpsMapping } from '@/lib/gps/liveMappingTypes';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { formatCourseLocation } from '@/lib/courses/formatCourseLocation';
 import { HEADER_BACK_NAVIGATION_EVENT } from '@/lib/ui/headerBackNavigation';
+import type { ClubSuggestionClub } from '@/lib/clubs/clubSuggestion';
 
 async function readApiResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
@@ -66,6 +68,15 @@ type GpsCourseRequestState = {
   requestCount: number;
 };
 
+type PreviewBagClubPayload = {
+  clubDefinitionId?: unknown;
+  carryYards?: unknown;
+  clubDefinition?: {
+    shortLabel?: unknown;
+    catalogueOrder?: unknown;
+  };
+};
+
 export default function CourseDetailsPage() {
   const params = useParams();
   const id = params?.id as string;
@@ -82,6 +93,7 @@ export default function CourseDetailsPage() {
   const [showGpsPreview, setShowGpsPreview] = useState(false);
   const [previewHoleNumber, setPreviewHoleNumber] = useState<number | null>(null);
   const [showGpsHolePicker, setShowGpsHolePicker] = useState(false);
+  const [previewSuggestionClubs, setPreviewSuggestionClubs] = useState<ClubSuggestionClub[]>([]);
   const [gpsCourseRequest, setGpsCourseRequest] = useState<GpsCourseRequestState | null>(null);
   const [loadingGpsCourseRequest, setLoadingGpsCourseRequest] = useState(false);
   const [requestingGpsCourse, setRequestingGpsCourse] = useState(false);
@@ -282,6 +294,53 @@ export default function CourseDetailsPage() {
       window.removeEventListener(HEADER_BACK_NAVIGATION_EVENT, handleHeaderBack);
     };
   }, [showGpsPreview]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !showGpsPreview) return;
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch('/api/my-bag?mode=clubs', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Unable to load bag');
+        const data = await response.json();
+        if (controller.signal.aborted) return;
+
+        const clubs: unknown[] = Array.isArray(data?.clubs) ? data.clubs : [];
+        setPreviewSuggestionClubs(
+          clubs
+            .map((club) => {
+              if (!club || typeof club !== 'object') return null;
+              const payload = club as PreviewBagClubPayload;
+              if (
+                typeof payload.clubDefinitionId !== 'string'
+                || typeof payload.carryYards !== 'number'
+                || !Number.isInteger(payload.carryYards)
+                || typeof payload.clubDefinition?.shortLabel !== 'string'
+                || typeof payload.clubDefinition?.catalogueOrder !== 'number'
+              ) {
+                return null;
+              }
+
+              return {
+                clubDefinitionId: payload.clubDefinitionId,
+                shortLabel: payload.clubDefinition.shortLabel,
+                carryYards: payload.carryYards,
+                catalogueOrder: payload.clubDefinition.catalogueOrder,
+              };
+            })
+            .filter((club): club is ClubSuggestionClub => club !== null),
+        );
+      } catch {
+        if (!controller.signal.aborted) setPreviewSuggestionClubs([]);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [showGpsPreview, status]);
 
   const allTees = useMemo(
     () => [...(course?.tees.male || []), ...(course?.tees.female || [])],
@@ -571,8 +630,18 @@ export default function CourseDetailsPage() {
               courseHoles={previewHoles}
               par={activeScorecardHole?.par ?? null}
               routeKey={`course-${course?.id}-hole-${activePreviewHole.holeNumber}`}
+              suggestionClubs={previewSuggestionClubs}
             />
           </div>
+
+          <button
+            type="button"
+            className="live-round-gps-back"
+            onClick={() => setShowGpsPreview(false)}
+            aria-label="Close GPS Preview"
+          >
+            <ChevronLeft size={24} aria-hidden="true" />
+          </button>
 
           <div className="live-round-gps-hud course-gps-preview-hud">
             <div className="live-round-gps-hole-menu">
@@ -622,30 +691,16 @@ export default function CourseDetailsPage() {
             </div>
           </div>
 
-          <div
+          <GpsHoleDock
             className="live-round-gps-controls"
-            role="group"
-            aria-label="Hole navigation"
-          >
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => selectPreviewHole(previewHoles[activePreviewHoleIndex - 1].holeNumber)}
-              disabled={activePreviewHoleIndex === 0}
-            >
-              <ChevronLeft size={18} aria-hidden="true" />
-              Previous Hole
-            </button>
-            <button
-              type="button"
-              className="btn btn-accent"
-              onClick={() => selectPreviewHole(previewHoles[activePreviewHoleIndex + 1].holeNumber)}
-              disabled={activePreviewHoleIndex === previewHoles.length - 1}
-            >
-              Next Hole
-              <ChevronRight size={18} aria-hidden="true" />
-            </button>
-          </div>
+            holeNumber={activePreviewHole.holeNumber}
+            onPrevious={activePreviewHoleIndex > 0
+              ? () => selectPreviewHole(previewHoles[activePreviewHoleIndex - 1].holeNumber)
+              : undefined}
+            onNext={activePreviewHoleIndex < previewHoles.length - 1
+              ? () => selectPreviewHole(previewHoles[activePreviewHoleIndex + 1].holeNumber)
+              : undefined}
+          />
         </section>
       )}
 

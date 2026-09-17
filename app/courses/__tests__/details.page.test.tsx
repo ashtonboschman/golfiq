@@ -255,6 +255,15 @@ describe('/courses/[id] page GPS status', () => {
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/courses/42') return Promise.resolve(apiResponse(payload));
+      if (url === '/api/my-bag?mode=clubs') {
+        return Promise.resolve(apiResponse({
+          clubs: [{
+            clubDefinitionId: '20',
+            carryYards: 160,
+            clubDefinition: { shortLabel: '7I', catalogueOrder: 280 },
+          }],
+        }));
+      }
       if (url === '/api/gps/live/course/42') {
         return Promise.resolve(apiResponse({
           availability: {
@@ -276,14 +285,29 @@ describe('/courses/[id] page GPS status', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Preview Course' }));
     expect(await screen.findByRole('dialog', { name: 'GPS preview for hole 1' })).toBeInTheDocument();
+    expect(document.querySelector('.course-gps-preview')).toHaveClass('live-round-gps-fullscreen');
     expect(screen.getByTestId('course-gps-preview-map')).toHaveTextContent('Mapped Hole 1');
     expect(screen.getByText('Par 4 · 390 yd · HCP 1')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Log Score/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close GPS Preview' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Previous Hole' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next Hole' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockedLiveGpsHoleMap).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          suggestionClubs: [expect.objectContaining({ shortLabel: '7I', carryYards: 160 })],
+        }),
+        undefined,
+      );
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Next Hole' }));
     expect(await screen.findByRole('dialog', { name: 'GPS preview for hole 2' })).toBeInTheDocument();
     expect(screen.getByTestId('course-gps-preview-map')).toHaveTextContent('Mapped Hole 2');
+    expect(screen.getByRole('button', { name: 'Previous Hole' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Next Hole' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Review Round' })).not.toBeInTheDocument();
     expect(screen.getByText('Par 5 · 510 yd · HCP 3')).toBeInTheDocument();
     expect(mockedLiveGpsHoleMap).toHaveBeenLastCalledWith(
       expect.objectContaining({
