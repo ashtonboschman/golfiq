@@ -439,6 +439,7 @@ export default function GoogleGpsHoleMap({
   const targetMarkerRefs = useRef<GoogleMarker[]>([]);
   const distanceLabelRefs = useRef<GoogleMarker[]>([]);
   const polylineRef = useRef<GooglePolyline | null>(null);
+  const polylineHoleRef = useRef(activeHoleIndex);
   const mapClickListenerRef = useRef<GoogleMapsEventListener | null>(null);
   const mapListenerRefs = useRef<GoogleMapsEventListener[]>([]);
   const markerListenerRefs = useRef(new Map<GoogleMarker, GoogleMapsEventListener[]>());
@@ -1199,7 +1200,22 @@ export default function GoogleGpsHoleMap({
   }, [currentLocation.position, mapReady, onUserPositionChange]);
 
   useEffect(() => {
-    if (!mapReady) return;
+    const map = mapRef.current;
+    const googleMaps = getGoogleMaps();
+    if (!mapReady || !map || !googleMaps) return;
+
+    if (polylineHoleRef.current !== activeHoleIndex) {
+      // Reusing one Google overlay across large hole-to-hole camera jumps can leave stale,
+      // partially rendered segments in the iOS WebView. Reset only the route overlay while
+      // retaining the map instance and its interaction state.
+      polylineRef.current?.setMap(null);
+      polylineRef.current = new googleMaps.Polyline({
+        map,
+        ...ROUTE_LINE_OPTIONS,
+      });
+      polylineHoleRef.current = activeHoleIndex;
+    }
+
     updateMeasurementOverlay(targetPath);
     // The overlay helper mutates the single owned polyline and label refs. Depending on its
     // render-local identity would update overlays after every render instead of route changes.

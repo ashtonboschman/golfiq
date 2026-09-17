@@ -187,8 +187,33 @@ describe('GoogleGpsHoleMap lifecycle', () => {
       nextConfig.greenCenter,
     ]));
     expect(mockMapConstructor).toHaveBeenCalledTimes(1);
-    expect(mockPolylineConstructor).toHaveBeenCalledTimes(1);
+    expect(mockPolylineConstructor).toHaveBeenCalledTimes(2);
     expect(screen.getByLabelText('Google satellite map for physical hole 2')).toBeInTheDocument();
+  });
+
+  it('rebuilds the route line for the next hole without rebuilding the map', async () => {
+    const { rerender } = render(<GoogleGpsHoleMap {...mapProps('draft-1')} />);
+
+    await waitFor(() => expect(mockPolylineConstructor).toHaveBeenCalledTimes(1));
+
+    const nextConfig = {
+      ...config,
+      holeNumber: 2,
+      tee: { lat: 49.91, lng: -97.11 },
+      defaultTarget: { lat: 49.911, lng: -97.111 },
+      greenCenter: { lat: 49.912, lng: -97.112 },
+      mapCenter: { lat: 49.911, lng: -97.111 },
+    };
+    rerender(<GoogleGpsHoleMap {...mapProps('draft-2', nextConfig)} />);
+
+    await waitFor(() => expect(mockPolylineConstructor).toHaveBeenCalledTimes(2));
+    expect(mockMapConstructor).toHaveBeenCalledTimes(1);
+    expect(mockPolylineSetMap).toHaveBeenCalledWith(null);
+    expect(mockPolylineSetPath).toHaveBeenLastCalledWith([
+      nextConfig.tee,
+      nextConfig.defaultTarget,
+      nextConfig.greenCenter,
+    ]);
   });
 
   it('reapplies the next-hole route after the camera settles', async () => {
@@ -306,7 +331,7 @@ describe('GoogleGpsHoleMap lifecycle', () => {
     );
 
     await waitFor(() => expect(mockPolylineSetPath).toHaveBeenLastCalledWith([]));
-    expect(mockPolylineConstructor).toHaveBeenCalledTimes(1);
+    expect(mockPolylineConstructor).toHaveBeenCalledTimes(2);
   });
 
   it('shows the live fallback when the Google Maps script fails', async () => {
@@ -330,7 +355,7 @@ describe('GoogleGpsHoleMap lifecycle', () => {
 
     rerender(<GoogleGpsHoleMap {...mapProps('draft-2')} />);
     expect(mockMapConstructor).toHaveBeenCalledTimes(1);
-    expect(mockPolylineConstructor).toHaveBeenCalledTimes(1);
+    expect(mockPolylineConstructor).toHaveBeenCalledTimes(2);
   });
 
   it('preserves the live fallback without loading Google Maps when the API key is missing', () => {

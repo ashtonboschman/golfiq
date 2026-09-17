@@ -11757,16 +11757,15 @@ input[type='date'].form-input {
   --live-round-gps-overlay-safe-top: calc(var(--safe-area-top) + var(--gap));
   --live-round-gps-dock-height: 60px;
   --live-round-gps-legal-ui-clearance: calc(var(--padding-large) + var(--gap-small));
-  --live-round-gps-map-dock-bottom: max(
+  --live-round-gps-dock-bottom: max(
     calc(var(--safe-area-bottom) + var(--gap-small)),
     var(--live-round-gps-legal-ui-clearance)
   );
   --live-round-gps-reset-bottom: calc(
-    var(--live-round-gps-map-dock-bottom)
+    var(--live-round-gps-dock-bottom)
     + var(--live-round-gps-dock-height)
     + var(--gap)
   );
-  --live-round-score-sheet-dock-bottom: calc(28px + var(--safe-area-bottom));
   --live-round-gps-dock-width: min(
     calc(100% - max(var(--padding), var(--safe-area-left)) - max(var(--padding), var(--safe-area-right))),
     420px
@@ -12109,7 +12108,7 @@ input[type='date'].form-input {
   position: absolute;
   z-index: 4;
   right: auto;
-  bottom: var(--live-round-gps-map-dock-bottom);
+  bottom: var(--live-round-gps-dock-bottom);
   left: 50%;
   width: var(--live-round-gps-dock-width);
   max-width: none;
@@ -12283,7 +12282,7 @@ input[type='date'].form-input {
   max-width: none;
   margin-right: auto;
   margin-left: auto;
-  margin-bottom: var(--live-round-score-sheet-dock-bottom);
+  margin-bottom: var(--live-round-gps-dock-bottom);
 }
 
 .gps-hole-dock.live-round-gps-controls {
