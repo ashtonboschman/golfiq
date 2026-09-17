@@ -1704,12 +1704,12 @@ function DashboardContent({ userId: propUserId }: { userId?: number }) {
             {[
               ['FIR', stats.fir_avg, '%', 'How often you hit the fairway off the tee. Higher is better.'],
               ['GIR', stats.gir_avg, '%', 'How often you reach the green in regulation. Higher is better.'],
-              ['Putts', stats.avg_putts, null, 'Average number of putts per round. Lower is better.'],
-              ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round. Lower is better.'],
-              ['Scrambling', stats.scramblingPct, '%', 'How often you make par or better after missing the green. Higher is better.'],
               ['Short Game', stats.shortGameShotsAvg, null, 'Average chips and greenside bunker shots per round. Lower is better.'],
+              ['Scrambling', stats.scramblingPct, '%', 'How often you make par or better after missing the green. Higher is better.'],
               ['Up & Down', stats.upAndDownPct, '%', 'How often you save par or better after one short-game shot and one putt or fewer. Higher is better.'],
               ['Sand Saves', stats.sandSavePct, '%', 'How often you make par or better after a greenside bunker shot. Higher is better.'],
+              ['Putts', stats.avg_putts, null, 'Average number of putts per round. Lower is better.'],
+              ['Penalties', stats.avg_penalties, null, 'Average penalty strokes per round. Lower is better.'],
             ].map(([label, val, isPercent, tooltip]) => (
               <div className="card dashboard-stat-card u-relative" key={label as string}>
                 {tooltip && <InfoTooltip text={tooltip as string} />}

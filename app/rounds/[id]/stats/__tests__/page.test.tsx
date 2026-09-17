@@ -9,6 +9,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+const mockRouter = { replace: mockReplace, push: mockPush };
 const mockScrollTo = jest.fn();
 const mockShowMessage = jest.fn();
 const mockClearMessage = jest.fn();
@@ -25,15 +26,16 @@ const mockRoundInsights = jest.fn(({ onInitialLoadComplete }: { onInitialLoadCom
   return <div data-testid="round-insights">Round Insights</div>;
 });
 
+jest.mock('next/dynamic', () => () => function SharePreviewMock({ onClose }: { onClose: () => void }) {
+  return <div role="dialog" aria-label="Share Round"><button onClick={onClose}>Close Share Preview</button></div>;
+});
+
 jest.mock('next-auth/react', () => ({
   useSession: jest.fn(),
 }));
 
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    replace: mockReplace,
-    push: mockPush,
-  }),
+  useRouter: () => mockRouter,
   usePathname: () => '/rounds/123/stats',
   useParams: () => ({
     id: '123',
@@ -116,6 +118,30 @@ const statsPayload = {
 };
 
 describe('/rounds/[id]/stats page', () => {
+  it('opens sharing for an owned completed round and preserves the preview on return from the share sheet', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    render(<RoundStatsPage />);
+    const shareButton = await screen.findByRole('button', { name: 'Share Round' });
+    expect(shareButton).toHaveAttribute('title', 'Share Round');
+    expect(shareButton.textContent).toBe('');
+    expect(shareButton).toHaveClass('btn-icon');
+    expect(shareButton.nextElementSibling).toHaveAttribute('href', '/rounds/edit/123?from=stats');
+    fireEvent.click(shareButton);
+    expect(screen.getByRole('dialog', { name: 'Share Round' })).toBeVisible();
+    const calls = jest.mocked(fetch).mock.calls.length;
+    fireEvent(document, new Event('visibilitychange'));
+    expect(jest.mocked(fetch).mock.calls).toHaveLength(calls);
+    fireEvent.click(screen.getByRole('button', { name: 'Close Share Preview' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('offers sharing for completed aggregate rounds with sparse hole details', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+    jest.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ stats: { ...statsPayload, hole_by_hole: true } }) } as Response);
+    render(<RoundStatsPage />);
+    expect(await screen.findByRole('button', { name: 'Share Round' })).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockInsightsAutoReady = true;
@@ -172,6 +198,28 @@ describe('/rounds/[id]/stats page', () => {
     }));
   });
 
+  it('orders the Round Summary stats by scoring, short game, and putting rows', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<RoundStatsPage />);
+
+    const summary = (await screen.findByText('Round Summary')).closest('.stats-score-summary');
+    const labels = Array.from(summary?.querySelectorAll('.stats-score-label') ?? [])
+      .map(label => label.textContent?.replace(/\s+/g, ' ').trim());
+
+    expect(labels).toEqual([
+      'Total Score',
+      'vs Par 72 (+4 Net)',
+      'FIR (7/14)',
+      'GIR (8/18)',
+      'Chips',
+      'Greenside Bunker',
+      'Short-Game Shots',
+      'Putts/Hole (33 Total)',
+      'Penalties',
+    ]);
+  });
+
   it('shows strokes gained summary for premium users', async () => {
     mockedUseSubscription.mockReturnValue({
       isPremium: true,
@@ -182,7 +230,7 @@ describe('/rounds/[id]/stats page', () => {
 
     await screen.findByText('Pebble Beach');
     expect(screen.getByText('Total')).toBeInTheDocument();
-    expect(screen.getByText('Off Tee')).toBeInTheDocument();
+    expect(screen.getByText('Off the Tee')).toBeInTheDocument();
     expect(screen.getByText('Short Game')).toBeInTheDocument();
     expect(screen.getByText('Untracked')).toBeInTheDocument();
   });
@@ -196,7 +244,7 @@ describe('/rounds/[id]/stats page', () => {
     render(<RoundStatsPage />);
 
     await screen.findByText('Pebble Beach');
-    expect(screen.queryByText('Off Tee')).not.toBeInTheDocument();
+    expect(screen.queryByText('Off the Tee')).not.toBeInTheDocument();
   });
 
   it('shows Round Time only when a live-round duration was recorded', async () => {

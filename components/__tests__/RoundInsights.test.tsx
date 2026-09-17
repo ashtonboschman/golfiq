@@ -69,7 +69,7 @@ function identityPayload() {
       },
       weakestArea: {
         area: 'off_tee',
-        label: 'Off The Tee',
+        label: 'Off the Tee',
         valueText: '-0.6 SG off tee',
         detailText: 'Fairways hit: 4/12 (33%).',
       },
@@ -890,7 +890,7 @@ describe('RoundInsights confidence pill UI', () => {
         scoreText: '89 (+17)',
         weakestArea: {
           area: 'off_tee',
-          label: 'Off The Tee',
+          label: 'Off the Tee',
           valueText: '-1.1 SG off tee',
           detailText: 'Fairways hit: 4/12 (33%).',
         },
@@ -1035,7 +1035,7 @@ describe('RoundInsights confidence pill UI', () => {
         baselineDeltaText: '4.0 strokes better than your recent average of 82.0.',
         strongestArea: {
           area: 'off_tee',
-          label: 'Off The Tee',
+          label: 'Off the Tee',
           valueText: '+0.7 SG off tee',
           detailText: 'Fairways hit: 9/12 (75%).',
         },

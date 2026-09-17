@@ -65,7 +65,7 @@ describe('iOS native capabilities', () => {
   });
 
   it('uses the next TestFlight build number in all target configurations', () => {
-    expect(xcodeProject.match(/CURRENT_PROJECT_VERSION = 2;/g)).toHaveLength(2);
-    expect(xcodeProject).not.toContain('CURRENT_PROJECT_VERSION = 1;');
+    expect(xcodeProject.match(/CURRENT_PROJECT_VERSION = 7;/g)).toHaveLength(2);
+    expect(xcodeProject).not.toContain('CURRENT_PROJECT_VERSION = 6;');
   });
 });

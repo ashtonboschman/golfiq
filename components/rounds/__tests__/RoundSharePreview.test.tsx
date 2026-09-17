@@ -1,0 +1,92 @@
+/** @jest-environment jsdom */
+import React from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import RoundSharePreview from '../RoundSharePreview';
+import { renderShareImage } from '@/lib/rounds/renderShareImage';
+import { canShareImage, shareImage } from '@/lib/rounds/shareImage';
+import { captureClientEvent } from '@/lib/analytics/client';
+
+jest.mock('@/lib/rounds/renderShareImage', () => ({ renderShareImage: jest.fn() }));
+jest.mock('@/lib/rounds/shareImage', () => ({ canShareImage: jest.fn(), shareImage: jest.fn(), downloadShareImage: jest.fn(), isShareCancelled: (error: Error) => error.name === 'AbortError' }));
+jest.mock('@/lib/analytics/client', () => ({ captureClientEvent: jest.fn() }));
+const stats = { course_name: 'Southport', total_score: 77, number_of_holes: 18, score_to_par_formatted: '+7', fir_percentage: null, gir_percentage: null, total_putts: null, total_penalties: null, total_chips: null, total_greenside_bunker_shots: null, hole_by_hole: false, hole_details: [] };
+const onClose = jest.fn();
+beforeEach(() => {
+  jest.clearAllMocks();
+  URL.createObjectURL = jest.fn(() => 'blob:preview');
+  URL.revokeObjectURL = jest.fn();
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ stats, insights: { messages: [], confidence: 'LOW' } }) });
+  jest.mocked(renderShareImage).mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
+  jest.mocked(canShareImage).mockReturnValue(true);
+  jest.mocked(shareImage).mockResolvedValue(undefined);
+});
+test('shows loading, actual image, and split Cancel/Share actions; restores focus and releases the image', async () => {
+  const trigger = document.createElement('button');
+  document.body.appendChild(trigger);
+  trigger.focus();
+  const { unmount } = render(<RoundSharePreview roundId="123" isPremium={false} onClose={onClose} />);
+  expect(screen.getByRole('status', { name: 'Creating Your Share Image' })).toBeVisible();
+  expect(screen.getByAltText('GolfIQ')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Share' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  const preview = await screen.findByRole('img', { name: /GolfIQ recap:/ });
+  expect(preview).toHaveAttribute('src', 'blob:preview');
+  expect(preview).toHaveAttribute('width', '1080');
+  expect(preview).toHaveAttribute('height', '1350');
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledWith('/api/rounds/123/stats', expect.objectContaining({ cache: 'no-store', credentials: 'include' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+  await waitFor(() => expect(shareImage).toHaveBeenCalled());
+  expect(jest.mocked(shareImage).mock.calls[0][0]).toBeInstanceOf(File);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(onClose).toHaveBeenCalledTimes(2);
+  unmount();
+  expect(trigger).toHaveFocus();
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview');
+  trigger.remove();
+});
+test.each([401, 403, 404, 500])('blocks image generation when existing stats API returns %i', async status => {
+  jest.mocked(fetch).mockResolvedValueOnce({ ok: false, status } as Response);
+  render(<RoundSharePreview roundId="123" isPremium={false} onClose={onClose} />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not create');
+  expect(renderShareImage).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(await screen.findByRole('img')).toBeVisible();
+});
+test('renderer failure supports retry and unsupported browsers keep the Share label', async () => {
+  jest.mocked(renderShareImage).mockRejectedValueOnce(new Error('Canvas failed'));
+  jest.mocked(canShareImage).mockReturnValue(false);
+  render(<RoundSharePreview roundId="123" isPremium={false} onClose={onClose} />);
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await screen.findByRole('img', { name: /GolfIQ recap:/ });
+  fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+  await waitFor(() => expect(shareImage).toHaveBeenCalled());
+});
+test('cancel keeps preview ready; failure allows retry and sends no private event props', async () => {
+  jest.mocked(shareImage).mockRejectedValueOnce(new DOMException('cancel', 'AbortError')).mockRejectedValueOnce(new Error('Oops'));
+  render(<RoundSharePreview roundId="123" isPremium={false} onClose={onClose} />);
+  await screen.findByRole('img');
+  const button = screen.getByRole('button', { name: 'Share' });
+  fireEvent.click(button);
+  expect(await screen.findByRole('status')).toHaveTextContent('cancelled');
+  expect(captureClientEvent).not.toHaveBeenCalledWith('round_share_failed', expect.anything(), expect.anything());
+  fireEvent.click(button);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not open sharing');
+  expect(button).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
+  const events = JSON.stringify(jest.mocked(captureClientEvent).mock.calls);
+  expect(events).not.toMatch(/Southport|123|77|round_id|success|published/);
+});
+test('closing during generation does not publish a stale image', async () => {
+  let finish!: (blob: Blob) => void;
+  jest.mocked(renderShareImage).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const { unmount } = render(<RoundSharePreview roundId="123" isPremium={false} onClose={onClose} />);
+  await waitFor(() => expect(renderShareImage).toHaveBeenCalled());
+  unmount();
+  await act(async () => finish(new Blob(['png'])));
+  expect(URL.createObjectURL).not.toHaveBeenCalled();
+});

@@ -6,7 +6,9 @@ import { usePathname, useRouter, useParams } from 'next/navigation';
 import { useMessage } from '@/app/providers';
 import { useSubscription } from '@/hooks/useSubscription';
 import Link from 'next/link';
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Crown, Edit, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Crown, Edit, Share2, Trash2, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { roundShareAnalytics } from '@/lib/rounds/shareData';
 import RoundInsights from '@/components/RoundInsights';
 import { RoundStatsPageSkeleton } from '@/components/skeleton/PageSkeletons';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -14,8 +16,10 @@ import ParBreakdownChart, { type ParBreakdownChartRow } from '@/components/ParBr
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureClientEvent } from '@/lib/analytics/client';
 import { formatRoundDuration } from '@/lib/rounds/roundTimer';
+import { getScoreResultClass } from '@/lib/rounds/scoreResult';
 
 const ROUND_STATS_VIEWED_DEDUPE_MS = 5000;
+const RoundSharePreview = dynamic(() => import('@/components/rounds/RoundSharePreview'), { ssr: false });
 const roundStatsViewedCache = new Map<string, number>();
 
 interface HoleDetail {
@@ -96,6 +100,7 @@ export default function RoundStatsPage() {
 
   const [stats, setStats] = useState<RoundStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
   const [insightsReadyRoundId, setInsightsReadyRoundId] = useState<string | null>(null);
   const { isPremium, loading: subscriptionLoading } = useSubscription();
 
@@ -190,7 +195,7 @@ export default function RoundStatsPage() {
   // Refetch stats when page becomes visible (e.g., returning from edit page)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && status === 'authenticated' && roundId) {
+      if (!document.hidden && status === 'authenticated' && roundId && !shareOpen) {
         fetchStats();
       }
     };
@@ -199,7 +204,17 @@ export default function RoundStatsPage() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [status, roundId, fetchStats]);
+  }, [status, roundId, fetchStats, shareOpen]);
+
+  const handleShareOpen = () => {
+    if (!stats) return;
+    captureClientEvent(
+      ANALYTICS_EVENTS.roundShareOpened,
+      roundShareAnalytics(stats),
+      { sourcePage: 'round_details', isLoggedIn: true },
+    );
+    setShareOpen(true);
+  };
 
   const handleDelete = async () => {
     showConfirm({
@@ -339,14 +354,6 @@ export default function RoundStatsPage() {
     );
   };
 
-  const scoreResultClass = (scoreToPar: number): string => {
-    if (scoreToPar <= -2) return 'score-result--eagle-plus';
-    if (scoreToPar === -1) return 'score-result--birdie';
-    if (scoreToPar === 1) return 'score-result--bogey';
-    if (scoreToPar >= 2) return 'score-result--double-plus';
-    return 'score-result--par';
-  };
-
   const roundContext = stats.round_context ?? 'real';
   const roundContextLabel =
     roundContext === 'simulator'
@@ -358,7 +365,7 @@ export default function RoundStatsPage() {
           : null;
 
   const sgTooltipText =
-    'Strokes Gained compares this round to golfers around your level on this course and tee. Off Tee, Approach, Short Game, Putting, and Penalties use the stats you tracked. Untracked means GolfIQ cannot confidently place those strokes in one area yet. The more stats you log, the clearer this breakdown gets.';
+    'Strokes Gained compares this round to golfers around your level on this course and tee. Off the Tee, Approach, Short Game, Putting, and Penalties use the stats you tracked. Untracked means GolfIQ cannot confidently place those strokes in one area yet. The more stats you log, the clearer this breakdown gets.';
 
   const parBreakdownRows: ParBreakdownChartRow[] = [...stats.scoring_by_par]
     .map((item) => {
@@ -386,6 +393,15 @@ export default function RoundStatsPage() {
 
   return (
     <>
+      {shareOpen && (
+        <RoundSharePreview
+          roundId={roundId}
+          isPremium={isPremium}
+          firstName={session?.user?.first_name}
+          lastName={session?.user?.last_name}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
       {insightsInitialLoading && (
         <RoundStatsPageSkeleton />
       )}
@@ -436,21 +452,30 @@ export default function RoundStatsPage() {
             </div>
           </div>          
           <div className="admin-course-search-actions">
+            <button
+              type="button"
+              className="btn btn-secondary btn-icon round-share-trigger"
+              onClick={handleShareOpen}
+              aria-label="Share Round"
+              title="Share Round"
+            >
+              <Share2 aria-hidden="true" />
+            </button>
             <Link
               href={`/rounds/edit/${roundId}?from=stats`}
-              className="btn btn-edit"
+              className="btn btn-edit btn-icon"
               aria-label="Edit Round"
               title="Edit Round"
             >
-              <Edit/>
+              <Edit aria-hidden="true" />
             </Link>
             <button
               onClick={handleDelete}
-              className="btn btn-cancel"
+              className="btn btn-cancel btn-icon"
               aria-label="Delete Round"
               title="Delete Round"
             >
-              <Trash2/>
+              <Trash2 aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -499,27 +524,6 @@ export default function RoundStatsPage() {
               </div>
             </div>
             <div>
-              <div className={`stats-score-value ${stats.putts_per_hole != null ? parseFloat(stats.putts_per_hole) < 1.8 ? 'green' : parseFloat(stats.putts_per_hole) >= 2.2 ? 'red' : 'primary' : 'primary'}`}>
-                {stats.putts_per_hole ?? '-'}
-              </div>
-              <div className="stats-score-label">
-                Putts/Hole {stats.total_putts !== null && (
-                  <>
-                    <br />
-                    ({stats.total_putts} Total)
-                  </>
-                )}
-              </div>
-            </div>
-            <div>
-              <div className={`stats-score-value ${stats.total_penalties != null ? stats.total_penalties < 1 ? 'green' : stats.total_penalties >= 3 ? 'red' : 'primary' : 'primary'}`}>
-                {stats.total_penalties ?? '-'}
-              </div>
-              <div className="stats-score-label">
-                Penalties
-              </div>
-            </div>
-            <div>
               <div className="stats-score-value">
                 {stats.total_chips ?? '-'}
               </div>
@@ -541,6 +545,27 @@ export default function RoundStatsPage() {
               </div>
               <div className="stats-score-label">
                 Short-Game Shots
+              </div>
+            </div>
+            <div>
+              <div className={`stats-score-value ${stats.putts_per_hole != null ? parseFloat(stats.putts_per_hole) < 1.8 ? 'green' : parseFloat(stats.putts_per_hole) >= 2.2 ? 'red' : 'primary' : 'primary'}`}>
+                {stats.putts_per_hole ?? '-'}
+              </div>
+              <div className="stats-score-label">
+                Putts/Hole {stats.total_putts !== null && (
+                  <>
+                    <br />
+                    ({stats.total_putts} Total)
+                  </>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className={`stats-score-value ${stats.total_penalties != null ? stats.total_penalties < 1 ? 'green' : stats.total_penalties >= 3 ? 'red' : 'primary' : 'primary'}`}>
+                {stats.total_penalties ?? '-'}
+              </div>
+              <div className="stats-score-label">
+                Penalties
               </div>
             </div>
           </div>
@@ -577,7 +602,7 @@ export default function RoundStatsPage() {
                         {formatSignedSg(stats.sg_off_tee)}
                       </div>
                       <div className="stats-score-label">
-                        Off Tee
+                        Off the Tee
                       </div>
                     </div>
                     <div>
@@ -706,7 +731,7 @@ export default function RoundStatsPage() {
                         </span>
                       </td>
                       <td className="score">
-                        <span className={`score-result ${scoreResultClass(hole.score_to_par)}`}>
+                        <span className={`score-result ${getScoreResultClass(hole.score_to_par)}`}>
                           <span className="score-result-value">{hole.score}</span>
                         </span>
                       </td>

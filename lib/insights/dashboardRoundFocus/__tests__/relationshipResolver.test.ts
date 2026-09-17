@@ -105,7 +105,7 @@ describe('resolveDashboardFocusRelationship', () => {
     });
   });
 
-  it('keeps a neutral same-category Off The Tee result inconclusive', () => {
+  it('keeps a neutral same-category Off the Tee result inconclusive', () => {
     expect(resolveDashboardFocusRelationship({
       trend: componentTrend('off_the_tee'),
       latestRoundFocus: latest('off_the_tee', 'neutral'),

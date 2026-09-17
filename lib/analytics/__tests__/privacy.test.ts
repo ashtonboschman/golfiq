@@ -17,9 +17,24 @@ import {
   buildAnalyticsPersonProperties,
   buildClientAnalyticsCommonProps,
 } from '@/lib/analytics/client';
-import { POSTHOG_PRIVACY_CONFIG } from '@/lib/analytics/privacy';
+import { POSTHOG_PRIVACY_CONFIG, sanitizeRoundShareProperties } from '@/lib/analytics/privacy';
 
 describe('PostHog privacy defaults', () => {
+  it.each(['round_share_opened', 'round_share_invoked', 'round_share_failed'])('removes automatic URLs and all unapproved share properties from %s', event => {
+    expect(sanitizeRoundShareProperties(event, {
+      distinct_id: 'pseudonymous', token: 'project-key', round_type: 'real', hole_count: 18,
+      source_page: 'round_details', is_native_app: true, method: 'share_sheet', has_strokes_gained: true,
+      $current_url: 'https://www.golfiq.ca/rounds/123/stats', $referrer: 'https://www.golfiq.ca/rounds/456/stats',
+      $initial_current_url: 'https://www.golfiq.ca/rounds/789/stats', round_id: '123',
+      course_name: 'Private course', score: 77, email: 'private@example.com', latitude: 40,
+    })).toEqual({ distinct_id: 'pseudonymous', token: 'project-key', round_type: 'real', hole_count: 18,
+      source_page: 'round_details', is_native_app: true, method: 'share_sheet', has_strokes_gained: true });
+  });
+
+  it('preserves existing analytics behavior for other events', () => {
+    const properties = { round_id: '123', source_page: '/rounds/123/stats' };
+    expect(sanitizeRoundShareProperties('round_stats_viewed', properties)).toBe(properties);
+  });
   it('disables automatic interaction, page, and session recording', () => {
     expect(POSTHOG_PRIVACY_CONFIG).toEqual({
       autocapture: false,
@@ -80,4 +95,3 @@ describe('PostHog privacy defaults', () => {
     expect(properties).not.toHaveProperty('user_timezone');
   });
 });
-

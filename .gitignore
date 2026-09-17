@@ -54,6 +54,7 @@ yarn-error.log*
 !/docs/production-monitoring.md
 !/docs/infrastructure-security.md
 !/docs/social-privacy-moderation.md
+!/docs/round-sharing.md
 
 .NUL
 .env*

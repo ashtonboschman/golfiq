@@ -1,4 +1,4 @@
-import { Edit, Info, Sparkles, Trash2 } from 'lucide-react';
+import { Edit, Info, Share2, Sparkles, Trash2 } from 'lucide-react';
 import { SkeletonBlock, SkeletonCard, SkeletonCircle, SkeletonText } from '@/components/skeleton/Skeleton';
 
 type RoundListSkeletonProps = {
@@ -519,7 +519,7 @@ export function RoundStatsPageSkeleton() {
         <div className="stats-header">
           <div className="stats-header-container">
             <div className="u-minw-0 u-w-pct-100">
-              <SkeletonBlock width="78%" height={28} />
+              <SkeletonBlock className="stats-course-name-skeleton" width="78%" height={28} />
               <SkeletonBlock width="50%" height={14} />
             </div>
             <div className="stats-holes-tees-container">
@@ -529,11 +529,14 @@ export function RoundStatsPageSkeleton() {
             </div>
           </div>
           <div className="admin-course-search-actions">
-            <button className="btn btn-edit" disabled>
-              <Edit />
+            <button className="btn btn-secondary btn-icon round-share-trigger" aria-label="Share Round" disabled>
+              <Share2 aria-hidden="true" />
             </button>
-            <button className="btn btn-cancel" disabled>
-              <Trash2 />
+            <button className="btn btn-edit btn-icon" aria-label="Edit Round" disabled>
+              <Edit aria-hidden="true" />
+            </button>
+            <button className="btn btn-cancel btn-icon" aria-label="Delete Round" disabled>
+              <Trash2 aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -543,13 +546,13 @@ export function RoundStatsPageSkeleton() {
             <h3 className="stats-summary-title">Round Summary</h3>
           </div>
           <div className="stats-score-grid">
-            {['Total Score', 'vs Par', 'FIR', 'GIR', 'Putts/Hole', 'Penalties'].map((label, index) => (
+            {['Total Score', 'vs Par', 'FIR', 'GIR', 'Chips', 'Greenside Bunker', 'Short-Game Shots', 'Putts/Hole', 'Penalties'].map((label, index) => (
               <div key={`round-score-summary-${index}`}>
                 <SkeletonBlock width="44%" height={29} center />
                 <div className="stats-score-label u-mt-6">
                   {label}
                 </div>
-                {(index === 1 || index === 4) && (
+                {(index === 1 || index === 7) && (
                   <SkeletonBlock width="26%" height={12} center mt={4} />
                 )}
               </div>
@@ -569,7 +572,7 @@ export function RoundStatsPageSkeleton() {
             </span>
           </div>
           <div className="stats-score-grid">
-            {['Total', 'Off Tee', 'Approach', 'Putting', 'Penalties', 'Untracked'].map((label, index) => (
+            {['Total', 'Off the Tee', 'Approach', 'Putting', 'Penalties', 'Untracked'].map((label, index) => (
               <div key={`round-sg-summary-${index}`}>
                 <SkeletonBlock width="44%" height={29} center />
                 <div className="stats-score-label u-mt-6">

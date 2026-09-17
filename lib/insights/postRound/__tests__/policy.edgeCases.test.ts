@@ -6,7 +6,7 @@ const BASE: PostRoundPolicyInput = {
   avgScore: 75.6,
   band: 'expected',
   measuredComponents: [
-    { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
+    { name: 'off_tee', label: 'Off the Tee', value: -0.5 },
     { name: 'approach', label: 'Approach', value: -1.2 },
     { name: 'putting', label: 'Putting', value: -0.1 },
   ],
@@ -142,10 +142,10 @@ describe('post-round policy edge coverage', () => {
     const input: PostRoundPolicyInput = {
       ...BASE,
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.6 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.6 },
         { name: 'approach', label: 'Approach', value: -1.1 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.6 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: -0.6 },
       worstMeasured: { name: 'approach', label: 'Approach', value: -1.1 },
       missing: { fir: false, gir: false, putts: true, penalties: true },
       roundEvidence: {

@@ -321,6 +321,27 @@ describe('/dashboard Round Focus card', () => {
     expect(screen.getByText('50%')).toBeInTheDocument();
   });
 
+  it('groups Performance Overview metrics by accuracy, short game, and scoring', async () => {
+    mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
+
+    render(<DashboardPage />);
+
+    await screen.findByText('Performance Overview');
+    const labels = Array.from(document.querySelectorAll('.dashboard-stat-card h3'))
+      .map(label => label.textContent);
+
+    expect(labels).toEqual([
+      'FIR',
+      'GIR',
+      'Short Game',
+      'Scrambling',
+      'Up & Down',
+      'Sand Saves',
+      'Putts',
+      'Penalties',
+    ]);
+  });
+
   it('shows dash for short-game metric cards when tracked data is unavailable', async () => {
     mockedUseSubscription.mockReturnValue({ isPremium: false, loading: false });
     (global.fetch as jest.Mock).mockResolvedValue({

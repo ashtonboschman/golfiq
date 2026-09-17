@@ -109,10 +109,10 @@ describe('deterministic policy matrix coverage', () => {
       avgScore: 74,
       band: 'expected',
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.4 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0.4 },
         { name: 'approach', label: 'Approach', value: -0.4 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.4 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: 0.4 },
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.4 },
       opportunityIsWeak: false,
       residualDominant: false,
@@ -126,20 +126,20 @@ describe('deterministic policy matrix coverage', () => {
     const negative = buildDeterministicPostRoundInsights({
       ...base,
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.4 },
         { name: 'approach', label: 'Approach', value: -0.4 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: -0.4 },
     });
     expect(negative.outcomes[0]).toBe('M1-B');
 
     const neutral = buildDeterministicPostRoundInsights({
       ...base,
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.3 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0.3 },
         { name: 'approach', label: 'Approach', value: -0.4 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.3 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: 0.3 },
     });
     expect(neutral.outcomes[0]).toBe('M1-D');
   });
@@ -151,10 +151,10 @@ describe('deterministic policy matrix coverage', () => {
       avgScore: 74,
       band: 'expected',
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0.2 },
         { name: 'approach', label: 'Approach', value: -0.5 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.2 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: 0.2 },
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.5 },
       opportunityIsWeak: true,
       residualDominant: false,
@@ -169,7 +169,7 @@ describe('deterministic policy matrix coverage', () => {
     const neutral = buildDeterministicPostRoundInsights({
       ...base,
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0.2 },
         { name: 'approach', label: 'Approach', value: -0.49 },
       ],
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.49 },
@@ -186,10 +186,10 @@ describe('deterministic policy matrix coverage', () => {
       avgScore: 38.5,
       band: 'expected',
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.1 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0.1 },
         { name: 'approach', label: 'Approach', value: -0.6 },
       ],
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.1 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: 0.1 },
       worstMeasured: { name: 'approach', label: 'Approach', value: -0.6 },
       opportunityIsWeak: true,
       residualDominant: false,

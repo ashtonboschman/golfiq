@@ -34,7 +34,7 @@ function baseIdentity(overrides: Partial<RoundIdentity> = {}): RoundIdentity {
       },
       weakestArea: {
         area: 'off_tee',
-        label: 'Off The Tee',
+        label: 'Off the Tee',
         valueText: '-0.6 SG off tee',
         detailText: 'Fairways hit: 4/12 (33%).',
       },
@@ -727,7 +727,7 @@ describe('composeRoundIdentityDisplay', () => {
           scoreText: '80 (+8)',
           strongestArea: {
             area: 'off_tee',
-            label: 'Off The Tee',
+            label: 'Off the Tee',
             valueText: '+1.0 SG off tee',
             detailText: 'Fairways hit: 10/14 (71%).',
           },
@@ -741,7 +741,7 @@ describe('composeRoundIdentityDisplay', () => {
           scoreText: '88 (+16)',
           weakestArea: {
             area: 'off_tee',
-            label: 'Off The Tee',
+            label: 'Off the Tee',
             valueText: '-1.2 SG off tee',
             detailText: 'Fairways hit: 3/14 (21%).',
           },

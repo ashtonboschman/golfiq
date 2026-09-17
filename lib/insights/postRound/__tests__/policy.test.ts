@@ -40,7 +40,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('M1-B / M2-D / M3-C with residual sentence when large', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.4 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -0.4 },
       { name: 'approach' as const, label: 'Approach', value: -1.6 },
       { name: 'putting' as const, label: 'Putting', value: -0.8 },
     ];
@@ -81,7 +81,7 @@ describe('buildDeterministicPostRoundInsights', () => {
   test('uses penalties-safe positive copy for M1-C', () => {
     const comps = [
       { name: 'penalties' as const, label: 'Penalties', value: 0.7 },
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.1 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 0.1 },
     ];
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
@@ -100,7 +100,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('M1-D and M2-C for exact zero values', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 0 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 0 },
       { name: 'approach' as const, label: 'Approach', value: 0 },
     ];
     const out = buildDeterministicPostRoundInsights(
@@ -162,7 +162,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('M2-E sets a positive message level independent of score band', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.9 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 0.9 },
       { name: 'approach' as const, label: 'Approach', value: 0.4 },
     ];
     const out = buildDeterministicPostRoundInsights(
@@ -184,7 +184,7 @@ describe('buildDeterministicPostRoundInsights', () => {
       { name: 'approach' as const, label: 'Approach', value: 4.8 },
       { name: 'putting' as const, label: 'Putting', value: 3.1 },
       { name: 'penalties' as const, label: 'Penalties', value: 2.9 },
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 1.0 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 1.0 },
     ];
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
@@ -206,7 +206,7 @@ describe('buildDeterministicPostRoundInsights', () => {
   test('adds stat evidence to message 1 and message 2 when available', () => {
     const comps = [
       { name: 'approach' as const, label: 'Approach', value: 1.4 },
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -1.2 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -1.2 },
     ];
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
@@ -230,7 +230,7 @@ describe('buildDeterministicPostRoundInsights', () => {
   });
 
   test('forces M2-A when only one measured component exists, even if worstMeasured is incorrectly populated', () => {
-    const single = [{ name: 'off_tee' as const, label: 'Off The Tee', value: 0.1 }];
+    const single = [{ name: 'off_tee' as const, label: 'Off the Tee', value: 0.1 }];
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
         band: 'above',
@@ -252,7 +252,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('keeps residual sentence for component-based M2 messages', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.6 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -0.6 },
       { name: 'approach' as const, label: 'Approach', value: -1.2 },
     ];
     const out = buildDeterministicPostRoundInsights(
@@ -302,7 +302,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('uses short-game-specific positive M2 copy when short game is measured as positive', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.7 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 0.7 },
       { name: 'short_game' as const, label: 'Short Game', value: 0.4 },
       { name: 'putting' as const, label: 'Putting', value: 0.2 },
     ];
@@ -330,7 +330,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('uses penalties-safe positive copy for M2-E outside strong all-positive context', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 1.1 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 1.1 },
       { name: 'penalties' as const, label: 'Penalties', value: 0.4 },
     ];
     const out = buildDeterministicPostRoundInsights(
@@ -395,7 +395,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('LOW confidence keeps M1 score-focused and M2 broad even with measured components', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.2 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -0.2 },
       { name: 'approach' as const, label: 'Approach', value: -1.4 },
       { name: 'putting' as const, label: 'Putting', value: -0.7 },
     ];
@@ -444,11 +444,11 @@ describe('buildDeterministicPostRoundInsights', () => {
       withOverrides({
         confidence: 'LOW',
         measuredComponents: [
-          { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
+          { name: 'off_tee', label: 'Off the Tee', value: -0.4 },
           { name: 'approach', label: 'Approach', value: -1.2 },
           { name: 'putting', label: 'Putting', value: -0.5 },
         ],
-        bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
+        bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: -0.4 },
         worstMeasured: { name: 'approach', label: 'Approach', value: -1.2 },
         opportunityIsWeak: true,
         holesPlayed: 9,
@@ -476,11 +476,11 @@ describe('buildDeterministicPostRoundInsights', () => {
       withOverrides({
         confidence: 'LOW',
         measuredComponents: [
-          { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
+          { name: 'off_tee', label: 'Off the Tee', value: -0.4 },
           { name: 'approach', label: 'Approach', value: -1.2 },
           { name: 'putting', label: 'Putting', value: -0.5 },
         ],
-        bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
+        bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: -0.4 },
         worstMeasured: { name: 'approach', label: 'Approach', value: -1.2 },
         opportunityIsWeak: true,
         holesPlayed: 18,
@@ -505,7 +505,7 @@ describe('buildDeterministicPostRoundInsights', () => {
       withOverrides({
         confidence: 'LOW',
         measuredComponents: [
-          { name: 'off_tee', label: 'Off The Tee', value: -1.4 },
+          { name: 'off_tee', label: 'Off the Tee', value: -1.4 },
           { name: 'approach', label: 'Approach', value: -1.1 },
           { name: 'putting', label: 'Putting', value: -0.6 },
           { name: 'penalties', label: 'Penalties', value: -3.2 },
@@ -536,13 +536,13 @@ describe('buildDeterministicPostRoundInsights', () => {
       withOverrides({
         confidence: 'LOW',
         measuredComponents: [
-          { name: 'off_tee', label: 'Off The Tee', value: -2.1 },
+          { name: 'off_tee', label: 'Off the Tee', value: -2.1 },
           { name: 'approach', label: 'Approach', value: -1.0 },
           { name: 'putting', label: 'Putting', value: -0.4 },
           { name: 'penalties', label: 'Penalties', value: -2.5 },
         ],
         bestMeasured: { name: 'putting', label: 'Putting', value: -0.4 },
-        worstMeasured: { name: 'off_tee', label: 'Off The Tee', value: -2.1 },
+        worstMeasured: { name: 'off_tee', label: 'Off the Tee', value: -2.1 },
         opportunityIsWeak: true,
         holesPlayed: 18,
         roundEvidence: {
@@ -567,11 +567,11 @@ describe('buildDeterministicPostRoundInsights', () => {
       withOverrides({
         confidence: 'LOW',
         measuredComponents: [
-          { name: 'off_tee', label: 'Off The Tee', value: -0.7 },
+          { name: 'off_tee', label: 'Off the Tee', value: -0.7 },
           { name: 'approach', label: 'Approach', value: -1.4 },
           { name: 'putting', label: 'Putting', value: -0.5 },
         ],
-        bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.7 },
+        bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: -0.7 },
         worstMeasured: { name: 'approach', label: 'Approach', value: -1.4 },
         opportunityIsWeak: true,
         holesPlayed: 18,
@@ -597,7 +597,7 @@ describe('buildDeterministicPostRoundInsights', () => {
       withOverrides({
         confidence: 'LOW',
         measuredComponents: [
-          { name: 'off_tee', label: 'Off The Tee', value: -1.1 },
+          { name: 'off_tee', label: 'Off the Tee', value: -1.1 },
           { name: 'approach', label: 'Approach', value: -0.8 },
           { name: 'putting', label: 'Putting', value: -0.3 },
           { name: 'penalties', label: 'Penalties', value: -1.8 },
@@ -627,10 +627,10 @@ describe('buildDeterministicPostRoundInsights', () => {
       withOverrides({
         confidence: 'LOW',
         measuredComponents: [
-          { name: 'off_tee', label: 'Off The Tee', value: -0.3 },
+          { name: 'off_tee', label: 'Off the Tee', value: -0.3 },
           { name: 'approach', label: 'Approach', value: -0.6 },
         ],
-        bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.3 },
+        bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: -0.3 },
         worstMeasured: { name: 'approach', label: 'Approach', value: -0.6 },
         opportunityIsWeak: true,
         holesPlayed: 18,
@@ -718,7 +718,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('MED and HIGH confidence produce meaningfully different M2 decisiveness', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.3 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -0.3 },
       { name: 'approach' as const, label: 'Approach', value: -1.3 },
       { name: 'putting' as const, label: 'Putting', value: -0.4 },
     ];
@@ -753,7 +753,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('HIGH confidence remains decisive without fake certainty mechanics claims', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.2 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -0.2 },
       { name: 'approach' as const, label: 'Approach', value: -1.5 },
       { name: 'putting' as const, label: 'Putting', value: -0.6 },
     ];
@@ -774,7 +774,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('measured penalties M2-D remains penalty-specific in main measured path', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.2 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -0.2 },
       { name: 'approach' as const, label: 'Approach', value: -0.6 },
       { name: 'putting' as const, label: 'Putting', value: -0.4 },
       { name: 'penalties' as const, label: 'Penalties', value: -1.6 },
@@ -804,7 +804,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('residual-dominant ambiguous rounds acknowledge uncertainty instead of forcing one cause', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: -0.3 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: -0.3 },
       { name: 'approach' as const, label: 'Approach', value: -0.6 },
       { name: 'putting' as const, label: 'Putting', value: -0.4 },
     ];
@@ -830,7 +830,7 @@ describe('buildDeterministicPostRoundInsights', () => {
   });
 
   test('partial-stat MED guidance stays grounded in available evidence', () => {
-    const onlyMeasured = [{ name: 'off_tee' as const, label: 'Off The Tee', value: -0.9 }];
+    const onlyMeasured = [{ name: 'off_tee' as const, label: 'Off the Tee', value: -0.9 }];
     const out = buildDeterministicPostRoundInsights(
       withOverrides({
         confidence: 'MED',
@@ -857,7 +857,7 @@ describe('buildDeterministicPostRoundInsights', () => {
 
   test('post-round copy avoids Overall and Round Focus long-term coaching language', () => {
     const comps = [
-      { name: 'off_tee' as const, label: 'Off The Tee', value: 0.2 },
+      { name: 'off_tee' as const, label: 'Off the Tee', value: 0.2 },
       { name: 'approach' as const, label: 'Approach', value: -1.1 },
       { name: 'putting' as const, label: 'Putting', value: -0.4 },
     ];

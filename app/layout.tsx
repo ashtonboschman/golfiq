@@ -7,6 +7,7 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import BootstrapClient from '@/components/BootstrapClient';
 import PwaManager from '@/components/pwa/PwaManager';
 import LiveRoundAutoResumeGate from '@/components/rounds/LiveRoundAutoResumeGate';
+import { PUBLIC_SITE_URL } from '@/lib/publicSite';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -15,7 +16,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.golfiq.ca"),
+  metadataBase: new URL(PUBLIC_SITE_URL),
   applicationName: "GolfIQ",
   category: "sports",
   creator: "GolfIQ",
@@ -58,7 +59,7 @@ export const metadata: Metadata = {
     title: "GolfIQ | Golf GPS, Round Tracking & Insights",
     description:
       "Track rounds quickly, use live GPS and My Bag club suggestions on supported courses, and understand your game with GolfIQ stats and insights.",
-    url: "https://www.golfiq.ca",
+    url: PUBLIC_SITE_URL,
     siteName: "GolfIQ",
     images: [
       {

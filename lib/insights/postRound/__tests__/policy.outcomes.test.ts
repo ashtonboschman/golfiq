@@ -14,10 +14,10 @@ const baseInput: PostRoundPolicyInput = {
   avgScore: 74,
   band: 'expected',
   measuredComponents: [
-    { name: 'off_tee', label: 'Off The Tee', value: 0.2 },
+    { name: 'off_tee', label: 'Off the Tee', value: 0.2 },
     { name: 'approach', label: 'Approach', value: -0.6 },
   ],
-  bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.2 },
+  bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: 0.2 },
   worstMeasured: { name: 'approach', label: 'Approach', value: -0.6 },
   opportunityIsWeak: true,
   residualDominant: false,
@@ -45,9 +45,9 @@ const cases: OutcomeCase[] = [
     expectedMessageFragment: 'held up best at about 0.5 strokes',
     input: {
       ...baseInput,
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: -0.5 },
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.5 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.5 },
         { name: 'approach', label: 'Approach', value: -0.6 },
       ],
     },
@@ -59,7 +59,7 @@ const cases: OutcomeCase[] = [
     expectedMessageFragment: 'gaining about 0.5 strokes',
     input: {
       ...baseInput,
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0.5 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: 0.5 },
     },
   },
   {
@@ -69,9 +69,9 @@ const cases: OutcomeCase[] = [
     expectedMessageFragment: 'finished close to even at 0.0 strokes',
     input: {
       ...baseInput,
-      bestMeasured: { name: 'off_tee', label: 'Off The Tee', value: 0 },
+      bestMeasured: { name: 'off_tee', label: 'Off the Tee', value: 0 },
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0 },
         { name: 'approach', label: 'Approach', value: -0.2 },
       ],
     },
@@ -97,7 +97,7 @@ const cases: OutcomeCase[] = [
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0 },
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0.2 },
         { name: 'approach', label: 'Approach', value: 0 },
       ],
     },
@@ -121,7 +121,7 @@ const cases: OutcomeCase[] = [
       ...baseInput,
       worstMeasured: { name: 'approach', label: 'Approach', value: 0.4 },
       measuredComponents: [
-        { name: 'off_tee', label: 'Off The Tee', value: 0.9 },
+        { name: 'off_tee', label: 'Off the Tee', value: 0.9 },
         { name: 'approach', label: 'Approach', value: 0.4 },
       ],
     },

@@ -1,4 +1,7 @@
 export const ANALYTICS_EVENTS = {
+  roundShareOpened: 'round_share_opened',
+  roundShareInvoked: 'round_share_invoked',
+  roundShareFailed: 'round_share_failed',
   onboardingStarted: 'onboarding_started',
   onboardingStepViewed: 'onboarding_step_viewed',
   onboardingStepCompleted: 'onboarding_step_completed',

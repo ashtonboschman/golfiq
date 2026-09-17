@@ -86,7 +86,7 @@ function buildPostRoundOutput() {
     avgScore: 78,
     band: 'below',
     measuredComponents: [
-      { name: 'off_tee', label: 'Off The Tee', value: -0.4 },
+      { name: 'off_tee', label: 'Off the Tee', value: -0.4 },
       { name: 'approach', label: 'Approach', value: -1.2 },
       { name: 'putting', label: 'Putting', value: -0.3 },
     ],

@@ -249,12 +249,12 @@ describe('/api/rounds/[id]/insights route contract', () => {
     });
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.1 },
         { name: 'putting', label: 'Putting', value: -0.4 },
         { name: 'penalties', label: 'Penalties', value: -0.1 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.1 },
       opportunityIsWeak: true,
       componentCount: 4,
@@ -435,11 +435,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
     });
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.1 },
         { name: 'approach', label: 'Approach', value: -0.2 },
         { name: 'putting', label: 'Putting', value: -0.2 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.1 },
       opportunity: { name: 'approach', label: 'Approach', value: -0.2 },
       opportunityIsWeak: false,
       componentCount: 3,
@@ -522,13 +522,13 @@ describe('/api/rounds/[id]/insights route contract', () => {
     });
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+        { name: 'off_tee', label: 'Off the Tee', value: 1.0 },
         { name: 'approach', label: 'Approach', value: 4.8 },
         { name: 'putting', label: 'Putting', value: 3.1 },
         { name: 'penalties', label: 'Penalties', value: 2.9 },
       ],
       best: { name: 'approach', label: 'Approach', value: 4.8 },
-      opportunity: { name: 'off_tee', label: 'Off The Tee', value: 1.0 },
+      opportunity: { name: 'off_tee', label: 'Off the Tee', value: 1.0 },
       opportunityIsWeak: false,
       componentCount: 4,
       residualDominant: false,
@@ -551,7 +551,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
     expect(insights.messages[1]).toMatch(
       /Several areas contributed positively|No measured area clearly held the round back|The round stayed steady because no major measured area added much pressure|Multiple areas helped the score/,
     );
-    expect(insights.messages[1]).not.toMatch(/Off the Tee likely helped|Off Tee likely helped|Off the Tee/i);
+    expect(insights.messages[1]).not.toMatch(/Off the Tee/i);
     expect(insights.message_outcomes[2]).toBe('M3-E');
     expect(insights.messages[2]).toMatch(
       /Keep choosing targets that leave a playable next shot|Let the safest miss guide decisions when risk appears|Keep favoring the side that keeps recovery manageable|Build decisions around avoiding the miss that escalates the hole/,
@@ -596,12 +596,12 @@ describe('/api/rounds/[id]/insights route contract', () => {
     });
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -1.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -1.2 },
         { name: 'approach', label: 'Approach', value: -0.6 },
         { name: 'putting', label: 'Putting', value: -0.3 },
       ],
       best: { name: 'putting', label: 'Putting', value: -0.3 },
-      opportunity: { name: 'off_tee', label: 'Off The Tee', value: -1.2 },
+      opportunity: { name: 'off_tee', label: 'Off the Tee', value: -1.2 },
       opportunityIsWeak: true,
       componentCount: 3,
       residualDominant: false,
@@ -621,7 +621,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('keeps area-specific next-round focus when weak separation exists but a strong leak is present', async () => {
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -0.8 },
         { name: 'putting', label: 'Putting', value: -1.2 },
         { name: 'penalties', label: 'Penalties', value: -0.1 },
@@ -682,7 +682,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -0.8 },
         { name: 'putting', label: 'Putting', value: -1.2 },
         { name: 'penalties', label: 'Penalties', value: -0.1 },
@@ -858,11 +858,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('free users do not receive SG numeric precision or residual suffix in insight cards', async () => {
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.3 },
         { name: 'putting', label: 'Putting', value: -0.9 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.3 },
       opportunityIsWeak: true,
       componentCount: 3,
@@ -902,10 +902,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('premium users include residual suffix only when residual is dominant', async () => {
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.3 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.3 },
       opportunityIsWeak: true,
       componentCount: 2,
@@ -937,10 +937,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.3 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.3 },
       opportunityIsWeak: true,
       componentCount: 2,
@@ -964,10 +964,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
   it('premium residual suffix requires dominant residual above magnitude threshold', async () => {
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.3 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.3 },
       opportunityIsWeak: true,
       componentCount: 2,
@@ -1007,11 +1007,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.3 },
         { name: 'putting', label: 'Putting', value: -0.7 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.3 },
       opportunityIsWeak: true,
       componentCount: 3,
@@ -1061,7 +1061,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -1.9 },
+        { name: 'off_tee', label: 'Off the Tee', value: -1.9 },
         { name: 'approach', label: 'Approach', value: -1.4 },
         { name: 'putting', label: 'Putting', value: -0.5 },
         { name: 'penalties', label: 'Penalties', value: -3.1 },
@@ -1112,11 +1112,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
     mockedRunMeasuredSgSelection.mockReset();
     const decisiveSelection = {
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.2 },
         { name: 'putting', label: 'Putting', value: -0.6 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.2 },
       opportunityIsWeak: true,
       componentCount: 3,
@@ -1139,11 +1139,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValueOnce({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.2 },
         { name: 'putting', label: 'Putting', value: -0.6 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.2 },
       opportunityIsWeak: true,
       componentCount: 3,
@@ -1189,11 +1189,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
     mockedRunMeasuredSgSelection.mockReset();
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -0.6 },
         { name: 'putting', label: 'Putting', value: -0.4 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -0.6 },
       opportunityIsWeak: true,
       componentCount: 3,
@@ -1449,10 +1449,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.2 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.2 },
       opportunityIsWeak: true,
       componentCount: 2,
@@ -1500,10 +1500,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.2 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.2 },
       opportunityIsWeak: true,
       componentCount: 2,
@@ -1551,10 +1551,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
 
     mockedRunMeasuredSgSelection.mockReturnValue({
       components: [
-        { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+        { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
         { name: 'approach', label: 'Approach', value: -1.2 },
       ],
-      best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+      best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
       opportunity: { name: 'approach', label: 'Approach', value: -1.2 },
       opportunityIsWeak: true,
       componentCount: 2,
@@ -1697,11 +1697,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
         name: 'M2-C',
         selection: {
           components: [
-            { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+            { name: 'off_tee', label: 'Off the Tee', value: -0.1 },
             { name: 'approach', label: 'Approach', value: 0.0 },
           ],
           best: { name: 'approach', label: 'Approach', value: 0.0 },
-          opportunity: { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+          opportunity: { name: 'off_tee', label: 'Off the Tee', value: -0.1 },
           opportunityIsWeak: true,
           componentCount: 2,
           residualDominant: false,
@@ -1713,10 +1713,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
         name: 'M2-D',
         selection: {
           components: [
-            { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+            { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
             { name: 'approach', label: 'Approach', value: -1.1 },
           ],
-          best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+          best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
           opportunity: { name: 'approach', label: 'Approach', value: -1.1 },
           opportunityIsWeak: true,
           componentCount: 2,
@@ -1729,10 +1729,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
         name: 'M2-E',
         selection: {
           components: [
-            { name: 'off_tee', label: 'Off The Tee', value: 0.9 },
+            { name: 'off_tee', label: 'Off the Tee', value: 0.9 },
             { name: 'approach', label: 'Approach', value: 0.4 },
           ],
-          best: { name: 'off_tee', label: 'Off The Tee', value: 0.9 },
+          best: { name: 'off_tee', label: 'Off the Tee', value: 0.9 },
           opportunity: { name: 'approach', label: 'Approach', value: 0.4 },
           opportunityIsWeak: true,
           componentCount: 2,
@@ -1782,10 +1782,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
       {
         selection: {
           components: [
-            { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+            { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
             { name: 'approach', label: 'Approach', value: -1.1 },
           ],
-          best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+          best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
           opportunity: { name: 'approach', label: 'Approach', value: -1.1 },
           opportunityIsWeak: true,
           componentCount: 2,
@@ -1798,10 +1798,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
       {
         selection: {
           components: [
-            { name: 'off_tee', label: 'Off The Tee', value: 0.9 },
+            { name: 'off_tee', label: 'Off the Tee', value: 0.9 },
             { name: 'approach', label: 'Approach', value: 0.4 },
           ],
-          best: { name: 'off_tee', label: 'Off The Tee', value: 0.9 },
+          best: { name: 'off_tee', label: 'Off the Tee', value: 0.9 },
           opportunity: { name: 'approach', label: 'Approach', value: 0.4 },
           opportunityIsWeak: true,
           componentCount: 2,
@@ -1814,11 +1814,11 @@ describe('/api/rounds/[id]/insights route contract', () => {
       {
         selection: {
           components: [
-            { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+            { name: 'off_tee', label: 'Off the Tee', value: -0.1 },
             { name: 'approach', label: 'Approach', value: 0.0 },
           ],
           best: { name: 'approach', label: 'Approach', value: 0.0 },
-          opportunity: { name: 'off_tee', label: 'Off The Tee', value: -0.1 },
+          opportunity: { name: 'off_tee', label: 'Off the Tee', value: -0.1 },
           opportunityIsWeak: true,
           componentCount: 2,
           residualDominant: false,
@@ -1945,7 +1945,7 @@ describe('/api/rounds/[id]/insights route contract', () => {
             baselineDeltaText: '2 strokes above your recent average of 82.',
             strongestArea: {
               area: 'off_tee',
-              label: 'Off The Tee',
+              label: 'Off the Tee',
               valueText: '+0.9 SG off tee',
               detailText: 'Fairways hit: 10/14 (71%).',
             },
@@ -2276,10 +2276,10 @@ describe('/api/rounds/[id]/insights route contract', () => {
       {
         selection: {
           components: [
-            { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+            { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
             { name: 'approach', label: 'Approach', value: -1.1 },
           ],
-          best: { name: 'off_tee', label: 'Off The Tee', value: -0.2 },
+          best: { name: 'off_tee', label: 'Off the Tee', value: -0.2 },
           opportunity: { name: 'approach', label: 'Approach', value: -1.1 },
           opportunityIsWeak: true,
           componentCount: 2,
