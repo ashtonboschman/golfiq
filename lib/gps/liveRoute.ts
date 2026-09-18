@@ -2,7 +2,7 @@ import { distanceYards, metersToYards } from '@/lib/gps/distance';
 import type { LiveGpsMappedHole, LiveGpsPoint } from '@/lib/gps/liveMappingTypes';
 
 const OFF_COURSE_FALLBACK_YARDS = 1800;
-const BEHIND_TEE_FALLBACK_YARDS = 35;
+export const BEHIND_TEE_FALLBACK_YARDS = 50;
 export const MAX_USABLE_LIVE_GPS_ACCURACY_YARDS = 25;
 
 function interpolateLatLng(from: LiveGpsPoint, to: LiveGpsPoint, ratio: number): LiveGpsPoint {

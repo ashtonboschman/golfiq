@@ -1,8 +1,10 @@
 import {
+  BEHIND_TEE_FALLBACK_YARDS,
   defaultLiveGpsIntermediateTargets,
   MAX_USABLE_LIVE_GPS_ACCURACY_YARDS,
   resolveLiveGpsMeasurementOrigin,
 } from '@/lib/gps/liveRoute';
+import { distanceYards } from '@/lib/gps/distance';
 import type { LiveGpsMappedHole } from '@/lib/gps/liveMappingTypes';
 
 const hole: LiveGpsMappedHole = {
@@ -20,6 +22,15 @@ const hole: LiveGpsMappedHole = {
 };
 
 const METERS_PER_YARD = 0.9144;
+
+function positionAlongHole(yards: number) {
+  const holeLengthYards = distanceYards(hole.tee, hole.green.center);
+  const ratio = yards / holeLengthYards;
+  return {
+    lat: hole.tee.lat + (hole.green.center.lat - hole.tee.lat) * ratio,
+    lng: hole.tee.lng + (hole.green.center.lng - hole.tee.lng) * ratio,
+  };
+}
 
 describe('defaultLiveGpsIntermediateTargets', () => {
   it('aims a par 3 directly at the green', () => {
@@ -91,6 +102,32 @@ describe('resolveLiveGpsMeasurementOrigin', () => {
 
   it('uses the deliberate 25-yard maximum for live GPS accuracy', () => {
     expect(MAX_USABLE_LIVE_GPS_ACCURACY_YARDS).toBe(25);
+  });
+
+  it('allows a usable GPS position within 50 yards behind the mapped tee', () => {
+    const position = positionAlongHole(-49);
+
+    expect(BEHIND_TEE_FALLBACK_YARDS).toBe(50);
+    expect(resolveLiveGpsMeasurementOrigin({
+      position,
+      accuracyMeters: 8,
+      hole,
+    })).toEqual(expect.objectContaining({
+      position,
+      usingTeeFallback: false,
+    }));
+  });
+
+  it('falls back to the mapped tee beyond 50 yards behind it', () => {
+    expect(resolveLiveGpsMeasurementOrigin({
+      position: positionAlongHole(-51),
+      accuracyMeters: 8,
+      hole,
+    })).toEqual(expect.objectContaining({
+      position: hole.tee,
+      usingTeeFallback: true,
+      reason: expect.stringContaining('behind the tee'),
+    }));
   });
 
   it('falls back safely when a position has no reported accuracy', () => {
