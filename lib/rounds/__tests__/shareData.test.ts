@@ -26,7 +26,7 @@ describe('round share data', () => {
       metadata: { holes: '18 HOLES', tee: null, ratingSlope: null, roundContext: null }, date: null,
     });
   });
-  test('includes a bounded signed-in display name in the card and share text', () => {
+  test('includes a bounded signed-in display name in the card', () => {
     const data = buildRoundShareData(shareStats, false, {
       firstName: '  Ashton  ',
       lastName: ` Golfer ${'Long'.repeat(20)} `,
@@ -34,13 +34,26 @@ describe('round share data', () => {
     expect(data.golferName).toBeTruthy();
     expect(data.golferName?.length).toBeLessThanOrEqual(50);
     expect(data.golferName).not.toMatch(/\s{2,}/);
-    expect(roundShareText(data).startsWith(`${data.golferName}: 77 (+7)`)).toBe(true);
     expect(buildRoundShareData(shareStats, false, { firstName: '   ', lastName: null }).golferName).toBeNull();
   });
-  test.each(['simulator', 'practice', 'scramble'] as const)('preserves %s context in image and text', round_context => {
+  test('uses the exact first-person caption without the public website URL', () => {
+    const data = buildRoundShareData({
+      ...shareStats,
+      course_name: 'MacGregor Town & Country Golf Club',
+      number_of_holes: 9,
+      total_score: 40,
+      score_to_par_formatted: '+5',
+    }, false, { firstName: 'Ashton', lastName: 'Boschman' });
+
+    expect(roundShareText(data)).toBe(
+      'I shot 40 (+5) over 9 holes at MacGregor Town & Country Golf Club ⛳️\nTracked with GolfIQ.',
+    );
+    expect(roundShareText(data)).not.toContain(data.publicUrl);
+  });
+  test.each(['simulator', 'practice', 'scramble'] as const)('preserves %s context in the image data', round_context => {
     const data = buildRoundShareData({ ...shareStats, round_context }, false);
     expect(data.context.toLowerCase()).toContain(round_context);
-    expect(roundShareText(data).toLowerCase()).toContain(round_context);
+    expect(data.metadata.roundContext).toBe(round_context.toUpperCase());
   });
   test('selects up to six stats in the share-card order and retains tracked zero penalties', () => {
     expect(buildRoundShareData(shareStats, false).stats.map(stat => [stat.label, stat.value])).toEqual([

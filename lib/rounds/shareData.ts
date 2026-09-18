@@ -219,7 +219,8 @@ export function buildRoundShareData(stats: ShareRoundStats, isPremium: boolean, 
 }
 
 export function roundShareText(data: RoundShareData): string {
-  return `${data.golferName ? `${data.golferName}: ` : ''}${data.score}${data.relativeToPar ? ` (${data.relativeToPar})` : ''} at ${data.course}\n${data.context}\nTracked with GolfIQ.\n${data.publicUrl}`;
+  const holes = data.metadata.holes.replace(/\s+HOLES$/i, '');
+  return `I shot ${data.score}${data.relativeToPar ? ` (${data.relativeToPar})` : ''} over ${holes} holes at ${data.course} ⛳️\nTracked with GolfIQ.`;
 }
 
 export function roundShareAnalytics(stats: ShareRoundStats, data?: RoundShareData) {

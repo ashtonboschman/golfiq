@@ -21,6 +21,7 @@ beforeEach(() => {
 test('Web Share receives the prepared PNG File directly', async () => {
   const promise = shareImage(file, 'Round text');
   expect(navigator.share).toHaveBeenCalledWith({ files: [file], text: 'Round text', title: 'GolfIQ Round Recap' });
+  expect(jest.mocked(navigator.share).mock.calls[0][0]).not.toHaveProperty('url');
   await promise;
 });
 test('unsupported file sharing falls back to download and releases the URL', async () => {
@@ -52,6 +53,7 @@ test.each([undefined, new Error('Share canceled'), new Error('Native failure')])
   else await promise;
   expect(Filesystem.writeFile).toHaveBeenCalledWith({ path: expect.stringMatching(/^golfiq-share-.*\.png$/), directory: 'CACHE', data: 'cG5n' });
   expect(Share.share).toHaveBeenCalledWith({ files: ['file:///cache/share.png'], text: 'Round text', title: 'GolfIQ Round Recap' });
+  expect(jest.mocked(Share.share).mock.calls[0][0]).not.toHaveProperty('url');
   expect(Filesystem.deleteFile).toHaveBeenCalledWith({ path: expect.stringMatching(/^golfiq-share-.*\.png$/), directory: 'CACHE' });
 });
 test('recognizes browser and Capacitor cancellations without swallowing genuine failures', () => {
