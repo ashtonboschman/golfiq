@@ -1769,12 +1769,6 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
             )}
           </div>
 
-          {gpsTestLocationEnabled && (
-            <div className="live-round-gps-test-badge" role="status">
-              Test GPS · Drag Blue Dot
-            </div>
-          )}
-
           {error && <div className="live-round-alert is-error">{error}</div>}
         </div>
 

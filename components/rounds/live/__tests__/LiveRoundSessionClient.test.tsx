@@ -1409,7 +1409,7 @@ describe('LiveRoundSessionClient autosave navigation', () => {
       'data-test-location-enabled',
       'true',
     );
-    expect(screen.getByText('Test GPS · Drag Blue Dot')).toBeInTheDocument();
+    expect(screen.queryByText('Test GPS · Drag Blue Dot')).not.toBeInTheDocument();
     expect(mockWatchPosition).not.toHaveBeenCalled();
   });
 
@@ -1430,7 +1430,6 @@ describe('LiveRoundSessionClient autosave navigation', () => {
       'data-test-location-enabled',
       'false',
     );
-    expect(screen.queryByText('Test GPS · Drag Blue Dot')).not.toBeInTheDocument();
     expect(mockWatchPosition).toHaveBeenCalledTimes(1);
   });
 

@@ -12098,15 +12098,7 @@ input[type='date'].form-input {
 }
 
 .live-round-gps-test-badge {
-  justify-self: start;
-  border: 1px solid var(--color-gps-overlay-border);
-  border-radius: var(--border-radius);
-  padding: var(--padding-small) var(--padding);
-  color: var(--color-gps-overlay-text);
-  background: var(--color-gps-overlay-surface);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
-  font-size: 0.72rem;
-  font-weight: 700;
+  display: none;
 }
 
 .live-round-gps-back {

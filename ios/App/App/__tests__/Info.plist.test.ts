@@ -18,6 +18,14 @@ describe('iOS native capabilities', () => {
     path.join(process.cwd(), 'ios', 'App', 'App.xcodeproj', 'project.pbxproj'),
     'utf8',
   );
+  const appDelegate = fs.readFileSync(
+    path.join(process.cwd(), 'ios', 'App', 'App', 'AppDelegate.swift'),
+    'utf8',
+  );
+  const mainStoryboard = fs.readFileSync(
+    path.join(process.cwd(), 'ios', 'App', 'App', 'Base.lproj', 'Main.storyboard'),
+    'utf8',
+  );
 
   it('declares transparent active-round background location usage', () => {
     expect(infoPlist).toContain('<key>NSLocationWhenInUseUsageDescription</key>');
@@ -65,7 +73,15 @@ describe('iOS native capabilities', () => {
   });
 
   it('uses the next TestFlight build number in all target configurations', () => {
-    expect(xcodeProject.match(/CURRENT_PROJECT_VERSION = 7;/g)).toHaveLength(2);
-    expect(xcodeProject).not.toContain('CURRENT_PROJECT_VERSION = 6;');
+    expect(xcodeProject.match(/CURRENT_PROJECT_VERSION = 9;/g)).toHaveLength(2);
+    expect(xcodeProject).not.toContain('CURRENT_PROJECT_VERSION = 8;');
+  });
+
+  it('shows a native loader while the initial hosted page loads', () => {
+    expect(mainStoryboard).toContain('customClass="GolfIQBridgeViewController"');
+    expect(appDelegate).toContain('final class GolfIQBridgeViewController: CAPBridgeViewController');
+    expect(appDelegate).toContain('installStartupLoader()');
+    expect(appDelegate).toContain('observe(\\.estimatedProgress');
+    expect(appDelegate).toContain('finishStartupLoader()');
   });
 });
