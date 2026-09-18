@@ -575,27 +575,37 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
   }, [clearScoreSheetOpenFrames]);
 
   useEffect(() => {
-    if (!session?.gpsEnabled) return;
+    if (!session?.status) return;
+
+    const shouldUseImmersiveShell = session.status === 'ACTIVE' && session.gpsEnabled;
+
+    if (!shouldUseImmersiveShell) {
+      document.body.style.overflow = '';
+      return;
+    }
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [session?.gpsEnabled]);
+  }, [session?.gpsEnabled, session?.status]);
 
   useEffect(() => {
-    if (!session?.gpsEnabled) return;
-
     const immersiveClass = 'live-round-gps-immersive-active';
     const shellElements = Array.from(document.querySelectorAll<HTMLElement>(
       '.app-layout > .header, .app-layout > .footer-menu',
     ));
-    const previousShellState = shellElements.map((element) => ({
-      element,
-      hidden: element.hidden,
-      ariaHidden: element.getAttribute('aria-hidden'),
-    }));
+    const shouldUseImmersiveShell = session?.status === 'ACTIVE' && session.gpsEnabled;
+
+    if (!shouldUseImmersiveShell) {
+      document.body.classList.remove(immersiveClass);
+      shellElements.forEach((element) => {
+        element.hidden = false;
+        element.removeAttribute('aria-hidden');
+      });
+      return;
+    }
 
     document.body.classList.add(immersiveClass);
     shellElements.forEach((element) => {
@@ -605,16 +615,12 @@ export default function LiveRoundSessionClient({ sessionId }: LiveRoundSessionCl
 
     return () => {
       document.body.classList.remove(immersiveClass);
-      previousShellState.forEach(({ element, hidden, ariaHidden }) => {
-        element.hidden = hidden;
-        if (ariaHidden === null) {
-          element.removeAttribute('aria-hidden');
-        } else {
-          element.setAttribute('aria-hidden', ariaHidden);
-        }
+      shellElements.forEach((element) => {
+        element.hidden = false;
+        element.removeAttribute('aria-hidden');
       });
     };
-  }, [session?.gpsEnabled]);
+  }, [session?.gpsEnabled, session?.status]);
 
   const gpsScoreSheetDesired = Boolean(
     session?.gpsEnabled && viewMode === 'score' && session.active_step === 'SCORE',

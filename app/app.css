@@ -11112,7 +11112,9 @@ input[type='date'].form-input {
 }
 
 .live-round-gps-hud.gps-admin-map-hud {
+  top: var(--gap);
   right: calc(var(--gap) + var(--gps-admin-distance-overlays-width) + var(--gap-small));
+  left: var(--app-shell-safe-left);
 }
 
 .gps-admin-map-hud > .live-round-gps-hole-menu {
@@ -11121,6 +11123,25 @@ input[type='date'].form-input {
 
 .live-round-gps-hole-card.gps-admin-map-hole-card {
   cursor: default;
+}
+
+.live-round-gps-controls.gps-admin-map-navigation {
+  right: var(--app-shell-safe-right);
+  bottom: 28px;
+  left: var(--app-shell-safe-left);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+  width: auto;
+  max-width: none;
+  margin: 0;
+  transform: none;
+}
+
+.gps-admin-map-navigation .btn {
+  width: 100%;
+  min-width: 0;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
 }
 
 .gps-admin-map-hole-card .gps-admin-status-pill {

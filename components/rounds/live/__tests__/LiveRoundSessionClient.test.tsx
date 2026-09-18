@@ -514,6 +514,75 @@ describe('LiveRoundSessionClient autosave navigation', () => {
     );
   });
 
+  it('restores the global shell after deleting a GPS live round', async () => {
+    const session = makeSession({ gpsEnabled: true, active_step: 'GPS' });
+    const discardedSession = makeSession({
+      gpsEnabled: true,
+      active_step: 'GPS',
+      status: 'DISCARDED',
+      discarded_at: '2026-06-26T13:00:00.000Z',
+    });
+    const fetchMock = jest.fn((url: string, init?: RequestInit) => {
+      if (url === '/api/gps/live/course/11') return Promise.resolve(apiResponse(liveGpsMapping([1])));
+      if (url === '/api/my-bag?mode=clubs') return Promise.resolve(apiResponse({ clubs: [] }));
+      if (!init?.method) return Promise.resolve(apiResponse({ session }));
+      if (init.method === 'POST' && url.endsWith('/discard')) {
+        return Promise.resolve(apiResponse({ session: discardedSession }));
+      }
+      throw new Error(`Unexpected request: ${init.method} ${url}`);
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    renderWithGlobalShell();
+
+    await screen.findByTestId('live-gps-map');
+    expect(screen.getByTestId('global-header')).toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-footer')).toHaveAttribute('hidden');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review Round' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Round' }));
+    const confirmOptions = showConfirm.mock.calls.at(-1)?.[0];
+    await act(async () => {
+      await confirmOptions.onConfirm();
+    });
+
+    expect(await screen.findByText('This live round has been deleted.')).toBeInTheDocument();
+    expect(document.body).not.toHaveClass('live-round-gps-immersive-active');
+    expect(document.body.style.overflow).toBe('');
+    expect(screen.getByTestId('global-header')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-footer')).not.toHaveAttribute('hidden');
+  });
+
+  it('clears stale immersive shell state when loading an already deleted round', async () => {
+    const discardedSession = makeSession({
+      gpsEnabled: true,
+      status: 'DISCARDED',
+      discarded_at: '2026-06-26T13:00:00.000Z',
+    });
+    const sessionResponse = deferred<Response>();
+    global.fetch = jest.fn(() => sessionResponse.promise) as typeof fetch;
+
+    renderWithGlobalShell();
+    document.body.classList.add('live-round-gps-immersive-active');
+    document.body.style.overflow = 'hidden';
+    screen.getByTestId('global-header').hidden = true;
+    screen.getByTestId('global-header').setAttribute('aria-hidden', 'true');
+    screen.getByTestId('global-footer').hidden = true;
+    screen.getByTestId('global-footer').setAttribute('aria-hidden', 'true');
+
+    await act(async () => {
+      sessionResponse.resolve(apiResponse({ session: discardedSession }));
+    });
+
+    expect(await screen.findByText('This live round has been deleted.')).toBeInTheDocument();
+    expect(document.body).not.toHaveClass('live-round-gps-immersive-active');
+    expect(document.body.style.overflow).toBe('');
+    expect(screen.getByTestId('global-header')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-header')).not.toHaveAttribute('aria-hidden');
+    expect(screen.getByTestId('global-footer')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('global-footer')).not.toHaveAttribute('aria-hidden');
+  });
+
   it('preserves missing-score treatment and totals in immersive GPS review', async () => {
     const session = makeTwoHoleSession({
       gpsEnabled: true,
