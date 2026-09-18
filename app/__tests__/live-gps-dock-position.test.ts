@@ -37,6 +37,18 @@ describe('immersive GPS dock vertical position', () => {
     expect(property(declarations('.live-round-score-sheet-dock'), 'flex')).toBe('0 0 auto');
   });
 
+  it('lets the score sheet hug its content up to the existing viewport limit', () => {
+    const scoreSheet = declarations('.live-round-score-sheet');
+    const dismissSurface = declarations('.live-round-score-sheet-dismiss');
+
+    expect(property(scoreSheet, 'top')).toBe('auto');
+    expect(property(scoreSheet, 'max-height')).toBe(
+      'calc(100% - var(--live-round-score-sheet-top))',
+    );
+    expect(property(dismissSurface, 'bottom')).toBe('0');
+    expect(property(dismissSurface, 'height')).toBe('auto');
+  });
+
   it('removes the score-sheet transform after opening to avoid subpixel text drift', () => {
     const openSheet = declarations('.live-round-score-sheet.is-open');
 
