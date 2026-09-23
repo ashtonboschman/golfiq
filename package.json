@@ -20,7 +20,8 @@
     "test:ci": "jest --ci --runInBand",
     "test:related": "jest --runInBand --findRelatedTests",
     "verify:fast": "node scripts/verify-fast.mjs",
-    "verify:full": "prisma generate && prisma validate && npm run lint && npm run typecheck && npm run test:ci && npm run build"
+    "verify:full": "prisma generate && prisma validate && npm run lint && npm run typecheck && npm run test:ci && npm run build",
+    "perf:snapshot": "node scripts/perf/snapshot.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^8.4.2",
