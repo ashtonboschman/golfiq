@@ -164,7 +164,7 @@ function countTrackedStats(input: {
   return tracked;
 }
 
-function parseCompletedRoundInput(input: unknown): CompletedRoundInput {
+export function parseCompletedRoundInput(input: unknown): CompletedRoundInput {
   const result = completedRoundInputSchema.safeParse(input);
   if (!result.success) {
     const firstError = result.error.issues[0];

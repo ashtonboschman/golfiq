@@ -114,6 +114,7 @@ const mockedCalculateStrokesGained = calculateStrokesGained as jest.Mock;
 const mockedRecalcLeaderboard = recalcLeaderboard as jest.Mock;
 const mockedGenerateOverall = generateAndStoreOverallInsights as jest.Mock;
 const mockedGenerateInsights = generateInsights as jest.Mock;
+let transactionRejected = false;
 
 function params(id: string) {
   return { params: Promise.resolve({ id }) } as any;
@@ -177,11 +178,14 @@ function makeHoleByHolePutRequest() {
 async function expectDatabaseFailure(response: Response) {
   expect(response.status).toBe(500);
   await expect(response.json()).resolves.toEqual({ message: 'Database error', type: 'error' });
+  expect(mockedPrisma.$transaction).toHaveBeenCalledTimes(1);
+  expect(transactionRejected).toBe(true);
 }
 
 describe('/api/rounds/[id] route contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    transactionRejected = false;
 
     mockedRequireAuth.mockResolvedValue(BigInt(1));
     mockedResolveTeeContext.mockReturnValue({
@@ -227,9 +231,14 @@ describe('/api/rounds/[id] route contract', () => {
     mockedPrisma.roundInsight.deleteMany.mockResolvedValue({ count: 1 });
     mockedPrisma.roundInsight.count.mockResolvedValue(0);
     mockedPrisma.liveRoundSession.deleteMany.mockResolvedValue({ count: 1 });
-    mockedPrisma.$transaction.mockImplementation(
-      (callback: (tx: MockPrisma) => unknown) => callback(mockedPrisma),
-    );
+    mockedPrisma.$transaction.mockImplementation(async (callback: (tx: MockPrisma) => unknown) => {
+      try {
+        return await callback(mockedPrisma);
+      } catch (error) {
+        transactionRejected = true;
+        throw error;
+      }
+    });
     mockedRecalcLeaderboard.mockResolvedValue(undefined);
     mockedGenerateInsights.mockResolvedValue(undefined);
     mockedGenerateOverall.mockResolvedValue(undefined);
@@ -721,7 +730,7 @@ describe('/api/rounds/[id] route contract', () => {
     });
   });
 
-  describe('PUT failure characterization (mock orchestration)', () => {
+  describe('PUT transaction orchestration (mocked Prisma)', () => {
     let consoleErrorSpy: jest.SpyInstance;
 
     beforeEach(() => {
@@ -747,7 +756,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedCaptureServerEvent).toHaveBeenCalledTimes(1);
     });
 
-    it('returns 500 after the Round update when existing-hole deletion fails', async () => {
+    it('aborts the transaction after the Round update when existing-hole deletion fails', async () => {
       mockedPrisma.roundHole.deleteMany.mockRejectedValueOnce(new Error('hole delete failed'));
 
       const response = await PUT(makeHoleByHolePutRequest() as any, params('9'));
@@ -760,7 +769,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
     });
 
-    it('returns 500 after existing holes are deleted when replacement-hole persistence fails', async () => {
+    it('aborts the transaction after hole deletion when replacement persistence fails', async () => {
       mockedPrisma.roundHole.createMany.mockRejectedValueOnce(new Error('replacement holes failed'));
 
       const response = await PUT(makeHoleByHolePutRequest() as any, params('9'));
@@ -776,7 +785,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedCalculateStrokesGained).not.toHaveBeenCalled();
     });
 
-    it('returns 500 after replacement holes exist when totals persistence fails', async () => {
+    it('aborts the transaction after replacement-hole writes when totals persistence fails', async () => {
       mockedPrisma.roundHole.findMany.mockResolvedValueOnce([
         { score: 4, firHit: 1, girHit: 1, putts: 2, penalties: 0, chips: null, greensideBunkerShots: null },
         { score: 5, firHit: 0, girHit: 0, putts: 2, penalties: 0, chips: null, greensideBunkerShots: null },
@@ -805,7 +814,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
     });
 
-    it('returns 500 after root and to-par writes when net persistence fails', async () => {
+    it('aborts the transaction after root and to-par writes when net persistence fails', async () => {
       mockedPrisma.round.update
         .mockResolvedValueOnce({})
         .mockResolvedValueOnce({})
@@ -820,7 +829,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
     });
 
-    it('returns 500 after core round writes when strokes-gained calculation fails', async () => {
+    it('aborts the transaction after core round writes when strokes-gained calculation fails', async () => {
       mockedCalculateStrokesGained.mockRejectedValueOnce(new Error('SG calculation failed'));
 
       const response = await PUT(makeAfterRoundPutRequest() as any, params('9'));
@@ -832,7 +841,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
     });
 
-    it('returns 500 after core round writes when strokes-gained persistence fails', async () => {
+    it('aborts the transaction after core round writes when strokes-gained persistence fails', async () => {
       mockedPrisma.roundStrokesGained.updateMany.mockRejectedValueOnce(new Error('SG update failed'));
 
       const response = await PUT(makeAfterRoundPutRequest() as any, params('9'));
@@ -844,7 +853,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedPrisma.roundInsight.deleteMany).not.toHaveBeenCalled();
     });
 
-    it('returns 500 after round and SG writes when leaderboard projection fails', async () => {
+    it('aborts the transaction after round and SG writes when leaderboard projection fails', async () => {
       mockedRecalcLeaderboard.mockRejectedValueOnce(new Error('leaderboard failed'));
 
       const response = await PUT(makeAfterRoundPutRequest() as any, params('9'));
@@ -856,7 +865,7 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedGenerateInsights).not.toHaveBeenCalled();
     });
 
-    it('returns 500 after leaderboard projection when old-insight deletion fails', async () => {
+    it('aborts the transaction after leaderboard projection when insight deletion fails', async () => {
       mockedPrisma.roundInsight.deleteMany.mockRejectedValueOnce(new Error('insight delete failed'));
 
       const response = await PUT(makeAfterRoundPutRequest() as any, params('9'));
@@ -869,7 +878,17 @@ describe('/api/rounds/[id] route contract', () => {
     });
 
     it('returns 200 with old insights deleted when replacement generation fails', async () => {
-      mockedGenerateInsights.mockRejectedValueOnce(new Error('insight generation failed'));
+      let transactionCompleted = false;
+      let insightSawCommittedState = false;
+      mockedPrisma.$transaction.mockImplementationOnce(async (callback: (tx: MockPrisma) => unknown) => {
+        const result = await callback(mockedPrisma);
+        transactionCompleted = true;
+        return result;
+      });
+      mockedGenerateInsights.mockImplementationOnce(() => {
+        insightSawCommittedState = transactionCompleted;
+        return Promise.reject(new Error('insight generation failed'));
+      });
 
       const response = await PUT(makeAfterRoundPutRequest() as any, params('9'));
 
@@ -878,10 +897,77 @@ describe('/api/rounds/[id] route contract', () => {
       expect(mockedRecalcLeaderboard).toHaveBeenCalledTimes(1);
       expect(mockedPrisma.roundInsight.deleteMany).toHaveBeenCalledTimes(1);
       expect(mockedGenerateInsights).toHaveBeenCalledTimes(1);
+      expect(insightSawCommittedState).toBe(true);
       expect(mockedGenerateOverall).toHaveBeenCalledTimes(1);
       expect(mockedCaptureServerEvent).toHaveBeenCalledTimes(1);
-      expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockedPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(transactionRejected).toBe(false);
       expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to generate insights:', expect.any(Error));
+    });
+
+    it('uses one distinct transaction client for holes, totals, net, SG, leaderboard, and invalidation', async () => {
+      const tx = {
+        round: {
+          update: jest.fn().mockResolvedValue({}),
+          findUnique: jest.fn()
+            .mockResolvedValueOnce({
+              teeSegment: 'full',
+              tee: { numberOfHoles: 2, holes: [
+                { holeNumber: 1, par: 4 }, { holeNumber: 2, par: 4 },
+              ] },
+            })
+            .mockResolvedValueOnce({
+              score: 9, teeId: BigInt(12), handicapAtRound: 2.1,
+              chips: null, greensideBunkerShots: null, shortGameShots: null,
+            }),
+        },
+        roundHole: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 2 }),
+          createMany: jest.fn().mockResolvedValue({ count: 2 }),
+          findMany: jest.fn().mockResolvedValue([
+            { score: 4, firHit: 1, girHit: 1, putts: 2, penalties: 0, chips: null, greensideBunkerShots: null },
+            { score: 5, firHit: 0, girHit: 0, putts: 2, penalties: 0, chips: null, greensideBunkerShots: null },
+          ]),
+        },
+        roundStrokesGained: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        roundInsight: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      };
+      mockedPrisma.$transaction.mockImplementationOnce((callback: (db: typeof tx) => unknown) => callback(tx));
+
+      const response = await PUT(makeHoleByHolePutRequest() as any, params('9'));
+
+      expect(response.status).toBe(200);
+      expect(tx.roundHole.deleteMany).toHaveBeenCalledTimes(1);
+      expect(tx.roundHole.createMany).toHaveBeenCalledTimes(1);
+      expect(tx.roundHole.findMany).toHaveBeenCalledTimes(1);
+      expect(tx.round.update).toHaveBeenCalledTimes(3);
+      expect(tx.roundStrokesGained.updateMany).toHaveBeenCalledTimes(1);
+      expect(tx.roundInsight.deleteMany).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.round.update).not.toHaveBeenCalled();
+      expect(mockedPrisma.roundHole.deleteMany).not.toHaveBeenCalled();
+      expect(mockedPrisma.roundStrokesGained.updateMany).not.toHaveBeenCalled();
+      expect(mockedPrisma.roundInsight.deleteMany).not.toHaveBeenCalled();
+      expect(mockedCalculateStrokesGained).toHaveBeenCalledWith(
+        { userId: BigInt(1), roundId: BigInt(9) }, tx,
+      );
+      expect(mockedRecalcLeaderboard).toHaveBeenCalledWith(BigInt(1), tx);
+      expect(mockedGenerateInsights).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns 200 when analytics unexpectedly rejects after the edit commits', async () => {
+      mockedCaptureServerEvent.mockRejectedValueOnce(new Error('analytics wrapper failed'));
+
+      const response = await PUT(makeAfterRoundPutRequest() as any, params('9'));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ message: 'Round updated', type: 'success' });
+      expect(mockedPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(transactionRejected).toBe(false);
+      expect(mockedPrisma.roundInsight.deleteMany).toHaveBeenCalledTimes(1);
+      expect(mockedCaptureServerEvent).toHaveBeenCalledTimes(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'PUT /api/rounds/:id post-commit effects error:', expect.any(Error),
+      );
     });
   });
 });

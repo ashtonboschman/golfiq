@@ -80,6 +80,22 @@ describe("leaderboard utils", () => {
     });
   });
 
+  it("keeps leaderboard reads and writes on a supplied transaction client", async () => {
+    const tx = {
+      round: { findMany: jest.fn().mockResolvedValue([]) },
+      userLeaderboardStats: { upsert: jest.fn().mockResolvedValue({}) },
+    };
+
+    await recalcLeaderboard(BigInt(5), tx as never);
+
+    expect(tx.round.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: BigInt(5), roundContext: 'real' },
+    }));
+    expect(tx.userLeaderboardStats.upsert).toHaveBeenCalledTimes(1);
+    expect(mockedPrisma.round.findMany).not.toHaveBeenCalled();
+    expect(mockedPrisma.userLeaderboardStats.upsert).not.toHaveBeenCalled();
+  });
+
   it("clears stats when no valid rounds exist", async () => {
     mockedPrisma.round.findMany.mockResolvedValue([
       { score: null, toPar: null, teeSegment: "full", tee: {} },
