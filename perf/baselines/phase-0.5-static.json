@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "static-safety-baseline",
+  "generatedAt": "2026-09-23T14:45:31.625Z",
+  "git": {
+    "commitSha": "681275d7d40df088727073f4d9c34e9738de5480",
+    "workingTreeCleanAtAuditStart": true
+  },
+  "runtime": {
+    "node": "v24.11.0",
+    "next": "16.3.3",
+    "prisma": "7.10.0",
+    "platform": "win32",
+    "serverMode": null
+  },
+  "measurementAvailability": {
+    "status": "BLOCKED",
+    "reason": "No repository-declared or operator-confirmed non-production database and authenticated server target was available. The normal DATABASE_URL was not inspected or used."
+  },
+  "dataset": {
+    "status": "NOT MEASURED",
+    "databaseLabel": null,
+    "fixtureLabel": null,
+    "postgresVersion": null
+  },
+  "scenarios": [
+    {
+      "id": "dashboard.free",
+      "status": "STATICALLY CONFIRMED ONLY",
+      "requestDurationMs": null,
+      "payloadBytes": null,
+      "resultCount": null,
+      "queryCount": null,
+      "dbDurationMs": null,
+      "evidence": {
+        "route": "app/api/dashboard/route.ts",
+        "authentication": "required",
+        "tierBehavior": "The route loads real rounds before loading the owner tier and applying the Free last-20 cap.",
+        "queryCharacteristics": [
+          "Dashboard Round Focus performs its own round candidate, stored insight, and viewer entitlement reads where applicable.",
+          "The main dashboard round query includes course location plus tee holes for every matching real round.",
+          "Hole-by-hole rows are loaded for the selected statistics round IDs."
+        ]
+      }
+    },
+    {
+      "id": "courses.search",
+      "status": "STATICALLY CONFIRMED ONLY",
+      "requestDurationMs": null,
+      "payloadBytes": null,
+      "resultCount": null,
+      "queryCount": null,
+      "dbDurationMs": null,
+      "evidence": {
+        "route": "app/api/courses/route.ts",
+        "authentication": "required",
+        "queryCharacteristics": [
+          "One list/search query loads the requested course page.",
+          "Each returned course then triggers a separate findUnique including location, all tees, and all holes.",
+          "Static route-level shape is one list query plus N full-course queries; this is not a runtime query-count measurement."
+        ]
+      }
+    },
+    {
+      "id": "friends.search",
+      "status": "STATICALLY CONFIRMED ONLY",
+      "requestDurationMs": null,
+      "payloadBytes": null,
+      "resultCount": null,
+      "queryCount": null,
+      "dbDurationMs": null,
+      "evidence": {
+        "route": "app/api/friends/search/route.ts",
+        "authentication": "required",
+        "maximumResults": 50,
+        "queryCharacteristics": [
+          "One user search query returns candidates.",
+          "Each candidate performs a friendship query and conditionally outgoing and incoming request queries.",
+          "Static worst-case route-level shape is one plus three times N queries; this is not a runtime query-count measurement."
+        ]
+      }
+    },
+    {
+      "id": "leaderboard.global",
+      "status": "STATICALLY CONFIRMED ONLY",
+      "requestDurationMs": null,
+      "payloadBytes": null,
+      "resultCount": null,
+      "queryCount": null,
+      "dbDurationMs": null,
+      "evidence": {
+        "route": "app/api/leaderboard/route.ts",
+        "authentication": "required",
+        "tierBehavior": "Free global responses load up to 50 ranked rows; Premium responses honor page size up to 100.",
+        "queryCharacteristics": [
+          "Blocked-user, entitlement/profile, total-count, and leaderboard-list reads precede rank calculation.",
+          "Competition rank executes an additional count query for every displayed leaderboard row.",
+          "The Free global path also reads and ranks the current user's aggregate when it exists."
+        ]
+      }
+    },
+    {
+      "id": "round.create",
+      "status": "BLOCKED",
+      "requestDurationMs": null,
+      "payloadBytes": null,
+      "queryCount": null,
+      "dbDurationMs": null,
+      "reason": "No disposable synthetic database/user/course/tee fixture and cleanup lifecycle was available."
+    },
+    {
+      "id": "round.edit",
+      "status": "BLOCKED",
+      "requestDurationMs": null,
+      "payloadBytes": null,
+      "queryCount": null,
+      "dbDurationMs": null,
+      "reason": "No disposable synthetic round fixture and cleanup lifecycle was available."
+    },
+    {
+      "id": "live.finalize",
+      "status": "BLOCKED",
+      "requestDurationMs": null,
+      "payloadBytes": null,
+      "queryCount": null,
+      "dbDurationMs": null,
+      "reason": "No disposable active live-session fixture with complete synthetic hole drafts was available."
+    }
+  ],
+  "queryPlans": {
+    "status": "NOT CAPTURED",
+    "plans": [],
+    "reason": "No clearly non-production PostgreSQL target with representative fixtures was available; EXPLAIN ANALYZE was not run."
+  }
+}

@@ -47,6 +47,9 @@ yarn-error.log*
 *.swp
 *~
 
+# generated performance snapshots
+/perf/results/
+
 # documentation
 /docs/*
 !/docs/course-identity-migration.md
