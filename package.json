@@ -8,14 +8,19 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "lifetime:grant": "tsx scripts/grant-lifetime.ts",
     "lifetime:revoke": "tsx scripts/revoke-lifetime.ts",
     "lifetime:list": "tsx scripts/list-lifetime.ts",
     "courses:verify-existing": "tsx scripts/verify-existing-courses.ts",
     "leaderboard:backfill": "tsx scripts/backfill-leaderboard-stats.ts",
     "seed:test-rounds": "tsx scripts/seed-test-rounds.ts",
-    "test": "jest --watchAll"
+    "test": "jest --watchAll",
+    "test:watch": "jest --watchAll",
+    "test:ci": "jest --ci --runInBand",
+    "test:related": "jest --runInBand --findRelatedTests",
+    "verify:fast": "node scripts/verify-fast.mjs",
+    "verify:full": "prisma generate && prisma validate && npm run lint && npm run typecheck && npm run test:ci && npm run build"
   },
   "dependencies": {
     "@capacitor/cli": "^8.4.2",
