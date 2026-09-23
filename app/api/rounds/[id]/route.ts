@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
@@ -400,16 +401,149 @@ export async function PUT(
       }
     }
 
-    // Update round (initial update without netScore/netToPar)
-    await prisma.round.update({
-      where: { id: roundId },
-      data: {
+    const updatedRound = await prisma.$transaction(
+      async (tx) => {
+        // Update round (initial update without netScore/netToPar)
+        await tx.round.update({
+          where: { id: roundId },
+          data: {
+            courseId,
+            teeId,
+            teeSegment,
+            roundContext,
+            holesPlayed: ctx.holes,
+            date: updatedAt,
+            holeByHole: data.hole_by_hole,
+            score: updateScore,
+            firHit: updateFir,
+            girHit: updateGir,
+            putts: updatePutts,
+            penalties: updatePenalties,
+            chips: updateChips,
+            greensideBunkerShots: updateGreensideBunkerShots,
+            shortGameShots: updateShortGameShots,
+            notes: data.notes ?? null,
+          },
+        });
+
+        if (!data.hole_by_hole) {
+          const toPar = updateScore - ctx.parTotal;
+          await tx.round.update({
+            where: { id: roundId },
+            data: { toPar },
+          });
+        }
+
+        // Handle hole-by-hole data
+        if (data.hole_by_hole && data.round_holes) {
+          // Delete existing holes
+          await tx.roundHole.deleteMany({ where: { roundId } });
+
+          // Create new holes
+          if (data.round_holes.length) {
+            await tx.roundHole.createMany({
+              data: data.round_holes.map((h) => ({
+                roundId,
+                holeId: BigInt(h.hole_id),
+                pass: h.pass ?? 1,
+                score: h.score ?? 0,
+                firHit: h.fir_hit ?? null,
+                firDirection: normalizeHoleDirection(
+                  h.fir_hit ?? null,
+                  h.fir_direction ?? null,
+                ),
+                girHit: h.gir_hit ?? null,
+                girDirection: normalizeHoleDirection(
+                  h.gir_hit ?? null,
+                  h.gir_direction ?? null,
+                ),
+                putts: h.putts ?? null,
+                penalties: h.penalties ?? null,
+                chips: h.chips ?? null,
+                greensideBunkerShots: h.greenside_bunker_shots ?? null,
+              })),
+            });
+          }
+
+          // Recalculate totals for hole-by-hole rounds
+          await recalcRoundTotals(roundId, tx);
+        }
+
+        // Fetch updated round totals (after recalcRoundTotals if hole-by-hole)
+        const updatedRound = await tx.round.findUnique({
+          where: { id: roundId },
+          select: {
+            score: true,
+            teeId: true,
+            handicapAtRound: true,
+            chips: true,
+            greensideBunkerShots: true,
+            shortGameShots: true,
+          },
+        });
+
+        // Recalculate netScore/netToPar using handicapAtRound and resolved tee context
+        if (updatedRound?.score !== null) {
+          const netResult = calculateNetScore(
+            Number(updatedRound?.score),
+            updatedRound?.handicapAtRound !== null &&
+              updatedRound?.handicapAtRound !== undefined
+              ? Number(updatedRound.handicapAtRound)
+              : null,
+            ctx,
+          );
+
+          await tx.round.update({
+            where: { id: roundId },
+            data: {
+              netScore: netResult.netScore,
+              netToPar: netResult.netToPar,
+            },
+          });
+        }
+
+        // Calculate strokes gained
+        const sg = await calculateStrokesGained({ userId, roundId }, tx);
+        const updatedSG = await tx.roundStrokesGained.updateMany({
+          where: { roundId },
+          data: {
+            sgTotal: sg.sgTotal,
+            sgOffTee: sg.sgOffTee,
+            sgApproach: sg.sgApproach,
+            sgShortGame: sg.sgShortGame,
+            sgPutting: sg.sgPutting,
+            sgPenalties: sg.sgPenalties,
+            sgResidual: sg.sgResidual,
+            messages: sg.messages,
+            partialAnalysis: sg.partialAnalysis,
+          },
+        });
+        if (updatedSG.count === 0) {
+          await tx.roundStrokesGained.create({
+            data: { roundId, userId, ...sg },
+          });
+        }
+
+        // Recalculate leaderboard
+        await recalcLeaderboard(userId, tx);
+
+        // Invalidate the old insight with the edit so it cannot remain stale.
+        await tx.roundInsight.deleteMany({ where: { roundId } });
+        return updatedRound;
+      },
+      { timeout: 30_000 },
+    );
+
+    // The old insight is invalidated with the edit; replacement is best-effort.
+    try {
+      await triggerInsightsGeneration(roundId, userId, true);
+      await triggerOverallInsightsGeneration(userId);
+
+      const fieldsChangedCount = countChangedFields(existingRound, {
         courseId,
         teeId,
         teeSegment,
         roundContext,
-        holesPlayed: ctx.holes,
-        date: updatedAt,
         holeByHole: data.hole_by_hole,
         score: updateScore,
         firHit: updateFir,
@@ -420,139 +554,31 @@ export async function PUT(
         greensideBunkerShots: updateGreensideBunkerShots,
         shortGameShots: updateShortGameShots,
         notes: data.notes ?? null,
-      },
-    });
-
-    if (!data.hole_by_hole) {
-      const toPar = updateScore - ctx.parTotal;
-      await prisma.round.update({
-        where: { id: roundId },
-        data: { toPar },
       });
-    }
 
-    // Handle hole-by-hole data
-    if (data.hole_by_hole && data.round_holes) {
-      // Delete existing holes
-      await prisma.roundHole.deleteMany({ where: { roundId } });
-
-      // Create new holes
-      if (data.round_holes.length) {
-        await prisma.roundHole.createMany({
-          data: data.round_holes.map(h => ({
-            roundId,
-            holeId: BigInt(h.hole_id),
-            pass: h.pass ?? 1,
-            score: h.score ?? 0,
-            firHit: h.fir_hit ?? null,
-            firDirection: normalizeHoleDirection(h.fir_hit ?? null, h.fir_direction ?? null),
-            girHit: h.gir_hit ?? null,
-            girDirection: normalizeHoleDirection(h.gir_hit ?? null, h.gir_direction ?? null),
-            putts: h.putts ?? null,
-            penalties: h.penalties ?? null,
-            chips: h.chips ?? null,
-            greensideBunkerShots: h.greenside_bunker_shots ?? null,
-          })),
-        });
-      }
-
-      // Recalculate totals for hole-by-hole rounds
-      await recalcRoundTotals(roundId);
-    }
-
-    // Fetch updated round totals (after recalcRoundTotals if hole-by-hole)
-    const updatedRound = await prisma.round.findUnique({
-      where: { id: roundId },
-      select: {
-        score: true,
-        teeId: true,
-        handicapAtRound: true,
-        chips: true,
-        greensideBunkerShots: true,
-        shortGameShots: true,
-      },
-    });
-
-    // Recalculate netScore/netToPar using handicapAtRound and resolved tee context
-    if (updatedRound?.score !== null) {
-      const netResult = calculateNetScore(
-        Number(updatedRound?.score),
-        updatedRound?.handicapAtRound !== null && updatedRound?.handicapAtRound !== undefined
-          ? Number(updatedRound.handicapAtRound) : null,
-        ctx
-      );
-
-      await prisma.round.update({
-        where: { id: roundId },
-        data: { netScore: netResult.netScore, netToPar: netResult.netToPar },
+      await captureServerEvent({
+        event: ANALYTICS_EVENTS.roundEditCompleted,
+        distinctId: userId.toString(),
+        properties: {
+          round_id: roundId.toString(),
+          fields_changed_count: fieldsChangedCount,
+          mode: data.hole_by_hole ? 'live_round' : 'after_round',
+          holes: ctx.holes,
+          round_context: roundContext,
+          has_chips_tracked: updatedRound?.chips != null,
+          has_greenside_bunker_tracked:
+            updatedRound?.greensideBunkerShots != null,
+          short_game_shots_tracked: updatedRound?.shortGameShots != null,
+        },
+        context: {
+          request,
+          sourcePage: '/api/rounds/[id]',
+          isLoggedIn: true,
+        },
       });
+    } catch (error) {
+      console.error('PUT /api/rounds/:id post-commit effects error:', error);
     }
-
-    // Calculate strokes gained
-    const sg = await calculateStrokesGained({ userId, roundId }, prisma);
-    const updatedSG = await prisma.roundStrokesGained.updateMany({
-      where: { roundId },
-      data: {
-        sgTotal: sg.sgTotal,
-        sgOffTee: sg.sgOffTee,
-        sgApproach: sg.sgApproach,
-        sgShortGame: sg.sgShortGame,
-        sgPutting: sg.sgPutting,
-        sgPenalties: sg.sgPenalties,
-        sgResidual: sg.sgResidual,
-        messages: sg.messages,
-        partialAnalysis: sg.partialAnalysis,
-      },
-    });
-    if (updatedSG.count === 0) {
-      await prisma.roundStrokesGained.create({ data: { roundId, userId, ...sg } });
-    }
-
-    // Recalculate leaderboard
-    await recalcLeaderboard(userId);
-
-    // Always regenerate insights after a round update.
-    // Await here so edits reliably reflect the latest Message 3 policy/data on next view.
-    await prisma.roundInsight.deleteMany({ where: { roundId } });
-    await triggerInsightsGeneration(roundId, userId, true);
-    await triggerOverallInsightsGeneration(userId);
-
-    const fieldsChangedCount = countChangedFields(existingRound, {
-      courseId,
-      teeId,
-      teeSegment,
-      roundContext,
-      holeByHole: data.hole_by_hole,
-      score: updateScore,
-      firHit: updateFir,
-      girHit: updateGir,
-      putts: updatePutts,
-      penalties: updatePenalties,
-      chips: updateChips,
-      greensideBunkerShots: updateGreensideBunkerShots,
-      shortGameShots: updateShortGameShots,
-      notes: data.notes ?? null,
-    });
-
-    await captureServerEvent({
-      event: ANALYTICS_EVENTS.roundEditCompleted,
-      distinctId: userId.toString(),
-      properties: {
-        round_id: roundId.toString(),
-        fields_changed_count: fieldsChangedCount,
-        mode: data.hole_by_hole ? 'live_round' : 'after_round',
-        holes: ctx.holes,
-        round_context: roundContext,
-        has_chips_tracked: updatedRound?.chips != null,
-        has_greenside_bunker_tracked: updatedRound?.greensideBunkerShots != null,
-        short_game_shots_tracked: updatedRound?.shortGameShots != null,
-      },
-      context: {
-        request,
-        sourcePage: '/api/rounds/[id]',
-        isLoggedIn: true,
-      },
-    });
 
     return successResponse({ message: 'Round updated' });
   } catch (error) {
@@ -672,8 +698,8 @@ export async function DELETE(
 }
 
 // Helper to recalculate round totals
-async function recalcRoundTotals(roundId: bigint): Promise<void> {
-  const holes = await prisma.roundHole.findMany({
+async function recalcRoundTotals(roundId: bigint, db: Prisma.TransactionClient): Promise<void> {
+  const holes = await db.roundHole.findMany({
     where: { roundId },
     select: {
       score: true,
@@ -691,7 +717,7 @@ async function recalcRoundTotals(roundId: bigint): Promise<void> {
   const totalScore = holes.reduce((sum: any, h: any) => sum + h.score, 0);
 
   // Get round's tee to calculate toPar via resolveTeeContext
-  const round = await prisma.round.findUnique({
+  const round = await db.round.findUnique({
     where: { id: roundId },
     select: {
       teeSegment: true,
@@ -738,7 +764,7 @@ async function recalcRoundTotals(roundId: bigint): Promise<void> {
   totals.greensideBunkerShots = sumField('greensideBunkerShots');
   totals.shortGameShots = deriveShortGameShots(totals.chips, totals.greensideBunkerShots);
 
-  await prisma.round.update({
+  await db.round.update({
     where: { id: roundId },
     data: totals,
   });

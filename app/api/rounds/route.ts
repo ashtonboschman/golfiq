@@ -6,6 +6,7 @@ import { captureServerEvent } from '@/lib/analytics/server';
 import {
   CompletedRoundFinalizationError,
   createCompletedRoundFromInput,
+  parseCompletedRoundInput,
   type RoundContext,
 } from '@/lib/rounds/finalizeRound';
 
@@ -172,15 +173,28 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid request body', 400);
     }
 
-    const { roundId } = await createCompletedRoundFromInput({
-      userId,
-      input: body,
-      analytics: {
-        request,
-        sourcePage: '/api/rounds',
-        isLoggedIn: true,
-      },
-    });
+    const authenticatedUserId = userId;
+    const validatedInput = parseCompletedRoundInput(body);
+    const { roundId, runPostCommitSideEffects } = await prisma.$transaction((tx) =>
+      createCompletedRoundFromInput({
+        userId: authenticatedUserId,
+        input: validatedInput,
+        db: tx,
+        deferPostCommitSideEffects: true,
+        analytics: {
+          request,
+          sourcePage: '/api/rounds',
+          isLoggedIn: true,
+        },
+      }),
+      { timeout: 30_000 },
+    );
+
+    try {
+      await runPostCommitSideEffects?.();
+    } catch (error) {
+      console.error('POST /api/rounds post-commit effects error:', error);
+    }
 
     return successResponse({ message: 'Round created', roundId: roundId.toString() }, 201);
   } catch (error) {
