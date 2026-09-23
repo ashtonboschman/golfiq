@@ -42,6 +42,7 @@ jest.mock('@/lib/db', () => ({
     user: {
       findUnique: jest.fn(),
     },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -97,6 +98,7 @@ type MockPrisma = {
   user: {
     findUnique: jest.Mock;
   };
+  $transaction: jest.Mock;
 };
 
 const mockedRequireAuth = requireAuth as jest.Mock;
@@ -149,6 +151,46 @@ function makeListRound(roundContext: 'real' | 'simulator' | 'practice' | 'scramb
       numberOfHoles: 18,
     },
   };
+}
+
+function makeAfterRoundPostRequest() {
+  return new Request('http://localhost/api/rounds', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      course_id: 11,
+      tee_id: 12,
+      date: '2026-04-20',
+      score: 78,
+      fir_hit: 8,
+      gir_hit: 9,
+      putts: 31,
+      penalties: 1,
+      hole_by_hole: 0,
+    }),
+  });
+}
+
+function makeHoleByHolePostRequest() {
+  return new Request('http://localhost/api/rounds', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      course_id: 11,
+      tee_id: 12,
+      date: '2026-04-20',
+      hole_by_hole: 1,
+      round_holes: [
+        { hole_id: 101, pass: 1, score: 4, fir_hit: 1, gir_hit: 1, putts: 2, penalties: 0 },
+        { hole_id: 102, pass: 1, score: 5, fir_hit: 0, gir_hit: 0, putts: 2, penalties: 0 },
+      ],
+    }),
+  });
+}
+
+async function expectDatabaseFailure(response: Response) {
+  expect(response.status).toBe(500);
+  await expect(response.json()).resolves.toEqual({ message: 'Database error', type: 'error' });
 }
 
 describe('/api/rounds route contract', () => {
@@ -578,5 +620,132 @@ describe('/api/rounds route contract', () => {
     const response = await POST(request as any);
     expect(response.status).toBe(400);
     expect(mockedPrisma.roundHole.createMany).not.toHaveBeenCalled();
+  });
+
+  describe('POST failure characterization (mock orchestration)', () => {
+    let consoleErrorSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('returns 500 without downstream writes when the Round root write fails', async () => {
+      mockedPrisma.round.create.mockRejectedValueOnce(new Error('round create failed'));
+
+      const response = await POST(makeAfterRoundPostRequest() as any);
+
+      await expectDatabaseFailure(response);
+      expect(mockedPrisma.round.create).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.roundHole.createMany).not.toHaveBeenCalled();
+      expect(mockedCalculateStrokesGained).not.toHaveBeenCalled();
+      expect(mockedPrisma.roundStrokesGained.create).not.toHaveBeenCalled();
+      expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
+      expect(mockedGenerateInsights).not.toHaveBeenCalled();
+      expect(mockedGenerateOverall).not.toHaveBeenCalled();
+      expect(mockedCaptureServerEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns 500 after the Round exists when hole persistence fails', async () => {
+      mockedPrisma.roundHole.createMany.mockRejectedValueOnce(new Error('hole create failed'));
+
+      const response = await POST(makeHoleByHolePostRequest() as any);
+
+      await expectDatabaseFailure(response);
+      expect(mockedPrisma.round.create).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.roundHole.createMany).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.round.update).not.toHaveBeenCalled();
+      expect(mockedCalculateStrokesGained).not.toHaveBeenCalled();
+      expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
+      expect(mockedGenerateInsights).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 after Round and holes exist when totals persistence fails', async () => {
+      mockedPrisma.round.findUnique.mockResolvedValueOnce({
+        teeId: BigInt(12),
+        teeSegment: 'full',
+        userId: BigInt(1),
+        tee: {
+          numberOfHoles: 2,
+          holes: [
+            { holeNumber: 1, par: 4 },
+            { holeNumber: 2, par: 4 },
+          ],
+        },
+      });
+      mockedPrisma.roundHole.findMany.mockResolvedValueOnce([
+        { score: 4, firHit: 1, girHit: 1, putts: 2, penalties: 0, chips: null, greensideBunkerShots: null },
+        { score: 5, firHit: 0, girHit: 0, putts: 2, penalties: 0, chips: null, greensideBunkerShots: null },
+      ]);
+      mockedPrisma.round.update.mockRejectedValueOnce(new Error('totals update failed'));
+
+      const response = await POST(makeHoleByHolePostRequest() as any);
+
+      await expectDatabaseFailure(response);
+      expect(mockedPrisma.round.create).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.roundHole.createMany).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.round.update).toHaveBeenCalledTimes(1);
+      expect(mockedCalculateStrokesGained).not.toHaveBeenCalled();
+      expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
+      expect(mockedGenerateInsights).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 after the Round exists when strokes-gained calculation fails', async () => {
+      mockedCalculateStrokesGained.mockRejectedValueOnce(new Error('SG calculation failed'));
+
+      const response = await POST(makeAfterRoundPostRequest() as any);
+
+      await expectDatabaseFailure(response);
+      expect(mockedPrisma.round.create).toHaveBeenCalledTimes(1);
+      expect(mockedCalculateStrokesGained).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.roundStrokesGained.create).not.toHaveBeenCalled();
+      expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
+      expect(mockedGenerateInsights).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 after the Round exists when strokes-gained persistence fails', async () => {
+      mockedPrisma.roundStrokesGained.create.mockRejectedValueOnce(new Error('SG write failed'));
+
+      const response = await POST(makeAfterRoundPostRequest() as any);
+
+      await expectDatabaseFailure(response);
+      expect(mockedPrisma.round.create).toHaveBeenCalledTimes(1);
+      expect(mockedCalculateStrokesGained).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.roundStrokesGained.create).toHaveBeenCalledTimes(1);
+      expect(mockedRecalcLeaderboard).not.toHaveBeenCalled();
+      expect(mockedGenerateInsights).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 after Round and SG persistence when leaderboard projection fails', async () => {
+      mockedRecalcLeaderboard.mockRejectedValueOnce(new Error('leaderboard failed'));
+
+      const response = await POST(makeAfterRoundPostRequest() as any);
+
+      await expectDatabaseFailure(response);
+      expect(mockedPrisma.round.create).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.roundStrokesGained.create).toHaveBeenCalledTimes(1);
+      expect(mockedRecalcLeaderboard).toHaveBeenCalledTimes(1);
+      expect(mockedGenerateInsights).not.toHaveBeenCalled();
+      expect(mockedGenerateOverall).not.toHaveBeenCalled();
+    });
+
+    it('returns 201 after core writes when post-save insight generation fails', async () => {
+      mockedGenerateInsights.mockRejectedValueOnce(new Error('insight generation failed'));
+
+      const response = await POST(makeAfterRoundPostRequest() as any);
+
+      expect(response.status).toBe(201);
+      expect(mockedPrisma.round.create).toHaveBeenCalledTimes(1);
+      expect(mockedPrisma.roundStrokesGained.create).toHaveBeenCalledTimes(1);
+      expect(mockedRecalcLeaderboard).toHaveBeenCalledTimes(1);
+      expect(mockedGenerateInsights).toHaveBeenCalledTimes(1);
+      expect(mockedGenerateOverall).toHaveBeenCalledTimes(1);
+      expect(mockedCaptureServerEvent).toHaveBeenCalledTimes(2);
+      expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to generate insights:', expect.any(Error));
+    });
   });
 });
