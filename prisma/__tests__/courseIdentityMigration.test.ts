@@ -7,7 +7,7 @@ const migration = fs.readFileSync(
   path.join(
     process.cwd(),
     'prisma',
-    'migrations',
+    'migration-history-pre-rebaseline-20260923',
     '20260807120000_separate_course_external_ids',
     'migration.sql',
   ),
@@ -25,7 +25,7 @@ const followupMigration = fs.readFileSync(
   path.join(
     process.cwd(),
     'prisma',
-    'migrations',
+    'migration-history-pre-rebaseline-20260923',
     '20260807120500_fix_course_identity_variable_conflict',
     'migration.sql',
   ),
