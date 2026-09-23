@@ -10,6 +10,10 @@ import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext'
 import { z } from 'zod';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/events';
 import { captureServerEvent } from '@/lib/analytics/server';
+import {
+  RoundCourseContextValidationError,
+  validateRoundCourseContext,
+} from '@/lib/rounds/validateRoundCourseContext';
 
 const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice', 'scramble'] as const;
 const ROUND_MISS_DIRECTION_VALUES = ['hit', 'miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
@@ -350,9 +354,14 @@ export async function PUT(
     ));
 
     // Fetch tee for resolveTeeContext
-    const teeForCtx = await prisma.tee.findUnique({
-      where: { id: teeId },
-      include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } },
+    const teeForCtx = await prisma.tee.findFirst({
+      where: { id: teeId, courseId },
+      include: {
+        holes: {
+          select: { id: true, holeNumber: true, par: true },
+          orderBy: { holeNumber: 'asc' },
+        },
+      },
     });
     if (!teeForCtx) {
       await captureServerEvent({
@@ -374,6 +383,22 @@ export async function PUT(
     const roundContext: RoundContext =
       data.round_context ?? (existingRound.roundContext as RoundContext) ?? 'real';
     const ctx = resolveTeeContext(teeForCtx, teeSegment);
+
+    if (data.hole_by_hole) {
+      try {
+        validateRoundCourseContext({
+          courseId,
+          tee: teeForCtx,
+          teeSegment,
+          submittedHoles: data.round_holes,
+        });
+      } catch (error) {
+        if (error instanceof RoundCourseContextValidationError) {
+          return errorResponse(error.message, 400);
+        }
+        throw error;
+      }
+    }
 
     // Update round (initial update without netScore/netToPar)
     await prisma.round.update({

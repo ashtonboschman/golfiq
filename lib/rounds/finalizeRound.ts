@@ -10,6 +10,10 @@ import { resolveTeeContext, type TeeSegment } from '@/lib/tee/resolveTeeContext'
 import { calculateNetScore } from '@/lib/utils/handicap';
 import { recalcLeaderboard } from '@/lib/utils/leaderboard';
 import { calculateStrokesGained } from '@/lib/utils/strokesGained';
+import {
+  RoundCourseContextValidationError,
+  validateRoundCourseContext,
+} from '@/lib/rounds/validateRoundCourseContext';
 
 export const ROUND_CONTEXT_VALUES = ['real', 'simulator', 'practice', 'scramble'] as const;
 export const ROUND_MISS_DIRECTION_VALUES = ['hit', 'miss_left', 'miss_right', 'miss_short', 'miss_long'] as const;
@@ -322,20 +326,37 @@ export async function createCompletedRoundFromInput({
     ? deriveShortGameShots(insertChips, insertGreensideBunkerShots)
     : null;
 
-  const tee = await db.tee.findUnique({
-    where: { id: teeId },
-    include: { holes: { select: { holeNumber: true, par: true }, orderBy: { holeNumber: 'asc' } } },
+  const tee = await db.tee.findFirst({
+    where: { id: teeId, courseId },
+    include: {
+      holes: {
+        select: { id: true, holeNumber: true, par: true },
+        orderBy: { holeNumber: 'asc' },
+      },
+    },
   });
 
   if (!tee) {
-    throw lookupError('Tee not found', 'tee_not_found');
+    throw lookupError('Course or tee not found', 'tee_not_found');
   }
 
   const teeSegment = data.tee_segment as TeeSegment;
   const ctx = resolveTeeContext(tee, teeSegment);
 
-  if (data.hole_by_hole && data.round_holes.length !== ctx.holes) {
-    throw validationError('Hole-by-hole rounds must include a score for every played hole', 'incomplete_hole_scores');
+  if (data.hole_by_hole) {
+    try {
+      validateRoundCourseContext({
+        courseId,
+        tee,
+        teeSegment,
+        submittedHoles: data.round_holes,
+      });
+    } catch (error) {
+      if (error instanceof RoundCourseContextValidationError) {
+        throw validationError(error.message, error.code);
+      }
+      throw error;
+    }
   }
 
   const toPar = insertScore - ctx.parTotal;

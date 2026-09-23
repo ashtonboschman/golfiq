@@ -26,7 +26,7 @@ jest.mock('@/lib/db', () => ({
       findUnique: jest.fn(),
     },
     tee: {
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     roundHole: {
       deleteMany: jest.fn(),
@@ -84,7 +84,7 @@ type MockPrisma = {
     findUnique: jest.Mock;
   };
   tee: {
-    findUnique: jest.Mock;
+    findFirst: jest.Mock;
   };
   roundHole: {
     deleteMany: jest.Mock;
@@ -144,7 +144,15 @@ describe('/api/rounds/[id] route contract', () => {
       partialAnalysis: false,
     });
 
-    mockedPrisma.tee.findUnique.mockResolvedValue({ id: BigInt(12), holes: [] });
+    mockedPrisma.tee.findFirst.mockResolvedValue({
+      id: BigInt(12),
+      courseId: BigInt(11),
+      numberOfHoles: 2,
+      holes: [
+        { id: BigInt(101), holeNumber: 1, par: 4 },
+        { id: BigInt(102), holeNumber: 2, par: 4 },
+      ],
+    });
     mockedPrisma.round.update.mockResolvedValue({});
     mockedPrisma.round.deleteMany.mockResolvedValue({ count: 1 });
     mockedPrisma.round.findUnique.mockResolvedValue({
@@ -263,6 +271,45 @@ describe('/api/rounds/[id] route contract', () => {
       { forceRegenerate: true },
     );
     expect(mockedGenerateOverall).toHaveBeenCalledWith(BigInt(1), 'combined', { touchGeneratedAt: true });
+  });
+
+  it('PUT rejects a cross-course tee combination', async () => {
+    mockedPrisma.round.findFirst.mockResolvedValue({
+      date: new Date('2026-04-20T12:00:00.000Z'),
+      courseId: BigInt(11),
+      teeId: BigInt(12),
+      teeSegment: 'full',
+      roundContext: 'real',
+      holeByHole: false,
+      score: 78,
+      firHit: 8,
+      girHit: 9,
+      putts: 31,
+      penalties: 1,
+      chips: null,
+      greensideBunkerShots: null,
+      shortGameShots: null,
+      notes: null,
+    });
+    mockedPrisma.tee.findFirst.mockResolvedValueOnce(null);
+
+    const response = await PUT(new Request('http://localhost/api/rounds/9', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 99,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 79,
+        hole_by_hole: 0,
+      }),
+    }) as any, params('9'));
+
+    expect(response.status).toBe(404);
+    expect(mockedPrisma.tee.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: BigInt(12), courseId: BigInt(99) },
+    }));
+    expect(mockedPrisma.round.update).not.toHaveBeenCalled();
   });
 
   it('PUT preserves existing round_context when omitted', async () => {

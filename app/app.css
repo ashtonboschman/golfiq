@@ -82,6 +82,260 @@
   --color-white-text: #EDEFF2;
 }
 
+/* Admin course updates */
+.reconciliation-admin-page {
+  display: grid;
+  gap: var(--gap);
+  padding: var(--padding);
+  padding-bottom: calc(var(--app-footer-extent) - var(--padding));
+  color: var(--color-primary-text);
+}
+
+.reconciliation-course-list,
+.reconciliation-workflow,
+.reconciliation-tee-list {
+  display: grid;
+  gap: var(--gap);
+}
+
+.reconciliation-course-card,
+.reconciliation-toolbar,
+.reconciliation-apply-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.reconciliation-course-card {
+  align-items: stretch;
+  text-align: left;
+}
+
+.reconciliation-course-card h2,
+.reconciliation-toolbar h2,
+.reconciliation-tee-card h2,
+.reconciliation-new-tees h2,
+.reconciliation-local-only h2 {
+  margin: 0;
+}
+
+.reconciliation-course-card p,
+.reconciliation-toolbar p,
+.reconciliation-apply-bar p,
+.reconciliation-tee-card header p,
+.reconciliation-new-tee p {
+  margin: var(--gap-small) 0 0;
+}
+
+.reconciliation-toolbar p,
+.reconciliation-tee-card header p {
+  color: var(--color-secondary-text);
+}
+
+.reconciliation-new-tee p:not(.reconciliation-suggestion):not(.reconciliation-error),
+.reconciliation-apply-bar p,
+.reconciliation-local-only p {
+  color: var(--color-secondary-text);
+}
+
+.reconciliation-meta {
+  color: var(--color-secondary-text);
+}
+
+.reconciliation-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap-small);
+}
+
+.reconciliation-summary span,
+.reconciliation-badge {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-secondary-surface);
+  color: var(--color-primary-text);
+  padding: var(--padding-small);
+  text-align: center;
+}
+
+.reconciliation-warning {
+  border-color: color-mix(in srgb, var(--color-warning) 60%, var(--color-border));
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-primary-surface));
+  color: var(--color-primary-text);
+}
+
+.reconciliation-lock-note,
+.reconciliation-suggestion {
+  border: 1px solid color-mix(in srgb, var(--color-warning) 60%, var(--color-border));
+  border-radius: var(--border-radius);
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-primary-surface));
+  color: var(--color-primary-text);
+  padding: var(--padding-small);
+}
+
+.reconciliation-warning ul,
+.reconciliation-local-only ul {
+  margin-bottom: 0;
+}
+
+.reconciliation-toggle,
+.reconciliation-add-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-small);
+  color: var(--color-primary-text);
+}
+
+.reconciliation-tee-card {
+  display: grid;
+  gap: var(--gap);
+}
+
+.reconciliation-tee-card > header,
+.reconciliation-new-tee {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.reconciliation-badge {
+  white-space: nowrap;
+  font-size: 0.82rem;
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-secondary-surface));
+  color: var(--color-success);
+}
+
+.reconciliation-badge.is-locked {
+  border-color: color-mix(in srgb, var(--color-red) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-red) 12%, var(--color-secondary-surface));
+  color: var(--color-red);
+}
+
+.reconciliation-badge.is-warning {
+  border-color: color-mix(in srgb, var(--color-warning) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-secondary-surface));
+  color: var(--color-warning);
+}
+
+.reconciliation-error {
+  border: 1px solid color-mix(in srgb, var(--color-red) 55%, var(--color-border));
+  border-radius: var(--border-radius);
+  background: color-mix(in srgb, var(--color-red) 10%, var(--color-primary-surface));
+  color: var(--color-red);
+  padding: var(--padding-small);
+}
+
+.reconciliation-lock-note,
+.reconciliation-suggestion,
+.reconciliation-error {
+  margin: 0;
+}
+
+.reconciliation-bulk-actions,
+.reconciliation-new-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--gap-small);
+}
+
+.reconciliation-new-actions label:not(.reconciliation-add-toggle) {
+  display: grid;
+  gap: var(--gap-small);
+}
+
+.reconciliation-table-wrap {
+  overflow-x: auto;
+}
+
+.reconciliation-diff-table th,
+.reconciliation-diff-table td {
+  text-align: left;
+  vertical-align: middle;
+  color: var(--color-primary-text);
+}
+
+.reconciliation-diff-table th {
+  background: var(--color-secondary-surface);
+}
+
+.reconciliation-diff-table input,
+.reconciliation-hole-row input,
+.reconciliation-toggle input,
+.reconciliation-add-toggle input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--color-accent);
+}
+
+.reconciliation-holes {
+  display: grid;
+  gap: var(--gap-small);
+}
+
+.reconciliation-holes h3 {
+  margin: 0;
+}
+
+.reconciliation-hole-row {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.35fr) repeat(3, minmax(10rem, 1fr));
+  gap: var(--gap-small);
+  padding: var(--padding-small);
+  border: 1px solid var(--color-border);
+  border-radius: 0.65rem;
+  background: var(--color-secondary-surface);
+  color: var(--color-primary-text);
+}
+
+.reconciliation-hole-row label {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-small);
+}
+
+.reconciliation-new-tees,
+.reconciliation-local-only {
+  display: grid;
+  gap: var(--gap);
+}
+
+.reconciliation-new-tee + .reconciliation-new-tee {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--padding);
+}
+
+@media (max-width: 760px) {
+  .reconciliation-admin-page {
+    padding: var(--padding-small);
+    padding-bottom: calc(var(--app-footer-extent) - var(--padding));
+  }
+
+  .reconciliation-course-card,
+  .reconciliation-toolbar,
+  .reconciliation-apply-bar,
+  .reconciliation-tee-card > header,
+  .reconciliation-new-tee {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reconciliation-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reconciliation-hole-row {
+    grid-template-columns: 1fr;
+  }
+
+  .reconciliation-badge {
+    white-space: normal;
+  }
+}
+
 /* Spinning animation for loading icons */
 @keyframes spin {
   from {
@@ -641,6 +895,7 @@ h1, h2, h3, h2, h1, .btn {
   font-size: 16px;
   color: var(--color-secondary-text);
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .modal-buttons {

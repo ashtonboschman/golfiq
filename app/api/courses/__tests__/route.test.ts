@@ -457,6 +457,26 @@ describe('/api/courses route', () => {
     }));
   });
 
+  it('always lets GolfIQ generate the internal tee ID', async () => {
+    mockedPrisma.tee.create.mockResolvedValue({ id: BigInt(456) });
+
+    const response = await postCourse(apiImport({
+      tees: {
+        male: [{
+          id: 987654,
+          tee_name: 'Blue',
+          number_of_holes: 9,
+          holes: [],
+        }],
+        female: [],
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mockedPrisma.tee.create).toHaveBeenCalled();
+    expect(mockedPrisma.tee.create.mock.calls[0][0].data).not.toHaveProperty('id');
+  });
+
   it('permits the same external ID under two different providers', async () => {
     mockedPrisma.course.create
       .mockResolvedValueOnce({ ...courseRow, id: BigInt(1) })

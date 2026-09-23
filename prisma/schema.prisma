@@ -7,35 +7,35 @@ datasource db {
 }
 
 model User {
-  id                            BigInt                   @id @default(autoincrement())
-  username                      String                   @unique @db.VarChar(100)
-  email                         String                   @unique @db.VarChar(100)
-  passwordHash                  String                   @map("password_hash") @db.VarChar(255)
-  active                        Boolean                  @default(true)
-  emailVerified                 Boolean                  @default(false) @map("email_verified")
-  createdAt                     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                     DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
-  sessionsValidAfter           DateTime?                @map("sessions_valid_after") @db.Timestamptz(6)
-  subscriptionProvider          SubscriptionProvider?    @map("subscription_provider")
-  stripeCustomerId              String?                  @map("stripe_customer_id") @db.VarChar(255)
-  stripeSubscriptionId          String?                  @map("stripe_subscription_id") @db.VarChar(255)
-  appleOriginalTransactionId    String?                  @map("apple_original_transaction_id") @db.VarChar(255)
-  appleProductId                String?                  @map("apple_product_id") @db.VarChar(255)
-  subscriptionEndsAt            DateTime?                @map("subscription_ends_at") @db.Timestamptz(6)
-  subscriptionStartsAt          DateTime?                @map("subscription_starts_at") @db.Timestamptz(6)
-  subscriptionStatus            SubscriptionStatus       @default(active) @map("subscription_status")
-  subscriptionCancelAtPeriodEnd Boolean                  @default(false) @map("subscription_cancel_at_period_end")
-  subscriptionTier              SubscriptionTier         @default(free) @map("subscription_tier")
+  id                            BigInt                      @id @default(autoincrement())
+  username                      String                      @unique @db.VarChar(100)
+  email                         String                      @unique @db.VarChar(100)
+  passwordHash                  String                      @map("password_hash") @db.VarChar(255)
+  active                        Boolean                     @default(true)
+  emailVerified                 Boolean                     @default(false) @map("email_verified")
+  createdAt                     DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessionsValidAfter            DateTime?                   @map("sessions_valid_after") @db.Timestamptz(6)
+  subscriptionProvider          SubscriptionProvider?       @map("subscription_provider")
+  stripeCustomerId              String?                     @map("stripe_customer_id") @db.VarChar(255)
+  stripeSubscriptionId          String?                     @map("stripe_subscription_id") @db.VarChar(255)
+  appleOriginalTransactionId    String?                     @map("apple_original_transaction_id") @db.VarChar(255)
+  appleProductId                String?                     @map("apple_product_id") @db.VarChar(255)
+  subscriptionEndsAt            DateTime?                   @map("subscription_ends_at") @db.Timestamptz(6)
+  subscriptionStartsAt          DateTime?                   @map("subscription_starts_at") @db.Timestamptz(6)
+  subscriptionStatus            SubscriptionStatus          @default(active) @map("subscription_status")
+  subscriptionCancelAtPeriodEnd Boolean                     @default(false) @map("subscription_cancel_at_period_end")
+  subscriptionTier              SubscriptionTier            @default(free) @map("subscription_tier")
   dataExports                   DataExport[]
   courseRequests                CourseRequest[]
   gpsCourseRequests             GpsCourseRequest[]
   feedbackSubmissions           UserFeedback[]
-  friendRequestsReceived        FriendRequest[]          @relation("RecipientRelation")
-  friendRequestsSent            FriendRequest[]          @relation("RequesterRelation")
-  friendNotificationsReceived   FriendNotification[]     @relation("FriendNotificationRecipient")
-  friendNotificationsActed      FriendNotification[]     @relation("FriendNotificationActor")
-  friendsReceived               Friend[]                 @relation("FriendOfUser")
-  friendsInitiated              Friend[]                 @relation("UserFriends")
+  friendRequestsReceived        FriendRequest[]             @relation("RecipientRelation")
+  friendRequestsSent            FriendRequest[]             @relation("RequesterRelation")
+  friendNotificationsReceived   FriendNotification[]        @relation("FriendNotificationRecipient")
+  friendNotificationsActed      FriendNotification[]        @relation("FriendNotificationActor")
+  friendsReceived               Friend[]                    @relation("FriendOfUser")
+  friendsInitiated              Friend[]                    @relation("UserFriends")
   lifetimeGrants                LifetimeGrant[]
   overallInsight                OverallInsight?
   RoundInsights                 RoundInsight[]
@@ -50,10 +50,11 @@ model User {
   leaderboardStats              UserLeaderboardStats?
   profile                       UserProfile?
   oauthAccounts                 OAuthAccount[]
-  reportsFiled                  UserReport[]             @relation("ReportsFiled")
-  reportsReceived               UserReport[]             @relation("ReportsReceived")
-  blocksInitiated               UserBlock[]              @relation("BlocksInitiated")
-  blocksReceived                UserBlock[]              @relation("BlocksReceived")
+  reportsFiled                  UserReport[]                @relation("ReportsFiled")
+  reportsReceived               UserReport[]                @relation("ReportsReceived")
+  blocksInitiated               UserBlock[]                 @relation("BlocksInitiated")
+  blocksReceived                UserBlock[]                 @relation("BlocksReceived")
+  courseReconciliationAudits    CourseReconciliationAudit[]
 
   @@index([subscriptionTier, subscriptionStatus], map: "idx_users_subscription")
   @@index([stripeCustomerId], map: "idx_users_stripe_customer")
@@ -190,20 +191,21 @@ model EmailVerificationToken {
 }
 
 model Course {
-  id                 BigInt             @id @default(autoincrement())
-  clubName           String             @map("club_name") @db.VarChar(255)
-  courseName         String             @map("course_name") @db.VarChar(255)
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  verified           Boolean            @default(false)
-  externalIds        CourseExternalId[]
-  location           Location?
-  mappedCourse       MappedCourse?
-  gpsCourseRequests  GpsCourseRequest[]
-  rounds             Round[]
-  liveRoundSessions  LiveRoundSession[]
-  tees               Tee[]
-  favoriteByProfiles UserProfile[]
+  id                   BigInt                      @id @default(autoincrement())
+  clubName             String                      @map("club_name") @db.VarChar(255)
+  courseName           String                      @map("course_name") @db.VarChar(255)
+  createdAt            DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  verified             Boolean                     @default(false)
+  externalIds          CourseExternalId[]
+  location             Location?
+  mappedCourse         MappedCourse?
+  gpsCourseRequests    GpsCourseRequest[]
+  rounds               Round[]
+  liveRoundSessions    LiveRoundSession[]
+  tees                 Tee[]
+  favoriteByProfiles   UserProfile[]
+  reconciliationAudits CourseReconciliationAudit[]
 
   @@index([verified], map: "idx_course_verified")
   @@map("courses")
@@ -231,6 +233,27 @@ model CourseIdMigrationMap {
   migratedAt        DateTime @default(now()) @map("migrated_at") @db.Timestamptz(6)
 
   @@map("course_id_migration_map")
+}
+
+model CourseReconciliationAudit {
+  id                   BigInt   @id @default(autoincrement())
+  courseId             BigInt   @map("course_id")
+  provider             String   @db.VarChar(50)
+  externalCourseId     String   @map("external_course_id") @db.VarChar(255)
+  adminUserId          BigInt   @map("admin_user_id")
+  appliedAt            DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
+  localSnapshotHash    String   @map("local_snapshot_hash") @db.VarChar(64)
+  providerSnapshotHash String   @map("provider_snapshot_hash") @db.VarChar(64)
+  changes              Json
+  createdTeeIds        Json     @map("created_tee_ids")
+  providerDescriptors  Json     @map("provider_descriptors")
+  correlationId        String?  @unique @map("correlation_id") @db.VarChar(64)
+  course               Course   @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  adminUser            User     @relation(fields: [adminUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([courseId, appliedAt], map: "idx_course_update_audits_course_applied")
+  @@index([adminUserId, appliedAt], map: "idx_course_update_audits_admin_applied")
+  @@map("course_update_audits")
 }
 
 model MappedCourse {
@@ -725,21 +748,21 @@ model FeatureFlag {
 }
 
 model RoundStrokesGained {
-  id              BigInt      @id @default(autoincrement())
-  roundId         BigInt      @unique @map("round_id")
-  userId          BigInt      @map("user_id")
-  sgTotal         Decimal?    @map("sg_total") @db.Decimal(5, 1)
-  sgOffTee        Decimal?    @map("sg_off_tee") @db.Decimal(5, 1)
-  sgApproach      Decimal?    @map("sg_approach") @db.Decimal(5, 1)
-  sgShortGame     Decimal?    @map("sg_short_game") @db.Decimal(5, 1)
-  sgResidual      Decimal?    @map("sg_residual") @db.Decimal(5, 1)
-  sgPutting       Decimal?    @map("sg_putting") @db.Decimal(5, 1)
-  sgPenalties     Decimal?    @map("sg_penalties") @db.Decimal(5, 1)
-  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  id              BigInt   @id @default(autoincrement())
+  roundId         BigInt   @unique @map("round_id")
+  userId          BigInt   @map("user_id")
+  sgTotal         Decimal? @map("sg_total") @db.Decimal(5, 1)
+  sgOffTee        Decimal? @map("sg_off_tee") @db.Decimal(5, 1)
+  sgApproach      Decimal? @map("sg_approach") @db.Decimal(5, 1)
+  sgShortGame     Decimal? @map("sg_short_game") @db.Decimal(5, 1)
+  sgResidual      Decimal? @map("sg_residual") @db.Decimal(5, 1)
+  sgPutting       Decimal? @map("sg_putting") @db.Decimal(5, 1)
+  sgPenalties     Decimal? @map("sg_penalties") @db.Decimal(5, 1)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   messages        Json?
-  partialAnalysis Boolean?    @map("partial_analysis")
-  round           Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partialAnalysis Boolean? @map("partial_analysis")
+  round           Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([roundId], map: "idx_round_strokes_gained_round")
   @@index([userId], map: "idx_round_strokes_gained_user")

@@ -27,7 +27,7 @@ jest.mock('@/lib/db', () => ({
       update: jest.fn(),
     },
     tee: {
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     roundStrokesGained: {
       create: jest.fn(),
@@ -82,7 +82,7 @@ type MockPrisma = {
     update: jest.Mock;
   };
   tee: {
-    findUnique: jest.Mock;
+    findFirst: jest.Mock;
   };
   roundStrokesGained: {
     create: jest.Mock;
@@ -176,7 +176,15 @@ describe('/api/rounds route contract', () => {
       partialAnalysis: false,
     });
     mockedPrisma.userLeaderboardStats.findUnique.mockResolvedValue({ handicap: 2.1 });
-    mockedPrisma.tee.findUnique.mockResolvedValue({ id: BigInt(12), holes: [] });
+    mockedPrisma.tee.findFirst.mockResolvedValue({
+      id: BigInt(12),
+      courseId: BigInt(11),
+      numberOfHoles: 2,
+      holes: [
+        { id: BigInt(101), holeNumber: 1, par: 4 },
+        { id: BigInt(102), holeNumber: 2, par: 4 },
+      ],
+    });
     mockedPrisma.round.create.mockResolvedValue({ id: BigInt(222) });
     mockedPrisma.round.findUnique.mockResolvedValue({
       holesPlayed: 18,
@@ -311,6 +319,12 @@ describe('/api/rounds route contract', () => {
 
   it('POST hole-by-hole works when direction fields are omitted', async () => {
     mockedPrisma.round.findUnique.mockResolvedValueOnce(null);
+    mockedPrisma.tee.findFirst.mockResolvedValueOnce({
+      id: BigInt(12),
+      courseId: BigInt(11),
+      numberOfHoles: 1,
+      holes: [{ id: BigInt(101), holeNumber: 1, par: 4 }],
+    });
     mockedResolveTeeContext.mockReturnValueOnce({
       holes: 1,
       parTotal: 4,
@@ -438,6 +452,57 @@ describe('/api/rounds route contract', () => {
 
     expect(response.status).toBe(400);
     expect(body.message).toMatch(/score is required for every hole/i);
+    expect(mockedPrisma.round.create).not.toHaveBeenCalled();
+    expect(mockedPrisma.roundHole.createMany).not.toHaveBeenCalled();
+  });
+
+  it('POST rejects a tee that is not owned by the submitted course', async () => {
+    mockedPrisma.tee.findFirst.mockResolvedValueOnce(null);
+
+    const response = await POST(new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 99,
+        tee_id: 12,
+        date: '2026-04-20',
+        score: 79,
+        hole_by_hole: 0,
+      }),
+    }) as any);
+
+    expect(response.status).toBe(404);
+    expect(mockedPrisma.tee.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: BigInt(12), courseId: BigInt(99) },
+    }));
+    expect(mockedPrisma.round.create).not.toHaveBeenCalled();
+  });
+
+  it('POST rejects foreign hole injection even when the submitted count is complete', async () => {
+    mockedResolveTeeContext.mockReturnValueOnce({
+      holes: 2,
+      parTotal: 8,
+      nonPar3Holes: 2,
+      courseRating: 72.1,
+      slopeRating: 123,
+    });
+
+    const response = await POST(new Request('http://localhost/api/rounds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        course_id: 11,
+        tee_id: 12,
+        date: '2026-04-20',
+        hole_by_hole: 1,
+        round_holes: [
+          { hole_id: 101, pass: 1, score: 4 },
+          { hole_id: 999, pass: 1, score: 4 },
+        ],
+      }),
+    }) as any);
+
+    expect(response.status).toBe(400);
     expect(mockedPrisma.round.create).not.toHaveBeenCalled();
     expect(mockedPrisma.roundHole.createMany).not.toHaveBeenCalled();
   });

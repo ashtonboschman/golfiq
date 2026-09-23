@@ -628,7 +628,6 @@ export async function POST(request: NextRequest) {
 
             for (const tee of genderTees) {
               const {
-                id: teeIdFromApi,
                 tee_name,
                 course_rating,
                 slope_rating,
@@ -659,7 +658,6 @@ export async function POST(request: NextRequest) {
 
               const createdTee = await tx.tee.create({
                 data: {
-                  id: teeIdFromApi ? BigInt(teeIdFromApi) : undefined,
                   courseId: course.id,
                   gender,
                   teeName: toTitleCase(tee_name) || tee_name,

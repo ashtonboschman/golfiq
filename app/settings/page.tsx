@@ -664,6 +664,12 @@ export default function SettingsPage() {
                 </button>
                 <button
                   className="btn btn-secondary"
+                  onClick={() => router.push('/admin/update-course')}
+                >
+                  Update Course Data
+                </button>
+                <button
+                  className="btn btn-secondary"
                   onClick={() => router.push('/admin/feedback')}
                 >
                   Manage Feedback

@@ -80,6 +80,16 @@ describe('/api/golf-course-api/courses/[id] route contract', () => {
     expect((global as any).fetch).not.toHaveBeenCalled();
   });
 
+  it('preserves the exact provider ID supplied to the server loader', async () => {
+    const response = await callRoute('AbCd1234');
+
+    expect(response.status).toBe(200);
+    expect((global as any).fetch).toHaveBeenCalledWith(
+      'https://api.golfcourseapi.com/v1/courses/AbCd1234',
+      { headers: { Authorization: 'Key test-key' } },
+    );
+  });
+
   it('requires an admin session', async () => {
     mockedRequireAdmin.mockRejectedValue(new Error('Forbidden'));
 

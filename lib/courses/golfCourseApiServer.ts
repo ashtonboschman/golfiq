@@ -11,7 +11,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export async function loadGolfCourseApiCourse(rawId: string): Promise<GolfCourseApiLoadResult> {
-  const courseId = rawId.trim().toLowerCase();
+  // Provider identities are opaque strings. Validate the current provider format,
+  // but preserve the exact stored value when requesting and comparing it.
+  const courseId = rawId.trim();
   if (!COURSE_ID_PATTERN.test(courseId)) {
     return {
       ok: false,

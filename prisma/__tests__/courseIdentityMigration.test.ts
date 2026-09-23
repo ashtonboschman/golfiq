@@ -77,7 +77,7 @@ describe('course identity database infrastructure', () => {
       .split('\n')
       .filter((line) => /\bCourse\??\s+@relation\(fields: \[(?:favoriteCourseId|courseId)\], references: \[id\]/.test(line));
 
-    expect(directCourseRelations).toHaveLength(8);
+    expect(directCourseRelations).toHaveLength(9);
     for (const relation of directCourseRelations) {
       expect(relation).toContain('onUpdate: Cascade');
     }
