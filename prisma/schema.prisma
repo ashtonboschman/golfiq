@@ -69,9 +69,9 @@ model UserReport {
   details        String?
   status         UserReportStatus @default(open)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  reporter       User             @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
-  reportedUser   User             @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  reporter       User             @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade, map: "fk_user_reports_reporter")
+  reportedUser   User             @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade, map: "fk_user_reports_reported")
 
   @@unique([reporterId, reportedUserId, status], map: "uq_user_reports_reporter_reported_status")
   @@index([reporterId], map: "idx_user_reports_reporter")
@@ -86,8 +86,8 @@ model UserBlock {
   blockerId     BigInt   @map("blocker_id")
   blockedUserId BigInt   @map("blocked_user_id")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  blocker       User     @relation("BlocksInitiated", fields: [blockerId], references: [id], onDelete: Cascade)
-  blockedUser   User     @relation("BlocksReceived", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  blocker       User     @relation("BlocksInitiated", fields: [blockerId], references: [id], onDelete: Cascade, map: "fk_user_blocks_blocker")
+  blockedUser   User     @relation("BlocksReceived", fields: [blockedUserId], references: [id], onDelete: Cascade, map: "fk_user_blocks_blocked")
 
   @@unique([blockerId, blockedUserId], map: "uq_user_blocks_blocker_blocked")
   @@index([blockerId], map: "idx_user_blocks_blocker")
@@ -105,8 +105,8 @@ model OAuthAccount {
   refreshTokenEncrypted String?  @map("refresh_token_encrypted") @db.Text
   refreshTokenClientId  String?  @map("refresh_token_client_id") @db.VarChar(255)
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([provider, providerAccountId], map: "oauth_accounts_provider_provider_account_key")
   @@index([userId], map: "idx_oauth_accounts_user_id")
@@ -268,7 +268,7 @@ model MappedCourse {
   mappingStatus GpsMappingStatus @default(DRAFT) @map("mapping_status")
   source        GpsMappingSource @default(UNKNOWN)
   createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   course        Course           @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   holes         MappedHole[]
 
@@ -299,7 +299,7 @@ model MappedHole {
   source         GpsMappingSource @default(UNKNOWN)
   verifiedAt     DateTime?        @map("verified_at") @db.Timestamptz(6)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   mappedCourse   MappedCourse     @relation(fields: [mappedCourseId], references: [id], onDelete: Cascade)
 
   @@unique([mappedCourseId, holeNumber], map: "uq_mapped_holes_course_hole")
@@ -487,7 +487,7 @@ model LiveRoundSession {
   completedAt                        DateTime?              @map("completed_at") @db.Timestamptz(6)
   discardedAt                        DateTime?              @map("discarded_at") @db.Timestamptz(6)
   createdAt                          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt                          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   course                             Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   finalRound                         Round?                 @relation("FinalizedLiveRound", fields: [finalRoundId], references: [id], onDelete: SetNull)
   holeDrafts                         LiveRoundHoleDraft[]
@@ -519,7 +519,7 @@ model LiveRoundHoleDraft {
   chips                Int?
   greensideBunkerShots Int?                @map("greenside_bunker_shots")
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   hole                 Hole                @relation(fields: [holeId], references: [id], onDelete: Cascade)
   session              LiveRoundSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -565,8 +565,8 @@ model FriendNotification {
   type        FriendNotificationType
   readAt      DateTime?              @map("read_at") @db.Timestamptz(6)
   createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  actorUser   User                   @relation("FriendNotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
-  user        User                   @relation("FriendNotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorUser   User                   @relation("FriendNotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade, map: "fk_friend_notifications_actor")
+  user        User                   @relation("FriendNotificationRecipient", fields: [userId], references: [id], onDelete: Cascade, map: "fk_friend_notifications_user")
 
   @@index([userId, readAt, createdAt], map: "idx_friend_notifications_user_read_created")
   @@index([actorUserId], map: "idx_friend_notifications_actor")
@@ -644,7 +644,7 @@ model UserFeedback {
   appVersion String?        @map("app_version") @db.VarChar(64)
   status     FeedbackStatus @default(open)
   createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt  DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_user_feedback_user")
@@ -664,7 +664,7 @@ model ClubDefinition {
   catalogueOrder Int          @map("catalogue_order")
   isActive       Boolean      @default(true) @map("is_active")
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   userClubs      UserClub[]
 
   @@index([category, catalogueOrder], map: "idx_club_definitions_category_order")
@@ -678,7 +678,7 @@ model UserClub {
   clubDefinitionId BigInt         @map("club_definition_id")
   carryYards       Int            @map("carry_yards")
   createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   clubDefinition   ClubDefinition @relation(fields: [clubDefinitionId], references: [id])
 
@@ -700,7 +700,7 @@ model CourseRequest {
   notes      String?
   source     CourseRequestSource @default(manual)
   createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt  DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_course_requests_user")
@@ -732,7 +732,7 @@ model SecurityRateLimitBucket {
   key       String   @id @db.VarChar(100)
   count     Int
   resetAt   DateTime @map("reset_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([resetAt], map: "idx_security_rate_limit_buckets_reset_at")
   @@map("security_rate_limit_buckets")
@@ -741,7 +741,7 @@ model SecurityRateLimitBucket {
 model FeatureFlag {
   flagName    String   @id @map("flag_name") @db.VarChar(100)
   enabled     Boolean  @default(false)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   description String?
 
   @@map("feature_flags")
