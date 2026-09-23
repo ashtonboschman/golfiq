@@ -915,8 +915,8 @@ enum SubscriptionTier {
 enum SubscriptionProvider {
   stripe
   apple
-  revenuecat_web
   manual
+  revenuecat_web
 }
 
 enum SubscriptionStatus {
