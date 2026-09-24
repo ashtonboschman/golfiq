@@ -6,6 +6,7 @@ import { GOLF_COURSE_API_PROVIDER, normalizeExternalId } from '@/lib/courses/ext
 import { loadGolfCourseApiCourse } from '@/lib/courses/golfCourseApiServer';
 import { logApiCall } from '@/lib/utils/apiRateLimit';
 import { Prisma } from '@prisma/client';
+import type { Course, Hole, Location, Tee } from '@prisma/client';
 import { z } from 'zod';
 
 type HoleData = {
@@ -37,31 +38,25 @@ type TeeData = {
   holes: HoleData[];
 };
 
-type TeeFromDB = {
+type CourseForResponse = Pick<Course, 'id' | 'clubName' | 'courseName' | 'verified' | 'createdAt' | 'updatedAt'> & {
+  location: Pick<Location, 'state' | 'country' | 'address' | 'city' | 'latitude' | 'longitude'> | null;
+  tees: Array<Tee & { holes: Hole[] }>;
+};
+
+type DistanceCourseRow = {
   id: bigint;
-  teeName: string;
-  gender: 'male' | 'female';
-  courseRating: string | number | null;
-  slopeRating: number | null;
-  bogeyRating: string | number | null;
-  totalYards: number | null;
-  totalMeters: number | null;
-  numberOfHoles: number | null;
-  nonPar3Holes: number | null;
-  parTotal: number | null;
-  frontCourseRating: string | number | null;
-  frontSlopeRating: number | null;
-  frontBogeyRating: string | number | null;
-  backCourseRating: string | number | null;
-  backSlopeRating: number | null;
-  backBogeyRating: string | number | null;
-  holes: Array<{
-    id: bigint;
-    holeNumber: number;
-    par: number;
-    yardage: number | null;
-    handicap: number | null;
-  }>;
+  club_name: string;
+  course_name: string;
+  verified: boolean;
+  created_at: Date;
+  updated_at: Date;
+  state: string | null;
+  country: string | null;
+  address: string | null;
+  city: string | null;
+  latitude: Location['latitude'];
+  longitude: Location['longitude'];
+  distance: number | Prisma.Decimal | null;
 };
 
 const numberLikeSchema = z.union([
@@ -142,29 +137,12 @@ const createCourseSchema = z.object({
   }
 });
 
-// Helper to build full course response with tees and holes
-async function buildCourseResponse(courseId: bigint | string) {
-  const course = await prisma.course.findUnique({
-    where: { id: typeof courseId === 'string' ? BigInt(courseId) : courseId },
-    include: {
-      location: true,
-      tees: {
-        include: {
-          holes: {
-            orderBy: { holeNumber: 'asc' },
-          },
-        },
-        orderBy: { id: 'asc' },
-      },
-    },
-  });
-
-  if (!course) return null;
-
+// Keep the existing public shape while allowing list results to reuse their page rows.
+function serializeCourseResponse(course: CourseForResponse) {
   // Group tees by gender
   const tees: { male: TeeData[]; female: TeeData[] } = { male: [], female: [] };
 
-  (course.tees as any).forEach((tee: TeeFromDB) => {
+  course.tees.forEach((tee) => {
 
     const gender = tee.gender === 'male' || tee.gender === 'female' ? tee.gender : 'male';
 
@@ -186,7 +164,7 @@ async function buildCourseResponse(courseId: bigint | string) {
       back_course_rating: tee.backCourseRating != null ? Number(tee.backCourseRating) : null,
       back_slope_rating: tee.backSlopeRating ?? null,
       back_bogey_rating: tee.backBogeyRating != null ? Number(tee.backBogeyRating) : null,
-      holes: tee.holes.map((h: any) => ({
+      holes: tee.holes.map((h) => ({
         id: Number(h.id),
         hole_number: h.holeNumber,
         par: h.par,
@@ -217,6 +195,21 @@ async function buildCourseResponse(courseId: bigint | string) {
   };
 }
 
+// Detail and create responses still need a single-course lookup.
+async function buildCourseResponse(courseId: bigint | string) {
+  const course = await prisma.course.findUnique({
+    where: { id: typeof courseId === 'string' ? BigInt(courseId) : courseId },
+    include: {
+      location: true,
+      tees: {
+        include: { holes: { orderBy: { holeNumber: 'asc' } } },
+        orderBy: { id: 'asc' },
+      },
+    },
+  });
+  return course ? serializeCourseResponse(course) : null;
+}
+
 // GET all courses
 export async function GET(request: NextRequest) {
   try {
@@ -243,11 +236,11 @@ export async function GET(request: NextRequest) {
       }
 
       // Raw SQL query with Haversine formula for distance calculation
-      let courses: any[];
+      let courses: DistanceCourseRow[];
 
       if (search) {
         const searchPattern = `%${search}%`;
-        courses = await prisma.$queryRaw`
+        courses = await prisma.$queryRaw<DistanceCourseRow[]>`
           SELECT
             c.id,
             c.course_name,
@@ -285,7 +278,7 @@ export async function GET(request: NextRequest) {
           OFFSET ${skip}
         `;
       } else {
-        courses = await prisma.$queryRaw`
+        courses = await prisma.$queryRaw<DistanceCourseRow[]>`
           SELECT
             c.id,
             c.course_name,
@@ -322,18 +315,39 @@ export async function GET(request: NextRequest) {
         return successResponse({ message: 'No courses found', courses: [] });
       }
 
-      // Build full course responses
-      const courseResponses = await Promise.all(
-        courses.map((c: any) => buildCourseResponse(c.id))
-      );
-
-      // Add distance to each course response
-      const coursesWithDistance = courseResponses
-        .filter((c: any) => c !== null)
-        .map((course: any, index: any) => ({
-          ...course,
-          distance: courses[index]?.distance != null ? Number(courses[index].distance) : undefined,
-        }));
+      // The distance query already returned each course and its location. Load only missing tee/hole relations.
+      const pageTees = await prisma.tee.findMany({
+        where: { courseId: { in: courses.map((course) => course.id) } },
+        include: { holes: { orderBy: { holeNumber: 'asc' } } },
+        orderBy: { id: 'asc' },
+      });
+      const teesByCourse = new Map<string, typeof pageTees>();
+      for (const tee of pageTees) {
+        const key = tee.courseId.toString();
+        const grouped = teesByCourse.get(key) ?? [];
+        grouped.push(tee);
+        teesByCourse.set(key, grouped);
+      }
+      const coursesWithDistance = courses.map((row) => ({
+        ...serializeCourseResponse({
+          id: row.id,
+          clubName: row.club_name,
+          courseName: row.course_name,
+          verified: row.verified,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          location: {
+            state: row.state,
+            country: row.country,
+            address: row.address,
+            city: row.city,
+            latitude: row.latitude,
+            longitude: row.longitude,
+          },
+          tees: teesByCourse.get(row.id.toString()) ?? [],
+        }),
+        distance: row.distance != null ? Number(row.distance) : undefined,
+      }));
 
       return successResponse({
         message: '',
@@ -381,6 +395,10 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         location: true,
+        tees: {
+          include: { holes: { orderBy: { holeNumber: 'asc' } } },
+          orderBy: { id: 'asc' },
+        },
       },
       orderBy: { clubName: 'asc' },
       take: limit,
@@ -391,14 +409,9 @@ export async function GET(request: NextRequest) {
       return successResponse({ message: 'No courses found', courses: [] });
     }
 
-    // Build full course responses
-    const courseResponses = await Promise.all(
-      courses.map((c: any) => buildCourseResponse(c.id))
-    );
-
     return successResponse({
       message: '',
-      courses: courseResponses.filter((c: any) => c !== null),
+      courses: courses.map(serializeCourseResponse),
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
