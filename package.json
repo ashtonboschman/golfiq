@@ -19,6 +19,10 @@
     "test:watch": "jest --watchAll",
     "test:ci": "jest --ci --runInBand",
     "test:related": "jest --runInBand --findRelatedTests",
+    "db:test:up": "node --env-file=./db-test.env scripts/db-test.mjs up",
+    "db:test:reset": "node --env-file=./db-test.env scripts/db-test.mjs reset",
+    "db:test:down": "node --env-file=./db-test.env scripts/db-test.mjs down",
+    "test:db": "node --env-file=./db-test.env scripts/db-test.mjs test",
     "verify:fast": "node scripts/verify-fast.mjs",
     "verify:full": "prisma generate && prisma validate && npm run lint && npm run typecheck && npm run test:ci && npm run build",
     "perf:snapshot": "node scripts/perf/snapshot.mjs"

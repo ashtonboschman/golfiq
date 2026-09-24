@@ -183,7 +183,7 @@ describe('course identity variable-conflict follow-up migration', () => {
     expect(followupMigration).toContain(
       'CREATE OR REPLACE FUNCTION public.migrate_course_identity(',
     );
-    expect(followupMigrateFunction).toContain(
+    expect(normalizeSql(followupMigrateFunction)).toContain(
       'LANGUAGE plpgsql\nAS $function$\n#variable_conflict use_column\nDECLARE',
     );
     expect(followupMigration).not.toContain(
