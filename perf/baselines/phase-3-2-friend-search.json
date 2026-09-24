@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "friend-search-before-after",
+  "startingMainSha": "a3028ea7327632ff0cc5f5228b2c359a48c8b131",
+  "source": "Phase 0.5 local PostgreSQL baseline and two Phase 3.2 after snapshots",
+  "fixture": "phase-0.5-synthetic-v1 on local PostgreSQL 17; 5 friends, 5 outgoing requests, 5 incoming requests, 15 unrelated searchable users, 1 blocked candidate",
+  "method": {
+    "handler": "current GET Route Handler with real Prisma/PostgreSQL; only authentication mocked",
+    "warmups": 2,
+    "measuredIterations": 5,
+    "timings": "Median milliseconds. DB proxy is the sum of node-postgres round trips, not aggregate PostgreSQL execution time. Handler wall excludes HTTP transport.",
+    "rowsReturnedBySql": "Sum of SQL rowCount values, not rows scanned."
+  },
+  "authoritativeBefore": {
+    "source": "perf/baselines/phase-0.5-static.json",
+    "small": { "resultCount": 5, "queryCount": 8, "friendshipQueries": 5, "friendRequestQueries": 0, "rowsReturnedBySql": 15, "driverRoundTripMs": [6.862, 6.955], "requestWallMs": [4.512, 4.488], "payloadBytes": 1230 },
+    "broad": { "resultCount": 30, "queryCount": 78, "friendshipQueries": 30, "friendRequestQueries": 45, "rowsReturnedBySql": 75, "driverRoundTripMs": [146.606, 144.249], "requestWallMs": [20.78, 21.368], "payloadBytes": 7213 }
+  },
+  "sameFixtureBeforeCheck": {
+    "snapshot": "snapshot-db-2026-09-24T13-49-35-304Z.json",
+    "small": { "resultCount": 5, "queryCount": 8, "rowsReturnedBySql": 15, "payloadBytes": 1230 },
+    "broad": { "resultCount": 30, "queryCount": 78, "rowsReturnedBySql": 75, "payloadBytes": 7213 }
+  },
+  "after": [
+    {
+      "snapshot": "snapshot-db-2026-09-24T13-51-24-978Z.json",
+      "small": { "resultCount": 5, "queryCount": 5, "friendshipQueries": 1, "friendRequestQueries": 1, "rowsReturnedBySql": 15, "friendshipRows": 5, "friendRequestRows": 0, "driverRoundTripMs": 4.556, "requestWallMs": 4.303, "payloadBytes": 1230 },
+      "broad": { "resultCount": 30, "queryCount": 5, "friendshipQueries": 1, "friendRequestQueries": 1, "rowsReturnedBySql": 75, "friendshipRows": 5, "friendRequestRows": 10, "driverRoundTripMs": 4.647, "requestWallMs": 4.982, "payloadBytes": 7213 }
+    },
+    {
+      "snapshot": "snapshot-db-2026-09-24T13-51-32-974Z.json",
+      "small": { "resultCount": 5, "queryCount": 5, "friendshipQueries": 1, "friendRequestQueries": 1, "rowsReturnedBySql": 15, "friendshipRows": 5, "friendRequestRows": 0, "driverRoundTripMs": 4.495, "requestWallMs": 4.279, "payloadBytes": 1230 },
+      "broad": { "resultCount": 30, "queryCount": 5, "friendshipQueries": 1, "friendRequestQueries": 1, "rowsReturnedBySql": 75, "friendshipRows": 5, "friendRequestRows": 10, "driverRoundTripMs": 4.803, "requestWallMs": 5.292, "payloadBytes": 7213 }
+    }
+  ],
+  "afterBroadSqlRows": { "users": 30, "profiles": 30, "leaderboardStats": 0, "friendships": 5, "friendRequests": 10 },
+  "afterStatusMix": { "friend": 5, "outgoing": 5, "incoming": 5, "none": 15 },
+  "queryFlow": {
+    "before": "Three candidate/profile/stats queries, then 30 friendship reads and 45 conditional request reads for 30 candidates.",
+    "after": "Three unchanged candidate/profile/stats queries, one friendship query and one friend-request query scoped to viewer and candidate IDs."
+  },
+  "explainAnalyzeAfter": {
+    "batchedFriendRequests": "Bitmap heap scan over two existing compound-index branches; 10 actual rows, one loop, 0.053 ms representative execution.",
+    "batchedFriendships": "Bitmap heap scan over two existing compound-index branches; 5 actual rows, one loop, 0.046 ms representative execution.",
+    "note": "Read-only local plans only; no index change."
+  },
+  "result": "CONFIRMED IMPROVEMENT: broad search drops from 78 to 5 SQL queries; both five-result and 30-result searches use two relationship queries. SQL row totals, result counts, status mix, and payload bytes remain stable."
+}
