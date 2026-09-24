@@ -332,13 +332,27 @@ test('record real local PostgreSQL query baseline through current route handlers
   expect(course.payloadBytes).toBe(55_977);
   expect(courseQueries.filter((query) => query.sql.includes('FROM "public"."courses"'))).toHaveLength(1);
   expect(courseQueries.filter((query) => query.sql.includes('FROM "public"."locations"'))).toHaveLength(1);
+  for (const id of ['friends.small', 'friends.search']) {
+    const scenario = byId.get(id)!;
+    const queries = firstQueries.get(id)!;
+    expect(scenario.queryCount).toBe(5);
+    expect(queries.filter((query) => query.sql.includes('FROM "public"."friends"'))).toHaveLength(1);
+    expect(queries.filter((query) => query.sql.includes('FROM "public"."friend_requests"'))).toHaveLength(1);
+  }
+  expect(friendSmall.resultCount).toBe(5);
+  expect(friendBroad.resultCount).toBe(30);
+  expect(friendSmall.rowsReturnedBySql).toBe(15);
+  expect(friendBroad.rowsReturnedBySql).toBe(75);
+  expect(friendSmall.payloadBytes).toBe(1_230);
+  expect(friendBroad.payloadBytes).toBe(7_213);
+  expect(friendSmall.responseShape.statuses).toEqual({ friend: 5 });
+  expect(friendBroad.responseShape.statuses).toEqual({ friend: 5, outgoing: 5, incoming: 5, none: 15 });
   const duplicatedCourseBaseReads = courseQueries.filter((query) => query.sql.includes('FROM "public"."courses"')).length >= 2
     && courseQueries.filter((query) => query.sql.includes('FROM "public"."locations"'))
       .reduce((sum, query) => sum + (query.rowsReturned ?? 0), 0) >= course.resultCount * 2;
   const classifications = {
     courses: duplicatedCourseBaseReads ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
-    friends: friendBroad.queryCount - friendSmall.queryCount >= 2 * (friendBroad.resultCount - friendSmall.resultCount)
-      ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
+    friends: friendBroad.queryCount === friendSmall.queryCount ? 'CONFIRMED IMPROVEMENT' : 'CONFIRMED PROBLEM',
     leaderboard: leaderboard.queryCount >= leaderboard.resultCount + 3
       ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
     dashboard: dashboard.relationLoads && dashboard.relationLoads.mainRoundRows > dashboard.resultCount
@@ -347,7 +361,8 @@ test('record real local PostgreSQL query baseline through current route handlers
   const planTargets = [
     { id: 'courses.search', label: 'course-page', match: (query: QueryRecord) => query.sql.includes('FROM "public"."courses"') },
     { id: 'courses.search', label: 'tee-holes', match: (query: QueryRecord) => query.sql.includes('FROM "public"."holes"') },
-    { id: 'friends.search', label: 'per-result-friend-requests', match: (query: QueryRecord) => query.sql.includes('FROM "public"."friend_requests"') },
+    { id: 'friends.search', label: 'batched-friend-requests', match: (query: QueryRecord) => query.sql.includes('FROM "public"."friend_requests"') },
+    { id: 'friends.search', label: 'batched-friendships', match: (query: QueryRecord) => query.sql.includes('FROM "public"."friends"') },
     { id: 'leaderboard.global', label: 'per-row-rank-count', match: (query: QueryRecord) => query.sql.includes('COUNT(*)') && query.sql.includes('user_leaderboard_stats') },
     { id: 'dashboard.free', label: 'pre-cap-rounds', match: (query: QueryRecord) => query.sql.includes('FROM "public"."rounds"') && query.rowsReturned === PERF_SCALE.realRounds },
   ];

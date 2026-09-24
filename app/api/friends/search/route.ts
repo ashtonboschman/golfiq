@@ -66,81 +66,89 @@ export async function GET(request: NextRequest) {
       take: 50,
     });
 
-    // Check friendship/request status for each user
-    const results = await Promise.all(
-      users.map(async (user: any) => {
-        // Check if friends
-        const friendship = await prisma.friend.findFirst({
-          where: {
-            OR: [
-              { userId, friendId: user.id },
-              { userId: user.id, friendId: userId },
-            ],
-          },
-        });
+    const candidateIds = users.map((user) => user.id);
+    if (candidateIds.length === 0) {
+      return successResponse({ results: [] });
+    }
 
-        const baseUser = {
-          id: Number(user.id),
-          first_name: user.profile?.firstName,
-          last_name: user.profile?.lastName,
-          avatar_url: user.profile?.avatarUrl,
-          handicap: user.leaderboardStats ? Number(user.leaderboardStats.handicap) : null,
-          average_score: user.leaderboardStats ? Number(user.leaderboardStats.averageToPar) : null,
-          best_score: user.leaderboardStats?.bestToPar ?? null,
-          total_rounds: user.leaderboardStats?.totalRounds ?? null,
-        };
+    const [friendships, requests] = await Promise.all([
+      prisma.friend.findMany({
+        where: {
+          OR: [
+            { userId, friendId: { in: candidateIds } },
+            { userId: { in: candidateIds }, friendId: userId },
+          ],
+        },
+        select: { userId: true, friendId: true },
+      }),
+      prisma.friendRequest.findMany({
+        where: {
+          OR: [
+            { requesterId: userId, recipientId: { in: candidateIds } },
+            { requesterId: { in: candidateIds }, recipientId: userId },
+          ],
+        },
+        select: { id: true, requesterId: true, recipientId: true },
+      }),
+    ]);
+    const friendIds = new Set(friendships.map((friend) =>
+      friend.userId === userId ? friend.friendId : friend.userId
+    ));
+    const outgoingByUserId = new Map(requests
+      .filter((friendRequest) => friendRequest.requesterId === userId)
+      .map((friendRequest) => [friendRequest.recipientId, friendRequest.id]));
+    const incomingByUserId = new Map(requests
+      .filter((friendRequest) => friendRequest.recipientId === userId)
+      .map((friendRequest) => [friendRequest.requesterId, friendRequest.id]));
 
-        if (friendship) {
-          return {
-            ...baseUser,
-            status: 'friend',
-            outgoing_request_id: null,
-            incoming_request_id: null,
-          };
-        }
+    const results = users.map((user) => {
+      const baseUser = {
+        id: Number(user.id),
+        first_name: user.profile?.firstName,
+        last_name: user.profile?.lastName,
+        avatar_url: user.profile?.avatarUrl,
+        handicap: user.leaderboardStats ? Number(user.leaderboardStats.handicap) : null,
+        average_score: user.leaderboardStats ? Number(user.leaderboardStats.averageToPar) : null,
+        best_score: user.leaderboardStats?.bestToPar ?? null,
+        total_rounds: user.leaderboardStats?.totalRounds ?? null,
+      };
 
-        // Check for outgoing request
-        const outgoingRequest = await prisma.friendRequest.findFirst({
-          where: {
-            requesterId: userId,
-            recipientId: user.id,
-          },
-        });
-
-        if (outgoingRequest) {
-          return {
-            ...baseUser,
-            status: 'outgoing',
-            outgoing_request_id: Number(outgoingRequest.id),
-            incoming_request_id: null,
-          };
-        }
-
-        // Check for incoming request
-        const incomingRequest = await prisma.friendRequest.findFirst({
-          where: {
-            requesterId: user.id,
-            recipientId: userId,
-          },
-        });
-
-        if (incomingRequest) {
-          return {
-            ...baseUser,
-            status: 'incoming',
-            outgoing_request_id: null,
-            incoming_request_id: Number(incomingRequest.id),
-          };
-        }
-
+      if (friendIds.has(user.id)) {
         return {
           ...baseUser,
-          status: 'none',
+          status: 'friend',
           outgoing_request_id: null,
           incoming_request_id: null,
         };
-      })
-    );
+      }
+
+      const outgoingRequestId = outgoingByUserId.get(user.id);
+      if (outgoingRequestId !== undefined) {
+        return {
+          ...baseUser,
+          status: 'outgoing',
+          outgoing_request_id: Number(outgoingRequestId),
+          incoming_request_id: null,
+        };
+      }
+
+      const incomingRequestId = incomingByUserId.get(user.id);
+      if (incomingRequestId !== undefined) {
+        return {
+          ...baseUser,
+          status: 'incoming',
+          outgoing_request_id: null,
+          incoming_request_id: Number(incomingRequestId),
+        };
+      }
+
+      return {
+        ...baseUser,
+        status: 'none',
+        outgoing_request_id: null,
+        incoming_request_id: null,
+      };
+    });
 
     return successResponse({ results });
   } catch (error) {
