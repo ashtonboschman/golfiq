@@ -1,29 +1,45 @@
 {
   "schemaVersion": 1,
-  "artifactType": "static-safety-baseline",
-  "generatedAt": "2026-09-23T14:45:31.625Z",
+  "artifactType": "static-and-local-postgres-query-baseline",
+  "generatedAt": "2026-09-24T00:53:31.840Z",
   "git": {
-    "commitSha": "681275d7d40df088727073f4d9c34e9738de5480",
-    "workingTreeCleanAtAuditStart": true
+    "commitSha": "d0696b68646313e25676f03da104bdf5a09a19b2",
+    "workingTreeCleanAtAuditStart": true,
+    "note": "Commit is the latest merged main before this uncommitted measurement work."
   },
   "runtime": {
     "node": "v24.11.0",
     "next": "16.3.3",
     "prisma": "7.10.0",
     "platform": "win32",
-    "serverMode": null
+    "serverMode": "in-process route handlers with real local PostgreSQL"
   },
   "measurementAvailability": {
-    "status": "BLOCKED",
-    "reason": "No repository-declared or operator-confirmed non-production database and authenticated server target was available. The normal DATABASE_URL was not inspected or used."
+    "status": "MEASURED_LOCAL_POSTGRES",
+    "reason": "Four read targets measured through current route handlers against the Phase 2.5 loopback PostgreSQL fixture. The earlier static findings below remain historical context; mutation scenarios remain out of scope."
   },
   "dataset": {
-    "status": "NOT MEASURED",
-    "databaseLabel": null,
-    "fixtureLabel": null,
-    "postgresVersion": null
+    "status": "SYNTHETIC LOCAL ONLY",
+    "databaseLabel": "golfiq_test on 127.0.0.1:5434",
+    "fixtureLabel": "phase-0.5-synthetic-v1",
+    "postgresVersion": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2)",
+    "counts": {
+      "users": 112,
+      "profiles": 112,
+      "leaderboardRows": 81,
+      "courses": 60,
+      "tees": 120,
+      "holes": 1620,
+      "friendLinks": 5,
+      "friendRequests": 10,
+      "blocks": 1,
+      "realRounds": 60,
+      "simulatorRounds": 10,
+      "roundHoles": 1080
+    },
+    "scaleRationale": "20-course pages across 60 courses; two 9/18-hole tees per course; five friends plus requests and unrelated users among 30 searchable candidates; 81 ranked accounts; 60 real rounds versus the Free last-20 cap plus 10 excluded simulator rounds."
   },
-  "scenarios": [
+  "priorStaticScenarios": [
     {
       "id": "dashboard.free",
       "status": "STATICALLY CONFIRMED ONLY",
@@ -127,9 +143,122 @@
       "reason": "No disposable active live-session fixture with complete synthetic hole drafts was available."
     }
   ],
+  "localPostgresMeasurement": {
+    "method": "Current GET handlers, real Prisma 7.10.0 and local PostgreSQL 17.11; only requireAuth mocked; 2 warmups then 5 measured iterations per scenario, median reported. No HTTP transport.",
+    "timingDefinitions": {
+      "driverRoundTripMs": "Sum of node-postgres per-query round trips. Concurrent queries overlap, so this can exceed request wall time; it is not aggregate server execution time.",
+      "requestWallMs": "Handler invocation through complete response body read.",
+      "serverExecutionMs": "Not available in aggregate. EXPLAIN ANALYZE reports one representative execution per selected SQL shape, not total request DB time.",
+      "rowsReturnedBySql": "Sum of node-postgres rowCount, not rows scanned or unique application objects.",
+      "payloadBytes": "UTF-8 serialized response body bytes."
+    },
+    "repeat": "Two snapshots against the same fixture. All seven query counts, SQL row counts, result counts, payload sizes, and four classifications matched. Listed timing pairs are snapshot 1 / snapshot 2 medians.",
+    "scenarios": [
+      {
+        "id": "courses.list",
+        "route": "/api/courses?limit=20&page=1",
+        "resultCount": 20,
+        "queryCount": 6,
+        "rowsReturnedBySql": 660,
+        "driverRoundTripMs": [7.249, 7.1],
+        "requestWallMs": [15.678, 15.616],
+        "payloadBytes": 55977,
+        "responseRelations": { "tees": 40, "holes": 540 },
+        "classification": "CONFIRMED PROBLEM"
+      },
+      {
+        "id": "courses.search",
+        "route": "/api/courses?limit=20&page=1&search=PerfCourse",
+        "resultCount": 20,
+        "queryCount": 6,
+        "rowsReturnedBySql": 660,
+        "driverRoundTripMs": [7.678, 7.472],
+        "requestWallMs": [16.338, 15.856],
+        "payloadBytes": 55977,
+        "responseRelations": { "tees": 40, "holes": 540 },
+        "repeatedSql": "Two location reads return 20 rows each; the base course page and batched course detail lookup each return 20 rows. Tee/hole detail reads are batched, not one SQL statement per result.",
+        "classification": "CONFIRMED PROBLEM",
+        "mechanism": "Duplicate base-course/location loading during full-detail response construction."
+      },
+      {
+        "id": "courses.page2",
+        "route": "/api/courses?limit=20&page=2&search=PerfCourse",
+        "resultCount": 20,
+        "queryCount": 6,
+        "rowsReturnedBySql": 660,
+        "driverRoundTripMs": [7.575, 7.461],
+        "requestWallMs": [15.787, 15.773],
+        "payloadBytes": 56184,
+        "responseRelations": { "tees": 40, "holes": 540 },
+        "classification": "CONFIRMED PROBLEM"
+      },
+      {
+        "id": "friends.small",
+        "route": "/api/friends/search?q=Small",
+        "resultCount": 5,
+        "queryCount": 8,
+        "rowsReturnedBySql": 15,
+        "driverRoundTripMs": [6.862, 6.955],
+        "requestWallMs": [4.512, 4.488],
+        "payloadBytes": 1230,
+        "repeatedSql": "Five friendship reads for five results.",
+        "classification": "CONFIRMED PROBLEM"
+      },
+      {
+        "id": "friends.search",
+        "route": "/api/friends/search?q=PerfFriend",
+        "resultCount": 30,
+        "queryCount": 78,
+        "rowsReturnedBySql": 75,
+        "driverRoundTripMs": [146.606, 144.249],
+        "requestWallMs": [20.78, 21.368],
+        "payloadBytes": 7213,
+        "statusMix": { "friend": 5, "outgoing": 5, "incoming": 5, "none": 15 },
+        "repeatedSql": "30 friendship reads and 45 friend-request reads. Five-result friend-only search uses 8 total SQL statements; 30-result mixed search uses 78.",
+        "classification": "CONFIRMED PROBLEM",
+        "mechanism": "Per-result friendship and conditional outgoing/incoming request queries."
+      },
+      {
+        "id": "leaderboard.global",
+        "route": "/api/leaderboard?scope=global&limit=25&page=1&sortBy=handicap&sortOrder=asc",
+        "resultCount": 51,
+        "queryCount": 59,
+        "rowsReturnedBySql": 206,
+        "driverRoundTripMs": [58.109, 66.752],
+        "requestWallMs": [18.653, 19.074],
+        "payloadBytes": 9390,
+        "repeatedSql": "51 repeated rank-count statements for 50 listed rows plus the viewer row; 81 qualified accounts in fixture.",
+        "classification": "CONFIRMED PROBLEM",
+        "mechanism": "Per-displayed-row competition-rank COUNT query."
+      },
+      {
+        "id": "dashboard.free",
+        "route": "/api/dashboard?statsMode=combined&dateFilter=all",
+        "resultCount": 20,
+        "queryCount": 13,
+        "rowsReturnedBySql": 482,
+        "driverRoundTripMs": [12.209, 11.993],
+        "requestWallMs": [29.618, 29.169],
+        "payloadBytes": 11350,
+        "realRoundsEligible": 60,
+        "realRoundsLoadedBeforeCap": 60,
+        "teeHoleObjectsMaterializedBeforeCap": 1080,
+        "roundHoleRowsLoadedAfterCap": 360,
+        "simulatorRoundsExcluded": 10,
+        "classification": "CONFIRMED PROBLEM",
+        "mechanism": "All 60 real rounds and 18 nested tee-hole objects per round are materialized before the Free last-20 cap; the SQL hole relation itself is batched."
+      }
+    ]
+  },
   "queryPlans": {
-    "status": "NOT CAPTURED",
-    "plans": [],
-    "reason": "No clearly non-production PostgreSQL target with representative fixtures was available; EXPLAIN ANALYZE was not run."
+    "status": "CAPTURED_LOCAL_ONLY",
+    "method": "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) in a read-only transaction on one representative parameter set per SQL shape. These are not aggregate request DB times; small-fixture sequential scans alone are not treated as defects.",
+    "plans": [
+      { "scenario": "courses.search", "shape": "batched course detail", "nodes": ["Seq Scan courses: estimated 20, actual 20, loops 1"], "executionMs": 0.04 },
+      { "scenario": "courses.search", "shape": "tee holes", "nodes": ["Sort quicksort: estimated 540, actual 540, loops 1", "Index Scan holes using idx_hole_tee_id: estimated 540, actual 540, loops 1"], "executionMs": 0.283 },
+      { "scenario": "friends.search", "shape": "one friend-request lookup", "nodes": ["Limit: estimated 1, actual 1, loops 1", "Index Scan friend_requests using friend_requests_requester_id_recipient_id_key: estimated 1, actual 1, loops 1"], "executionMs": 0.045 },
+      { "scenario": "leaderboard.global", "shape": "one rank count", "nodes": ["Aggregate: estimated 1, actual 1, loops 1", "Seq Scan user_leaderboard_stats: estimated 6, actual 7, loops 1"], "executionMs": 0.056 },
+      { "scenario": "dashboard.free", "shape": "pre-cap real rounds", "nodes": ["Sort quicksort: estimated 60, actual 60, loops 1", "Seq Scan rounds: estimated 60, actual 60, loops 1"], "executionMs": 0.088 }
+    ]
   }
 }

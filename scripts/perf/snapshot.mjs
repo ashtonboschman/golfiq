@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { arch, platform, release } from 'node:os';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
@@ -8,10 +9,34 @@ const repoRoot = process.cwd();
 const resultsRoot = resolve(repoRoot, 'perf', 'results');
 const safeLabelPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+const require = createRequire(import.meta.url);
+const { assertLocalTestDatabaseUrl } = require('../db-test-safety.js');
 
 function fail(message) {
   console.error(`[perf:snapshot] ${message}`);
   process.exit(1);
+}
+
+if (process.argv[2] === '--local-db') {
+  let target;
+  try {
+    target = assertLocalTestDatabaseUrl(process.env.GOLFIQ_TEST_DATABASE_URL);
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL !== target) {
+      fail('An existing DATABASE_URL differs from the local test target; refusing to proceed.');
+    }
+  } catch (error) {
+    fail(error.message);
+  }
+  const env = { ...process.env, DATABASE_URL: target };
+  for (const name of [
+    'DB_CA_CERT', 'DB_CA_CERT_PATH', 'PGHOST', 'PGPORT', 'PGDATABASE',
+    'PGUSER', 'PGPASSWORD', 'PGSSLMODE', 'PGSSLROOTCERT',
+  ]) delete env[name];
+  const result = spawnSync(process.execPath, [
+    'node_modules/jest/bin/jest.js', '--config', 'jest.perf.config.js', '--ci', '--runInBand',
+  ], { cwd: repoRoot, env, stdio: 'inherit' });
+  if (result.error) fail(`Local DB snapshot runner could not start: ${result.error.message}`);
+  process.exit(result.status ?? 1);
 }
 
 function requiredEnv(name) {
