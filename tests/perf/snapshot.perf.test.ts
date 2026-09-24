@@ -323,6 +323,15 @@ test('record real local PostgreSQL query baseline through current route handlers
   const leaderboard = byId.get('leaderboard.global')!;
   const dashboard = byId.get('dashboard.free')!;
   const courseQueries = firstQueries.get('courses.search')!;
+  for (const id of ['courses.list', 'courses.search', 'courses.page2']) {
+    const scenario = byId.get(id)!;
+    expect(scenario.resultCount).toBe(20);
+    expect(scenario.queryCount).toBe(4);
+    expect(scenario.rowsReturnedBySql).toBe(620);
+  }
+  expect(course.payloadBytes).toBe(55_977);
+  expect(courseQueries.filter((query) => query.sql.includes('FROM "public"."courses"'))).toHaveLength(1);
+  expect(courseQueries.filter((query) => query.sql.includes('FROM "public"."locations"'))).toHaveLength(1);
   const duplicatedCourseBaseReads = courseQueries.filter((query) => query.sql.includes('FROM "public"."courses"')).length >= 2
     && courseQueries.filter((query) => query.sql.includes('FROM "public"."locations"'))
       .reduce((sum, query) => sum + (query.rowsReturned ?? 0), 0) >= course.resultCount * 2;
@@ -336,7 +345,7 @@ test('record real local PostgreSQL query baseline through current route handlers
       ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
   };
   const planTargets = [
-    { id: 'courses.search', label: 'course-details', match: (query: QueryRecord) => query.sql.includes('FROM "public"."courses"') && query.sql.includes(' IN (') },
+    { id: 'courses.search', label: 'course-page', match: (query: QueryRecord) => query.sql.includes('FROM "public"."courses"') },
     { id: 'courses.search', label: 'tee-holes', match: (query: QueryRecord) => query.sql.includes('FROM "public"."holes"') },
     { id: 'friends.search', label: 'per-result-friend-requests', match: (query: QueryRecord) => query.sql.includes('FROM "public"."friend_requests"') },
     { id: 'leaderboard.global', label: 'per-row-rank-count', match: (query: QueryRecord) => query.sql.includes('COUNT(*)') && query.sql.includes('user_leaderboard_stats') },

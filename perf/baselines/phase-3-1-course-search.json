@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "course-list-search-before-after",
+  "generatedAt": "2026-09-24T01:14:35.359Z",
+  "startingMainSha": "592617261003842dcb5756c9b3e1ab2e6b0e6446",
+  "source": "Phase 0.5 local PostgreSQL route-handler snapshot and two Phase 3.1 after snapshots",
+  "fixture": {
+    "database": "local golfiq_test PostgreSQL 17.11",
+    "courses": 60,
+    "tees": 120,
+    "holes": 1620,
+    "pageSize": 20
+  },
+  "method": {
+    "warmups": 2,
+    "measuredIterations": 5,
+    "timings": "Median milliseconds. DB proxy is the sum of node-postgres round trips, not aggregate PostgreSQL execution time. Handler wall excludes HTTP transport.",
+    "rowsReturnedBySql": "Sum of SQL rowCount values, not scanned rows."
+  },
+  "authoritativeBefore": {
+    "source": "perf/baselines/phase-0.5-static.json",
+    "courses.search": {
+      "resultCount": 20,
+      "queryCount": 6,
+      "rowsReturnedBySql": 660,
+      "courseRootRows": 40,
+      "locationRows": 40,
+      "teeRows": 40,
+      "holeRows": 540,
+      "driverRoundTripMs": [7.678, 7.472],
+      "requestWallMs": [16.338, 15.856],
+      "payloadBytes": 55977
+    }
+  },
+  "sameFixtureBeforeCheck": {
+    "generatedAt": "2026-09-24T01:09:20.957Z",
+    "courses.search": { "resultCount": 20, "queryCount": 6, "rowsReturnedBySql": 660, "driverRoundTripMs": 7.418, "requestWallMs": 15.27, "payloadBytes": 55977 }
+  },
+  "after": {
+    "generatedAt": ["2026-09-24T01:14:29.259Z", "2026-09-24T01:14:35.359Z"],
+    "courses.list": { "resultCount": 20, "queryCount": 4, "rowsReturnedBySql": 620, "driverRoundTripMs": [5.61, 6.009], "requestWallMs": [11.451, 11.653], "payloadBytes": 55977 },
+    "courses.search": {
+      "resultCount": 20,
+      "queryCount": 4,
+      "rowsReturnedBySql": 620,
+      "courseRootRows": 20,
+      "locationRows": 20,
+      "teeRows": 40,
+      "holeRows": 540,
+      "driverRoundTripMs": [6.108, 6.176],
+      "requestWallMs": [12.119, 11.726],
+      "payloadBytes": 55977
+    },
+    "courses.page2": { "resultCount": 20, "queryCount": 4, "rowsReturnedBySql": 620, "driverRoundTripMs": [6.148, 6.198], "requestWallMs": [11.887, 11.653], "payloadBytes": 56184 }
+  },
+  "queryFlow": {
+    "before": ["page courses", "page locations", "duplicate detail courses", "duplicate detail locations", "page tees", "page holes"],
+    "after": ["page courses", "page locations", "page tees", "page holes"],
+    "note": "Prisma batches relation reads; this was duplicate base/location loading, not an N+1."
+  },
+  "explainAnalyzeAfter": {
+    "coursePage": "Limit 20; top-N heapsort; joins over small 60-row course/location fixture; one course-root scan in the request. Representative execution 0.400 ms.",
+    "teeHoles": "Index Scan on holes using idx_hole_tee_id, 540 actual rows, loops 1; quicksort by requested hole order. Representative execution 0.196 ms.",
+    "note": "Read-only local plans only; no index change."
+  },
+  "result": "CONFIRMED IMPROVEMENT: two duplicate SQL statements and 40 duplicate root/location returned rows eliminated; result counts and payload bytes unchanged in both after snapshots."
+}

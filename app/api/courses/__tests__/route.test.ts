@@ -24,7 +24,7 @@ jest.mock('@/lib/db', () => ({
       create: jest.fn(),
     },
     location: { create: jest.fn() },
-    tee: { create: jest.fn() },
+    tee: { create: jest.fn(), findMany: jest.fn() },
     hole: { createMany: jest.fn() },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
@@ -42,7 +42,7 @@ type MockPrisma = {
     create: jest.Mock;
   };
   location: { create: jest.Mock };
-  tee: { create: jest.Mock };
+  tee: { create: jest.Mock; findMany: jest.Mock };
   hole: { createMany: jest.Mock };
   $queryRaw: jest.Mock;
   $transaction: jest.Mock;
@@ -62,6 +62,47 @@ const courseRow = {
   location: null,
   tees: [],
 };
+
+const teeRow = {
+  id: BigInt(41),
+  courseId: BigInt(101),
+  gender: 'male',
+  teeName: 'Blue',
+  courseRating: 72.1,
+  slopeRating: 122,
+  bogeyRating: null,
+  totalYards: 6100,
+  totalMeters: null,
+  numberOfHoles: 18,
+  nonPar3Holes: 14,
+  parTotal: 72,
+  frontCourseRating: null,
+  frontSlopeRating: null,
+  frontBogeyRating: null,
+  backCourseRating: null,
+  backSlopeRating: null,
+  backBogeyRating: null,
+  holes: [{ id: BigInt(411), holeNumber: 1, par: 4, yardage: 350, handicap: null }],
+};
+
+function distanceCourseRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: courseRow.id,
+    club_name: courseRow.clubName,
+    course_name: courseRow.courseName,
+    verified: courseRow.verified,
+    created_at: courseRow.createdAt,
+    updated_at: courseRow.updatedAt,
+    state: null,
+    country: null,
+    address: null,
+    city: null,
+    latitude: null,
+    longitude: null,
+    distance: null,
+    ...overrides,
+  };
+}
 
 function postCourse(body: Record<string, unknown>) {
   return POST(new Request('http://localhost/api/courses', {
@@ -92,6 +133,7 @@ describe('/api/courses route', () => {
     mockedPrisma.courseExternalId.create.mockResolvedValue({ id: BigInt(1) });
     mockedPrisma.course.create.mockResolvedValue(courseRow);
     mockedPrisma.course.findUnique.mockResolvedValue(courseRow);
+    mockedPrisma.tee.findMany.mockResolvedValue([]);
     mockedPrisma.$transaction.mockImplementation(
       (callback: (transaction: MockPrisma) => unknown) => callback(mockedPrisma),
     );
@@ -109,8 +151,7 @@ describe('/api/courses route', () => {
   });
 
   it('keeps existing internal course-ID behavior for local course search', async () => {
-    mockedPrisma.course.findMany.mockResolvedValue([{ id: BigInt(101) }]);
-    mockedPrisma.course.findUnique.mockResolvedValue({
+    mockedPrisma.course.findMany.mockResolvedValue([{
       ...courseRow,
       id: BigInt(101),
       clubName: 'Assiniboine Club',
@@ -124,7 +165,7 @@ describe('/api/courses route', () => {
         latitude: null,
         longitude: null,
       },
-    });
+    }]);
 
     const response = await GET(new Request('http://localhost/api/courses?search=Winnipeg') as never);
     const body = await response.json();
@@ -146,25 +187,78 @@ describe('/api/courses route', () => {
       city: 'Winnipeg',
       state: 'MB',
     }));
+    expect(mockedPrisma.course.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('preserves browse order, page-2 pagination, full tee/hole fields, and internal IDs', async () => {
+    mockedPrisma.course.findMany
+      .mockResolvedValueOnce([{ ...courseRow, id: BigInt(101), clubName: 'A Club', tees: [teeRow] }])
+      .mockResolvedValueOnce([{ ...courseRow, id: BigInt(202), clubName: 'B Club', tees: [] }]);
+
+    const browse = await GET(new Request('http://localhost/api/courses') as never);
+    const page2 = await GET(new Request('http://localhost/api/courses?limit=1&page=2') as never);
+    const first = (await browse.json()).courses[0];
+    const second = (await page2.json()).courses[0];
+
+    expect(browse.status).toBe(200);
+    expect(page2.status).toBe(200);
+    expect(mockedPrisma.course.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      orderBy: { clubName: 'asc' }, take: 20, skip: 0,
+      include: { location: true, tees: { include: { holes: { orderBy: { holeNumber: 'asc' } } }, orderBy: { id: 'asc' } } },
+    }));
+    expect(mockedPrisma.course.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      orderBy: { clubName: 'asc' }, take: 1, skip: 1,
+    }));
+    expect(first.id).toBe(101);
+    expect(first.tees.male[0]).toEqual(expect.objectContaining({
+      id: 41, tee_name: 'Blue', course_rating: 72.1, non_par3_holes: 14,
+      holes: [{ id: 411, hole_number: 1, par: 4, yardage: 350, handicap: null }],
+    }));
+    expect(first.tees.female).toEqual([]);
+    expect(first.location).toEqual({ state: 'Unknown', country: 'Unknown', address: null, city: null, latitude: null, longitude: null });
+    expect(second.id).toBe(202);
+    expect(second.tees).toEqual({ male: [], female: [] });
+    expect(first).not.toHaveProperty('external_id');
+    expect(mockedPrisma.courseExternalId.findUnique).not.toHaveBeenCalled();
+    expect(mockedPrisma.course.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('keeps the empty browse response and avoids relation lookups', async () => {
+    mockedPrisma.course.findMany.mockResolvedValue([]);
+    const response = await GET(new Request('http://localhost/api/courses?search=missing') as never);
+    expect(await response.json()).toEqual({ type: 'success', message: 'No courses found', courses: [] });
+    expect(mockedPrisma.tee.findMany).not.toHaveBeenCalled();
+    expect(mockedPrisma.course.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('reuses distance-page location data and preserves SQL result order and nested relations', async () => {
+    mockedPrisma.$queryRaw.mockResolvedValue([
+      distanceCourseRow({ id: BigInt(101), club_name: 'Near Club', distance: 0, city: 'Winnipeg', state: 'MB', latitude: 49.8951, longitude: -97.1384 }),
+      distanceCourseRow({ id: BigInt(202), club_name: 'Far Club', distance: null }),
+    ]);
+    mockedPrisma.tee.findMany.mockResolvedValue([teeRow]);
+
+    const response = await GET(new Request('http://localhost/api/courses?lat=49.8951&lng=-97.1384&limit=2') as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.courses.map((course: { id: number }) => course.id)).toEqual([101, 202]);
+    expect(body.courses[0].distance).toBe(0);
+    expect(body.courses[0].location).toEqual(expect.objectContaining({ city: 'Winnipeg', state: 'MB', latitude: 49.8951, longitude: -97.1384 }));
+    expect(body.courses[0].tees.male[0].holes).toEqual([{ id: 411, hole_number: 1, par: 4, yardage: 350, handicap: null }]);
+    expect(body.courses[1]).not.toHaveProperty('distance');
+    expect(body.courses[1].tees).toEqual({ male: [], female: [] });
+    expect(mockedPrisma.tee.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { courseId: { in: [BigInt(101), BigInt(202)] } },
+    }));
+    expect(mockedPrisma.course.findUnique).not.toHaveBeenCalled();
   });
 
   it('includes unverified courses without coordinates in location-aware searches', async () => {
-    mockedPrisma.$queryRaw.mockResolvedValue([{ id: BigInt(235), distance: null }]);
-    mockedPrisma.course.findUnique.mockResolvedValue({
-      ...courseRow,
-      id: BigInt(235),
-      clubName: 'Tpc Jasna Polana',
-      courseName: 'Tpc Jasna Polana',
-      verified: false,
-      location: {
-        city: 'Princeton',
-        state: 'NJ',
-        country: 'United States',
-        address: '4519 Province Line Rd',
-        latitude: null,
-        longitude: null,
-      },
-    });
+    mockedPrisma.$queryRaw.mockResolvedValue([distanceCourseRow({
+      id: BigInt(235), club_name: 'Tpc Jasna Polana', course_name: 'Tpc Jasna Polana',
+      city: 'Princeton', state: 'NJ', country: 'United States', address: '4519 Province Line Rd',
+    })]);
 
     const response = await GET(new Request(
       'http://localhost/api/courses?search=Jasna&lat=49.8951&lng=-97.1384',
@@ -184,15 +278,11 @@ describe('/api/courses route', () => {
     expect(queryText).toContain('WHEN l.latitude IS NOT NULL AND l.longitude IS NOT NULL');
     expect(queryText).not.toContain('WHERE l.latitude IS NOT NULL');
     expect(queryText).toContain('ORDER BY distance ASC NULLS LAST');
+    expect(mockedPrisma.course.findUnique).not.toHaveBeenCalled();
   });
 
   it('keeps courses without coordinates in the location-aware course list', async () => {
-    mockedPrisma.$queryRaw.mockResolvedValue([{ id: BigInt(235), distance: null }]);
-    mockedPrisma.course.findUnique.mockResolvedValue({
-      ...courseRow,
-      id: BigInt(235),
-      verified: false,
-    });
+    mockedPrisma.$queryRaw.mockResolvedValue([distanceCourseRow({ id: BigInt(235) })]);
 
     const response = await GET(new Request(
       'http://localhost/api/courses?lat=49.8951&lng=-97.1384',
@@ -208,14 +298,11 @@ describe('/api/courses route', () => {
     expect(queryText).toContain('WHEN l.latitude IS NOT NULL AND l.longitude IS NOT NULL');
     expect(queryText).not.toContain('WHERE l.latitude IS NOT NULL');
     expect(queryText).toContain('ORDER BY distance ASC NULLS LAST');
+    expect(mockedPrisma.course.findUnique).not.toHaveBeenCalled();
   });
 
   it('preserves a zero-distance result for location-aware course searches', async () => {
-    mockedPrisma.$queryRaw.mockResolvedValue([{ id: BigInt(101), distance: 0 }]);
-    mockedPrisma.course.findUnique.mockResolvedValue({
-      ...courseRow,
-      id: BigInt(101),
-    });
+    mockedPrisma.$queryRaw.mockResolvedValue([distanceCourseRow({ id: BigInt(101), distance: 0 })]);
 
     const response = await GET(new Request(
       'http://localhost/api/courses?lat=49.8951&lng=-97.1384',
@@ -224,6 +311,7 @@ describe('/api/courses route', () => {
 
     expect(response.status).toBe(200);
     expect(body.courses[0].distance).toBe(0);
+    expect(mockedPrisma.course.findUnique).not.toHaveBeenCalled();
   });
 
   it('returns 403 for non-admin manual course creation', async () => {
