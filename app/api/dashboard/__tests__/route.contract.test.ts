@@ -22,7 +22,7 @@ jest.mock('@/lib/db', () => ({
   prisma: {
     userProfile: { findUnique: jest.fn() },
     friend: { findFirst: jest.fn() },
-    round: { findMany: jest.fn() },
+    round: { findMany: jest.fn(), count: jest.fn() },
     user: { findUnique: jest.fn() },
     roundHole: { findMany: jest.fn() },
   },
@@ -53,7 +53,7 @@ jest.mock('@/lib/socialSafety', () => ({
 type MockPrisma = {
   userProfile: { findUnique: jest.Mock };
   friend: { findFirst: jest.Mock };
-  round: { findMany: jest.Mock };
+  round: { findMany: jest.Mock; count: jest.Mock };
   user: { findUnique: jest.Mock };
   roundHole: { findMany: jest.Mock };
 };
@@ -143,6 +143,7 @@ describe('/api/dashboard route contract', () => {
     mockedPrisma.round.findMany.mockResolvedValue(
       Array.from({ length: 25 }, (_, i) => makeDbRound(i + 1)),
     );
+    mockedPrisma.round.count.mockResolvedValue(25);
     mockedPrisma.user.findUnique.mockResolvedValue({ subscriptionTier: 'free' });
     mockedIsPremiumUser.mockReturnValue(false);
     mockedResolveTeeContext.mockReturnValue({
@@ -353,6 +354,9 @@ describe('/api/dashboard route contract', () => {
     // But free-tier stats are based on capped latest 20 (scores 6..25 => average 15.5).
     expect(body.average_score).toBe(15.5);
     expect(body.all_rounds).toHaveLength(20);
+    expect(body.all_rounds.map((round: { id: number }) => round.id)).toEqual(
+      Array.from({ length: 20 }, (_, index) => 25 - index),
+    );
     expect(body.limitedToLast20).toBe(true);
     expect(body.totalRoundsInDb).toBe(25);
     expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(
@@ -361,8 +365,13 @@ describe('/api/dashboard route contract', () => {
           userId: BigInt(1),
           roundContext: 'real',
         }),
+        orderBy: { date: 'desc' },
+        take: 20,
       }),
     );
+    expect(mockedPrisma.round.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({ userId: BigInt(1), roundContext: 'real' }),
+    });
 
     // Ensure handicap is also computed from the capped set.
     expect(mockedCalculateHandicap).toHaveBeenCalledWith(
@@ -378,6 +387,32 @@ describe('/api/dashboard route contract', () => {
     expect(cappedRoundHoleIds).toContain(BigInt(25));
     expect(cappedRoundHoleIds).toContain(BigInt(6));
     expect(cappedRoundHoleIds).not.toContain(BigInt(5));
+  });
+
+  it('keeps Premium stats and history on all eligible rounds', async () => {
+    mockedIsPremiumUser.mockReturnValue(true);
+
+    const response = await GET(new Request('http://localhost/api/dashboard?statsMode=combined') as any);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(expect.objectContaining({
+      total_rounds: 25,
+      totalRoundsInDb: 25,
+      average_score: 13,
+      isPremium: true,
+      limitedToLast20: false,
+    }));
+    expect(body.all_rounds).toHaveLength(25);
+    expect(body.all_rounds[0].id).toBe(1);
+    expect(body.all_rounds[24].id).toBe(25);
+    expect(mockedPrisma.round.count).not.toHaveBeenCalled();
+    expect(mockedPrisma.round.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ roundContext: 'real' }),
+      orderBy: { date: 'asc' },
+    }));
+    expect(mockedPrisma.round.findMany.mock.calls[0][0]).not.toHaveProperty('take');
+    expect(mockedPrisma.roundHole.findMany.mock.calls[0][0].where.roundId.in).toHaveLength(25);
   });
 
   it('applies the selected date period to the same real-round source used by miss tendencies', async () => {
