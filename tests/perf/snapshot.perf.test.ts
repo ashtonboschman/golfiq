@@ -137,7 +137,22 @@ function shape(id: string, body: any): { count: number; data: Record<string, unk
   }
   if (id.startsWith('leaderboard.')) {
     if (!Array.isArray(body.users)) throw new Error(`${id}: missing users`);
-    return { count: body.users.length, data: { displayed: body.users.length, totalUsers: body.totalUsers } };
+    if (id.startsWith('leaderboard.friends.')) {
+      return { count: body.users.length, data: {
+        displayed: body.users.length,
+        totalUsers: body.totalUsers,
+        firstRank: body.users[0]?.rank ?? null,
+        lastRank: body.users.at(-1)?.rank ?? null,
+        hasMore: body.hasMore,
+      } };
+    }
+    return { count: body.users.length, data: {
+      displayed: body.users.length,
+      totalUsers: body.totalUsers,
+      firstRank: body.users[0]?.rank ?? null,
+      listedLastRank: body.users[49]?.rank ?? null,
+      viewerRank: body.users[50]?.rank ?? null,
+    } };
   }
   if (!Array.isArray(body.all_rounds)) throw new Error(`${id}: missing all_rounds`);
   return {
@@ -296,6 +311,8 @@ test('record real local PostgreSQL query baseline through current route handlers
     { id: 'friends.small', path: '/api/friends/search?q=Small', handler: friendsGet },
     { id: 'friends.search', path: '/api/friends/search?q=PerfFriend', handler: friendsGet },
     { id: 'leaderboard.global', path: '/api/leaderboard?scope=global&limit=25&page=1&sortBy=handicap&sortOrder=asc', handler: leaderboardGet },
+    { id: 'leaderboard.friends.small', path: '/api/leaderboard?scope=friends&limit=5&page=1&sortBy=handicap&sortOrder=asc', handler: leaderboardGet },
+    { id: 'leaderboard.friends.page', path: '/api/leaderboard?scope=friends&limit=25&page=1&sortBy=handicap&sortOrder=asc', handler: leaderboardGet },
     { id: 'dashboard.free', path: '/api/dashboard?statsMode=combined&dateFilter=all', handler: dashboardGet },
   ];
   const scenarios = [];
@@ -321,6 +338,9 @@ test('record real local PostgreSQL query baseline through current route handlers
   const friendSmall = byId.get('friends.small')!;
   const friendBroad = byId.get('friends.search')!;
   const leaderboard = byId.get('leaderboard.global')!;
+  const leaderboardQueries = firstQueries.get('leaderboard.global')!;
+  const friendsSmallLeaderboard = byId.get('leaderboard.friends.small')!;
+  const friendsPageLeaderboard = byId.get('leaderboard.friends.page')!;
   const dashboard = byId.get('dashboard.free')!;
   const courseQueries = firstQueries.get('courses.search')!;
   for (const id of ['courses.list', 'courses.search', 'courses.page2']) {
@@ -347,6 +367,35 @@ test('record real local PostgreSQL query baseline through current route handlers
   expect(friendBroad.payloadBytes).toBe(7_213);
   expect(friendSmall.responseShape.statuses).toEqual({ friend: 5 });
   expect(friendBroad.responseShape.statuses).toEqual({ friend: 5, outgoing: 5, incoming: 5, none: 15 });
+  expect(leaderboard.resultCount).toBe(51);
+  expect(leaderboard.queryCount).toBe(9);
+  expect(leaderboard.payloadBytes).toBe(9_390);
+  expect(leaderboard.responseShape).toEqual({
+    displayed: 51, totalUsers: 81, firstRank: 1, listedLastRank: 50, viewerRank: 51,
+  });
+  expect(leaderboardQueries.filter((query) => query.sql.includes('RANK() OVER'))).toHaveLength(1);
+  expect(leaderboardQueries.filter((query) => query.sql.includes('RANK() OVER'))[0].rowsReturned).toBe(51);
+  expect(leaderboardQueries.filter((query) => query.sql.includes('COUNT(*)')
+    && query.sql.includes('user_leaderboard_stats'))).toHaveLength(1);
+  expect(fixture.counts.friendLinks).toBe(5 + PERF_SCALE.rankedFriends);
+  for (const [scenario, count, rows, bytes] of [
+    [friendsSmallLeaderboard, 5, 59, 999],
+    [friendsPageLeaderboard, 25, 139, 4_642],
+  ] as const) {
+    const queries = firstQueries.get(scenario.id)!;
+    expect(scenario.resultCount).toBe(count);
+    expect(scenario.queryCount).toBe(9);
+    expect(scenario.rowsReturnedBySql).toBe(rows);
+    expect(scenario.payloadBytes).toBe(bytes);
+    expect(scenario.responseShape).toEqual({
+      displayed: count, totalUsers: 31, firstRank: 1, lastRank: count, hasMore: true,
+    });
+    expect(queries.filter((query) => query.sql.includes('FROM "public"."friends"'))).toHaveLength(1);
+    expect(queries.filter((query) => query.sql.includes('RANK() OVER'))).toHaveLength(1);
+    expect(queries.filter((query) => query.sql.includes('RANK() OVER'))[0].rowsReturned).toBe(count);
+    expect(queries.filter((query) => query.sql.includes('COUNT(*)')
+      && query.sql.includes('user_leaderboard_stats'))).toHaveLength(1);
+  }
   const duplicatedCourseBaseReads = courseQueries.filter((query) => query.sql.includes('FROM "public"."courses"')).length >= 2
     && courseQueries.filter((query) => query.sql.includes('FROM "public"."locations"'))
       .reduce((sum, query) => sum + (query.rowsReturned ?? 0), 0) >= course.resultCount * 2;
@@ -355,6 +404,8 @@ test('record real local PostgreSQL query baseline through current route handlers
     friends: friendBroad.queryCount === friendSmall.queryCount ? 'CONFIRMED IMPROVEMENT' : 'CONFIRMED PROBLEM',
     leaderboard: leaderboard.queryCount >= leaderboard.resultCount + 3
       ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
+    friendsLeaderboard: byId.get('leaderboard.friends.page')!.queryCount > byId.get('leaderboard.friends.small')!.queryCount
+      ? 'CONFIRMED FRIENDS LEADERBOARD QUERY PROBLEM' : 'CONFIRMED IMPROVEMENT',
     dashboard: dashboard.relationLoads && dashboard.relationLoads.mainRoundRows > dashboard.resultCount
       ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
   };
@@ -363,7 +414,8 @@ test('record real local PostgreSQL query baseline through current route handlers
     { id: 'courses.search', label: 'tee-holes', match: (query: QueryRecord) => query.sql.includes('FROM "public"."holes"') },
     { id: 'friends.search', label: 'batched-friend-requests', match: (query: QueryRecord) => query.sql.includes('FROM "public"."friend_requests"') },
     { id: 'friends.search', label: 'batched-friendships', match: (query: QueryRecord) => query.sql.includes('FROM "public"."friends"') },
-    { id: 'leaderboard.global', label: 'per-row-rank-count', match: (query: QueryRecord) => query.sql.includes('COUNT(*)') && query.sql.includes('user_leaderboard_stats') },
+    { id: 'leaderboard.global', label: 'global-window-ranks', match: (query: QueryRecord) => query.sql.includes('RANK() OVER') },
+    { id: 'leaderboard.friends.page', label: 'friends-window-ranks', match: (query: QueryRecord) => query.sql.includes('RANK() OVER') },
     { id: 'dashboard.free', label: 'pre-cap-rounds', match: (query: QueryRecord) => query.sql.includes('FROM "public"."rounds"') && query.rowsReturned === PERF_SCALE.realRounds },
   ];
   const plans = [];
@@ -377,7 +429,7 @@ test('record real local PostgreSQL query baseline through current route handlers
     generatedAt: new Date().toISOString(),
     git: { commitSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() },
     runtime: { node: process.version, prisma: packageLock.packages['node_modules/prisma'].version, postgres: identity[0].version.split(' on ')[0] },
-    target: { databaseLabel: 'local-golfiq-test', hostClass: 'loopback', fixtureLabel: 'phase-0.5-synthetic-v1' },
+    target: { databaseLabel: 'local-golfiq-test', hostClass: 'loopback', fixtureLabel: 'phase-0.5-synthetic-v1-plus-ranked-friends' },
     dataset: fixture.counts,
     methodology: {
       path: 'current GET route handlers with real Prisma/PostgreSQL; authentication boundary mocked',
@@ -398,7 +450,42 @@ test('record real local PostgreSQL query baseline through current route handlers
   const output = resolve(process.cwd(), 'perf/results', `snapshot-db-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`);
   writeFileSync(output, `${JSON.stringify(artifact, null, 2)}\n`, { flag: 'wx' });
   console.log(`[perf:snapshot] Wrote ${output}`);
-  expect(scenarios).toHaveLength(7);
+  expect(scenarios).toHaveLength(9);
+});
+
+test('Friends ranks use the friend population across pages and nullable metric sorts', async () => {
+  const fixture = await ensurePerfFixture();
+  (requireAuth as jest.Mock).mockResolvedValue(fixture.viewerId);
+
+  const page = await leaderboardGet(new Request(
+    'http://127.0.0.1/api/leaderboard?scope=friends&limit=5&page=7&sortBy=handicap&sortOrder=asc',
+  ) as any);
+  const pageBody = await page.json();
+  expect(pageBody.users).toEqual([expect.objectContaining({
+    user_id: Number(fixture.viewerId), rank: 31,
+  })]);
+  expect(pageBody.totalUsers).toBe(31);
+  expect(pageBody.hasMore).toBe(false);
+
+  const descending = await leaderboardGet(new Request(
+    'http://127.0.0.1/api/leaderboard?scope=friends&limit=5&sortBy=handicap&sortOrder=desc',
+  ) as any);
+  const descendingBody = await descending.json();
+  expect(descendingBody.users[0]).toEqual(expect.objectContaining({
+    user_id: Number(fixture.viewerId), rank: 1,
+  }));
+  expect(descendingBody.users.at(-1)?.rank).toBe(5);
+
+  for (const sortBy of ['average_score', 'best_score']) {
+    for (const sortOrder of ['asc', 'desc']) {
+      const response = await leaderboardGet(new Request(
+        `http://127.0.0.1/api/leaderboard?scope=friends&limit=5&sortBy=${sortBy}&sortOrder=${sortOrder}`,
+      ) as any);
+      const body = await response.json();
+      expect(body.users).toHaveLength(5);
+      expect(body.users.every((user: { rank: number }) => user.rank === 1)).toBe(true);
+    }
+  }
 });
 
 afterAll(async () => {

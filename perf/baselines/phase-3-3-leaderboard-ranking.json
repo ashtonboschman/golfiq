@@ -1,0 +1,100 @@
+{
+  "phase": "3.3",
+  "scenario": "leaderboard.global",
+  "route": "/api/leaderboard?scope=global&limit=25&page=1&sortBy=handicap&sortOrder=asc",
+  "source": "perf/baselines/phase-0.5-static.json",
+  "method": "Local PostgreSQL 17, deterministic synthetic fixture, current route handler, real Prisma, authentication mocked only; two warmups and five measured iterations per run",
+  "fixtureExtension": "30 accepted friendships from the viewer to existing perf_ranked_001 through perf_ranked_030 users; 35 total friend links, 31 eligible Friends leaderboard rows, no new users or aggregates",
+  "before": {
+    "displayedEntries": 51,
+    "sqlQueries": 59,
+    "rankCountQueries": 51,
+    "sqlRowsReturned": 206,
+    "dbRoundTripProxyMedianMs": [58.109, 66.752],
+    "handlerWallMedianMs": [18.653, 19.074],
+    "payloadBytes": 9390
+  },
+  "beforeQueryFlow": {
+    "blockedUsers": 1,
+    "viewerEntitlementAndProfile": 2,
+    "totalCount": 1,
+    "top50StatsAndUserProfiles": 3,
+    "viewerStats": 1,
+    "perEntryRankCounts": 51
+  },
+  "afterQueryFlow": {
+    "unchangedNonRankQueries": 8,
+    "windowRankQueries": 1,
+    "perEntryRankCounts": 0,
+    "windowRankSqlRowsReturned": 51,
+    "rankedEligibleRowsInPlan": 81,
+    "rankRule": "RANK over the selected metric and direction, with nulls last, after totalRounds > 0, nonnull handicap, and blocked-user filtering; this equals one plus the count of strictly better eligible metric values",
+    "freeViewerRank": "Capped at 51, preserving the existing Free global contract"
+  },
+  "afterRuns": [
+    {
+      "snapshot": "snapshot-db-2026-09-24T15-00-33-025Z.json",
+      "displayedEntries": 51,
+      "sqlQueries": 9,
+      "rankQueries": 1,
+      "rankCountQueries": 0,
+      "sqlRowsReturned": 206,
+      "dbRoundTripProxyMedianMs": 7.097,
+      "handlerWallMedianMs": 10.086,
+      "payloadBytes": 9390,
+      "firstRank": 1,
+      "listedLastRank": 50,
+      "viewerRank": 51,
+      "windowRankPlanExecutionMs": 0.14
+    },
+    {
+      "snapshot": "snapshot-db-2026-09-24T15-00-39-886Z.json",
+      "displayedEntries": 51,
+      "sqlQueries": 9,
+      "rankQueries": 1,
+      "rankCountQueries": 0,
+      "sqlRowsReturned": 206,
+      "dbRoundTripProxyMedianMs": 6.889,
+      "handlerWallMedianMs": 9.921,
+      "payloadBytes": 9390,
+      "firstRank": 1,
+      "listedLastRank": 50,
+      "viewerRank": 51,
+      "windowRankPlanExecutionMs": 0.139
+    }
+  ],
+  "globalPostFriendsRuns": [
+    { "snapshot": "snapshot-db-2026-09-24T16-11-28-431Z.json", "displayedEntries": 51, "sqlQueries": 9, "rankQueries": 1, "perEntryRankCounts": 0, "sqlRowsReturned": 206, "dbRoundTripProxyMedianMs": 7.626, "handlerWallMedianMs": 11.343, "payloadBytes": 9390 },
+    { "snapshot": "snapshot-db-2026-09-24T16-11-36-364Z.json", "displayedEntries": 51, "sqlQueries": 9, "rankQueries": 1, "perEntryRankCounts": 0, "sqlRowsReturned": 206, "dbRoundTripProxyMedianMs": 7.55, "handlerWallMedianMs": 11.284, "payloadBytes": 9390 }
+  ],
+  "friends": {
+    "rankPopulation": "accepted friend rows touching the viewer, plus the viewer, excluding blocked users and requiring totalRounds > 0 and nonnull handicap",
+    "rankRule": "one plus the count of eligible Friends-scope rows with a strictly better selected metric; competition ties, all three metrics and both directions; no Free rank cap or separate viewer append",
+    "beforeQueryFlow": { "blockedUsers": 1, "friendMembership": 1, "viewerEntitlementAndProfile": 2, "totalCount": 1, "pageStatsAndUserProfiles": 3, "perEntryRankCounts": "equal to displayed rows" },
+    "afterQueryFlow": { "unchangedNonRankQueries": 8, "windowRankQueries": 1, "perEntryRankCounts": 0 },
+    "small": {
+      "route": "/api/leaderboard?scope=friends&limit=5&page=1&sortBy=handicap&sortOrder=asc",
+      "before": [
+        { "snapshot": "snapshot-db-2026-09-24T16-06-27-859Z.json", "displayedEntries": 5, "sqlQueries": 13, "perEntryRankCounts": 5, "sqlRowsReturned": 59, "dbRoundTripProxyMedianMs": 10.183, "handlerWallMedianMs": 9.85, "payloadBytes": 999 },
+        { "snapshot": "snapshot-db-2026-09-24T16-06-41-133Z.json", "displayedEntries": 5, "sqlQueries": 13, "perEntryRankCounts": 5, "sqlRowsReturned": 59, "dbRoundTripProxyMedianMs": 10.353, "handlerWallMedianMs": 10.177, "payloadBytes": 999 }
+      ],
+      "after": [
+        { "snapshot": "snapshot-db-2026-09-24T16-11-28-431Z.json", "displayedEntries": 5, "sqlQueries": 9, "rankQueries": 1, "perEntryRankCounts": 0, "sqlRowsReturned": 59, "dbRoundTripProxyMedianMs": 7.063, "handlerWallMedianMs": 9.575, "payloadBytes": 999 },
+        { "snapshot": "snapshot-db-2026-09-24T16-11-36-364Z.json", "displayedEntries": 5, "sqlQueries": 9, "rankQueries": 1, "perEntryRankCounts": 0, "sqlRowsReturned": 59, "dbRoundTripProxyMedianMs": 7.139, "handlerWallMedianMs": 9.85, "payloadBytes": 999 }
+      ]
+    },
+    "representative": {
+      "route": "/api/leaderboard?scope=friends&limit=25&page=1&sortBy=handicap&sortOrder=asc",
+      "before": [
+        { "snapshot": "snapshot-db-2026-09-24T16-06-27-859Z.json", "displayedEntries": 25, "sqlQueries": 33, "perEntryRankCounts": 25, "sqlRowsReturned": 139, "dbRoundTripProxyMedianMs": 44.94, "handlerWallMedianMs": 18.526, "payloadBytes": 4642 },
+        { "snapshot": "snapshot-db-2026-09-24T16-06-41-133Z.json", "displayedEntries": 25, "sqlQueries": 33, "perEntryRankCounts": 25, "sqlRowsReturned": 139, "dbRoundTripProxyMedianMs": 52.831, "handlerWallMedianMs": 18.112, "payloadBytes": 4642 }
+      ],
+      "after": [
+        { "snapshot": "snapshot-db-2026-09-24T16-11-28-431Z.json", "displayedEntries": 25, "sqlQueries": 9, "rankQueries": 1, "perEntryRankCounts": 0, "sqlRowsReturned": 139, "dbRoundTripProxyMedianMs": 7.754, "handlerWallMedianMs": 10.998, "payloadBytes": 4642 },
+        { "snapshot": "snapshot-db-2026-09-24T16-11-36-364Z.json", "displayedEntries": 25, "sqlQueries": 9, "rankQueries": 1, "perEntryRankCounts": 0, "sqlRowsReturned": 139, "dbRoundTripProxyMedianMs": 7.332, "handlerWallMedianMs": 10.489, "payloadBytes": 4642 }
+      ]
+    },
+    "explain": "Local read-only EXPLAIN ANALYZE: one WindowAgg and Sort over 31 eligible Friends rows, returning 25 requested ranks; 0.124 and 0.171 ms execution in repeated runs. No index changes."
+  },
+  "explain": "Local read-only EXPLAIN ANALYZE: WindowAgg and Sort process 81 eligible rows; outer filter returns 51 requested ranks. No index changes."
+}
