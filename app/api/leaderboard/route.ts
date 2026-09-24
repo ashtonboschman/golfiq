@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAuth, errorResponse, successResponse } from '@/lib/api-auth';
 import { isPremiumUser } from '@/lib/subscription';
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
       whereClause.userId = { notIn: blockedUserIds };
     }
 
+    let friendScopeIds: bigint[] | null = null;
     if (scope === 'friends') {
       const friendships = await prisma.friend.findMany({
         where: { OR: [{ userId }, { friendId: userId }] },
@@ -58,9 +60,10 @@ export async function GET(request: NextRequest) {
         f.userId === userId ? f.friendId : f.userId
       );
 
+      friendScopeIds = [...friendIds, userId];
       whereClause.userId = {
         ...whereClause.userId,
-        in: [...friendIds, userId],
+        in: friendScopeIds,
       };
     }
 
@@ -113,40 +116,33 @@ export async function GET(request: NextRequest) {
         take: FREE_GLOBAL_LEADERBOARD_LIMIT,
       });
 
-      const topUsers = await Promise.all(
-        topStats.map(async s => ({
-          rank: await getCompetitionRank(
-            whereClause,
-            sortBy,
-            sortOrder,
-            s,
-            true,
-            FREE_GLOBAL_LEADERBOARD_LIMIT,
-          ),
-          user_id: Number(s.userId),
-          handicap: toApiNumber(s.handicap),
-          average_score: toApiNumber(s.averageToPar),
-          best_score: toApiNumber(s.bestToPar),
-          total_rounds: s.totalRounds,
-          first_name: s.user.profile?.firstName ?? null,
-          last_name: s.user.profile?.lastName ?? null,
-          avatar_url: s.user.profile?.avatarUrl ?? undefined,
-        }))
-      );
-
       const currentStat = await prisma.userLeaderboardStats.findUnique({
         where: { userId },
       });
+      const ranks = await getLeaderboardRanks(
+        [...topStats.map(s => s.userId), ...(currentStat ? [currentStat.userId] : [])],
+        blockedUserIds,
+        null,
+        sortBy,
+        sortOrder,
+      );
+      const topUsers = topStats.map(s => ({
+        rank: ranks.get(s.userId)!,
+        user_id: Number(s.userId),
+        handicap: toApiNumber(s.handicap),
+        average_score: toApiNumber(s.averageToPar),
+        best_score: toApiNumber(s.bestToPar),
+        total_rounds: s.totalRounds,
+        first_name: s.user.profile?.firstName ?? null,
+        last_name: s.user.profile?.lastName ?? null,
+        avatar_url: s.user.profile?.avatarUrl ?? undefined,
+      }));
 
       if (currentStat) {
         const currentUser = {
-          rank: await getCompetitionRank(
-            whereClause,
-            sortBy,
-            sortOrder,
-            currentStat,
-            false,
-            FREE_GLOBAL_LEADERBOARD_LIMIT,
+          rank: Math.min(
+            ranks.get(currentStat.userId) ?? await getCompetitionRank(whereClause, sortBy, sortOrder, currentStat),
+            FREE_GLOBAL_LEADERBOARD_LIMIT + 1,
           ),
           user_id: Number(currentStat.userId),
           handicap: toApiNumber(currentStat.handicap),
@@ -193,9 +189,16 @@ export async function GET(request: NextRequest) {
       skip,
     });
 
+    const ranks = await getLeaderboardRanks(
+      stats.map(s => s.userId),
+      blockedUserIds,
+      friendScopeIds,
+      sortBy,
+      sortOrder,
+    );
     const users = await Promise.all(
       stats.map(async s => ({
-        rank: await getCompetitionRank(whereClause, sortBy, sortOrder, s),
+        rank: ranks.get(s.userId)!,
         user_id: Number(s.userId),
         handicap: toApiNumber(s.handicap),
         average_score: toApiNumber(s.averageToPar),
@@ -246,31 +249,46 @@ function getSortValue(sortBy: SortKey, stat: any) {
   return stat.bestToPar;
 }
 
+async function getLeaderboardRanks(
+  userIds: bigint[],
+  blockedUserIds: bigint[],
+  friendScopeIds: bigint[] | null,
+  sortBy: SortKey,
+  sortOrder: SortOrder,
+): Promise<Map<bigint, number>> {
+  if (userIds.length === 0) return new Map();
+
+  // Prisma cannot window-rank a page without loading all preceding rows. Keep
+  // the ranking work in PostgreSQL and return only the requested user IDs.
+  const column = Prisma.raw({
+    handicap: 'handicap',
+    average_score: 'average_to_par',
+    best_score: 'best_to_par',
+  }[sortBy]);
+  const direction = Prisma.raw(sortOrder === 'asc' ? 'ASC' : 'DESC');
+  const excludeBlocked = blockedUserIds.length
+    ? Prisma.sql`AND user_id NOT IN (${Prisma.join(blockedUserIds)})`
+    : Prisma.empty;
+  const friendScope = friendScopeIds
+    ? Prisma.sql`AND user_id IN (${Prisma.join(friendScopeIds)})`
+    : Prisma.empty;
+  const rows = await prisma.$queryRaw<Array<{ user_id: bigint; rank: bigint }>>`
+    WITH ranked AS (
+      SELECT user_id, RANK() OVER (ORDER BY ${column} ${direction} NULLS LAST) AS rank
+      FROM user_leaderboard_stats
+      WHERE total_rounds > 0 AND handicap IS NOT NULL ${excludeBlocked} ${friendScope}
+    )
+    SELECT user_id, rank FROM ranked WHERE user_id IN (${Prisma.join(userIds)})
+  `;
+  return new Map(rows.map(row => [row.user_id, Number(row.rank)]));
+}
+
 async function getCompetitionRank(
   whereClause: any,
   sortBy: SortKey,
   sortOrder: SortOrder,
   stat: any,
-  isPremiumOrFriend = true,
-  topN = FREE_GLOBAL_LEADERBOARD_LIMIT,
 ) {
-  if (!isPremiumOrFriend) {
-    // For free global users, anything beyond top N shows as topN + 1.
-    const value = getSortValue(sortBy, stat);
-    const column = getSortColumn(sortBy);
-
-    const betterCount = await prisma.userLeaderboardStats.count({
-      where: {
-        ...whereClause,
-        [column]: value === null ? { not: null } : { [sortOrder === 'asc' ? 'lt' : 'gt']: value },
-      },
-    });
-
-    // Cap at top N.
-    return betterCount < topN ? betterCount + 1 : topN + 1;
-  }
-
-  // Premium or friends: exact rank
   const value = getSortValue(sortBy, stat);
   const column = getSortColumn(sortBy);
 

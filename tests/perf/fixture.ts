@@ -7,6 +7,7 @@ export const PERF_SCALE = Object.freeze({
   friendCandidates: 31,
   searchableFriends: 30,
   rankedUsers: 80,
+  rankedFriends: 30,
   realRounds: 60,
   simulatorRounds: 10,
   roundHolesPerRealRound: 18,
@@ -65,7 +66,13 @@ export async function ensurePerfFixture() {
     });
     const friendId = (index: number) => byName.get(`perf_friend_${String(index).padStart(2, '0')}`)!;
     await prisma.friend.createMany({
-      data: Array.from({ length: 5 }, (_, i) => ({ userId: viewerId, friendId: friendId(i + 1) })),
+      data: [
+        ...Array.from({ length: 5 }, (_, i) => ({ userId: viewerId, friendId: friendId(i + 1) })),
+        ...Array.from({ length: PERF_SCALE.rankedFriends }, (_, i) => ({
+          userId: viewerId,
+          friendId: byName.get(`perf_ranked_${String(i + 1).padStart(3, '0')}`)!,
+        })),
+      ],
     });
     await prisma.friendRequest.createMany({
       data: [
@@ -162,7 +169,7 @@ export async function ensurePerfFixture() {
     courses: PERF_SCALE.courses,
     tees: PERF_SCALE.courses * PERF_SCALE.teesPerCourse,
     holes: PERF_SCALE.courses * PERF_SCALE.holesPerCourse,
-    friendLinks: 5,
+    friendLinks: 5 + PERF_SCALE.rankedFriends,
     friendRequests: 10,
     blocks: 1,
     realRounds: PERF_SCALE.realRounds,
