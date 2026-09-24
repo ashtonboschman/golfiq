@@ -25,7 +25,8 @@
     "test:db": "node --env-file=./db-test.env scripts/db-test.mjs test",
     "verify:fast": "node scripts/verify-fast.mjs",
     "verify:full": "prisma generate && prisma validate && npm run lint && npm run typecheck && npm run test:ci && npm run build",
-    "perf:snapshot": "node scripts/perf/snapshot.mjs"
+    "perf:snapshot": "node scripts/perf/snapshot.mjs",
+    "perf:snapshot:db": "node --env-file=./db-test.env scripts/perf/snapshot.mjs --local-db"
   },
   "dependencies": {
     "@capacitor/cli": "^8.4.2",
