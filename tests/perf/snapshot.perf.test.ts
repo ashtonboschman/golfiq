@@ -166,7 +166,7 @@ async function invoke(id: string, path: string, handler: (request: any) => Promi
   const queries: QueryRecord[] = [];
   let roundSpy: jest.SpyInstance | undefined;
   let holeSpy: jest.SpyInstance | undefined;
-  if (id === 'dashboard.free') {
+  if (id.startsWith('dashboard.')) {
     roundSpy = jest.spyOn(prisma.round, 'findMany');
     holeSpy = jest.spyOn(prisma.roundHole, 'findMany');
   }
@@ -192,6 +192,7 @@ async function invoke(id: string, path: string, handler: (request: any) => Promi
     const selectedHoles = holeCall ? await holeCall.value : [];
     relationLoads = {
       mainRoundRows: mainRows.length,
+      nestedTeeObjects: mainRows.filter((row: any) => row.tee != null).length,
       nestedTeeHoleObjects: mainRows.reduce((sum: number, row: any) => sum + (row.tee?.holes?.length ?? 0), 0),
       postCapRoundHoleRows: selectedHoles.length,
     };
@@ -246,6 +247,13 @@ function summarizeScenario(id: string, path: string, samples: Sample[]) {
     responseShape: first.responseShape,
     relationLoads: first.relationLoads ?? null,
     queryPatterns: queryPatterns(first.queries).slice(0, 8),
+    ...(id.startsWith('dashboard.') ? {
+      queryBreakdown: first.queries.map((query) => ({
+        statementSha256: createHash('sha256').update(query.sql.replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 16),
+        rowsReturned: query.rowsReturned,
+        sqlShape: query.sql.replace(/\s+/g, ' ').trim().slice(0, 450),
+      })),
+    } : {}),
   };
 }
 
@@ -314,19 +322,29 @@ test('record real local PostgreSQL query baseline through current route handlers
     { id: 'leaderboard.friends.small', path: '/api/leaderboard?scope=friends&limit=5&page=1&sortBy=handicap&sortOrder=asc', handler: leaderboardGet },
     { id: 'leaderboard.friends.page', path: '/api/leaderboard?scope=friends&limit=25&page=1&sortBy=handicap&sortOrder=asc', handler: leaderboardGet },
     { id: 'dashboard.free', path: '/api/dashboard?statsMode=combined&dateFilter=all', handler: dashboardGet },
+    { id: 'dashboard.premium', path: '/api/dashboard?statsMode=combined&dateFilter=all', handler: dashboardGet },
   ];
   const scenarios = [];
   const firstQueries = new Map<string, QueryRecord[]>();
   try {
     for (const definition of definitions) {
-      await invoke(definition.id, definition.path, definition.handler);
-      await invoke(definition.id, definition.path, definition.handler);
-      const samples = [];
-      for (let iteration = 0; iteration < 5; iteration += 1) {
-        samples.push(await invoke(definition.id, definition.path, definition.handler));
+      if (definition.id === 'dashboard.premium') {
+        await prisma.user.update({ where: { id: fixture.viewerId }, data: { subscriptionTier: 'premium' } });
       }
-      firstQueries.set(definition.id, samples[0].queries);
-      scenarios.push(summarizeScenario(definition.id, definition.path, samples));
+      try {
+        await invoke(definition.id, definition.path, definition.handler);
+        await invoke(definition.id, definition.path, definition.handler);
+        const samples = [];
+        for (let iteration = 0; iteration < 5; iteration += 1) {
+          samples.push(await invoke(definition.id, definition.path, definition.handler));
+        }
+        firstQueries.set(definition.id, samples[0].queries);
+        scenarios.push(summarizeScenario(definition.id, definition.path, samples));
+      } finally {
+        if (definition.id === 'dashboard.premium') {
+          await prisma.user.update({ where: { id: fixture.viewerId }, data: { subscriptionTier: 'free' } });
+        }
+      }
     }
   } finally {
     activeQueries = null;
@@ -342,6 +360,7 @@ test('record real local PostgreSQL query baseline through current route handlers
   const friendsSmallLeaderboard = byId.get('leaderboard.friends.small')!;
   const friendsPageLeaderboard = byId.get('leaderboard.friends.page')!;
   const dashboard = byId.get('dashboard.free')!;
+  const premiumDashboard = byId.get('dashboard.premium')!;
   const courseQueries = firstQueries.get('courses.search')!;
   for (const id of ['courses.list', 'courses.search', 'courses.page2']) {
     const scenario = byId.get(id)!;
@@ -378,6 +397,22 @@ test('record real local PostgreSQL query baseline through current route handlers
   expect(leaderboardQueries.filter((query) => query.sql.includes('COUNT(*)')
     && query.sql.includes('user_leaderboard_stats'))).toHaveLength(1);
   expect(fixture.counts.friendLinks).toBe(5 + PERF_SCALE.rankedFriends);
+  expect(dashboard.resultCount).toBe(20);
+  expect(dashboard.responseShape).toEqual({ displayed: 20, totalRoundsInDb: 60, tier: 'free' });
+  expect(dashboard.relationLoads).toEqual({
+    mainRoundRows: 20, nestedTeeObjects: 20, nestedTeeHoleObjects: 360, postCapRoundHoleRows: 360,
+  });
+  expect(dashboard.queryCount).toBe(14);
+  expect(dashboard.rowsReturnedBySql).toBe(443);
+  expect(dashboard.payloadBytes).toBe(11_350);
+  expect(premiumDashboard.resultCount).toBe(60);
+  expect(premiumDashboard.responseShape).toEqual({ displayed: 60, totalRoundsInDb: 60, tier: 'premium' });
+  expect(premiumDashboard.relationLoads).toEqual({
+    mainRoundRows: 60, nestedTeeObjects: 60, nestedTeeHoleObjects: 1080, postCapRoundHoleRows: 1080,
+  });
+  expect(premiumDashboard.queryCount).toBe(13);
+  expect(firstQueries.get('dashboard.free')!.filter((query) => query.sql.includes('FROM "public"."rounds"')
+    && query.sql.includes('"course_id"'))[0].rowsReturned).toBe(20);
   for (const [scenario, count, rows, bytes] of [
     [friendsSmallLeaderboard, 5, 59, 999],
     [friendsPageLeaderboard, 25, 139, 4_642],
@@ -406,8 +441,8 @@ test('record real local PostgreSQL query baseline through current route handlers
       ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
     friendsLeaderboard: byId.get('leaderboard.friends.page')!.queryCount > byId.get('leaderboard.friends.small')!.queryCount
       ? 'CONFIRMED FRIENDS LEADERBOARD QUERY PROBLEM' : 'CONFIRMED IMPROVEMENT',
-    dashboard: dashboard.relationLoads && dashboard.relationLoads.mainRoundRows > dashboard.resultCount
-      ? 'CONFIRMED PROBLEM' : 'LIKELY NEEDS MEASUREMENT AT LARGER SCALE',
+    dashboard: dashboard.relationLoads && dashboard.relationLoads.mainRoundRows === dashboard.resultCount
+      ? 'CONFIRMED IMPROVEMENT' : 'CONFIRMED PROBLEM',
   };
   const planTargets = [
     { id: 'courses.search', label: 'course-page', match: (query: QueryRecord) => query.sql.includes('FROM "public"."courses"') },
@@ -416,7 +451,10 @@ test('record real local PostgreSQL query baseline through current route handlers
     { id: 'friends.search', label: 'batched-friendships', match: (query: QueryRecord) => query.sql.includes('FROM "public"."friends"') },
     { id: 'leaderboard.global', label: 'global-window-ranks', match: (query: QueryRecord) => query.sql.includes('RANK() OVER') },
     { id: 'leaderboard.friends.page', label: 'friends-window-ranks', match: (query: QueryRecord) => query.sql.includes('RANK() OVER') },
-    { id: 'dashboard.free', label: 'pre-cap-rounds', match: (query: QueryRecord) => query.sql.includes('FROM "public"."rounds"') && query.rowsReturned === PERF_SCALE.realRounds },
+    { id: 'dashboard.free', label: 'real-round-count', match: (query: QueryRecord) => query.sql.includes('COUNT(*)') && query.sql.includes('FROM "public"."rounds"') },
+    { id: 'dashboard.free', label: 'bounded-display-rounds', match: (query: QueryRecord) => query.sql.includes('FROM "public"."rounds"') && query.sql.includes('"course_id"') && query.rowsReturned === 20 },
+    { id: 'dashboard.free', label: 'bounded-round-holes', match: (query: QueryRecord) => query.sql.includes('FROM "public"."round_holes"') },
+    { id: 'dashboard.free', label: 'visible-tee-holes', match: (query: QueryRecord) => query.sql.includes('FROM "public"."holes"') && query.sql.includes('"tee_id"') },
   ];
   const plans = [];
   for (const target of planTargets) {
@@ -450,7 +488,7 @@ test('record real local PostgreSQL query baseline through current route handlers
   const output = resolve(process.cwd(), 'perf/results', `snapshot-db-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}.json`);
   writeFileSync(output, `${JSON.stringify(artifact, null, 2)}\n`, { flag: 'wx' });
   console.log(`[perf:snapshot] Wrote ${output}`);
-  expect(scenarios).toHaveLength(9);
+  expect(scenarios).toHaveLength(10);
 });
 
 test('Friends ranks use the friend population across pages and nullable metric sorts', async () => {

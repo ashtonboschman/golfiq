@@ -1,0 +1,80 @@
+{
+  "phase": "3.4",
+  "scenario": "dashboard.free",
+  "route": "/api/dashboard?statsMode=combined&dateFilter=all",
+  "startingMainSha": "34fcdfb20d4a9f8e807afd04768934f7e745aeee",
+  "method": "Local PostgreSQL 17, existing deterministic Phase 0.5 fixture, real Prisma and current route handler, authentication mocked only; two warmups and five measured iterations per run",
+  "fixture": { "realRounds": 60, "simulatorRounds": 10, "roundHolesPerRealRound": 18 },
+  "semantics": {
+    "freeCombinedDisplayAndCalculations": "Newest 20 eligible real rounds; total_rounds, totalRoundsInDb, and limitedToLast20 use the full filtered real-round count",
+    "freeNineAndEighteen": "Existing resolver-based mode filtering and in-memory latest-20 cap remain unchanged",
+    "premium": "All filtered real rounds for display and calculations; no Free cap",
+    "roundContext": "Only real rounds enter Dashboard aggregation and Round Focus; simulator and practice are excluded"
+  },
+  "beforeQueryRoles": [
+    "1 owner profile and visibility (1 row)",
+    "2 Round Focus candidate rounds (20 rows)",
+    "3 candidate strokes-gained relation (0 rows)",
+    "4 latest stored round insight (0 rows)",
+    "5 Round Focus viewer entitlement (1 row)",
+    "6 main real rounds before Free cap (60 rows)",
+    "7 courses for main rounds (1 row)",
+    "8 tees for main rounds (1 SQL row, attached to 60 round objects)",
+    "9 course locations (1 row)",
+    "10 tee holes (18 SQL rows, attached as 1080 nested objects)",
+    "11 Dashboard owner subscription tier (1 row)",
+    "12 RoundHole rows for capped rounds (360 rows)",
+    "13 par data for RoundHole holes (18 rows)"
+  ],
+  "afterQueryRoles": [
+    "1 owner profile and visibility (1 row)",
+    "2 Round Focus candidate rounds (20 rows)",
+    "3 candidate strokes-gained relation (0 rows)",
+    "4 latest stored round insight (0 rows)",
+    "5 Round Focus viewer entitlement (1 row)",
+    "6 Dashboard owner subscription tier (1 row)",
+    "7 filtered real-round count (1 aggregate row for 60 rounds)",
+    "8 bounded newest main real rounds (20 rows)",
+    "9 tees for visible rounds (1 SQL row, attached to 20 round objects)",
+    "10 courses for visible rounds (1 row)",
+    "11 tee holes (18 SQL rows, attached as 360 nested objects)",
+    "12 course locations (1 row)",
+    "13 RoundHole rows for visible rounds (360 rows)",
+    "14 par data for RoundHole holes (18 rows)"
+  ],
+  "before": {
+    "authoritativeProxyMedianMs": [12.209, 11.993],
+    "authoritativeWallMedianMs": [29.618, 29.169],
+    "sameSessionSnapshot": "snapshot-db-2026-09-24T16-34-19-525Z.json",
+    "sameSessionProxyMedianMs": 15.112,
+    "sameSessionWallMedianMs": 39.067,
+    "displayedRounds": 20,
+    "rootRoundRows": 60,
+    "teeSqlRows": 1,
+    "nestedTeeObjects": 60,
+    "teeHoleSqlRows": 18,
+    "nestedTeeHoleObjects": 1080,
+    "roundHoleRows": 360,
+    "roundHoleParRows": 18,
+    "courseRows": 1,
+    "locationRows": 1,
+    "focusCandidateRows": 20,
+    "totalSqlRowsReturned": 482,
+    "sqlQueries": 13,
+    "payloadBytes": 11350
+  },
+  "afterRuns": [
+    { "snapshot": "snapshot-db-2026-09-24T16-40-02-396Z.json", "displayedRounds": 20, "rootRoundRows": 20, "teeSqlRows": 1, "nestedTeeObjects": 20, "teeHoleSqlRows": 18, "nestedTeeHoleObjects": 360, "roundHoleRows": 360, "roundHoleParRows": 18, "courseRows": 1, "locationRows": 1, "focusCandidateRows": 20, "totalSqlRowsReturned": 443, "sqlQueries": 14, "dbRoundTripProxyMedianMs": 13.551, "handlerWallMedianMs": 25.454, "payloadBytes": 11350 },
+    { "snapshot": "snapshot-db-2026-09-24T16-40-09-231Z.json", "displayedRounds": 20, "rootRoundRows": 20, "teeSqlRows": 1, "nestedTeeObjects": 20, "teeHoleSqlRows": 18, "nestedTeeHoleObjects": 360, "roundHoleRows": 360, "roundHoleParRows": 18, "courseRows": 1, "locationRows": 1, "focusCandidateRows": 20, "totalSqlRowsReturned": 443, "sqlQueries": 14, "dbRoundTripProxyMedianMs": 13.277, "handlerWallMedianMs": 24.868, "payloadBytes": 11350 }
+  ],
+  "premiumRegressionRuns": [
+    { "snapshot": "snapshot-db-2026-09-24T16-40-02-396Z.json", "displayedRounds": 60, "rootRoundRows": 60, "nestedTeeHoleObjects": 1080, "roundHoleRows": 1080, "totalSqlRowsReturned": 1202, "sqlQueries": 13, "payloadBytes": 30431 },
+    { "snapshot": "snapshot-db-2026-09-24T16-40-09-231Z.json", "displayedRounds": 60, "rootRoundRows": 60, "nestedTeeHoleObjects": 1080, "roundHoleRows": 1080, "totalSqlRowsReturned": 1202, "sqlQueries": 13, "payloadBytes": 30431 }
+  ],
+  "explainAnalyze": {
+    "roundCount": "Aggregate returns one row after scanning 60 matching rounds",
+    "displayRounds": "Limit returns 20 rows above top-N date sort; 60 eligible rows scanned; no index change inferred from synthetic fixture",
+    "roundHoles": "Existing idx_round_id index scan returns 360 rows for the 20 visible round IDs",
+    "teeHoles": "Existing idx_hole_tee_id index scan returns 18 rows for the visible tee ID"
+  }
+}

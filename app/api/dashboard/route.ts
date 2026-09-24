@@ -172,14 +172,22 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // Fetch all rounds with course, tee, and location data
+    // Free combined stats use only the latest 20 rounds; the older rounds are needed only for the count.
+    const user = await prisma.user.findUnique({
+      where: { id: requestedUserId },
+      select: { subscriptionTier: true },
+    });
+    const isPremium = user ? isPremiumUser(user) : false;
+    const isFreeCombined = !isPremium && statsMode === 'combined';
+    const roundWhere = {
+      userId: requestedUserId,
+      roundContext: 'real' as const,
+      ...(dateFrom && dateTo && { date: { gte: dateFrom, lte: dateTo } }),
+      ...(dateFrom && !dateTo && { date: { gte: dateFrom } }),
+    };
+    const totalRealRounds = isFreeCombined ? await prisma.round.count({ where: roundWhere }) : null;
     const rounds = await prisma.round.findMany({
-      where: {
-        userId: requestedUserId,
-        roundContext: 'real',
-        ...(dateFrom && dateTo && { date: { gte: dateFrom, lte: dateTo } }),
-        ...(dateFrom && !dateTo && { date: { gte: dateFrom } }),
-      },
+      where: roundWhere,
       include: {
         course: {
           include: {
@@ -192,7 +200,8 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { date: 'asc' },
+      orderBy: { date: isFreeCombined ? 'desc' : 'asc' },
+      ...(isFreeCombined && { take: 20 }),
     });
 
     if (!rounds.length) {
@@ -222,13 +231,6 @@ export async function GET(request: NextRequest) {
         roundFocus,
       });
     }
-
-    // Check subscription tier and apply 20-round limit for free users
-    const user = await prisma.user.findUnique({
-      where: { id: requestedUserId },
-      select: { subscriptionTier: true },
-    });
-    const isPremium = user ? isPremiumUser(user) : false;
 
     // Transform rounds to format expected by handicap utils via resolveTeeContext
     const allRoundsUncapped = rounds.map((r: any) => {
@@ -277,7 +279,7 @@ export async function GET(request: NextRequest) {
       acc.set(String(round.id), round.holes);
       return acc;
     }, new Map<string, number>());
-    const totalRounds = modeRoundsUncapped.length;
+    const totalRounds = totalRealRounds ?? modeRoundsUncapped.length;
      // Free users: limit to last 20 rounds (most recent)
     let roundsForStats = modeRoundsUncapped;
     if (!isPremium) {
@@ -298,7 +300,7 @@ export async function GET(request: NextRequest) {
       return successResponse({
         message: '',
         total_rounds: 0,
-        totalRoundsInDb: rounds.length,
+        totalRoundsInDb: totalRealRounds ?? rounds.length,
         best_score: null,
         worst_score: null,
         average_score: null,
@@ -621,8 +623,8 @@ export async function GET(request: NextRequest) {
       scoring_profile,
       miss_tendencies,
       isPremium,
-      limitedToLast20: !isPremium && rounds.length > 20,
-      totalRoundsInDb: rounds.length,
+      limitedToLast20: !isPremium && (totalRealRounds ?? rounds.length) > 20,
+      totalRoundsInDb: totalRealRounds ?? rounds.length,
       user: {
         first_name: profile.firstName,
         last_name: profile.lastName,
